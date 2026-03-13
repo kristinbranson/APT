@@ -47,7 +47,7 @@ classdef LabelCoreTemplateController < LabelCoreController
       ] ;
 
       % LabelCore should probably not talk directly to tracker
-      tObj = mdl.labeler_.tracker ;
+      tObj = obj.labeler_.tracker ;
       if ~isempty(tObj) && ~tObj.hideViz
         warningNoTrace('LabelCoreTemplate:viz', ...
           'Enabling View>Hide Predictions. Tracking predictions (when present) are now shown as template points in Template Mode.') ;
@@ -97,7 +97,7 @@ classdef LabelCoreTemplateController < LabelCoreController
     function axBDF(obj, src, evt) %#ok<INUSL>
       % Handle axis button-down: jump selected point to click location.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -133,7 +133,7 @@ classdef LabelCoreTemplateController < LabelCoreController
     function ptBDF(obj, src, evt)
       % Handle point button-down: select point or toggle est-occ.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -157,7 +157,7 @@ classdef LabelCoreTemplateController < LabelCoreController
     function wbmf(obj, src, evt)  %#ok<INUSD>
       % Handle window button motion: drag selected point.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
 
@@ -178,7 +178,7 @@ classdef LabelCoreTemplateController < LabelCoreController
     function wbuf(obj, ~, ~)
       % Handle window button up: end drag, handle click-without-move.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
 
@@ -201,7 +201,7 @@ classdef LabelCoreTemplateController < LabelCoreController
     function tfKPused = kpf(obj, src, evt)
       % Handle key press: accept, frame nav, arrow-adjust, point select.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         tfKPused = false ;
         return ;
       end
@@ -299,7 +299,7 @@ classdef LabelCoreTemplateController < LabelCoreController
       % Handle occluded-axis button-down.
       % Note: currently occluded axis hidden so this should be uncalled.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
       if obj.isPanZoom()
@@ -544,13 +544,13 @@ classdef LabelCoreTemplateController < LabelCoreController
 
       shortcuts{end+1, 1} = ...
         sprintf('If kpt selected, move left by %.1f px, ow go to next %s', ...
-                10*rightpx, mdl.labeler_.movieShiftArrowNavMode.prettyStr) ;
+                10*rightpx, obj.labeler_.movieShiftArrowNavMode.prettyStr) ;
       shortcuts{end, 2} = 'Left arrow' ;
       shortcuts{end, 3} = {'Shift'} ;
 
       shortcuts{end+1, 1} = ...
         sprintf('If kpt selected, move right by %.1f px, ow go to previous %s', ...
-                10*rightpx, mdl.labeler_.movieShiftArrowNavMode.prettyStr) ;
+                10*rightpx, obj.labeler_.movieShiftArrowNavMode.prettyStr) ;
       shortcuts{end, 2} = 'Right arrow' ;
       shortcuts{end, 3} = {'Shift'} ;
 

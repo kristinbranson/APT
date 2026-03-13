@@ -124,10 +124,10 @@ classdef LabelCoreController < handle
 
       set(gdata.tbAccept, 'Enable', 'on') ;
       set(gdata.pbClear, 'Enable', 'on') ;
-      mdl.labeler_.currImHudModel.hasLblPt = false ;
-      mdl.labeler_.notify('updateHudReadoutFields') ;
+      obj.labeler_.currImHudModel.hasLblPt = false ;
+      obj.labeler_.notify('updateHudReadoutFields') ;
 
-      if mdl.labeler_.showOccludedBox
+      if obj.labeler_.showOccludedBox
         obj.showOcc() ;
       end
 
@@ -235,7 +235,7 @@ classdef LabelCoreController < handle
 
     function pnlBDF(obj, src, evt)
       % Panel button-down handler: forward clicks within axis bounds to axBDF.
-      if ~obj.model_.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
       tmp = get(obj.hAx_(1), 'CurrentPoint') ;
@@ -395,7 +395,7 @@ classdef LabelCoreController < handle
 
       if nOcc > 0
         if isempty(obj.hPtsOcc_)
-          mdl.labeler_.setShowOccludedBox(true) ;
+          obj.labeler_.setShowOccludedBox(true) ;
           obj.showOcc() ;
           return ;
         end
@@ -476,7 +476,7 @@ classdef LabelCoreController < handle
       if isempty(obj.hSkel_)
         return ;
       end
-      if obj.model_.labeler_.showSkeleton && ~obj.model_.hideLabels_
+      if obj.labeler_.showSkeleton && ~obj.model_.hideLabels_
         [obj.hSkel_.Visible] = deal('on') ;
       else
         [obj.hSkel_.Visible] = deal('off') ;
@@ -535,7 +535,7 @@ classdef LabelCoreController < handle
 
     function skeletonCosmeticsUpdated(obj)
       % Refresh skeleton edge cosmetics from labeler.
-      lObj = obj.model_.labeler_ ;
+      lObj = obj.labeler_ ;
       ppi = lObj.labelPointsPlotInfo ;
       obj.model_.ptsPlotInfo_.SkeletonProps = ppi.SkeletonProps ;
       set(obj.hSkel_, ppi.SkeletonProps) ;
@@ -565,13 +565,13 @@ classdef LabelCoreController < handle
 
     function setPtsCoords(obj, xy, hPts, hTxt) 
       % Set coordinates for point and text handles.
-      txtOffset = obj.model_.labeler_.labelPointsPlotInfo.TextOffset ;
+      txtOffset = obj.labeler_.labelPointsPlotInfo.TextOffset ;
       setPositionsOfLabelLinesAndTextsBangBang(hPts, hTxt, xy, txtOffset) ;
     end  % function
 
     function redrawTextLabels(obj)
       % Redraw text labels (e.g. when text offset is updated).
-      txtOffset = obj.model_.labeler_.labelPointsPlotInfo.TextOffset ;
+      txtOffset = obj.labeler_.labelPointsPlotInfo.TextOffset ;
       h = obj.hPts_ ;
       hT = obj.hPtsTxt_ ;
       x = get(h, 'XData') ;

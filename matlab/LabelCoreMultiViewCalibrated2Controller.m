@@ -102,8 +102,8 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       obj.txLblCoreAux_.Visible = 'on' ;
       obj.refreshHotkeyDesc() ;
 
-      mdl.labeler_.currImHudModel.hasLblPt = true ;
-      mdl.labeler_.notify('updateHudReadoutFields') ;
+      obj.labeler_.currImHudModel.hasLblPt = true ;
+      obj.labeler_.notify('updateHudReadoutFields') ;
 
       % Set up axis BDFs for multi-view
       for iView = 1:mdl.nView
@@ -174,7 +174,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       % Rebuild skeleton edge handles for multi-view.
       mdl = obj.model_ ;
 
-      if isempty(mdl.iSet2iPt_) || isempty(mdl.labeler_.skeletonEdges)
+      if isempty(mdl.iSet2iPt_) || isempty(obj.labeler_.skeletonEdges)
         return ;
       end
 
@@ -186,7 +186,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       nEdgesPerView = size(edges, 1) / mdl.nView ;
       obj.hSkel_ = gobjects(size(edges, 1), 1) ;
       for ivw = 1:mdl.nView
-        for i = 1:size(mdl.labeler_.skeletonEdges, 1)
+        for i = 1:size(obj.labeler_.skeletonEdges, 1)
           iEdge = (ivw - 1)*nEdgesPerView + i ;
           obj.hSkel_(iEdge) = LabelCoreController.initSkeletonEdge(ax(ivw), iEdge, ptsPlotInfo) ;
         end
@@ -314,7 +314,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       % Handle axis button-down: identify which axis, jump working set
       % point to click location.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
 
@@ -364,7 +364,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function axOccBDF(obj, src, evt) %#ok<INUSD>
       % Handle occluded-axis button-down.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
 
@@ -384,7 +384,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function ptBDF(obj, src, evt)
       % Handle point button-down: initiate drag or toggle est-occ.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
       ax = get(src, 'Parent') ;
@@ -408,7 +408,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function wbmf(obj, src, evt) %#ok<INUSD>
       % Handle window button motion: drag point.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
 
@@ -435,7 +435,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function wbuf(obj, src, evt) %#ok<INUSD>
       % Handle window button up: end drag.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
 
@@ -450,7 +450,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function tfKPused = kpf(obj, src, evt)
       % Handle key press: accept, frame nav, arrow-adjust, working set select.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         tfKPused = false ;
         return ;
       end
@@ -486,7 +486,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       elseif strcmp(key, 'u') && ~tfCtrl
         iAx = find(gcf == obj.hFig_) ;
         iWS = mdl.iSetWorking_ ;
-        if isscalar(iAx) && ~isnan(iWS) && mdl.labeler_.showOccludedBox
+        if isscalar(iAx) && ~isnan(iWS) && obj.labeler_.showOccludedBox
           iPt = mdl.iSet2iPt_(iWS, iAx) ;
           obj.setPtFullOcc_(iPt) ;
         end
@@ -954,13 +954,13 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       mdl = obj.model_ ;
       shortcuts{end+1, 1} = ...
         sprintf('If kpt selected, move left by 1/%.1fth of axis size ow go to next %s', DXFACBIG, ...
-          mdl.labeler_.movieShiftArrowNavMode.prettyStr) ;
+          obj.labeler_.movieShiftArrowNavMode.prettyStr) ;
       shortcuts{end, 2} = 'Left arrow' ;
       shortcuts{end, 3} = {'Shift'} ;
 
       shortcuts{end+1, 1} = ...
         sprintf('If kpt selected, move right by 1/%.1fth of axis size, ow go to previous %s', DXFACBIG, ...
-          mdl.labeler_.movieShiftArrowNavMode.prettyStr) ;
+          obj.labeler_.movieShiftArrowNavMode.prettyStr) ;
       shortcuts{end, 2} = 'Right arrow' ;
       shortcuts{end, 3} = {'Shift'} ;
 

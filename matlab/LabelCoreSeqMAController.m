@@ -41,7 +41,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % ROI drawer, two-click handles, and model event listeners.
 
       mdl = obj.model_ ;
-      lObj = mdl.labeler_ ;
+      lObj = obj.labeler_ ;
 
       obj.roiAddButtons() ;
       obj.addMAbuttons() ;
@@ -56,7 +56,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       obj.tv_.initAndUpdateSkeletonEdges(se) ;
 
       % And this
-      tf = obj.model_.labeler_.showSkeleton ;
+      tf = obj.labeler_.showSkeleton ;
       obj.tv_.setShowSkeleton(tf) ;
       
       obj.roiInit() ;
@@ -108,7 +108,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Sync track visualization and ROI to new frame/target data.
 
       mdl = obj.model_ ;
-      lObj = mdl.labeler_ ;
+      lObj = obj.labeler_ ;
       iFrm = lObj.currFrame ;
 
       % Update all MA track results
@@ -131,7 +131,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Respond to acceptLabels: update tv for current target, restore hittest.
 
       mdl = obj.model_ ;
-      lObj = mdl.labeler_ ;
+      lObj = obj.labeler_ ;
       [xy, tfeo] = mdl.getLabelCoords(nan) ; % use nan for fully-occed so ROIs are drawn correctly
       iTgt = lObj.currTarget ;
       obj.tv_.updateTrackResI(xy, tfeo, iTgt) ;
@@ -190,7 +190,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Handle axis button-down: place next point, two-click, or relocate.
 
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -213,7 +213,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
             mdl.relocatePoint(iSel, pos, tfShift) ;
             % Update tv for this target
             [xy, tfeo] = mdl.getLabelCoords(nan) ;
-            iTgt = mdl.labeler_.currTarget ;
+            iTgt = obj.labeler_.currTarget ;
             obj.tv_.updateTrackResI(xy, tfeo, iTgt) ;
           end
         otherwise
@@ -226,7 +226,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Handle occluded-axis button-down.
 
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
       if obj.isPanZoom()
@@ -245,7 +245,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
             mdl.occludeSelectedPoint(iSel) ;
             % Update tv for this target
             [xy, tfeo] = mdl.getLabelCoords(nan) ;
-            iTgt = mdl.labeler_.currTarget ;
+            iTgt = obj.labeler_.currTarget ;
             obj.tv_.updateTrackResI(xy, tfeo, iTgt) ;
           end
         otherwise
@@ -258,7 +258,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Handle point button-down: select point and possibly start drag.
 
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -266,7 +266,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       end
 
       tf = mdl.anyPointSelected() ;
-      mdl.labeler_.unsetdrag() ;
+      obj.labeler_.unsetdrag() ;
       iPt = get(src, 'UserData') ;
       mdl.toggleSelectPoint(iPt) ;
       if tf
@@ -289,7 +289,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Bypasses event system for responsiveness during continuous drag.
 
       mdl = obj.model_ ;
-      if isempty(mdl.state_) || ~mdl.labeler_.isReady
+      if isempty(mdl.state_) || ~obj.labeler_.isReady
         return ;
       end
       if mdl.state_ == LabelState.ACCEPTED
@@ -308,7 +308,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Handle window button up: end drag, persist labels.
 
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
 
@@ -321,7 +321,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
         mdl.iPtMove_ = nan ;
         mdl.storeLabels() ;
         [xy, tfeo] = mdl.getLabelCoords() ;
-        iTgt = mdl.labeler_.currTarget ;
+        iTgt = obj.labeler_.currTarget ;
         obj.tv_.updateTrackResI(xy, tfeo, iTgt) ;
       end
     end  % function
@@ -330,7 +330,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Handle key press.
 
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         tfKPused = false ;
         return ;
       end
@@ -341,7 +341,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       tfShft = any(strcmp('shift', modifier)) ;
 
       tfKPused = true ;
-      lObj = mdl.labeler_ ;
+      lObj = obj.labeler_ ;
       lc = obj.labelerController_ ;
       if tfShft && strcmp(key, 'a')
         camroll(obj.hAx_(1), 2) ;
@@ -558,7 +558,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Update which target is hidden in the multi-target visualizer.
       % The 'primary target' for LabelCoreSeqMA always matches lObj.currTarget.
 
-      iTgt = obj.model_.labeler_.currTarget ;
+      iTgt = obj.labeler_.currTarget ;
       if iTgt == 0
         iTgt = [] ; % ie dont hide any targets
       end
@@ -620,7 +620,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       obj.pbRoiNew_.Visible = onoff ;
       obj.roiRectDrawer_.setShowRois(tf) ;
       if tf
-        lObj = obj.model_.labeler_ ;
+        lObj = obj.labeler_ ;
         if ~lObj.isinit && lObj.hasMovie
           frm = lObj.currFrame ;
           vroi = lObj.labelroiGet(frm) ;
@@ -633,14 +633,14 @@ classdef LabelCoreSeqMAController < LabelCoreController
     function cbkRoiNew(obj)
       % Callback for New Label Box button.
 
-      assert(obj.model_.labeler_.showMaRoiAux) ;
+      assert(obj.labeler_.showMaRoiAux) ;
       set(obj.pbNewTgt_, 'Enable', 'off') ;
       set(obj.pbDelTgt_, 'Enable', 'off') ;
       set(obj.pbRoiNew_, 'Enable', 'off') ;
       set(obj.pbRoiEdit_, 'Enable', 'off') ;
       obj.roiRectDrawer_.newRoiDraw() ;
       v = obj.roiRectDrawer_.getRoisVerts() ;
-      obj.model_.labeler_.labelroiSet(v) ;
+      obj.labeler_.labelroiSet(v) ;
       set(obj.pbNewTgt_, 'Enable', 'on') ;
       set(obj.pbDelTgt_, 'Enable', 'on') ;
       set(obj.pbRoiNew_, 'Enable', 'on') ;
@@ -655,7 +655,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       rrd.setEdit(tfEditingNew) ;
       if ~tfEditingNew
         v = rrd.getRoisVerts() ;
-        obj.model_.labeler_.labelroiSet(v) ;
+        obj.labeler_.labelroiSet(v) ;
       end
       obj.roiUpdatePBEdit(tfEditingNew) ;
     end  % function
@@ -707,7 +707,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Show or hide skeleton edges and update TV.
       updateShowSkeleton@LabelCoreController(obj) ;
       if ~isempty(obj.tv_)      
-        tf = obj.model_.labeler_.showSkeleton ;
+        tf = obj.labeler_.showSkeleton ;
         obj.tv_.setShowSkeleton(tf) ;
       end
     end  % function
@@ -828,13 +828,13 @@ classdef LabelCoreSeqMAController < LabelCoreController
 
       shortcuts{end+1, 1} = ...
         sprintf('If kpt selected, move left by %.1f px, ow go to next %s', ...
-                10*rightpx, obj.model_.labeler_.movieShiftArrowNavMode.prettyStr) ;
+                10*rightpx, obj.labeler_.movieShiftArrowNavMode.prettyStr) ;
       shortcuts{end, 2} = 'Left arrow' ;
       shortcuts{end, 3} = {'Shift'} ;
 
       shortcuts{end+1, 1} = ...
         sprintf('If kpt selected, move right by %.1f px, ow go to previous %s', ...
-                10*rightpx, obj.model_.labeler_.movieShiftArrowNavMode.prettyStr) ;
+                10*rightpx, obj.labeler_.movieShiftArrowNavMode.prettyStr) ;
       shortcuts{end, 2} = 'Right arrow' ;
       shortcuts{end, 3} = {'Shift'} ;
 

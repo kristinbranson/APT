@@ -67,7 +67,7 @@ classdef LabelCoreSeqController < LabelCoreController
     function axBDF(obj, src, evt) %#ok<INUSL>
       % Handle axis button-down: place next point or relocate selected point.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -99,7 +99,7 @@ classdef LabelCoreSeqController < LabelCoreController
       % Handle occluded-axis button-down: label next point as occluded, or
       % occlude a selected point.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
       if obj.isPanZoom()
@@ -128,7 +128,7 @@ classdef LabelCoreSeqController < LabelCoreController
         return ;
       end
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
       switch mdl.state_
@@ -151,7 +151,7 @@ classdef LabelCoreSeqController < LabelCoreController
       % Handle window button motion: drag selected point.
       % Bypasses event system for responsiveness during continuous drag.
       mdl = obj.model_ ;
-      if isempty(mdl.state_) || ~mdl.labeler_.isReady
+      if isempty(mdl.state_) || ~obj.labeler_.isReady
         return ;
       end
       if mdl.state_ == LabelState.ADJUST || mdl.state_ == LabelState.ACCEPTED
@@ -168,7 +168,7 @@ classdef LabelCoreSeqController < LabelCoreController
     function wbuf(obj, ~, ~)
       % Handle window button up: end drag, persist labels.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
       % Don't act if click is on a trx handle
@@ -186,7 +186,7 @@ classdef LabelCoreSeqController < LabelCoreController
     function tfKPused = kpf(obj, ~, evt)
       % Handle key press.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         tfKPused = false ;
         return ;
       end
@@ -326,13 +326,13 @@ classdef LabelCoreSeqController < LabelCoreController
 
       shortcuts{end+1, 1} = ...
         sprintf('If kpt selected, move left by %.1f px, ow go to next %s', ...
-                10*rightpx, obj.model_.labeler_.movieShiftArrowNavMode.prettyStr) ;
+                10*rightpx, obj.labeler_.movieShiftArrowNavMode.prettyStr) ;
       shortcuts{end, 2} = 'Left arrow' ;
       shortcuts{end, 3} = {'Shift'} ;
 
       shortcuts{end+1, 1} = ...
         sprintf('If kpt selected, move right by %.1f px, ow go to previous %s', ...
-                10*rightpx, obj.model_.labeler_.movieShiftArrowNavMode.prettyStr) ;
+                10*rightpx, obj.labeler_.movieShiftArrowNavMode.prettyStr) ;
       shortcuts{end, 2} = 'Right arrow' ;
       shortcuts{end, 3} = {'Shift'} ;
 

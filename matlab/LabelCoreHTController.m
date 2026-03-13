@@ -90,7 +90,7 @@ classdef LabelCoreHTController < LabelCoreController
       colors = ppi.Colors ;
 
       % Positioning: sync all points to model xy_
-      txtOffset = mdl.labeler_.labelPointsPlotInfo.TextOffset ;
+      txtOffset = obj.labeler_.labelPointsPlotInfo.TextOffset ;
       setPositionsOfLabelLinesAndTextsBangBang(hPoints, obj.hPtsTxt_, xy, txtOffset) ;
 
       % Read frame label metadata from model
@@ -145,7 +145,7 @@ classdef LabelCoreHTController < LabelCoreController
       % and advance frame.
 
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -168,19 +168,19 @@ classdef LabelCoreHTController < LabelCoreController
         set(obj.hPts_(iPt), ...
           'Color', ppi.Colors(iPt, :), ...
           'Marker', ppi.MarkerProps.Marker) ;
-        mdl.labeler_.labelPosTagClearI(iPt) ;
+        obj.labeler_.labelPosTagClearI(iPt) ;
       else
         set(obj.hPts_(iPt), ...
           'Color', ppi.Colors(iPt, :), ...
           'Marker', ppi.OccludedMarker) ;
-        mdl.labeler_.labelPosTagSetI(iPt) ;
+        obj.labeler_.labelPosTagSetI(iPt) ;
       end
-      txtOffset = mdl.labeler_.labelPointsPlotInfo.TextOffset ;
+      txtOffset = obj.labeler_.labelPointsPlotInfo.TextOffset ;
       setPositionsOfLabelLinesAndTextsBangBang( ...
         obj.hPts_(iPt), obj.hPtsTxt_(iPt), pos, txtOffset) ;
 
       % Write label to Labeler
-      mdl.labeler_.labelPosSetI(pos, iPt) ;
+      obj.labeler_.labelPosSetI(pos, iPt) ;
 
       % Advance frame
       obj.clickedIncrementFrame_() ;
@@ -188,7 +188,7 @@ classdef LabelCoreHTController < LabelCoreController
 
     function ptBDF(obj, src, evt)
       % Handle point button-down: if clicked point is iPoint, accept it.
-      if ~obj.model_.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -205,7 +205,7 @@ classdef LabelCoreHTController < LabelCoreController
       % Handle key press: space accepts, arrows navigate frames.
 
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         tfKPused = false ;
         return ;
       end
@@ -230,7 +230,7 @@ classdef LabelCoreHTController < LabelCoreController
       % Handle occluded-axis button-down: occlude current point and advance.
 
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         return ;
       end
       if obj.isPanZoom()
@@ -241,11 +241,11 @@ classdef LabelCoreHTController < LabelCoreController
       mdl.tfOcc_(iPt) = true ;
       set(obj.hPtsOcc_(iPt), 'Color', mdl.ptsPlotInfo_.Colors(iPt, :)) ;
       obj.refreshOccludedPts() ;
-      mdl.labeler_.labelPosSetOccludedI(iPt) ;
-      tfOcc = mdl.labeler_.labelPosIsOccluded() ;
+      obj.labeler_.labelPosSetOccludedI(iPt) ;
+      tfOcc = obj.labeler_.labelPosIsOccluded() ;
       assert(isequal(tfOcc, mdl.tfOcc_)) ;
 
-      mdl.labeler_.labelPosTagClearI(iPt) ;
+      obj.labeler_.labelPosTagClearI(iPt) ;
 
       obj.clickedIncrementFrame_() ;
     end  % function
@@ -265,7 +265,7 @@ classdef LabelCoreHTController < LabelCoreController
       ppi = mdl.ptsPlotInfo_ ;
 
       set(obj.hPts_(iPt), 'Color', ppi.Colors(iPt, :)) ;
-      lObj = mdl.labeler_ ;
+      lObj = obj.labeler_ ;
       lObj.labelPosSetI(pos, iPt) ;
 
       % Determine tag from current marker
@@ -296,7 +296,7 @@ classdef LabelCoreHTController < LabelCoreController
 
       set(obj.hPts_(iPt), 'Color', ppi.Colors(iPt, :)) ;
 
-      lObj = mdl.labeler_ ;
+      lObj = obj.labeler_ ;
       frm0 = lObj.currFrame ;
       frmsMax = min(lObj.nframes, frm0 + (nRepeat - 1) * mdl.nFrameSkip_) ;
       frms = frm0:mdl.nFrameSkip_:frmsMax ;
@@ -361,7 +361,7 @@ classdef LabelCoreHTController < LabelCoreController
     function acceptCurrentPtEnd_(obj)
       % Accept current point from here to end of movie.
       mdl = obj.model_ ;
-      nFrames = mdl.labeler_.nframes - mdl.labeler_.currFrame + 1 ;
+      nFrames = obj.labeler_.nframes - obj.labeler_.currFrame + 1 ;
       nRepeat = ceil(nFrames / mdl.nFrameSkip_) ;
       obj.acceptCurrentPtN_(nRepeat) ;
     end  % function
@@ -380,8 +380,8 @@ classdef LabelCoreHTController < LabelCoreController
         dfrm = mdl.nFrameSkip_ ;
       end
 
-      nf = mdl.labeler_.nframes ;
-      f = mdl.labeler_.currFrame ;
+      nf = obj.labeler_.nframes ;
+      f = obj.labeler_.currFrame ;
       iPt = mdl.iPoint_ ;
       nPt = mdl.nPts_ ;
       tfEndOfMovie = (f + dfrm > nf) ;
@@ -395,7 +395,7 @@ classdef LabelCoreHTController < LabelCoreController
             iPtNext, nPt) ;
           msgbox(str, 'End of movie reached') ;
           mdl.setIPoint(iPtNext) ;
-          mdl.labeler_.setFrameGUI(1) ;
+          obj.labeler_.setFrameGUI(1) ;
         end
       else
         obj.labelerController_.frameUpDF(dfrm) ;

@@ -68,7 +68,7 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
 
     function ptBDF(obj, src, evt)
       % Handle point button-down: only allow for new points.
-      if ~obj.model_.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -94,7 +94,7 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
     function tfKPused = kpf(obj, src, evt)
       % Handle key press. Override backquote wrapping to respect nold_.
       mdl = obj.model_ ;
-      if ~mdl.labeler_.isReady
+      if ~obj.labeler_.isReady
         tfKPused = false ;
         return ;
       end
