@@ -53,7 +53,6 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
     tcipt_ = 0 ;            % 0, 1, or 2 depending on current number of two-click pts clicked
     tcShow_ = false ;        % scalar logical. true => leave tc points showing during lbl
     tc_prev_axis_ = [] ;    % to reset to prev view once the 2 click labeling is over
-    roiShow_ = false ;      % show pbRoi* or not
   end
 
   properties (Dependent)

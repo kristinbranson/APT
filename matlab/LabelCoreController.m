@@ -348,7 +348,7 @@ classdef LabelCoreController < handle
 
       mdl = obj.model_ ;
       xy = mdl.xy_ ;
-      ptsPlotInfo = mdl.ptsPlotInfo_ ;
+      % ptsPlotInfo = mdl.ptsPlotInfo_ ;
       tfOccld = mdl.tfOcc_ ;
 
       obj.setPtsCoords(xy(~tfOccld, :), obj.hPts_(~tfOccld), obj.hPtsTxt_(~tfOccld)) ;
@@ -563,7 +563,7 @@ classdef LabelCoreController < handle
   %% Low-level graphics helpers
   methods
 
-    function setPtsCoords(obj, xy, hPts, hTxt) %#ok<INUSL>
+    function setPtsCoords(obj, xy, hPts, hTxt) 
       % Set coordinates for point and text handles.
       txtOffset = obj.model_.labeler_.labelPointsPlotInfo.TextOffset ;
       setPositionsOfLabelLinesAndTextsBangBang(hPts, hTxt, xy, txtOffset) ;

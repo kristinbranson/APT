@@ -120,7 +120,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       obj.newPrimaryTarget() ;
 
       % Update ROI display
-      if mdl.roiShow_ && ~lObj.gtIsGTMode
+      if lObj.showMaRoiAux && ~lObj.gtIsGTMode
         vroi = lObj.labelroiGet(iFrm) ;
         obj.roiRectDrawer_.setRois(vroi) ;
         obj.roiUpdatePBEdit(false) ;
@@ -615,14 +615,12 @@ classdef LabelCoreSeqMAController < LabelCoreController
     function roiSetShow(obj, tf)
       % Show or hide ROI buttons and drawn rectangles.
 
-      mdl = obj.model_ ;
       onoff = onIff(tf) ;
       obj.pbRoiEdit_.Visible = onoff ;
       obj.pbRoiNew_.Visible = onoff ;
       obj.roiRectDrawer_.setShowRois(tf) ;
-      mdl.roiShow_ = tf ;
       if tf
-        lObj = mdl.labeler_ ;
+        lObj = obj.model_.labeler_ ;
         if ~lObj.isinit && lObj.hasMovie
           frm = lObj.currFrame ;
           vroi = lObj.labelroiGet(frm) ;
@@ -635,7 +633,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
     function cbkRoiNew(obj)
       % Callback for New Label Box button.
 
-      assert(obj.model_.roiShow_) ;
+      assert(obj.model_.labeler_.showMaRoiAux) ;
       set(obj.pbNewTgt_, 'Enable', 'off') ;
       set(obj.pbDelTgt_, 'Enable', 'off') ;
       set(obj.pbRoiNew_, 'Enable', 'off') ;
