@@ -992,7 +992,7 @@ classdef LabelerController < handle
           obj.lblCoreController_ = [] ;
         end
         % Create the matching LabelCoreController
-        obj.lblCoreController_ = LabelCoreController.create(obj, lblCore, labeler.labelMode) ;
+        obj.lblCoreController_ = LabelCoreController.create(obj, labeler, lblCore, labeler.labelMode) ;
         obj.lblCoreController_.init() ;
         % Update UI elements based on model state
         obj.lblCoreHideLabelsChanged() ;

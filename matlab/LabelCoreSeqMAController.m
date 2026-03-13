@@ -31,9 +31,9 @@ classdef LabelCoreSeqMAController < LabelCoreController
 
   methods
 
-    function obj = LabelCoreSeqMAController(labelerController, model)
+    function obj = LabelCoreSeqMAController(labelerController, labeler, model)
       % Construct a LabelCoreSeqMAController.
-      obj = obj@LabelCoreController(labelerController, model) ;
+      obj = obj@LabelCoreController(labelerController, labeler, model) ;
     end  % function
 
     function initHook(obj)

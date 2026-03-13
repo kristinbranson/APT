@@ -18,6 +18,7 @@ classdef LabelCoreController < handle
 
   properties (Transient)
     labelerController_      % scalar LabelerController
+    labeler_                % scalar Labeler
     model_                  % scalar LabelCoreModel
 
     hFig_                   % [nview] figure handles (first is main fig)
@@ -39,21 +40,21 @@ classdef LabelCoreController < handle
 
   methods (Static)
 
-    function obj = create(labelerController, model, labelMode)
+    function obj = create(labelerController, labeler, model, labelMode)
       % Create the LabelCoreController subclass corresponding to labelMode.
       switch labelMode
         case LabelMode.SEQUENTIAL
-          obj = LabelCoreSeqController(labelerController, model) ;
+          obj = LabelCoreSeqController(labelerController, labeler, model) ;
         case LabelMode.SEQUENTIALADD
-          obj = LabelCoreSeqAddController(labelerController, model) ;
+          obj = LabelCoreSeqAddController(labelerController, labeler, model) ;
         case LabelMode.TEMPLATE
-          obj = LabelCoreTemplateController(labelerController, model) ;
+          obj = LabelCoreTemplateController(labelerController, labeler, model) ;
         case LabelMode.HIGHTHROUGHPUT
-          obj = LabelCoreHTController(labelerController, model) ;
+          obj = LabelCoreHTController(labelerController, labeler, model) ;
         case LabelMode.MULTIVIEWCALIBRATED2
-          obj = LabelCoreMultiViewCalibrated2Controller(labelerController, model) ;
+          obj = LabelCoreMultiViewCalibrated2Controller(labelerController, labeler, model) ;
         case LabelMode.MULTIANIMAL
-          obj = LabelCoreSeqMAController(labelerController, model) ;
+          obj = LabelCoreSeqMAController(labelerController, labeler, model) ;
         otherwise
           error('Unknown label mode %s', char(labelMode)) ;
       end
@@ -63,9 +64,10 @@ classdef LabelCoreController < handle
 
   methods (Sealed=true)
 
-    function obj = LabelCoreController(labelerController, model)
+    function obj = LabelCoreController(labelerController, labeler, model)
       % Construct a LabelCoreController, storing references.
       obj.labelerController_ = labelerController ;
+      obj.labeler_ = labeler ;
       obj.model_ = model ;
 
       gd = labelerController ;

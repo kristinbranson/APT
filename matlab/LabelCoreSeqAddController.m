@@ -14,9 +14,9 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
 
   methods
 
-    function obj = LabelCoreSeqAddController(labelerController, model)
+    function obj = LabelCoreSeqAddController(labelerController, labeler, model)
       % Construct a LabelCoreSeqAddController.
-      obj = obj@LabelCoreSeqController(labelerController, model) ;
+      obj = obj@LabelCoreSeqController(labelerController, labeler, model) ;
     end  % function
 
     function initHook(obj)

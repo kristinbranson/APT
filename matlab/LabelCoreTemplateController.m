@@ -26,9 +26,9 @@ classdef LabelCoreTemplateController < LabelCoreController
 
   methods
 
-    function obj = LabelCoreTemplateController(labelerController, model)
+    function obj = LabelCoreTemplateController(labelerController, labeler, model)
       % Construct a LabelCoreTemplateController.
-      obj = obj@LabelCoreController(labelerController, model) ;
+      obj = obj@LabelCoreController(labelerController, labeler, model) ;
     end  % function
 
     function initHook(obj)

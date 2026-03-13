@@ -29,9 +29,9 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
 
   methods
 
-    function obj = LabelCoreMultiViewCalibrated2Controller(labelerController, model)
+    function obj = LabelCoreMultiViewCalibrated2Controller(labelerController, labeler, model)
       % Construct a LabelCoreMultiViewCalibrated2Controller.
-      obj = obj@LabelCoreController(labelerController, model) ;
+      obj = obj@LabelCoreController(labelerController, labeler, model) ;
     end  % function
 
     function delete(obj)
