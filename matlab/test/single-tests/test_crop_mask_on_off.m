@@ -73,7 +73,7 @@ function test_crop_mask_on_off_helper(doCrop, doMask)
   % blocking done
 
   % Do verification
-  if ~labeler.tracker.trnLastDMC.iterCurr>=iterationCount ,
+  if labeler.tracker.trnLastDMC.iterCurr < iterationCount
     error('Failed to complete all training iterations') ;
   end
 end  % function    

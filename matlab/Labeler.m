@@ -1891,8 +1891,8 @@ classdef Labeler < handle
       obj.skelHead = [];
       obj.skelTail = [];
       obj.showSkeleton = false;
-      obj.showMaRoi = obj.labelMode == LabelMode.MULTIANIMAL;
-      obj.showMaRoiAux = obj.labelMode == LabelMode.MULTIANIMAL;
+      obj.showMaRoi = (obj.labelMode == LabelMode.MULTIANIMAL) ;
+      obj.showMaRoiAux = (obj.labelMode == LabelMode.MULTIANIMAL) ;
       obj.flipLandmarkMatches = zeros(0,2);
       
       % New projs set to LASTSEEN, since in general no reference target can have
@@ -13238,10 +13238,6 @@ classdef Labeler < handle
     
     function set.silent(obj, newValue)        
       obj.silent_ = newValue ;
-      % tracker = obj.tracker;
-      % if ~isempty(tracker) ,        
-      %   tracker.skip_dlgs = newValue ;
-      % end      
     end  % function
     
     function result = get.progressMeter(obj) 
