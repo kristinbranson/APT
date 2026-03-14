@@ -992,6 +992,9 @@ classdef LabelerController < handle
         % Create the matching LabelCoreController
         obj.lblCoreController_ = LabelCoreController.create(obj, labeler, lblCore, labeler.labelMode) ;
         obj.lblCoreController_.init() ;
+        % Sync graphics to model state that was set before the controller existed
+        obj.lblCoreController_.updateLabelCoords() ;
+        obj.lblCoreController_.updateLabelVisibility() ;
         % Update UI elements based on model state
         if isprop(lblCore, 'streamlined')
           obj.lblCoreStreamlinedChanged() ;

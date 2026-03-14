@@ -91,7 +91,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       end
 
       % Sync initial coords from model
-      obj.syncAllPointGraphics() ;
+      obj.updateLabelCoords() ;
 
       % Axis xlabels
       obj.hAxXLabels_ = gobjects(mdl.nView, 1) ;

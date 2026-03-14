@@ -140,7 +140,7 @@ classdef LabelCoreController < handle
       % Register model listeners
       obj.listeners_ = [ ...
         addlistener(mdl, 'update',             @(s,e)obj.onUpdate()) ; ...
-        addlistener(mdl, 'updateLabelCoords',  @(s,e)obj.onUpdateLabelCoords()) ; ...
+        addlistener(mdl, 'updateLabelCoords',  @(s,e)obj.updateLabelCoords()) ; ...
         addlistener(mdl, 'updateLabelCoordsI', @(s,e)obj.onUpdateLabelCoordsI()) ; ...
         addlistener(mdl, 'updateState',        @(s,e)obj.onUpdateState()) ; ...
         addlistener(mdl, 'updateOccluded',     @(s,e)obj.onUpdateOccluded()) ; ...
@@ -176,11 +176,6 @@ classdef LabelCoreController < handle
 
     function onUpdate(obj) %#ok<MANU>
       % Full sync fallback. Override in subclasses.
-    end  % function
-
-    function onUpdateLabelCoords(obj)
-      % Sync all point graphics to model xy_.
-      obj.syncAllPointGraphics() ;
     end  % function
 
     function onUpdateLabelCoordsI(obj)
@@ -339,7 +334,7 @@ classdef LabelCoreController < handle
   %% Graphics sync
   methods
 
-    function syncAllPointGraphics(obj)
+    function updateLabelCoords(obj)
       % Sync all point handles to model coordinates. Handles occlusion.
 
       mdl = obj.model_ ;
