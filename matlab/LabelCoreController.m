@@ -146,7 +146,6 @@ classdef LabelCoreController < handle
         addlistener(mdl, 'updateOccluded',     @(s,e)obj.onUpdateOccluded()) ; ...
         addlistener(mdl, 'updateEstOccluded',  @(s,e)obj.onUpdateEstOccluded()) ; ...
         addlistener(mdl, 'updateSelected',     @(s,e)obj.onUpdateSelected()) ; ...
-        addlistener(mdl, 'updateHideLabels',   @(s,e)obj.updateHideLabels()) ; ...
       ] ;
 
       obj.initHook() ;
@@ -448,26 +447,6 @@ classdef LabelCoreController < handle
 
   %% Show/hide viz
   methods
-
-    % function labelsHide(obj)
-    %   % Hide all label point graphics.
-    %   [obj.hPts_.Visible] = deal('off') ;
-    %   [obj.hPtsTxt_.Visible] = deal('off') ;
-    %   obj.updateShowSkeleton() ;
-    % end  % function
-    % 
-    % function labelsShow(obj)
-    %   % Show all label point graphics.
-    %   [obj.hPts_.Visible] = deal('on') ;
-    %   [obj.hPtsTxt_.Visible] = deal('on') ;
-    %   obj.updateShowSkeleton() ;
-    % end  % function
-
-    % function labelsHideToggle(obj)
-    %   % Toggle label visibility via the model.
-    %   mdl = obj.model_ ;
-    %   mdl.setHideLabels(~mdl.hideLabels) ;
-    % end  % function
 
     function updateShowSkeleton(obj)
       % Show or hide skeleton edges.

@@ -130,7 +130,8 @@ classdef Labeler < handle
     didSetShowTrxCurrTargetOnly
     didSetShowOccludedBox
     didSetShowSkeleton
-    didSetShowMaRoi 
+    didSetHideLabels
+    didSetShowMaRoi
     didSetShowMaRoiAux
 
     % didSetLabels
@@ -505,8 +506,9 @@ classdef Labeler < handle
     showTrxCurrTargetOnly     % if true, plot only current target
     showTrxIDLbl              % true to show id label. relevant if .hasTrx or .maIsMa
     showOccludedBox           % whether to show the occluded box    
-    showSkeleton              % true to plot skeleton 
-    showMaRoi 
+    showSkeleton              % true to plot skeleton
+    hideLabels = false        % true to hide label points
+    showMaRoi
     showMaRoiAux
   end 
   
@@ -5933,20 +5935,14 @@ classdef Labeler < handle
         
         % AL: Need strategy for persisting/carrying lblCore state between
         % movies. newMovie prob doesn't need to call labelingInit.
-        hideLabelsPrev = lc.hideLabels;
         if isprop(lc,'streamlined')
           streamlinedPrev = lc.streamlined;
         end
         delete(lc);
         obj.lblCore = [];
-      else
-        hideLabelsPrev = false;
       end
       obj.lblCore = LabelCoreModel.createSafe(obj, lblmode) ;
       obj.lblCore.init(nPts, lblPtsPlotInfo) ;
-      if hideLabelsPrev
-        obj.lblCore.setHideLabels(true) ;
-      end
       if isprop(obj.lblCore,'streamlined') && exist('streamlinedPrev','var')>0
         obj.lblCore.streamlined = streamlinedPrev;
       end
@@ -13075,6 +13071,12 @@ classdef Labeler < handle
     function set.showSkeleton(obj, newValue)
       obj.showSkeleton = newValue ;
       obj.notify('didSetShowSkeleton') ;
+    end
+
+    function set.hideLabels(obj, newValue)
+      % Set whether labels are hidden.
+      obj.hideLabels = newValue ;
+      obj.notify('didSetHideLabels') ;
     end
 
     function set.showMaRoi(obj, newValue)

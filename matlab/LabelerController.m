@@ -510,6 +510,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowSkeleton',@(s,e)(obj.cbkShowSkeletonChanged(s,e)));
       obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetHideLabels',@(s,e)(obj.cbkHideLabelsChanged())) ;
+      obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowMaRoi',@(s,e)(obj.cbkShowMaRoiChanged(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowMaRoiAux',@(s,e)(obj.cbkShowMaRoiAuxChanged(s,e)));
@@ -991,7 +993,6 @@ classdef LabelerController < handle
         obj.lblCoreController_ = LabelCoreController.create(obj, labeler, lblCore, labeler.labelMode) ;
         obj.lblCoreController_.init() ;
         % Update UI elements based on model state
-        obj.lblCoreHideLabelsChanged() ;
         if isprop(lblCore, 'streamlined')
           obj.lblCoreStreamlinedChanged() ;
         end
@@ -999,12 +1000,12 @@ classdef LabelerController < handle
       obj.updatePrevAxesLabels() ;
     end
 
-    function lblCoreHideLabelsChanged(obj)
-      % Sync menu check to model hideLabels state.
+    function cbkHideLabelsChanged(obj)
+      % Respond to hideLabels changing.
       labeler = obj.labeler_ ;
-      lblCore = labeler.lblCore ;
-      if ~isempty(lblCore)
-        obj.menu_view_hide_labels.Checked = onIff(~lblCore.hideLabels) ;
+      obj.menu_view_hide_labels.Checked = onIff(~labeler.hideLabels) ;
+      if ~isempty(obj.lblCoreController_)
+        obj.lblCoreController_.updateHideLabels() ;
       end
     end  % function
 
@@ -5576,11 +5577,9 @@ classdef LabelerController < handle
 
 
     function menu_view_hide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Toggle label visibility.
       labeler = obj.labeler_ ;
-      lblCore = labeler.lblCore ;
-      if ~isempty(lblCore)
-        lblCore.labelsHideToggle() ;
-      end
+      labeler.hideLabels = ~labeler.hideLabels ;
     end
 
 

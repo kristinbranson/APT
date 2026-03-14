@@ -16,7 +16,6 @@ classdef LabelCoreModel < handle
     updateOccluded          % tfOcc_ changed
     updateEstOccluded       % tfEstOcc_ changed
     updateSelected          % tfSel_ changed
-    updateHideLabels        % hideLabels_ changed
   end
 
   properties (Abstract)
@@ -38,7 +37,6 @@ classdef LabelCoreModel < handle
     kpfIPtFor1Key_          % scalar positive integer
     nexttbl_                % table, frame queue
     nexti_                  % integer, queue index
-    hideLabels_             % scalar logical
     panZoomMod_             % char, modifier key for pan-zoom
     ptsPlotInfo_            % struct, points plotting cosmetic info
     lastChangedIPt_         % scratch: index of last changed point (for updateLabelCoordsI)
@@ -72,7 +70,7 @@ classdef LabelCoreModel < handle
 
     function result = get.hideLabels(obj)
       % Return whether labels are hidden.
-      result = obj.hideLabels_ ;
+      result = obj.labeler_.hideLabels ;
     end
 
     function result = get.xy(obj)
@@ -200,7 +198,6 @@ classdef LabelCoreModel < handle
       obj.tfOcc_ = false(nPts, 1) ;
       obj.tfEstOcc_ = false(nPts, 1) ;
       obj.tfSel_ = false(nPts, 1) ;
-      obj.hideLabels_ = false ;
       obj.initHook() ;
     end  % function
 
@@ -336,17 +333,6 @@ classdef LabelCoreModel < handle
       % Clear the frame/target queue.
       obj.nexttbl_ = [] ;
       obj.nexti_ = 1 ;
-    end  % function
-
-    function setHideLabels(obj, tf)
-      % Set label hide state and notify.
-      obj.hideLabels_ = tf ;
-      obj.notify('updateHideLabels') ;
-    end  % function
-
-    function labelsHideToggle(obj)
-      % Toggle label visibility.
-      obj.setHideLabels(~obj.hideLabels_) ;
     end  % function
 
   end  % methods
