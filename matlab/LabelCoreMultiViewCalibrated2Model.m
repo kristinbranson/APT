@@ -305,15 +305,19 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
 
     function res = checkAccept(obj)
       % Check if unsaved adjustments exist and prompt user.
-      %
-      % TODO: questdlg is a UI concern. Eventually move this dialog to the
-      % controller, passing back result to the model.
       res = 'No' ;
       if obj.isUnsavedState() && obj.isAdjustFrameChange()
-        res = questdlg(...
-          'Some keypoints have been adjusted but not accepted. Accept before losing this information?', ...
-          'Accept labels', 'Yes', 'No', 'Cancel', 'Yes') ;
-        figure(gcf) ;  % somehow focus gets lost after question
+        buttons = {'Yes', 'No', 'Cancel'} ;
+        default = 'Yes' ;
+        labeler = obj.labeler_ ;
+        labeler.dialogLaunchPad_ = ...
+          struct('text', 'Some keypoints have been adjusted but not accepted. Accept before losing this information?', ...
+                 'title', 'Accept labels', ...
+                 'buttons', {buttons}, ...
+                 'default', default) ;
+        labeler.dialogLandingPad_ = default ;
+        labeler.notify('requestQuestionDialog') ;
+        res = labeler.dialogLandingPad_ ;
       end
     end  % function
 

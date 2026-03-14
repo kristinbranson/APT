@@ -8629,10 +8629,13 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       params = labeler.dialogLaunchPad ;
       buttons = params.buttons ;
+      % Save and restore focus, since questdlg can steal it from the main window.
+      fig = gcf() ;
       answer = questdlg(params.text, ...
                          params.title, ...
                          buttons{:}, ...
                          params.default) ;
+      figure(fig) ;  % restore focus
       if isempty(answer)
         answer = params.default ;
       end
