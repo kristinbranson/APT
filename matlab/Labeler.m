@@ -130,7 +130,7 @@ classdef Labeler < handle
     didSetShowTrxCurrTargetOnly
     didSetShowOccludedBox
     didSetShowSkeleton
-    didSetHideLabels
+    didSetDoShowLabels
     didSetShowMaRoi
     didSetShowMaRoiAux
 
@@ -498,17 +498,17 @@ classdef Labeler < handle
     currTrx
     nTrx
     nTargets  % nTrx, or 1 if no Trx
-    hideLabels
+    doShowLabels
   end
-  
+
   %% ShowTrx
   properties
     showTrx                   % true to show trajectories
     showTrxCurrTargetOnly     % if true, plot only current target
     showTrxIDLbl              % true to show id label. relevant if .hasTrx or .maIsMa
-    showOccludedBox           % whether to show the occluded box    
+    showOccludedBox           % whether to show the occluded box
     showSkeleton              % true to plot skeleton
-    hideLabels_ = false       % true to hide label points
+    doShowLabels_ = true      % true to show label points
     showMaRoi
     showMaRoiAux
   end 
@@ -13074,14 +13074,15 @@ classdef Labeler < handle
       obj.notify('didSetShowSkeleton') ;
     end
 
-    function result = get.hideLabels(obj)
-      result = obj.hideLabels_ ;
+    function result = get.doShowLabels(obj)
+      % Return whether labels are shown.
+      result = obj.doShowLabels_ ;
     end
 
-    function set.hideLabels(obj, newValue)
-      % Set whether labels are hidden.
-      obj.hideLabels_ = newValue ;
-      obj.notify('didSetHideLabels') ;
+    function set.doShowLabels(obj, newValue)
+      % Set whether labels are shown.
+      obj.doShowLabels_ = newValue ;
+      obj.notify('didSetDoShowLabels') ;
     end
 
     function set.showMaRoi(obj, newValue)

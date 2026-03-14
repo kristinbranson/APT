@@ -210,7 +210,7 @@ classdef LabelCoreController < handle
 
     function updateHideLabels(obj)
       % Hide/show labels state changed.
-      doShowLabels = ~obj.labeler_.hideLabels ;
+      doShowLabels = obj.labeler_.doShowLabels ;
       [obj.hPts_.Visible] = deal(onIff(doShowLabels)) ;
       [obj.hPtsTxt_.Visible] = deal(onIff(doShowLabels)) ;
       obj.updateShowSkeleton() ;
@@ -453,7 +453,7 @@ classdef LabelCoreController < handle
       if isempty(obj.hSkel_)
         return
       end
-      if obj.labeler_.showSkeleton && ~obj.labeler_.hideLabels
+      if obj.labeler_.showSkeleton && obj.labeler_.doShowLabels
         [obj.hSkel_.Visible] = deal('on') ;
       else
         [obj.hSkel_.Visible] = deal('off') ;
