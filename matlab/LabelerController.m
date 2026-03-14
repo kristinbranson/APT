@@ -8596,15 +8596,16 @@ classdef LabelerController < handle
 
     function requestMovieFilesCheckAndUserFinding(obj)
       % Check that movie files exist, prompting user to find them if not.
-      mIdx = obj.labeler_.mIdxToCheck_ ;
+      labeler = obj.labeler_ ;
+      mIdx = labeler.dialogLaunchPad.mIdxToCheck ;
       tfsuccess = obj.movieCheckFilesExistGUI(mIdx) ;
-      obj.labeler_.didMovieCheckSucceed_ = tfsuccess ;
+      labeler.dialogLandingPad = tfsuccess ;
     end  % function
 
     function requestMacroizationGUI(obj)
       % Show listdlg for macroization selection and write result back to Labeler.
       labeler = obj.labeler_ ;
-      liststr = labeler.macroizationListStr_ ;
+      liststr = labeler.dialogLaunchPad.listStr ;
       [sel,ok] = listdlg('ListString', liststr, ...
         'SelectionMode', 'single', ...
         'ListSize', [700 200], ...
@@ -8613,27 +8614,29 @@ classdef LabelerController < handle
       result = struct() ;
       result.sel = sel ;
       result.ok = ok ;
-      labeler.macroizationSelection_ = result ;
+      labeler.dialogLandingPad = result ;
     end  % function
 
     function requestMessageBox(obj)
       % Show a message box to the user on behalf of the Labeler.
       labeler = obj.labeler_ ;
-      msgbox(labeler.messageForUserText_, labeler.messageForUserTitle_) ;
+      params = labeler.dialogLaunchPad ;
+      msgbox(params.text, params.title) ;
     end  % function
 
     function requestQuestionDialog(obj)
       % Show a question dialog to the user on behalf of the Labeler.
       labeler = obj.labeler_ ;
-      buttons = labeler.questionForUserButtons_ ;
-      answer = questdlg(labeler.questionForUserText_, ...
-                         labeler.questionForUserTitle_, ...
+      params = labeler.dialogLaunchPad ;
+      buttons = params.buttons ;
+      answer = questdlg(params.text, ...
+                         params.title, ...
                          buttons{:}, ...
-                         labeler.questionForUserDefault_) ;
+                         params.default) ;
       if isempty(answer)
-        answer = labeler.questionForUserDefault_ ;
+        answer = params.default ;
       end
-      labeler.questionForUserAnswer_ = answer ;
+      labeler.dialogLandingPad = answer ;
     end  % function
 
     function labelImportTrkPromptGenericSimple(obj, iMov, importFcn, varargin)

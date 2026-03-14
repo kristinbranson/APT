@@ -390,25 +390,18 @@ classdef Labeler < handle
   end
 
   properties (Transient)
-    % These exist to allow movieSetGUI() to work without touching the controller
-    % directly.  This is a hack, admittedly.
-    mIdxToCheck_
-    didMovieCheckSucceed_
-    % These exist to allow offerMacroization_() to work without touching the
-    % controller directly.
-    macroizationListStr_
-    macroizationSelection_
-    % These exist to allow messageUser_() to show a message box via the
-    % controller, without touching it directly.
-    messageForUserText_
-    messageForUserTitle_
-    % These exist to allow questionUser_() to ask the user a question via the
-    % controller, without touching it directly.
-    questionForUserText_
-    questionForUserTitle_
-    questionForUserButtons_
-    questionForUserDefault_
-    questionForUserAnswer_
+    % Used to pass dialog parameters from model to controller (dialogLaunchPad_)
+    % and to receive the user's response back (dialogLandingPad_).
+    % dialogLaunchPad_ is set to a struct whose fields depend on which dialog
+    % event is about to be fired.  dialogLandingPad_ is set by the controller
+    % after the dialog is dismissed.
+    dialogLaunchPad_
+    dialogLandingPad_
+  end
+
+  properties (Dependent)
+    dialogLaunchPad
+    dialogLandingPad
   end
 
   properties
@@ -836,6 +829,16 @@ classdef Labeler < handle
           
   %% Prop access
   methods % dependent prop getters
+    function v = get.dialogLaunchPad(obj)
+      % Get the dialog launch pad.
+      v = obj.dialogLaunchPad_ ;
+    end  % function
+
+    function set.dialogLandingPad(obj, v)
+      % Set the dialog landing pad.
+      obj.dialogLandingPad_ = v ;
+    end  % function
+
     function v = get.viewCalibrationDataGTaware(obj)
       v = obj.getViewCalibrationDataGTawareArg(obj.gtIsGTMode);
     end
@@ -3851,17 +3854,18 @@ classdef Labeler < handle
         liststr = [{pathstrs{1}} ; pathstr1Macroized] ;  %#ok<CCAT1>
 
         % Ask the controller (if present) to show the selection dialog
-        obj.macroizationListStr_ = liststr ;
-        obj.macroizationSelection_ = [] ;
+        obj.dialogLaunchPad_ = struct('listStr', {liststr}) ;
+        obj.dialogLandingPad_ = [] ;
         obj.notify('requestMacroizationGUI') ;
+        macroizationSelection = obj.dialogLandingPad_ ;
 
-        if isempty(obj.macroizationSelection_)
+        if isempty(macroizationSelection)
           % No controller present; proceed as if user did not want macroization
           sel = 1 ;
           ok = true ;
         else
-          sel = obj.macroizationSelection_.sel ;
-          ok = obj.macroizationSelection_.ok ;
+          sel = macroizationSelection.sel ;
+          ok = macroizationSelection.ok ;
         end
 
         tfCancel = ~ok ;
@@ -4603,10 +4607,11 @@ classdef Labeler < handle
       % to allow the controller, if present, to help the user find missing movies
       % with the GUI.  But want this method to also work in the absence of a GUI.
       mIdx = MovieIndex(iMov, obj.gtIsGTMode) ;
-      obj.mIdxToCheck_ = mIdx ;
-      obj.didMovieCheckSucceed_ = [] ;
+      obj.dialogLaunchPad_ = struct('mIdxToCheck', mIdx) ;
+      obj.dialogLandingPad_ = [] ;
       obj.notify('requestMovieFilesCheckAndUserFinding') ;
-      if isempty(obj.didMovieCheckSucceed_)
+      didMovieCheckSucceed = obj.dialogLandingPad_ ;
+      if isempty(didMovieCheckSucceed)
         % Means there's no controller
         tfsuccess = obj.movieCheckFilesExist(mIdx) ;
         if ~tfsuccess
@@ -4614,7 +4619,7 @@ classdef Labeler < handle
         end
       else
         % Means there is a controller, it will have checked that all the movies exist.
-        if ~isequal(obj.didMovieCheckSucceed_, true)
+        if ~isequal(didMovieCheckSucceed, true)
           return
         end
       end
@@ -13887,8 +13892,7 @@ classdef Labeler < handle
         title = 'Message' ;
       end
       if obj.isgui
-        obj.messageForUserText_ = text ;
-        obj.messageForUserTitle_ = title ;
+        obj.dialogLaunchPad_ = struct('text', text, 'title', title) ;
         obj.notify('requestMessageBox') ;
       else
         fprintf('%s\n', text) ;
@@ -13899,13 +13903,13 @@ classdef Labeler < handle
       % Ask the user a question via the controller, or return the default if
       % no controller is present.
       if obj.isgui
-        obj.questionForUserText_ = text ;
-        obj.questionForUserTitle_ = title ;
-        obj.questionForUserButtons_ = buttons ;
-        obj.questionForUserDefault_ = default ;
-        obj.questionForUserAnswer_ = default ;
+        obj.dialogLaunchPad_ = struct('text', text, ...
+                                      'title', title, ...
+                                      'buttons', {buttons}, ...
+                                      'default', default) ;
+        obj.dialogLandingPad_ = default ;
         obj.notify('requestQuestionDialog') ;
-        answer = obj.questionForUserAnswer_ ;
+        answer = obj.dialogLandingPad_ ;
       else
         answer = default ;
       end
