@@ -232,9 +232,7 @@ classdef LabelCoreTemplateController < LabelCoreController
             xyNew = xy + dxdy ;
           end
           xyNew = lc.videoClipToVideo(xyNew) ;
-          mdl.xy(iSel, :) = xyNew ;
-          mdl.lastChangedIPt = iSel ;
-          mdl.notify('updateLabelCoordsI') ;
+          mdl.setLabelCoordsI(xyNew, iSel) ;
           switch mdl.state
             case LabelState.ADJUST
               mdl.setPointAdjusted(iSel) ;

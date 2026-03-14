@@ -533,9 +533,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
               error('LabelCoreMultiViewCalibrated2Controller:unknownKey', ...
                 'Unknown arrow key %s.', key) ;
           end
-          mdl.xy(iSel, :) = xy ;
-          mdl.lastChangedIPt = iSel ;
-          mdl.notify('updateLabelCoordsI') ;
+          mdl.setLabelCoordsI(xy, iSel) ;
           switch mdl.state
             case LabelState.ADJUST
               mdl.setPointAdjusted(iSel) ;

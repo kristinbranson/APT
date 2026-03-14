@@ -143,9 +143,7 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
             xyNew = xy + dxdy ;
           end
           xyNew = lc.videoClipToVideo(xyNew) ;
-          mdl.xy(iSel, :) = xyNew ;
-          mdl.lastChangedIPt = iSel ;
-          mdl.notify('updateLabelCoordsI') ;
+          mdl.setLabelCoordsI(xyNew, iSel) ;
           switch mdl.state
             case LabelState.ADJUST
               % none
