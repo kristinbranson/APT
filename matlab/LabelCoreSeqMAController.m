@@ -677,11 +677,11 @@ classdef LabelCoreSeqMAController < LabelCoreController
   %% Show/hide viz overrides
   methods
 
-    function updateHideLabels(obj)
+    function updateLabelVisibility(obj)
       % Hide/show labels state changed.
-      doHideLabels = ~obj.labeler_.doShowLabels ;
-      obj.tv_.setHideViz(doHideLabels) ;
-      updateHideLabels@LabelCoreController(obj) ;
+      doShowLabels = obj.labeler_.doShowLabels ;
+      obj.tv_.setHideViz(~doShowLabels) ;
+      updateLabelVisibility@LabelCoreController(obj) ;
     end
   end  % methods
 

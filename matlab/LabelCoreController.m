@@ -208,7 +208,7 @@ classdef LabelCoreController < handle
       obj.refreshPtMarkers() ;
     end  % function
 
-    function updateHideLabels(obj)
+    function updateLabelVisibility(obj)
       % Hide/show labels state changed.
       doShowLabels = obj.labeler_.doShowLabels ;
       [obj.hPts_.Visible] = deal(onIff(doShowLabels)) ;

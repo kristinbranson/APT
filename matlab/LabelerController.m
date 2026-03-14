@@ -510,7 +510,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowSkeleton',@(s,e)(obj.cbkShowSkeletonChanged(s,e)));
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetDoShowLabels',@(s,e)(obj.cbkDoShowLabelsChanged())) ;
+        addlistener(labeler,'didSetDoShowLabels',@(s,e)(obj.updateLabelVisibility())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowMaRoi',@(s,e)(obj.cbkShowMaRoiChanged(s,e)));
       obj.listeners_(end+1) = ...
@@ -1000,12 +1000,12 @@ classdef LabelerController < handle
       obj.updatePrevAxesLabels() ;
     end
 
-    function cbkDoShowLabelsChanged(obj)
-      % Respond to doShowLabels changing.
+    function updateLabelVisibility(obj)
+      % Update the visibility of labels
       labeler = obj.labeler_ ;
       obj.menu_view_hide_labels.Checked = onIff(labeler.doShowLabels) ;
       if ~isempty(obj.lblCoreController_)
-        obj.lblCoreController_.updateHideLabels() ;
+        obj.lblCoreController_.updateLabelVisibility() ;
       end
     end  % function
 
