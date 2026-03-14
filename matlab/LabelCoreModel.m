@@ -166,8 +166,6 @@ classdef LabelCoreModel < handle
           obj = LabelCoreSeqAddModel(labeler) ;
         case LabelMode.TEMPLATE
           obj = LabelCoreTemplateModel(labeler) ;
-        case LabelMode.HIGHTHROUGHPUT
-          obj = LabelCoreHTModel(labeler) ;
         case LabelMode.MULTIVIEWCALIBRATED2
           obj = LabelCoreMultiViewCalibrated2Model(labeler) ;
         case LabelMode.MULTIANIMAL

@@ -677,18 +677,12 @@ classdef LabelCoreSeqMAController < LabelCoreController
   %% Show/hide viz overrides
   methods
 
-    function labelsHide(obj)
-      % Hide all label graphics including TV.
-      obj.tv_.setHideViz(true) ;
-      labelsHide@LabelCoreController(obj) ;
-    end  % function
-
-    function labelsShow(obj)
-      % Show all label graphics including TV.
-      obj.tv_.setHideViz(false) ;
-      labelsShow@LabelCoreController(obj) ;
-    end  % function
-
+    function updateHideLabels(obj)
+      % Hide/show labels state changed.
+      doHideLabels = obj.model_.hideLabels ;
+      obj.tv_.setHideViz(doHideLabels) ;
+      updateHideLabels@LabelCoreController(obj) ;
+    end
   end  % methods
 
   %% Cosmetics overrides

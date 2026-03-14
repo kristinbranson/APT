@@ -106,9 +106,6 @@ end
 if isfield(handles,'menu_setup_template_mode'),
   SetTooltip(handles.menu_setup_template_mode,'Template labeling: Move around initial landmark locations',jobjs,jobjnames);
 end
-if isfield(handles,'menu_setup_highthroughput_mode'),
-  SetTooltip(handles.menu_setup_highthroughput_mode,'High-throughput labeling: Label one landmark at a time in a series of frames',jobjs,jobjnames);
-end
 if isfield(handles,'menu_setup_multiview_calibrated_mode_2'),
   SetTooltip(handles.menu_setup_multiview_calibrated_mode_2,'Multi-view calibrated mode: Show epipolar line after labeling in one view',jobjs,jobjnames);
 end

@@ -164,9 +164,9 @@ function print_value_assignment(var_ref, value)
     end
     % Get the enumeration name by finding which enumeration value matches
     enum_values = enumeration('LabelMode');
-    enum_names = {'NONE', 'SEQUENTIAL', 'TEMPLATE', 'HIGHTHROUGHPUT', ...
+    enum_names = {'NONE', 'SEQUENTIAL', 'TEMPLATE', ...
                   'MULTIVIEWCALIBRATED2', 'MULTIANIMAL', 'SEQUENTIALADD'};
-    
+
     match_idx = [];
     for i = 1:length(enum_values)
       if value == enum_values(i)
@@ -174,11 +174,11 @@ function print_value_assignment(var_ref, value)
         break;
       end
     end
-    
+
     if isempty(match_idx)
       error('Unknown LabelMode value');
     end
-    
+
     fprintf('%s = LabelMode.%s;\n', var_ref, enum_names{match_idx});
     
   else
@@ -259,9 +259,9 @@ function print_cell_element(element)
     end
     % Get the enumeration name by finding which enumeration value matches
     enum_values = enumeration('LabelMode');
-    enum_names = {'NONE', 'SEQUENTIAL', 'TEMPLATE', 'HIGHTHROUGHPUT', ...
+    enum_names = {'NONE', 'SEQUENTIAL', 'TEMPLATE', ...
                   'MULTIVIEWCALIBRATED2', 'MULTIANIMAL', 'SEQUENTIALADD'};
-    
+
     match_idx = [];
     for i = 1:length(enum_values)
       if element == enum_values(i)
@@ -269,11 +269,11 @@ function print_cell_element(element)
         break;
       end
     end
-    
+
     if isempty(match_idx)
       error('Unknown LabelMode value');
     end
-    
+
     fprintf('LabelMode.%s', enum_names{match_idx});
     
   elseif isstruct(element)

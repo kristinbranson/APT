@@ -6,7 +6,6 @@ classdef LabelMode
     NONE ('None')
     SEQUENTIAL ('Sequential')
     TEMPLATE ('Template')
-    HIGHTHROUGHPUT ('HighThroughput')
 %     ERRORCORRECT ('ErrorCorrect')
     MULTIVIEWCALIBRATED2 ('Multiview')
     MULTIANIMAL ('MultiAnimal')

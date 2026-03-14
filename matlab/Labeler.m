@@ -3581,6 +3581,12 @@ classdef Labeler < handle
       if ~isfield(s,'showSkeleton'),
         s.showSkeleton = false;
       end
+      % HT labeling mode removed
+      if ischar(s.cfg.LabelMode) && strcmp(s.cfg.LabelMode, 'HighThroughput')
+        warningNoTrace('Labeler:htRemoved', ...
+          'HighThroughput labeling mode has been removed. Using Sequential mode.') ;
+        s.cfg.LabelMode = 'Sequential' ;
+      end
       % AL 20201004, 20210324
       if ~isfield(s,'showMaRoi')
         s.showMaRoi = s.cfg.LabelMode == LabelMode.MULTIANIMAL;
@@ -6431,7 +6437,7 @@ classdef Labeler < handle
 %       obj.labelPosSetFramesI_New(frms,xy,iPt);      
 %     end
     
-    % XXX TODO (LabelCoreHT Client)
+    % Was only called from HT mode (now removed).  Retained as reasonable API.
     function labelPosSetFramesI(obj,frms,xy,iPt)
       % Set labelpos for current movie/target to a single (constant) point
       % across multiple frames
@@ -6916,7 +6922,7 @@ classdef Labeler < handle
 %       obj.labeledposMarked{iMov}(:) = val;
 %     end
         
-    % XXX TODO (LabelCoreHT client)
+    % Was only called from HT mode (now removed).  Retained as reasonable API.
     function labelPosSetOccludedI(obj,iPt)
       % Occluded is "pure occluded" here
       iMov = obj.currMovie;
@@ -7011,7 +7017,7 @@ classdef Labeler < handle
       obj.(PROPS.LBL){iMov} = s;      
     end
     
-    % XXX TODO (LabelCoreHT client)
+    % Was only called from HT mode (now removed).  Retained as reasonable API.
     function labelPosTagSetFramesI(obj,iPt,frms)
       % Set tag for current movie/target, given pt/frames
 
@@ -7022,7 +7028,7 @@ classdef Labeler < handle
       obj.(PROPS.LPOSTAG){iMov}(iPt,frms,iTgt) = true;
     end
     
-    % XXX TODO (LabelCoreHT client)
+    % Was only called from HT mode (now removed).  Retained as reasonable API.
     function labelPosTagClearFramesI(obj,iPt,frms)
       % Clear tags for current movie/target, given pt/frames
       

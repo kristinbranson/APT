@@ -88,11 +88,6 @@ LabelPointsPlot:
 
   SequenceMode:
 
-  HighThroughputMode:
-    NFrameSkip: 5
-    UnlabeledPointColor: [1,1,1]
-    OtherLabeledPointColor: [0,1,0]
-
   ErrorCorrectMode:
     MarkedMarkerSize: 16
 

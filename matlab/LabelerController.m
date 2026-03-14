@@ -119,7 +119,6 @@ classdef LabelerController < handle
     menu_labeling_setup
     menu_quit_but_dont_delete_temp_folder
     % menu_setup_createtemplate
-    menu_setup_highthroughput_mode
     menu_setup_label_outliers
     menu_setup_label_overlay_montage
     menu_setup_load_calibration_file
@@ -129,8 +128,6 @@ classdef LabelerController < handle
     menu_setup_multiview_calibrated_mode_2
     menu_setup_sequential_add_mode
     menu_setup_sequential_mode
-    menu_setup_set_labeling_point
-    menu_setup_set_nframe_skip
     menu_setup_streamlined
     menu_setup_template_mode
     % menu_setup_tracking_correction_mode
@@ -355,7 +352,6 @@ classdef LabelerController < handle
         {LabelMode.NONE '';
          LabelMode.SEQUENTIAL 'menu_setup_sequential_mode';
          LabelMode.TEMPLATE 'menu_setup_template_mode';
-         LabelMode.HIGHTHROUGHPUT 'menu_setup_highthroughput_mode';
          LabelMode.MULTIVIEWCALIBRATED2 'menu_setup_multiview_calibrated_mode_2'; 
          LabelMode.MULTIANIMAL 'menu_setup_multianimal_mode';
          LabelMode.SEQUENTIALADD 'menu_setup_sequential_add_mode'};
@@ -1768,7 +1764,6 @@ classdef LabelerController < handle
 
       set(obj.menu_setup_sequential_mode,'Visible',onIff(hasMovie && isSingleView && ~isMA)) ;
       set(obj.menu_setup_template_mode,'Visible',onIff(hasMovie && isSingleView && ~isMA)) ;
-      set(obj.menu_setup_highthroughput_mode,'Visible',onIff(hasMovie && isSingleView && ~isMA)) ;
       set(obj.menu_setup_multiview_calibrated_mode_2,'Visible',onIff(hasMovie && isMultiView));
       set(obj.menu_setup_multianimal_mode,'Visible',onIff(hasMovie && isMA), 'Enable', 'off');
         % When visible, multianimal is the only available mode, so disable the menu
@@ -3331,8 +3326,6 @@ classdef LabelerController < handle
       obj.menuSetupLabelModeHelp_(lblMode) ;
       switch lblMode
         case LabelMode.SEQUENTIAL
-          obj.menu_setup_set_labeling_point.Visible = 'off';
-          obj.menu_setup_set_nframe_skip.Visible = 'off';
           obj.menu_setup_streamlined.Visible = 'off';
           obj.menu_setup_load_calibration_file.Visible = 'off';
           obj.menu_setup_use_calibration.Visible = 'off';
@@ -3341,8 +3334,6 @@ classdef LabelerController < handle
           obj.menu_view_pan_toggle.Visible = 'off';
           obj.menu_view_showhide_labelrois.Visible = 'off';
         case LabelMode.SEQUENTIALADD
-          obj.menu_setup_set_labeling_point.Visible = 'off';
-          obj.menu_setup_set_nframe_skip.Visible = 'off';
           obj.menu_setup_streamlined.Visible = 'off';
           obj.menu_setup_load_calibration_file.Visible = 'off';
           obj.menu_setup_use_calibration.Visible = 'off';
@@ -3351,8 +3342,6 @@ classdef LabelerController < handle
           obj.menu_view_pan_toggle.Visible = 'off';
           obj.menu_view_showhide_labelrois.Visible = 'off';
         case LabelMode.MULTIANIMAL
-          obj.menu_setup_set_labeling_point.Visible = 'off';
-          obj.menu_setup_set_nframe_skip.Visible = 'off';
           obj.menu_setup_streamlined.Visible = 'off';
           obj.menu_setup_load_calibration_file.Visible = 'off';
           obj.menu_setup_use_calibration.Visible = 'off';
@@ -3363,19 +3352,6 @@ classdef LabelerController < handle
           obj.menu_view_showhide_labelrois.Visible = 'on';
         case LabelMode.TEMPLATE
           %     obj.menu_setup_createtemplate.Visible = 'on';
-          obj.menu_setup_set_labeling_point.Visible = 'off';
-          obj.menu_setup_set_nframe_skip.Visible = 'off';
-          obj.menu_setup_streamlined.Visible = 'off';
-          obj.menu_setup_load_calibration_file.Visible = 'off';
-          obj.menu_setup_use_calibration.Visible = 'off';
-          obj.menu_setup_ma_twoclick_align.Visible = 'off';
-          obj.menu_view_zoom_toggle.Visible = 'off';
-          obj.menu_view_pan_toggle.Visible = 'off';
-          obj.menu_view_showhide_labelrois.Visible = 'off';
-        case LabelMode.HIGHTHROUGHPUT
-          %     obj.menu_setup_createtemplate.Visible = 'off';
-          obj.menu_setup_set_labeling_point.Visible = 'on';
-          obj.menu_setup_set_nframe_skip.Visible = 'on';
           obj.menu_setup_streamlined.Visible = 'off';
           obj.menu_setup_load_calibration_file.Visible = 'off';
           obj.menu_setup_use_calibration.Visible = 'off';
@@ -3384,8 +3360,6 @@ classdef LabelerController < handle
           obj.menu_view_pan_toggle.Visible = 'off';
           obj.menu_view_showhide_labelrois.Visible = 'off';
         case LabelMode.MULTIVIEWCALIBRATED2
-          obj.menu_setup_set_labeling_point.Visible = 'off';
-          obj.menu_setup_set_nframe_skip.Visible = 'off';
           obj.menu_setup_streamlined.Visible = 'on';
           obj.menu_setup_load_calibration_file.Visible = 'on';
           obj.menu_setup_use_calibration.Visible = 'on';
@@ -5202,11 +5176,6 @@ classdef LabelerController < handle
 
 
 
-    function menu_setup_highthroughput_mode_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.menuSetupLabelModeCbkGeneric(src);
-    end
-
-
 
     function menu_setup_multiview_calibrated_mode_2_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.menuSetupLabelModeCbkGeneric(src);
@@ -5272,24 +5241,6 @@ classdef LabelerController < handle
 
 
 
-    function menu_setup_set_nframe_skip_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      lc = labeler.lblCore ;
-      assert(isa(lc, 'LabelCoreHTModel')) ;
-      nfs = lc.nFrameSkip;
-      ret = inputdlg('Select labeling frame increment','Set increment',1,{num2str(nfs)});
-      if isempty(ret)
-        return;
-      end
-      val = str2double(ret{1});
-      lc.nFrameSkip = val;
-      labeler.labelPointsPlotInfo.HighThroughputMode.NFrameSkip = val;
-      % This state is duped between labelCore and lppi b/c the lifetimes are
-      % different. LabelCore exists only between movies etc, and is initted from
-      % lppi. Hmm
-    end
-
-
 
     function menu_setup_streamlined_actuated_(obj, src, evt)  %#ok<INUSD>
 
@@ -5315,25 +5266,6 @@ classdef LabelerController < handle
       src.Checked = onIff(tftc); % skip listener business for now
     end
 
-
-
-    function menu_setup_set_labeling_point_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-
-
-      ipt = labeler.lblCore.iPoint;
-      ret = inputdlg('Select labeling point','Point number',1,{num2str(ipt)});
-      if isempty(ret)
-        return;
-      end
-      ret = str2double(ret{1});
-      labeler.lblCore.setIPoint(ret);
-
-
-    end
 
 
 
@@ -5647,7 +5579,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;
       if ~isempty(lblCore)
-        lblCore.labelsHideToggle() ;  % fires updateHideLabels, controller responds
+        lblCore.labelsHideToggle() ;
       end
     end
 
