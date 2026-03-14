@@ -510,7 +510,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowSkeleton',@(s,e)(obj.cbkShowSkeletonChanged(s,e)));
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetDoShowLabels',@(s,e)(obj.updateLabelVisibility())) ;
+        addlistener(labeler,'didSetDoShowLabels',@(s,e)(obj.updateLabelVisibilityAndShowLabelsMenuCheckmark())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowMaRoi',@(s,e)(obj.cbkShowMaRoiChanged(s,e)));
       obj.listeners_(end+1) = ...
@@ -1000,7 +1000,7 @@ classdef LabelerController < handle
       obj.updatePrevAxesLabels() ;
     end
 
-    function updateLabelVisibility(obj)
+    function updateLabelVisibilityAndShowLabelsMenuCheckmark(obj)
       % Update the visibility of labels
       labeler = obj.labeler_ ;
       obj.menu_view_hide_labels.Checked = onIff(labeler.doShowLabels) ;
@@ -4164,11 +4164,6 @@ classdef LabelerController < handle
     %   set(obj.pumTimelinePropType,'String',proptypes);
     % end
     
-    function menuSetupLabelModeCbkGeneric(obj, src, evt)  %#ok<INUSD>
-      lblMode = obj.setupMenu2LabelMode.(src.Tag);
-      obj.labeler_.labelingInit('labelMode',lblMode);
-    end
-    
     % function figure_CloseRequestFcn(obj, src, evt)  %#ok<INUSD>
     %   obj.quitRequested() ;
     % end
@@ -5160,32 +5155,28 @@ classdef LabelerController < handle
 
 
     function menu_setup_sequential_mode_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.menuSetupLabelModeCbkGeneric(src);
+      % Switch to sequential labeling mode.
+      obj.labeler_.labelingInit('labelMode', LabelMode.SEQUENTIAL) ;
     end
-
-
 
     function menu_setup_sequential_add_mode_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.menuSetupLabelModeCbkGeneric(src);
+      % Switch to sequential-add labeling mode.
+      obj.labeler_.labelingInit('labelMode', LabelMode.SEQUENTIALADD) ;
     end
-
-
 
     function menu_setup_template_mode_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.menuSetupLabelModeCbkGeneric(src);
+      % Switch to template labeling mode.
+      obj.labeler_.labelingInit('labelMode', LabelMode.TEMPLATE) ;
     end
-
-
-
 
     function menu_setup_multiview_calibrated_mode_2_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.menuSetupLabelModeCbkGeneric(src);
+      % Switch to multiview calibrated labeling mode.
+      obj.labeler_.labelingInit('labelMode', LabelMode.MULTIVIEWCALIBRATED2) ;
     end
 
-
-
     function menu_setup_multianimal_mode_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.menuSetupLabelModeCbkGeneric(src);
+      % Switch to multi-animal labeling mode.
+      obj.labeler_.labelingInit('labelMode', LabelMode.MULTIANIMAL) ;
     end
 
 
