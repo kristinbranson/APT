@@ -45,7 +45,6 @@ classdef LabelCoreModel < handle
   properties (Dependent)
     nPts
     state
-    hideLabels
     xy
     tfOcc
     tfEstOcc
@@ -66,11 +65,6 @@ classdef LabelCoreModel < handle
     function result = get.state(obj)
       % Return the current labeling state.
       result = obj.state_ ;
-    end
-
-    function result = get.hideLabels(obj)
-      % Return whether labels are hidden.
-      result = obj.labeler_.hideLabels ;
     end
 
     function result = get.xy(obj)

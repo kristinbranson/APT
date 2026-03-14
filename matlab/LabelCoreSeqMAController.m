@@ -679,7 +679,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
 
     function updateHideLabels(obj)
       % Hide/show labels state changed.
-      doHideLabels = obj.model_.hideLabels ;
+      doHideLabels = obj.labeler_.hideLabels ;
       obj.tv_.setHideViz(doHideLabels) ;
       updateHideLabels@LabelCoreController(obj) ;
     end
