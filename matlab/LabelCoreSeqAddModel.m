@@ -145,9 +145,8 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
         idxcurr = rowidx == i ;
         [tf, mov, ~, ~] = obj.labeler_.movieSetInProj(movnames{i}) ;
         if ~tf
-          errordlg(sprintf('Movie %s is not in this project', movnames{i}), ...
-            'Bad next table') ;
-          return ;
+          error('LabelCoreSeqAddModel:badNextTable', ...
+                'Movie %s is not in this project', movnames{i}) ;
         end
         [frms, tgts] = Labels.isPartiallyLabeledT(labels{mov}, nan, obj.nold_) ;
         todo(idxcurr) = ismember( ...
@@ -159,8 +158,10 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
       if isempty(nextj)
         nextj = find(todo, 1) ;
         if isempty(nextj)
-          msgbox('No partially labeled frames found within the table! You might be done!', ...
-            'Done adding landmarks', 'replace') ;
+          labeler = obj.labeler_ ;
+          labeler.dialogLaunchPad_ = struct('text', 'No partially labeled frames found within the table! You might be done!', ...
+                                            'title', 'Done adding landmarks') ;
+          labeler.notify('requestMessageBox') ;
           return ;
         else
           obj.nexti_ = nextj ;
@@ -176,9 +177,8 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
       movname = obj.nexttbl_.mov{obj.nexti_} ;
       [tf, mov, ~, ~] = obj.labeler_.movieSetInProj(movname) ;
       if ~tf
-        errordlg(sprintf('Movie %s is not in this project', movname), ...
-          'Bad next table') ;
-        return ;
+        error('LabelCoreSeqAddModel:badNextTable', ...
+              'Movie %s is not in this project', movname) ;
       end
       if obj.labeler_.currMovie ~= mov
         obj.labeler_.movieSetGUI(mov) ;
@@ -194,8 +194,10 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
       % Navigate to the next partially-labeled frame in the project.
       [frm, tgt, mov] = obj.findUnlabeled() ;
       if isempty(frm)
-        msgbox('No partially labeled frames found! You might be done!', ...
-          'Done adding landmarks', 'replace') ;
+        labeler = obj.labeler_ ;
+        labeler.dialogLaunchPad_ = struct('text', 'No partially labeled frames found! You might be done!', ...
+                                          'title', 'Done adding landmarks') ;
+        labeler.notify('requestMessageBox') ;
         return ;
       end
       if obj.labeler_.currMovie ~= mov
