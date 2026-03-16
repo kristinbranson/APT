@@ -581,8 +581,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'updateShortcuts',@(s,e)(obj.updateShortcuts())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'applyGammaCorrection',@(s,e)(obj.applyGammaCorrection())) ;
-      obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updateLabelSkeletonCosmetics',@(s,e)(obj.updateLabelSkeletonCosmetics())) ;
+      % obj.listeners_(end+1) = ...
+      %   addlistener(obj.labeler_,'updateLabelSkeletonCosmetics',@(s,e)(obj.updateLabelSkeletonCosmetics())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePreProcParams',@(s,e)(obj.updatePreProcParams())) ;
       obj.listeners_(end+1) = ...
@@ -3708,11 +3708,11 @@ classdef LabelerController < handle
       obj.lblCoreController_.updateSkeletonEdges() ;
     end  % function
 
-    function updateLabelSkeletonCosmetics(obj)
-      % Respond to label skeleton cosmetics being updated.
-      ppi = obj.labeler_.labelPointsPlotInfo ;
-      obj.labeler_.lblCore.setSkeletonCosmetics(ppi.SkeletonProps) ;
-    end  % function
+    % function updateLabelSkeletonCosmetics(obj)
+    %   % Respond to label skeleton cosmetics being updated.
+    %   ppi = obj.labeler_.labelPointsPlotInfo ;
+    %   obj.labeler_.lblCore.setSkeletonCosmetics(ppi.SkeletonProps) ;
+    % end  % function
 
     function updatePreProcParams(obj)
       % Respond to preprocessing parameters changing.

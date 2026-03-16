@@ -187,7 +187,7 @@ classdef Labeler < handle
     updateShortcuts
     applyGammaCorrection
     didSetSkeletonEdges
-    updateLabelSkeletonCosmetics
+    % updateLabelSkeletonCosmetics
     updatePreProcParams
     requestMovieFilesCheckAndUserFinding
     requestMacroizationGUI
@@ -7474,7 +7474,9 @@ classdef Labeler < handle
       
         switch lsetType
           case LandmarkSetType.Label
-            obj.notify('updateLabelSkeletonCosmetics') ;
+            ppi = obj.labelPointsPlotInfo ;
+            obj.lblCore.setSkeletonCosmetics(ppi.SkeletonProps) ;            
+            % obj.notify('updateLabelSkeletonCosmetics') ;
           case LandmarkSetType.Prediction
             obj.notify('updatePredictionSkeletonCosmetics') ;
         end
