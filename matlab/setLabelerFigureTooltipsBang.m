@@ -85,9 +85,9 @@ end
 if isfield(handles,'menu_view_flip_fliplr'),
   SetTooltip(handles.menu_view_flip_fliplr,'Horizontally flip both the movie and labels in the display',jobjs,jobjnames);
 end
-if isfield(handles,'menu_view_flip_flipud_movie_only'),
-  SetTooltip(handles.menu_view_flip_flipud_movie_only,'Vertically flip only the movie in the display',jobjs,jobjnames);
-end
+% if isfield(handles,'menu_view_flip_flipud_movie_only'),
+%   SetTooltip(handles.menu_view_flip_flipud_movie_only,'Vertically flip only the movie in the display',jobjs,jobjnames);
+% end
 
 if isfield(handles,'menu_view_reset_views'),
   SetTooltip(handles.menu_view_reset_views,'Reset zoom so that entire video frames are displayed',jobjs,jobjnames);

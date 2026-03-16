@@ -120,7 +120,7 @@ classdef Labeler < handle
     didSetMovieCenterOnTarget
     didSetMovieRotateTargetUp
     didSetMovieForceGrayscale
-    didSetMovieInvert
+    % didSetMovieInvert
     didSetMovieViewBGsubbed
     
     didSetTrxFilesAll
@@ -401,6 +401,9 @@ classdef Labeler < handle
 
   properties (Dependent)
     dialogLaunchPad
+  end
+
+  properties (Dependent, GetAccess=private)
     dialogLandingPad
   end
 
@@ -418,11 +421,12 @@ classdef Labeler < handle
     movieShiftArrowNavModeThreshCmp  % char, eg '<' or '>='
     moviePlaySegRadius  % scalar int
     moviePlayFPS  
-    movieInvert  % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted 
-                 % on platform A wrt platform B
-      % Not much care is taken wrt interactions with cropInfo. If you 
-      % change your .movieInvert, then your crops will likely be wrong.
-      % A warning is thrown but nothing else
+    % movieInvert  % [1xnview] logical. If true, movie should be inverted when read. This is to 
+    %              % compensate for codec issues where movies can be read inverted 
+    %              % on platform A wrt platform B
+    %   % Not much care is taken wrt interactions with cropInfo. If you 
+    %   % change your .movieInvert, then your crops will likely be wrong.
+    %   % A warning is thrown but nothing else
   end
 
   properties (Transient, SetAccess = protected)
@@ -1642,28 +1646,28 @@ classdef Labeler < handle
       end
     end
 
-    function set.movieInvert(obj,v)
-      if islogical(v) && numel(v)==obj.nview , %#ok<MCSUP>
-        movieInvert0 = obj.movieInvert;
-        if ~isequal(movieInvert0,v)
-          mrs = obj.movieReader; %#ok<MCSUP>
-          for i=1:obj.nview %#ok<MCSUP>
-            mrs(i).flipVert = v(i);
-          end
-          if ~obj.isinit %#ok<MCSUP>
-            obj.preProcNonstandardParamChanged();
-            if obj.cropProjHasCrops %#ok<MCSUP>
-              warningNoTrace('Project cropping will NOT be inverted/updated. Please check your crops.')
-            end
-          end
-          obj.movieInvert = v;
-        end
-        obj.notify('didSetMovieInvert') ;
-      else        
-        obj.notify('didSetMovieInvert') ;
-        error('APT:invalidValue', 'Invalid value for movieInvert') ;
-      end
-    end
+    % function set.movieInvert(obj,v)
+    %   if islogical(v) && numel(v)==obj.nview , %#ok<MCSUP>
+    %     movieInvert0 = obj.movieInvert;
+    %     if ~isequal(movieInvert0,v)
+    %       mrs = obj.movieReader; %#ok<MCSUP>
+    %       for i=1:obj.nview %#ok<MCSUP>
+    %         mrs(i).flipVert = v(i);
+    %       end
+    %       if ~obj.isinit %#ok<MCSUP>
+    %         obj.preProcNonstandardParamChanged();
+    %         if obj.cropProjHasCrops %#ok<MCSUP>
+    %           warningNoTrace('Project cropping will NOT be inverted/updated. Please check your crops.')
+    %         end
+    %       end
+    %       obj.movieInvert = v;
+    %     end
+    %     obj.notify('didSetMovieInvert') ;
+    %   else        
+    %     obj.notify('didSetMovieInvert') ;
+    %     error('APT:invalidValue', 'Invalid value for movieInvert') ;
+    %   end
+    % end
 
     function set.movieCenterOnTarget(obj,v)
       obj.movieCenterOnTarget = v;
@@ -1868,8 +1872,8 @@ classdef Labeler < handle
 
       % order important: this needs to occur after 'newProject' event so
       % that figs are set up. (names get changed)
-      movInvert = ViewConfig.getMovieInvert(cfg.View);
-      obj.movieInvert = movInvert;
+      % movInvert = ViewConfig.getMovieInvert(cfg.View);
+      % obj.movieInvert = movInvert;
       obj.movieCenterOnTarget = cfg.View(1).CenterOnTarget;
       obj.movieRotateTargetUp = cfg.View(1).RotateTargetUp;
       
@@ -1935,7 +1939,7 @@ classdef Labeler < handle
         viewCfg = repmat(s.View, obj.nview, 1);
       end
       for i=1:obj.nview
-        viewCfg(i).InvertMovie = obj.movieInvert(i);
+        % viewCfg(i).InvertMovie = obj.movieInvert(i);
         viewCfg(i).CenterOnTarget = obj.movieCenterOnTarget;
         viewCfg(i).RotateTargetUp = obj.movieRotateTargetUp;
       end
@@ -4639,7 +4643,7 @@ classdef Labeler < handle
         mov = movsAllFull{iMov,iView};
         mr = obj.movieReader(iView);
         mr.preload = obj.movieReadPreLoadMovies;
-        mr.open(mov,bgArgs{:}); % should already be faithful to .forceGrayscale, .movieInvert
+        mr.open(mov,bgArgs{:}); % should already be faithful to .forceGrayscale
         if tfHasCrop
           mr.setCropInfo(cInfo(iView)); % cInfo(iView) is a handle/pointer!
         else
@@ -13273,7 +13277,6 @@ classdef Labeler < handle
         'trackModeIdx'
         'movieCenterOnTarget'
         'movieForceGrayscale'
-        'movieInvert'
         'showOccludedBox'
         } ;
       propCount = numel(propsNeedInit) ;

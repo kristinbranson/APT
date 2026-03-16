@@ -721,7 +721,8 @@ classdef SpecifyMovieToTrackGUI < handle
       if isempty(obj.movieReader) || numel(obj.movieReader) < iview || ...
           isempty(obj.movieReader{iview}),
         obj.movieReader{iview} = MovieReader;
-        obj.movieReader{iview}.flipVert = obj.lObj.movieInvert(iview);
+        % obj.movieReader{iview}.flipVert = obj.lObj.movieInvert(iview);
+        obj.movieReader{iview}.flipVert = false ;
         obj.movieReader{iview}.forceGrayscale = obj.lObj.movieForceGrayscale;
         obj.movieReader{iview}.open(obj.movdata.movfiles{iview});
       end

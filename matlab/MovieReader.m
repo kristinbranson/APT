@@ -283,7 +283,8 @@ classdef MovieReader < handle
       obj.preload = labeler.movieReadPreLoadMovies; % must occur before .open()
       obj.open(movfname{iView},bgArgs{:});
       obj.forceGrayscale = labeler.movieForceGrayscale;
-      obj.flipVert = labeler.movieInvert(iView);      
+      % obj.flipVert = labeler.movieInvert(iView);      
+      obj.flipVert = false ;      
       cInfo = labeler.getMovieFilesAllCropInfoMovIdx(mIdx);
       if ~isempty(cInfo)
         obj.setCropInfo(cInfo(iView));

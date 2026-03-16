@@ -286,19 +286,21 @@ classdef ViewConfig
       end
     end
 
-    function movInvert = getMovieInvert(viewCfg)
-      nview = numel(viewCfg);
-      movInvert = false(1,nview);
-      for i=1:nview
-        if ~isempty(viewCfg(i).InvertMovie)
-          movInvert(i) = logical(viewCfg(i).InvertMovie);
-        end
-      end
-    end
+    % function result = getMovieInvert(viewCfg)
+    %   nview = numel(viewCfg);
+    %   result = false(1,nview);
+    %   for i=1:nview
+    %     if ~isempty(viewCfg(i).InvertMovie)
+    %       result(i) = logical(viewCfg(i).InvertMovie);
+    %     end
+    %   end
+    % end
 
-  end
+  end  % methods (Static)
   
-end
+end  % classdef
+
+
 
 function hlpAxDir(ax,prop,val)
 if isempty(val)

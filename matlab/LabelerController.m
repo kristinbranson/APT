@@ -159,7 +159,7 @@ classdef LabelerController < handle
     menu_view_flip
     menu_view_flip_fliplr
     menu_view_flip_flipud
-    menu_view_flip_flipud_movie_only
+    % menu_view_flip_flipud_movie_only
     menu_view_gammacorrect
     % menu_view_showhide_imported_predictions  % removed with labels2 infrastructure
     % menu_view_showhide_imported_preds_all
@@ -431,8 +431,8 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetProjectName',@(source,event)(obj.didChangeProjectName()));      
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetProjFSInfo',@(source,event)(obj.didChangeProjFSInfo()));      
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetMovieInvert',@(source,event)(obj.didChangeMovieInvert()));      
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'didSetMovieInvert',@(source,event)(obj.didChangeMovieInvert()));      
       % obj.listeners_(end+1) = ...
       %   addlistener(labeler,'update_menu_track_tracking_algorithm_quick',@(source,event)(obj.update_menu_track_tracking_algorithm_quick()));            
       obj.listeners_(end+1) = ...
@@ -2231,10 +2231,10 @@ classdef LabelerController < handle
       obj.updateStatusAndPointer() ;      
     end  % function
 
-    function didChangeMovieInvert(obj)
-      obj.updateGUIFigureNames() ;
-      obj.updateMainAxesName() ;
-    end  % function
+    % function didChangeMovieInvert(obj)
+    %   obj.updateGUIFigureNames() ;
+    %   obj.updateMainAxesName() ;
+    % end  % function
 
     function updateGUIFigureNames(obj)
       labeler = obj.labeler_ ;
@@ -2249,9 +2249,9 @@ classdef LabelerController < handle
         else
           str = sprintf('View: %s',vname) ;
         end
-        if numel(labeler.movieInvert) >= i && labeler.movieInvert(i) ,
-          str = [str,' (inverted)'] ;  %#ok<AGROW>
-        end
+        % if numel(labeler.movieInvert) >= i && labeler.movieInvert(i) ,
+        %   str = [str,' (inverted)'] ;  %#ok<AGROW>
+        % end
         figs(i).Name = str ;
         figs(i).NumberTitle = 'off' ;
       end
@@ -2279,9 +2279,9 @@ classdef LabelerController < handle
         str = [str,' (GT)'] ;
       end
       str = [str,': ',mname] ;
-      if ~isempty(labeler.movieInvert) && labeler.movieInvert(1) ,
-        str = [str,' (inverted)'] ;
-      end
+      % if ~isempty(labeler.movieInvert) && labeler.movieInvert(1) ,
+      %   str = [str,' (inverted)'] ;
+      % end
       set(obj.txMoviename,'String',str) ;
     end  % function
     
@@ -2383,8 +2383,8 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       viewCfg = labeler.projPrefs.View;
       obj.hlpSetConfigOnViews_(viewCfg, labeler.movieCenterOnTarget) ;
-      movInvert = ViewConfig.getMovieInvert(viewCfg);
-      labeler.movieInvert = movInvert;
+      % movInvert = ViewConfig.getMovieInvert(viewCfg);
+      % labeler.movieInvert = movInvert;
       labeler.movieCenterOnTarget = viewCfg(1).CenterOnTarget;
       labeler.movieRotateTargetUp = viewCfg(1).RotateTargetUp;
     end  % function
@@ -5476,19 +5476,19 @@ classdef LabelerController < handle
     end
 
 
-    function menu_view_flip_flipud_movie_only_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      [tfproceed,~,iAxApply] = obj.hlpAxesAdjustPrompt_();  % Prompt which views to flip if multiview
-      if tfproceed
-        labeler.movieInvert(iAxApply) = ~labeler.movieInvert(iAxApply);
-        if labeler.hasMovie
-          labeler.setFrameGUI(labeler.currFrame,'tfforcereadmovie',true);
-        end
-        if ~labeler.isMultiView,
-          toggleOnOff(obj.menu_view_flip_flipud_movie_only,'Checked');
-        end
-      end
-    end
+    % function menu_view_flip_flipud_movie_only_actuated_(obj, src, evt)  %#ok<INUSD>
+    %   labeler = obj.labeler_ ;
+    %   [tfproceed,~,iAxApply] = obj.hlpAxesAdjustPrompt_();  % Prompt which views to flip if multiview
+    %   if tfproceed
+    %     labeler.movieInvert(iAxApply) = ~labeler.movieInvert(iAxApply);
+    %     if labeler.hasMovie
+    %       labeler.setFrameGUI(labeler.currFrame,'tfforcereadmovie',true);
+    %     end
+    %     if ~labeler.isMultiView,
+    %       toggleOnOff(obj.menu_view_flip_flipud_movie_only,'Checked');
+    %     end
+    %   end
+    % end
 
 
 
@@ -5531,10 +5531,10 @@ classdef LabelerController < handle
       if isempty(labeler.projPrefs),
         return;
       end
-      viewCfg = labeler.projPrefs.View;
 
-      movieInvert = ViewConfig.getMovieInvert(viewCfg);
-      obj.menu_view_flip_flipud_movie_only.Checked = onIff(any(movieInvert));
+      % viewCfg = labeler.projPrefs.View;
+      % movieInvert = ViewConfig.getMovieInvert(viewCfg);
+      % obj.menu_view_flip_flipud_movie_only.Checked = onIff(any(movieInvert));
 
       for i = 1:numel(obj.axes_all),
         if strcmpi(obj.axes_all(i).XDir,'reverse'),
