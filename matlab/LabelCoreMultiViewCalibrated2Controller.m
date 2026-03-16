@@ -117,9 +117,10 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       % Register model listeners for multi-view specific events
       obj.listeners_ = [ ...
         obj.listeners_ ; ...
-        addlistener(mdl, 'updateAdjusted',    @(s,e)obj.updateAdjusted()) ; ...
-        addlistener(mdl, 'updateProjection',  @(s,e)obj.updateProjection()) ; ...
-        addlistener(mdl, 'updateWorkingSet',  @(s,e)obj.updateWorkingSet()) ; ...
+        addlistener(mdl, 'updateAdjusted',           @(s,e)obj.updateAdjusted()) ; ...
+        addlistener(mdl, 'updateProjection',         @(s,e)obj.updateProjection()) ; ...
+        addlistener(mdl, 'updateWorkingSet',         @(s,e)obj.updateWorkingSet()) ; ...
+        addlistener(mdl, 'updateEpiLineVisibility',  @(s,e)obj.updateEpiLineVisibility()) ; ...
       ] ;
     end  % function
 
@@ -665,13 +666,13 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function toggleEpipolarState_(obj)
       % Toggle epipolar line visibility.
       mdl = obj.model_ ;
-      if mdl.showEpiLines_
-        mdl.showEpiLines_ = false ;
-        set(obj.pjtHLinesEpi_, 'Visible', 'off') ;
-      else
-        mdl.showEpiLines_ = true ;
-        set(obj.pjtHLinesEpi_, 'Visible', 'on') ;
-      end
+      mdl.showEpiLines = ~mdl.showEpiLines ;
+    end  % function
+
+    function updateEpiLineVisibility(obj)
+      % Sync epipolar line visibility to model state.
+      mdl = obj.model_ ;
+      set(obj.pjtHLinesEpi_, 'Visible', onIff(mdl.showEpiLines)) ;
     end  % function
 
     function projectionRefreshEPlines_(obj)

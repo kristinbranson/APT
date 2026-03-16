@@ -13,6 +13,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
     updateAdjusted          % tfAdjusted_ changed
     updateProjection        % projection state changed (iSetWorking_, pjtIPts)
     updateWorkingSet        % working set changed
+    updateEpiLineVisibility % showEpiLines_ changed
   end
 
   properties
@@ -56,6 +57,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
     pjtState                  % 0, 1, or 2 for number of defined working pts
     isCalRig                  % scalar logical
     showCalibration           % scalar logical
+    showEpiLines              % scalar logical
     streamlined               % scalar logical
   end
 
@@ -99,6 +101,17 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
     function v = get.showCalibration(obj)
       % Return whether calibration info is shown.
       v = obj.showCalibration_ ;
+    end  % function
+
+    function v = get.showEpiLines(obj)
+      % Return whether epipolar lines are visible.
+      v = obj.showEpiLines_ ;
+    end  % function
+
+    function set.showEpiLines(obj, v)
+      % Set epipolar line visibility and notify controllers.
+      obj.showEpiLines_ = v ;
+      obj.notify('updateEpiLineVisibility') ;
     end  % function
 
     function v = get.streamlined(obj)
