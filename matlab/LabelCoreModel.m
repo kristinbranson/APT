@@ -276,6 +276,18 @@ classdef LabelCoreModel < handle
       obj.notify('updateLabelCoords') ;
     end  % function
 
+    function setOccludedI(obj, iPt, tfIsOccluded)
+      % Set the fully-occluded flag for a single point and notify controllers.
+      obj.tfOcc_(iPt) = tfIsOccluded ;
+      obj.notify('updateOccluded') ;
+    end  % function
+
+    function setEstOccludedI(obj, iPt, tfIsEstOccluded)
+      % Set the estimated-occluded flag for a single point and notify controllers.
+      obj.tfEstOcc_(iPt) = tfIsEstOccluded ;
+      obj.notify('updateEstOccluded') ;
+    end  % function
+
   end  % methods
 
   %% Cosmetics

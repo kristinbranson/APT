@@ -334,14 +334,11 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         ax = obj.hAx_(iAx) ;
         pos = get(ax, 'CurrentPoint') ;
         pos = pos(1, 1:2) ;
-        mdl.xy(iPt, :) = pos ;
-        mdl.lastChangedIPt = iPt ;
-        mdl.notify('updateLabelCoordsI') ;
+        mdl.setLabelCoordsI(pos, iPt) ;
         mdl.setPointAdjusted(iPt) ;
 
         if mdl.tfOcc(iPt)
-          mdl.tfOcc(iPt) = false ;
-          obj.refreshOccludedPts() ;
+          mdl.setOccludedI(iPt, false) ;
         end
 
         if mdl.streamlined_ && all(mdl.tfAdjusted_)
@@ -423,9 +420,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         tmp = get(ax, 'CurrentPoint') ;
         pos = tmp(1, 1:2) ;
         mdl.tfMoved_ = true ;
-        mdl.xy(iPt, :) = pos ;
-        mdl.lastChangedIPt = iPt ;
-        mdl.notify('updateLabelCoordsI') ;
+        mdl.setLabelCoordsI(pos, iPt) ;
         mdl.setPointAdjusted(iPt) ;
 
         obj.projectionRefresh_() ;
@@ -595,10 +590,8 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       mdl = obj.model_ ;
       mdl.setPointAdjusted(iPt) ;
 
-      mdl.tfOcc(iPt) = true ;
-      mdl.tfEstOcc(iPt) = false ;
-      obj.refreshOccludedPts() ;
-      obj.refreshPtMarkers('iPts', iPt) ;
+      mdl.setEstOccludedI(iPt, false) ;
+      mdl.setOccludedI(iPt, true) ;
 
       if mdl.streamlined_ && all(mdl.tfAdjusted_)
         mdl.enterAccepted(true) ;
