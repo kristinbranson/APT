@@ -3710,7 +3710,8 @@ classdef LabelerController < handle
 
     function updateLabelSkeletonCosmetics(obj)
       % Respond to label skeleton cosmetics being updated.
-      obj.lblCoreController_.skeletonCosmeticsUpdated() ;
+      ppi = obj.labeler_.labelPointsPlotInfo ;
+      obj.labeler_.lblCore.setSkeletonCosmetics(ppi.SkeletonProps) ;
     end  % function
 
     function updatePreProcParams(obj)

@@ -7497,7 +7497,7 @@ classdef Labeler < handle
     %   obj.notify('updateTimelineLandmarkColors');
     % end
     
-    function updateLandmarkPredictionColors(obj,colors,colormapname)
+    function setLandmarkPredictionColors(obj,colors,colormapname)
       % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
       
       % colors: "setwise" colors
@@ -7509,7 +7509,7 @@ classdef Labeler < handle
       obj.notify('updatePredictionColors') ;
     end
     
-    function updateLandmarkImportedColors(obj,colors,colormapname)
+    function setLandmarkImportedColors(obj,colors,colormapname)
       % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
       % colors: "setwise" colors
       szassert(colors,[obj.nPhysPoints 3]);
@@ -7518,29 +7518,18 @@ classdef Labeler < handle
       obj.impPointsPlotInfo.ColorMapName = colormapname;
     end
 
-    function updateLandmarkLabelCosmetics(obj,pvMarker,pvText,textOffset)
+    function setLandmarkLabelCosmetics(obj, pvMarker, pvText, textOffset)
       % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
 
-      lc = obj.lblCore;
+      lc = obj.lblCore ;
 
-      % Marker cosmetics apply to lblCore
-      flds = fieldnames(pvMarker);
-      for f=flds(:)',f=f{1}; %#ok<FXSET>
-        obj.labelPointsPlotInfo.MarkerProps.(f) = pvMarker.(f);
-      end
-      lc.updateMarkerCosmetics(pvMarker);
+      lc.setMarkerCosmetics(pvMarker) ;
 
-      % Text cosmetics apply to lblCore
-      flds = fieldnames(pvText);
-      for f=flds(:)',f=f{1}; %#ok<FXSET>
-        obj.labelPointsPlotInfo.TextProps.(f) = pvText.(f);
-      end
-      obj.labelPointsPlotInfo.TextOffset = textOffset;
-      notify(obj, 'updatePrevAxesLabels');
-      lc.updateTextLabelCosmetics(pvText,textOffset);
+      obj.notify('updatePrevAxesLabels') ;
+      lc.setTextCosmetics(pvText, textOffset) ;
     end
 
-    function updateLandmarkPredictionCosmetics(obj, pvMarker, pvText, textOffset)
+    function setLandmarkPredictionCosmetics(obj, pvMarker, pvText, textOffset)
       % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
 
       % Set PVs on .predPointsPlotInfo; mild massage
@@ -7558,7 +7547,7 @@ classdef Labeler < handle
       obj.notify('updatePredictionCosmetics') ;
     end  % function
     
-    function updateTrajImportedColors(obj,colors,colormapname)
+    function setTrajImportedColors(obj,colors,colormapname)
       obj.projPrefs.Trx.TrajColor = colors;
       obj.projPrefs.Trx.TrajColorMapName = colormapname;
     end  % function    

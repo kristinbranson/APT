@@ -16,6 +16,10 @@ classdef LabelCoreModel < handle
     updateOccluded          % tfOcc_ changed
     updateEstOccluded       % tfEstOcc_ changed
     updateSelected          % tfSel_ changed
+    updateColors            % ptsPlotInfo_.Colors changed
+    updateMarkerCosmetics   % ptsPlotInfo_.MarkerProps changed
+    updateTextCosmetics     % ptsPlotInfo_.TextProps/TextOffset changed
+    updateSkeletonCosmetics % ptsPlotInfo_.SkeletonProps changed
   end
 
   properties (Abstract)
@@ -270,6 +274,42 @@ classdef LabelCoreModel < handle
         obj.tfEstOcc_ = logical(lblTags) ;
       end
       obj.notify('updateLabelCoords') ;
+    end  % function
+
+  end  % methods
+
+  %% Cosmetics
+  methods
+
+    function setColors(obj, colors)
+      % Set ptsPlotInfo_.Colors and notify controllers.
+      obj.ptsPlotInfo_.Colors = colors ;
+      obj.notify('updateColors') ;
+    end  % function
+
+    function setMarkerCosmetics(obj, pvMarker)
+      % Merge fields into ptsPlotInfo_.MarkerProps and notify controllers.
+      flds = fieldnames(pvMarker) ;
+      for f = flds(:)' , f = f{1} ; %#ok<FXSET>
+        obj.ptsPlotInfo_.MarkerProps.(f) = pvMarker.(f) ;
+      end
+      obj.notify('updateMarkerCosmetics') ;
+    end  % function
+
+    function setTextCosmetics(obj, pvText, txtoffset)
+      % Merge fields into ptsPlotInfo_.TextProps, set TextOffset, and notify controllers.
+      flds = fieldnames(pvText) ;
+      for f = flds(:)' , f = f{1} ; %#ok<FXSET>
+        obj.ptsPlotInfo_.TextProps.(f) = pvText.(f) ;
+      end
+      obj.ptsPlotInfo_.TextOffset = txtoffset ;
+      obj.notify('updateTextCosmetics') ;
+    end  % function
+
+    function setSkeletonCosmetics(obj, skeletonProps)
+      % Set ptsPlotInfo_.SkeletonProps and notify controllers.
+      obj.ptsPlotInfo_.SkeletonProps = skeletonProps ;
+      obj.notify('updateSkeletonCosmetics') ;
     end  % function
 
   end  % methods

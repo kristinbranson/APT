@@ -316,11 +316,11 @@ classdef LabelCoreTemplateController < LabelCoreController
       set(obj.hPts_(tfUnadjPredicted), obj.hPtsMarkerPVPredUnadjusted_) ;
     end  % function
 
-    function updateColors(obj, colors)
+    function updateColors(obj)
       % LabelCoreController overload: only color adjusted pts or unadj/predicted.
 
       mdl = obj.model_ ;
-      mdl.ptsPlotInfo.Colors = colors ;
+      colors = mdl.ptsPlotInfo.Colors ;
 
       resetType = mdl.lastSetAllUnadjustedResetType_ ;
       tfSetColor = mdl.tfAdjusted_ | ...
@@ -337,13 +337,8 @@ classdef LabelCoreTemplateController < LabelCoreController
       end
     end  % function
 
-    function updateMarkerCosmetics(obj, pvMarker)
+    function updateMarkerCosmetics(obj)
       % LabelCoreController overload: also refresh pred-unadjusted PVs.
-      mdl = obj.model_ ;
-      flds = fieldnames(pvMarker) ;
-      for f = flds(:)' , f = f{1} ; %#ok<FXSET>
-        mdl.ptsPlotInfo.MarkerProps.(f) = pvMarker.(f) ;
-      end
 
       obj.updatePredUnadjustedPVs() ;
 
@@ -351,20 +346,16 @@ classdef LabelCoreTemplateController < LabelCoreController
       obj.refreshMarkerProps() ;  % updates other marker-related props
     end  % function
 
-    function updateTextLabelCosmetics(obj, pvText, txtoffset)
+    function updateTextLabelCosmetics(obj)
       % LabelCoreController overload. Currently, if pvText includes FontAngle
       % this will collide with Unadjusted/Predicted-ness and this will not
       % be handled properly. (However FontAngle currently *not* exposed in
       % cosmetics picker.)
 
-      mdl = obj.model_ ;
-      flds = fieldnames(pvText) ;
-      for f = flds(:)' , f = f{1} ; %#ok<FXSET>
-        mdl.ptsPlotInfo.TextProps.(f) = pvText.(f) ;
-      end
+      ppi = obj.model_.ptsPlotInfo ;
+      pvText = ppi.TextProps ;
       set(obj.hPtsTxt_, pvText) ;
 
-      mdl.ptsPlotInfo.TextOffset = txtoffset ;
       obj.redrawTextLabels() ;
     end  % function
 

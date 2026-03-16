@@ -704,27 +704,30 @@ classdef LabelCoreSeqMAController < LabelCoreController
       end
     end  % function
 
-    function updateColors(obj, colors)
+    function updateColors(obj)
       % Update colors for point markers, text labels, and TV.
-      updateColors@LabelCoreController(obj, colors) ;
+      updateColors@LabelCoreController(obj) ;
+      colors = obj.model_.ptsPlotInfo.Colors ;
       obj.tv_.updateLandmarkColors(colors) ;
     end  % function
 
-    function updateMarkerCosmetics(obj, pvMarker)
+    function updateMarkerCosmetics(obj)
       % Update marker cosmetics for all point handles and TV.
-      updateMarkerCosmetics@LabelCoreController(obj, pvMarker) ;
+      updateMarkerCosmetics@LabelCoreController(obj) ;
+      pvMarker = obj.model_.ptsPlotInfo.MarkerProps ;
       obj.tv_.setMarkerCosmetics(pvMarker) ;
     end  % function
 
-    function updateTextLabelCosmetics(obj, pvText, txtoffset)
+    function updateTextLabelCosmetics(obj)
       % Update text label cosmetics and TV.
-      updateTextLabelCosmetics@LabelCoreController(obj, pvText, txtoffset) ;
-      obj.tv_.setTextCosmetics(pvText) ;
-      obj.tv_.setTextOffset(txtoffset) ;
+      updateTextLabelCosmetics@LabelCoreController(obj) ;
+      ppi = obj.model_.ptsPlotInfo ;
+      obj.tv_.setTextCosmetics(ppi.TextProps) ;
+      obj.tv_.setTextOffset(ppi.TextOffset) ;
     end  % function
 
     function skeletonCosmeticsUpdated(obj)
-      % Refresh skeleton edge cosmetics from labeler and TV.
+      % Refresh skeleton edge cosmetics from model and TV.
       skeletonCosmeticsUpdated@LabelCoreController(obj) ;
       obj.tv_.skeletonCosmeticsUpdated() ;
     end  % function

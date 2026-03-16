@@ -146,6 +146,10 @@ classdef LabelCoreController < handle
         addlistener(mdl, 'updateOccluded',     @(s,e)obj.onUpdateOccluded()) ; ...
         addlistener(mdl, 'updateEstOccluded',  @(s,e)obj.onUpdateEstOccluded()) ; ...
         addlistener(mdl, 'updateSelected',     @(s,e)obj.onUpdateSelected()) ; ...
+        addlistener(mdl, 'updateColors',            @(s,e)obj.updateColors()) ; ...
+        addlistener(mdl, 'updateMarkerCosmetics',   @(s,e)obj.updateMarkerCosmetics()) ; ...
+        addlistener(mdl, 'updateTextCosmetics',     @(s,e)obj.updateTextLabelCosmetics()) ; ...
+        addlistener(mdl, 'updateSkeletonCosmetics', @(s,e)obj.skeletonCosmeticsUpdated()) ; ...
       ] ;
 
       obj.initHook() ;
@@ -460,10 +464,10 @@ classdef LabelCoreController < handle
   %% Cosmetics
   methods
 
-    function updateColors(obj, colors)
-      % Update colors for point markers and text labels.
+    function updateColors(obj)
+      % Update colors for point markers and text labels from model.
       mdl = obj.model_ ;
-      mdl.ptsPlotInfo.Colors = colors ;
+      colors = mdl.ptsPlotInfo.Colors ;
 
       for i = 1:mdl.nPts
         clrI = colors(i, :) ;
@@ -482,35 +486,25 @@ classdef LabelCoreController < handle
       end
     end  % function
 
-    function updateMarkerCosmetics(obj, pvMarker)
-      % Update marker cosmetics for all point handles.
-      mdl = obj.model_ ;
-      flds = fieldnames(pvMarker) ;
-      for f = flds(:)' , f = f{1} ; %#ok<FXSET>
-        mdl.ptsPlotInfo.MarkerProps.(f) = pvMarker.(f) ;
-      end
+    function updateMarkerCosmetics(obj)
+      % Update marker cosmetics for all point handles from model.
+      pvMarker = obj.model_.ptsPlotInfo.MarkerProps ;
       set(obj.hPts_, pvMarker) ;
       set(obj.hPtsOcc_, pvMarker) ;
     end  % function
 
-    function updateTextLabelCosmetics(obj, pvText, txtoffset)
-      % Update text label cosmetics.
-      mdl = obj.model_ ;
-      flds = fieldnames(pvText) ;
-      for f = flds(:)' , f = f{1} ; %#ok<FXSET>
-        mdl.ptsPlotInfo.TextProps.(f) = pvText.(f) ;
-      end
+    function updateTextLabelCosmetics(obj)
+      % Update text label cosmetics from model.
+      ppi = obj.model_.ptsPlotInfo ;
+      pvText = ppi.TextProps ;
       set(obj.hPtsTxt_, pvText) ;
-      mdl.ptsPlotInfo.TextOffset = txtoffset ;
       obj.redrawTextLabels() ;
     end  % function
 
     function skeletonCosmeticsUpdated(obj)
-      % Refresh skeleton edge cosmetics from labeler.
-      lObj = obj.labeler_ ;
-      ppi = lObj.labelPointsPlotInfo ;
-      obj.model_.ptsPlotInfo.SkeletonProps = ppi.SkeletonProps ;
-      set(obj.hSkel_, ppi.SkeletonProps) ;
+      % Refresh skeleton edge cosmetics from model.
+      skeletonProps = obj.model_.ptsPlotInfo.SkeletonProps ;
+      set(obj.hSkel_, skeletonProps) ;
     end  % function
 
     function updateSkeletonEdges(obj)
