@@ -652,7 +652,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         set(obj.hPtsTxt_(iPt), 'String', obj.hPtsTxtStrs_{iPt}) ;
       end
 
-      mdl.showEpiLines_ = true ;
+      % mdl.showEpiLines = true ;
 
       for i = 1:mdl.nView
         for j = 1:mdl.nView
@@ -707,7 +707,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
 
           hEpi = obj.pjtHLinesEpi_(iAx, i) ;
           set(hEpi, 'XData', x, 'YData', y, ...
-            'Visible', onIff(mdl.showCalibration_), 'Color', clr) ;
+              'Visible', onIff(mdl.showEpiLines), 'Color', clr) ;
         end
       end
     end  % function
@@ -737,7 +737,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         [x, y] = crig.reconstruct(iAx1, xy1, iAx2, xy2, iAx) ;
         set(obj.pjtHLinesRecon_(iAx), ...
           'XData', x, 'YData', y, ...
-          'Visible', onIff(mdl.showCalibration_), 'Color', clr) ;
+          'Visible', onIff(mdl.showCalibration), 'Color', clr) ;
       end
     end  % function
 
@@ -943,7 +943,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       shortcuts{end, 2} = '-' ;
       shortcuts{end, 3} = {'Shift'} ;
 
-      mdl = obj.model_ ;
+      % mdl = obj.model_ ;
       shortcuts{end+1, 1} = ...
         sprintf('If kpt selected, move left by 1/%.1fth of axis size ow go to next %s', DXFACBIG, ...
           obj.labeler_.movieShiftArrowNavMode.prettyStr) ;
