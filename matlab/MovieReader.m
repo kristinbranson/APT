@@ -38,27 +38,8 @@ classdef MovieReader < handle
     hascrop % logical scalar, true if cropInfo is set
   end
   
-  properties (SetObservable)
-    % AL June 2016. Note on these SetObservable props.
-    %
-    % Our view of Labeler as a client of MovieReader is slightly unusual.
-    % We posit that Labeler.movieReader is part of Labeler's public API, 
-    % rather than .movieReader being purely private implementation. These
-    % MovieReader props are Public+SetObservable b/c we consider them part
-    % of Labeler's public API; users or the UI can/will set them directly, 
-    % rather than being forwarded through eg a dummy public property on 
-    % Labeler.
-    %
-    % The two main reasons for this decision are i) convenience and ii) to
-    % keep a dummy/forwarding prop on Labeler in sync, a listener would 
-    % need to be attached to the MovieReader prop anyway. I kind of like 
-    % the idea of having a select few properties of a large object like 
-    % Labeler (that contain 'permanent' scalar subobjects) to be considered 
-    % public API. It's a convenient and clean way of dividing 
-    % code/responsibility a little without creating a bunch of forwarding 
-    % props/methods.
-
-    forceGrayscale = false; % if true, [MxNx3] images are run through rgb2gray
+  properties
+    forceGrayscale = false;  % if true, [MxNx3] images are run through rgb2gray
   end
   
   properties (Dependent)
