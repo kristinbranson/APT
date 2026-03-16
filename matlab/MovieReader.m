@@ -59,7 +59,6 @@ classdef MovieReader < handle
     % props/methods.
 
     forceGrayscale = false; % if true, [MxNx3] images are run through rgb2gray
-    flipVert = false; % if true, images are flipud-ed on read
   end
   
   properties (Dependent)
@@ -179,17 +178,13 @@ classdef MovieReader < handle
       
       [doBGsub,docrop] = myparse(varargin,...
         'doBGsub',false,...
-        'docrop',false ... % if true, .cropInfo is used if avail. Note, 
-                       ... % cropping occurs AFTER flipvert, if that is on
+        'docrop',false ... % if true, .cropInfo is used if avail
         );
       
       assert(obj.isOpen,'Movie is not open.');
       im = obj.readFrameFcn(i);
       imOrigType = class(im);
 
-      if obj.flipVert
-        im = flipud(im);
-      end
       if obj.forceGrayscale
         if size(im,3)==3 % doesn't have to be RGB but convert anyway
           im = rgb2gray(im);
@@ -204,7 +199,7 @@ classdef MovieReader < handle
         % Note, bgReadFcn should be returning bg images with same
         % scaling as im.
 
-        % Note: we do NOT apply .flipVert to bgIm, bgDevIm here...
+        % Note: we do NOT apply flipud to bgIm, bgDevIm here...
         
         im = PxAssign.simplebgsub(obj.bgType,double(im),obj.bgIm,obj.bgDevIm);
         
@@ -283,8 +278,6 @@ classdef MovieReader < handle
       obj.preload = labeler.movieReadPreLoadMovies; % must occur before .open()
       obj.open(movfname{iView},bgArgs{:});
       obj.forceGrayscale = labeler.movieForceGrayscale;
-      % obj.flipVert = labeler.movieInvert(iView);      
-      obj.flipVert = false ;      
       cInfo = labeler.getMovieFilesAllCropInfoMovIdx(mIdx);
       if ~isempty(cInfo)
         obj.setCropInfo(cInfo(iView));
