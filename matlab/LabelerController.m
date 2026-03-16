@@ -6620,7 +6620,7 @@ classdef LabelerController < handle
       % Update the prediction TV skeleton cosmetics from model state.
       tv = obj.tvTrkPred_ ;
       if ~isempty(tv)
-        tv.skeletonCosmeticsUpdated() ;
+        tv.updateSkeletonCosmetics() ;
       end
     end  % function
 

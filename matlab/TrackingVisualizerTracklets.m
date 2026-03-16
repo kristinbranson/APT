@@ -121,8 +121,8 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         warning('No data for primary animal for current frame. Not centering on the animal') ;
         return;
       end
-      minx = nanmin(pts_curr(:,1)) ; maxx = nanmax(pts_curr(:,1)) ;
-      miny = nanmin(pts_curr(:,2)) ; maxy = nanmax(pts_curr(:,2)) ;
+      minx = nanmin(pts_curr(:,1)) ; maxx = nanmax(pts_curr(:,1)) ;  %#ok<NANMAX,NANMIN>
+      miny = nanmin(pts_curr(:,2)) ; maxy = nanmax(pts_curr(:,2)) ;  %#ok<NANMAX,NANMIN>
 
       controller = obj.parent_ ;
       v = controller.videoCurrentAxis() ;
@@ -173,8 +173,8 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     function setTextOffset(obj, offsetPx)
       obj.tvmt.setTextOffset(offsetPx) ;
     end
-    function skeletonCosmeticsUpdated(obj)
-      obj.tvmt.skeletonCosmeticsUpdated() ;
+    function updateSkeletonCosmetics(obj)
+      obj.tvmt.updateSkeletonCosmetics() ;
     end
     function delete(obj)
       obj.tvmt.delete() ;

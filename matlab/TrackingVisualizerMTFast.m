@@ -385,7 +385,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       obj.tvm_.txtOffPx = offsetPx ;
       obj.updatePredsTxt();
     end
-    function skeletonCosmeticsUpdated(obj)
+    function updateSkeletonCosmetics(obj)
       tvm = obj.tvm_ ;
       lObj = obj.parent_.labeler_ ;
       ppiFld = tvm.ptsPlotInfoFld ;

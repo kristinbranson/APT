@@ -650,7 +650,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
 
       obj.updateTrackRes(xy,[]);
     end
-    function skeletonCosmeticsUpdated(obj)
+    function updateSkeletonCosmetics(obj)
       tvm = obj.tvm_ ;
       lObj = obj.parent_.labeler_ ;
       ppiFld = tvm.ptsPlotInfoFld ;

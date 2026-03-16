@@ -149,7 +149,7 @@ classdef LabelCoreController < handle
         addlistener(mdl, 'updateColors',            @(s,e)obj.updateColors()) ; ...
         addlistener(mdl, 'updateMarkerCosmetics',   @(s,e)obj.updateMarkerCosmetics()) ; ...
         addlistener(mdl, 'updateTextCosmetics',     @(s,e)obj.updateTextLabelCosmetics()) ; ...
-        addlistener(mdl, 'updateSkeletonCosmetics', @(s,e)obj.skeletonCosmeticsUpdated()) ; ...
+        addlistener(mdl, 'updateSkeletonCosmetics', @(s,e)obj.updateSkeletonCosmetics()) ; ...
       ] ;
 
       obj.initHook() ;
@@ -501,7 +501,7 @@ classdef LabelCoreController < handle
       obj.redrawTextLabels() ;
     end  % function
 
-    function skeletonCosmeticsUpdated(obj)
+    function updateSkeletonCosmetics(obj)
       % Refresh skeleton edge cosmetics from model.
       skeletonProps = obj.model_.ptsPlotInfo.SkeletonProps ;
       set(obj.hSkel_, skeletonProps) ;

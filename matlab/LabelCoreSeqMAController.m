@@ -726,10 +726,10 @@ classdef LabelCoreSeqMAController < LabelCoreController
       obj.tv_.setTextOffset(ppi.TextOffset) ;
     end  % function
 
-    function skeletonCosmeticsUpdated(obj)
+    function updateSkeletonCosmetics(obj)
       % Refresh skeleton edge cosmetics from model and TV.
-      skeletonCosmeticsUpdated@LabelCoreController(obj) ;
-      obj.tv_.skeletonCosmeticsUpdated() ;
+      updateSkeletonCosmetics@LabelCoreController(obj) ;
+      obj.tv_.updateSkeletonCosmetics() ;
     end  % function
 
     function preProcParamsChanged(obj)
