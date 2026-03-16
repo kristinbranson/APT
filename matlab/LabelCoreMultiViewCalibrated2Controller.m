@@ -117,9 +117,9 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       % Register model listeners for multi-view specific events
       obj.listeners_ = [ ...
         obj.listeners_ ; ...
-        addlistener(mdl, 'updateAdjusted',    @(s,e)obj.onUpdateAdjusted()) ; ...
-        addlistener(mdl, 'updateProjection',  @(s,e)obj.onUpdateProjection()) ; ...
-        addlistener(mdl, 'updateWorkingSet',  @(s,e)obj.onUpdateWorkingSet()) ; ...
+        addlistener(mdl, 'updateAdjusted',    @(s,e)obj.updateAdjusted()) ; ...
+        addlistener(mdl, 'updateProjection',  @(s,e)obj.updateProjection()) ; ...
+        addlistener(mdl, 'updateWorkingSet',  @(s,e)obj.updateWorkingSet()) ; ...
       ] ;
     end  % function
 
@@ -229,7 +229,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
   %% Model event handlers
   methods
 
-    function onUpdateState(obj)
+    function updateState(obj)
       % Sync tbAccept appearance to model state.
       mdl = obj.model_ ;
       switch mdl.state
@@ -245,7 +245,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       end
     end  % function
 
-    function onUpdateAdjusted(obj)
+    function updateAdjusted(obj)
       % Sync point colors for adjusted/unadjusted points.
       mdl = obj.model_ ;
       ppi = mdl.ptsPlotInfo ;
@@ -285,13 +285,13 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       end
     end  % function
 
-    function onUpdateProjection(obj)
+    function updateProjection(obj)
       % Projection state changed. Clear and refresh epipolar/recon lines.
       obj.projectionClear_() ;
       obj.projectionRefresh_() ;
     end  % function
 
-    function onUpdateWorkingSet(obj)
+    function updateWorkingSet(obj)
       % Working set changed. Update point boldness/dimness and xlabels.
       mdl = obj.model_ ;
       iWS = mdl.iSetWorking_ ;

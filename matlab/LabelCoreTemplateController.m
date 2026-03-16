@@ -43,7 +43,7 @@ classdef LabelCoreTemplateController < LabelCoreController
       mdl = obj.model_ ;
       obj.listeners_ = [ ...
         obj.listeners_ ; ...
-        addlistener(mdl, 'updateAdjusted', @(s,e)obj.onUpdateAdjusted()) ; ...
+        addlistener(mdl, 'updateAdjusted', @(s,e)obj.updateAdjusted()) ; ...
       ] ;
 
       % LabelCore should probably not talk directly to tracker
@@ -60,7 +60,7 @@ classdef LabelCoreTemplateController < LabelCoreController
   %% Model event handlers
   methods
 
-    function onUpdateState(obj)
+    function updateState(obj)
       % Sync tbAccept appearance to model state.
       mdl = obj.model_ ;
       switch mdl.state
@@ -76,7 +76,7 @@ classdef LabelCoreTemplateController < LabelCoreController
       end
     end  % function
 
-    function onUpdateAdjusted(obj)
+    function updateAdjusted(obj)
       % Sync color/marker cosmetics for adjusted/unadjusted points.
       mdl = obj.model_ ;
       iPt = mdl.lastChangedIPt ;

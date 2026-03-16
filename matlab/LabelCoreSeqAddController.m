@@ -39,7 +39,7 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
   %% Model event handlers (override parent)
   methods
 
-    function onUpdateState(obj)
+    function updateState(obj)
       % Sync tbAccept appearance for SeqAdd mode.
       mdl = obj.model_ ;
       switch mdl.state

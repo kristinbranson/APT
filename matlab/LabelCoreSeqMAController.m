@@ -74,11 +74,11 @@ classdef LabelCoreSeqMAController < LabelCoreController
 
       % Register additional model listeners for SeqMA-specific events
       obj.listeners_ = [obj.listeners_ ; ...
-        addlistener(mdl, 'updateTwoClickState',  @(s,e)obj.onUpdateTwoClickState()) ; ...
-        addlistener(mdl, 'updateNewFrameTarget', @(s,e)obj.onUpdateNewFrameTarget()) ; ...
-        addlistener(mdl, 'updateAccepted',       @(s,e)obj.onUpdateAccepted()) ; ...
-        addlistener(mdl, 'updateAcceptedReset',   @(s,e)obj.onUpdateAcceptedReset()) ; ...
-        addlistener(mdl, 'updateBeginLabel',     @(s,e)obj.onUpdateBeginLabel()) ; ...
+        addlistener(mdl, 'updateTwoClickState',  @(s,e)obj.updateTwoClickState()) ; ...
+        addlistener(mdl, 'updateNewFrameTarget', @(s,e)obj.updateNewFrameTarget()) ; ...
+        addlistener(mdl, 'updateAccepted',       @(s,e)obj.updateAccepted()) ; ...
+        addlistener(mdl, 'updateAcceptedReset',   @(s,e)obj.updateAcceptedReset()) ; ...
+        addlistener(mdl, 'updateBeginLabel',     @(s,e)obj.updateBeginLabel()) ; ...
         addlistener(mdl, 'restoreVideoAxis',   @(s,e)obj.onRestoreVideoAxis()) ; ...
       ] ;
     end  % function
@@ -99,12 +99,12 @@ classdef LabelCoreSeqMAController < LabelCoreController
   %% Model event handlers
   methods
 
-    function onUpdateState(obj)
+    function updateState(obj)
       % Sync button appearance and controls to model state.
       obj.enableControls() ;
     end  % function
 
-    function onUpdateNewFrameTarget(obj)
+    function updateNewFrameTarget(obj)
       % Sync track visualization and ROI to new frame/target data.
 
       mdl = obj.model_ ;
@@ -127,7 +127,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       end
     end  % function
 
-    function onUpdateAccepted(obj)
+    function updateAccepted(obj)
       % Respond to acceptLabels: update tv for current target, restore hittest.
 
       mdl = obj.model_ ;
@@ -147,8 +147,8 @@ classdef LabelCoreSeqMAController < LabelCoreController
       end
     end  % function
 
-    function onUpdateAcceptedReset(obj) %#ok<MANU>
-      % Respond to beginAcceptedReset. Currently handled by onUpdateState.
+    function updateAcceptedReset(obj) %#ok<MANU>
+      % Respond to beginAcceptedReset. Currently handled by updateState.
     end  % function
 
     function onRestoreVideoAxis(obj)
@@ -157,7 +157,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       obj.labelerController_.videoSetAxis(mdl.tc_prev_axis_) ;
     end  % function
 
-    function onUpdateBeginLabel(obj)
+    function updateBeginLabel(obj)
       % Respond to entering Label state: update HUD and disable hittest.
 
       mdl = obj.model_ ;
@@ -174,9 +174,9 @@ classdef LabelCoreSeqMAController < LabelCoreController
       end
     end  % function
 
-    function onUpdateLabelCoordsI(obj)
+    function updateLabelCoordsI(obj)
       % Sync single-point graphics and refresh markers for changed point.
-      onUpdateLabelCoordsI@LabelCoreController(obj) ;
+      updateLabelCoordsI@LabelCoreController(obj) ;
       iPt = obj.model_.lastChangedIPt ;
       obj.refreshPtMarkers('iPts', iPt) ;
     end  % function
@@ -464,7 +464,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       end
     end  % function
 
-    function onUpdateTwoClickState(obj) %#ok<MANU>
+    function updateTwoClickState(obj) %#ok<MANU>
       % Respond to two-click state changes in the model.
       % Currently the graphics are handled inline by hlpAxBDFTwoClick.
     end  % function

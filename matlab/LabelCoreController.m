@@ -139,13 +139,13 @@ classdef LabelCoreController < handle
 
       % Register model listeners
       obj.listeners_ = [ ...
-        addlistener(mdl, 'update',             @(s,e)obj.onUpdate()) ; ...
+        addlistener(mdl, 'update',             @(s,e)obj.update()) ; ...
         addlistener(mdl, 'updateLabelCoords',  @(s,e)obj.updateLabelCoords()) ; ...
-        addlistener(mdl, 'updateLabelCoordsI', @(s,e)obj.onUpdateLabelCoordsI()) ; ...
-        addlistener(mdl, 'updateState',        @(s,e)obj.onUpdateState()) ; ...
-        addlistener(mdl, 'updateOccluded',     @(s,e)obj.onUpdateOccluded()) ; ...
-        addlistener(mdl, 'updateEstOccluded',  @(s,e)obj.onUpdateEstOccluded()) ; ...
-        addlistener(mdl, 'updateSelected',     @(s,e)obj.onUpdateSelected()) ; ...
+        addlistener(mdl, 'updateLabelCoordsI', @(s,e)obj.updateLabelCoordsI()) ; ...
+        addlistener(mdl, 'updateState',        @(s,e)obj.updateState()) ; ...
+        addlistener(mdl, 'updateOccluded',     @(s,e)obj.updateOccluded()) ; ...
+        addlistener(mdl, 'updateEstOccluded',  @(s,e)obj.updateEstOccluded()) ; ...
+        addlistener(mdl, 'updateSelected',     @(s,e)obj.updateSelected()) ; ...
         addlistener(mdl, 'updateColors',            @(s,e)obj.updateColors()) ; ...
         addlistener(mdl, 'updateMarkerCosmetics',   @(s,e)obj.updateMarkerCosmetics()) ; ...
         addlistener(mdl, 'updateTextCosmetics',     @(s,e)obj.updateTextLabelCosmetics()) ; ...
@@ -178,31 +178,31 @@ classdef LabelCoreController < handle
   %% Model event handlers
   methods
 
-    function onUpdate(obj) %#ok<MANU>
+    function update(obj) %#ok<MANU>
       % Full sync fallback. Override in subclasses.
     end  % function
 
-    function onUpdateLabelCoordsI(obj)
+    function updateLabelCoordsI(obj)
       % Sync single point graphics to model xy_ for lastChangedIPt_.
       iPt = obj.model_.lastChangedIPt ;
       obj.syncPointGraphicsI(iPt) ;
     end  % function
 
-    function onUpdateState(obj) %#ok<MANU>
+    function updateState(obj) %#ok<MANU>
       % State changed. Override in subclasses for state-dependent UI.
     end  % function
 
-    function onUpdateOccluded(obj)
+    function updateOccluded(obj)
       % Occluded flags changed. Refresh occluded point display.
       obj.refreshOccludedPts() ;
     end  % function
 
-    function onUpdateEstOccluded(obj)
+    function updateEstOccluded(obj)
       % Estimated-occluded flags changed. Refresh markers.
       obj.refreshPtMarkers() ;
     end  % function
 
-    function onUpdateSelected(obj)
+    function updateSelected(obj)
       % Selection changed. Refresh markers.
       obj.refreshPtMarkers() ;
     end  % function

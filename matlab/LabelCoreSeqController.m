@@ -31,7 +31,7 @@ classdef LabelCoreSeqController < LabelCoreController
   %% Model event handlers
   methods
 
-    function onUpdateState(obj)
+    function updateState(obj)
       % Sync tbAccept appearance and point HitTest to model state.
       mdl = obj.model_ ;
       switch mdl.state
@@ -52,9 +52,9 @@ classdef LabelCoreSeqController < LabelCoreController
       end
     end  % function
 
-    function onUpdateLabelCoordsI(obj)
+    function updateLabelCoordsI(obj)
       % Sync single-point graphics and refresh markers for changed point.
-      onUpdateLabelCoordsI@LabelCoreController(obj) ;
+      updateLabelCoordsI@LabelCoreController(obj) ;
       iPt = obj.model_.lastChangedIPt ;
       obj.refreshPtMarkers('iPts', iPt) ;
     end  % function
