@@ -192,7 +192,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
         obj.acceptLabels() ;
         obj.clearSelected() ;
       elseif strcmpi(res, 'Cancel')
-        obj.labeler_.setFrameAndTargetGUI(iFrm0, iTgt0) ;
+        obj.labeler_.setFrameAndTarget(iFrm0, iTgt0) ;
         return ;
       else  % answer = No
         % pass

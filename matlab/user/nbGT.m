@@ -204,7 +204,7 @@ for iAx = 1:3
 end
 
 for iF = 1:nfrm
-  lObj.setFrameGUI(frms(iF));
+  lObj.setFrame(frms(iF));
   for iVw=1:3
     for iPt=1:NPTS
       for iRes=1:NRES

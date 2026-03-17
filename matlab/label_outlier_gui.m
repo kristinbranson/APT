@@ -71,7 +71,7 @@ function label_outlier_gui(lobj)
       end
     end
     lobj = h1.lobj;
-    lobj.setFrameGUI(tdat.('Frm')(id));
+    lobj.setFrame(tdat.('Frm')(id));
     lobj.setTarget(tdat.('Lbl')(id));
 
   end

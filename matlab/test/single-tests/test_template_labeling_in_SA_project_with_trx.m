@@ -50,7 +50,7 @@ for iFrame = 1:nFramesToLabel
   % Navigate to a different target for each iteration (stay on same frame)
   if iFrame > 1
     nextTgt = mod(iTgt - 1 + (iFrame - 1), labeler.nTrx) + 1 ;
-    controller.setFrameAndTargetGUI(iFrm, nextTgt, true) ;
+    controller.setFrameAndTarget(iFrm, nextTgt, true) ;
     drawnow() ;
     iTgt = nextTgt ;
 
@@ -193,7 +193,7 @@ assert(lblCore.state == LabelState.ACCEPTED, ...
 
 % Navigate to a different target
 nextTgt = mod(iTgt, labeler.nTrx) + 1 ;
-controller.setFrameAndTargetGUI(iFrm, nextTgt, true) ;
+controller.setFrameAndTarget(iFrm, nextTgt, true) ;
 drawnow() ;
 
 assert(lblCore.state == LabelState.ADJUST, ...
@@ -201,7 +201,7 @@ assert(lblCore.state == LabelState.ADJUST, ...
        char(lblCore.state)) ;
 
 % Navigate back to the labeled target
-controller.setFrameAndTargetGUI(iFrm, iTgt, true) ;
+controller.setFrameAndTarget(iFrm, iTgt, true) ;
 drawnow() ;
 
 assert(lblCore.state == LabelState.ACCEPTED, ...

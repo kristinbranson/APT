@@ -184,9 +184,9 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
         obj.labeler_.movieSet(mov) ;
       end
       if obj.labeler_.currTarget ~= tgt
-        obj.labeler_.setFrameAndTargetGUI(frm, tgt) ;
+        obj.labeler_.setFrameAndTarget(frm, tgt) ;
       else
-        obj.labeler_.setFrameGUI(frm) ;
+        obj.labeler_.setFrame(frm) ;
       end
     end  % function
 
@@ -204,9 +204,9 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
         obj.labeler_.movieSet(mov) ;
       end
       if obj.labeler_.currTarget ~= tgt
-        obj.labeler_.setFrameAndTargetGUI(frm, tgt) ;
+        obj.labeler_.setFrameAndTarget(frm, tgt) ;
       else
-        obj.labeler_.setFrameGUI(frm) ;
+        obj.labeler_.setFrame(frm) ;
       end
     end  % function
 

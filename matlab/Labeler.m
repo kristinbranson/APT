@@ -805,11 +805,11 @@ classdef Labeler < handle
         % If a GUI is attached, this is done by the controller, after it has
         % registered itself with the Labeler.
         % If no GUI attached, we do it ourselves.
-        obj.handleCreationTimeAdditionalArgumentsGUI_(varargin{:}) ;
+        obj.handleCreationTimeAdditionalArguments_(varargin{:}) ;
       end
     end
 
-    function handleCreationTimeAdditionalArgumentsGUI_(obj, varargin)
+    function handleCreationTimeAdditionalArguments_(obj, varargin)
       [projfile, replace_path] = ...
         myparse_nocheck(varargin, ...
                         'projfile',[], ...
@@ -2611,7 +2611,7 @@ classdef Labeler < handle
             s.currFrame = 1;
             s.currTarget = 1;
           end
-          obj.setFrameAndTargetGUI(s.currFrame,s.currTarget,true); % force updates of everything
+          obj.setFrameAndTarget(s.currFrame,s.currTarget,true); % force updates of everything
         end
       end
       fprintf('Opened current movie (%f s).\n',toc(t0));
@@ -4695,7 +4695,7 @@ classdef Labeler < handle
       obj.trxSet(trxvar);
       %obj.trxfile = trxFile; % this must come after .trxSet() call
         
-      obj.setFrameAndTargetGUI(1,1,true);
+      obj.setFrameAndTarget(1,1,true);
       
       obj.isinit = isInitOrig; % end Initialization hell      
 
@@ -4744,9 +4744,9 @@ classdef Labeler < handle
       % Proj/Movie/LblCore initialization can maybe be improved
       % Call setFrame again now that lblCore is set up
       if obj.hasTrx
-        obj.setFrameAndTargetGUI(obj.currTrx.firstframe,obj.currTarget,true);
+        obj.setFrameAndTarget(obj.currTrx.firstframe,obj.currTarget,true);
       else
-        obj.setFrameAndTargetGUI(1,1,true);
+        obj.setFrameAndTarget(1,1,true);
       end
             
     end  % function
@@ -8997,7 +8997,7 @@ classdef Labeler < handle
       if iMov~=obj.currMovie
         obj.movieSet(iMov);
       end
-      obj.setFrameAndTargetGUI(nextmft.frm,nextmft.iTgt);
+      obj.setFrameAndTarget(nextmft.frm,nextmft.iTgt);
 
     end
     
@@ -11995,12 +11995,12 @@ classdef Labeler < handle
   %% Navigation
   methods
     
-    function setFrameGUI(obj,frm,varargin)
+    function setFrame(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.
       %
       % CTRL-C note: This is fairly ctrl-c safe; a ctrl-c break may leave
       % obj state a little askew but it should be cosmetic and another
-      % (full/completed) setFrameGUI() call should fix things up. We could
+      % (full/completed) setFrame() call should fix things up. We could
       % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
       debugtiming = false;
@@ -12038,7 +12038,7 @@ classdef Labeler < handle
               iTgtNew = iTgtsLive(itmp);
               warningNoTrace('Target %d is not live in frame %d. Changing to target %d.\n',...
                              iTgt,frm,iTgtNew);
-              obj.setFrameAndTargetGUI(frm,iTgtNew);
+              obj.setFrameAndTarget(frm,iTgtNew);
               return;
             end
           else
@@ -12097,7 +12097,7 @@ classdef Labeler < handle
         fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
       end
       
-    end  % function setFrameGUI
+    end  % function setFrame
     
 %     function setTargetID(obj,tgtID)
 %       % Set target ID, maintaining current movie/frame.
@@ -12140,9 +12140,9 @@ classdef Labeler < handle
       obj.currTarget = iTgt;
     end
         
-    function setFrameAndTargetGUI(obj,frm,iTgt,tfforce)
+    function setFrameAndTarget(obj,frm,iTgt,tfforce)
       % Set to new frame and target for current movie.
-      % Prefer setFrameGUI() or setTarget() if possible to
+      % Prefer setFrame() or setTarget() if possible to
       % provide better continuity wrt labeling etc.
      
 %       validateattributes(iTgt,{'numeric'},...
@@ -12180,12 +12180,12 @@ classdef Labeler < handle
       end
 
       obj.notify('updatePrevPanelAfterFrameChange') ;
-    end  % function setFrameAndTargetGUI
+    end  % function setFrameAndTarget
   end
 
   methods
 %     function frameUpNextLbled(obj,tfback,varargin)
-%       % call obj.setFrameGUI() on next labeled frame. 
+%       % call obj.setFrame() on next labeled frame. 
 %       % 
 %       % tfback: optional. if true, seek backwards.
 %             
@@ -12341,7 +12341,7 @@ classdef Labeler < handle
     end
 
     function setCurrentAndPreviousFrameData_(obj, frameIndex, tfforce)
-      % helper for setFrameGUI(), setFrameAndTargetGUI()
+      % helper for setFrame(), setFrameAndTarget()
 
       currFrameOriginal = obj.currFrame ;
       % imcurr = controller.image_curr;
@@ -12405,8 +12405,8 @@ classdef Labeler < handle
         obj.prevImRoi = currImRoi1Original ;
       end
       % obj.prevAxesImFrmUpdate(tfforce) ;
-      % Note: updatePrevPanelAfterFrameChange is fired by callers (setFrameGUI,
-      % setFrameAndTargetGUI) after currTarget etc. have settled.
+      % Note: updatePrevPanelAfterFrameChange is fired by callers (setFrame,
+      % setFrameAndTarget) after currTarget etc. have settled.
     end  % function
   end
   

@@ -2623,7 +2623,7 @@ classdef DeepTracker < LabelTracker
         end
         f0 = tvm.ptrx(sel).firstframe ;
         if f0 ~= obj.lObj.currFrame
-          obj.lObj.setFrameGUI(f0) ;
+          obj.lObj.setFrame(f0) ;
         end
       else
         sel = active ;  % active is already an index into tvm.ptrx

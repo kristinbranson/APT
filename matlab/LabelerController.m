@@ -611,7 +611,7 @@ classdef LabelerController < handle
       % Do this once listeners are set up
       obj.controlActuated('handleCreationTimeAdditionalArgumentsGUI', [], [], varargin{:}) ;
       % This will lead to 
-      %   obj.labeler_.handleCreationTimeAdditionalArgumentsGUI_(varargin{:})
+      %   obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:})
       % getting called, but we call it via obj.controlActuated() b/c we want to
       % be able to throw errors in the model method and have them get handled via
       % a dialog box vs the error percolating up to the top, depending on whether
@@ -3540,7 +3540,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;       
       obj.cropReactNewCropMode_();
       if labeler.hasProject && labeler.hasMovie
-        labeler.setFrameGUI(labeler.currFrame,'tfforcereadmovie',true);
+        labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
       end
     end  % function
 
@@ -4040,7 +4040,7 @@ classdef LabelerController < handle
         row = row(1);
         dat = get(src,'Data');
         if ~isempty(dat{row,1}),
-          labeler.setFrameGUI(dat{row,1},'changeTgtsIfNec',true);
+          labeler.setFrame(dat{row,1},'changeTgtsIfNec',true);
         end
       end
       obj.hlpRemoveFocus_() ;
@@ -4357,14 +4357,14 @@ classdef LabelerController < handle
           end
         end
 
-        labeler.setFrameGUI(f,setFrameArgs{:});
+        labeler.setFrame(f,setFrameArgs{:});
         drawnow('limitrate');
       end
       
       if tfreset
         % AL20170619 passing setFrameArgs a bit fragile; needed for current
         % callers (don't update labels in videoPlaySegment)
-        labeler.setFrameGUI(freset,setFrameArgs{:}); 
+        labeler.setFrame(freset,setFrameArgs{:}); 
       end
       
       % - icon managed by caller      
@@ -4604,7 +4604,7 @@ classdef LabelerController < handle
       end
       set(src,'String',num2str(f));
       if f ~= labeler.currFrame
-        labeler.setFrameGUI(f)
+        labeler.setFrame(f)
       end
 
 
@@ -5377,7 +5377,7 @@ classdef LabelerController < handle
       if labeler.hasMovie
         % Pure convenience: update image for user rather than wait for next
         % frame-switch. Could also put this in Labeler.set.movieForceGrayscale.
-        labeler.setFrameGUI(labeler.currFrame,'tfforcereadmovie',true);
+        labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
       end
     end
 
@@ -5478,7 +5478,7 @@ classdef LabelerController < handle
     %   if tfproceed
     %     labeler.movieInvert(iAxApply) = ~labeler.movieInvert(iAxApply);
     %     if labeler.hasMovie
-    %       labeler.setFrameGUI(labeler.currFrame,'tfforcereadmovie',true);
+    %       labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
     %     end
     %     if ~labeler.isMultiView,
     %       toggleOnOff(obj.menu_view_flip_flipud_movie_only,'Checked');
@@ -6316,7 +6316,7 @@ classdef LabelerController < handle
       if iMov~=labeler.currMovie
         labeler.movieSet(iMov);
       end
-      labeler.setFrameAndTargetGUI(nextmft.frm,nextmft.iTgt);
+      labeler.setFrameAndTarget(nextmft.frm,nextmft.iTgt);
     end
 
 
@@ -6650,8 +6650,8 @@ classdef LabelerController < handle
       obj.splashScreenFigureOrEmpty_ = [] ;
     end
 
-    function handleCreationTimeAdditionalArgumentsGUI_actuated_(obj, ~, ~, varargin)
-      obj.labeler_.handleCreationTimeAdditionalArgumentsGUI_(varargin{:}) ;
+    function handleCreationTimeAdditionalArguments_actuated_(obj, ~, ~, varargin)
+      obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
     end
 
     function trainMonitorVizCloseRequested(obj)
@@ -6843,7 +6843,7 @@ classdef LabelerController < handle
         end
         frm = round(pos(1,1));
         frm = min(max(frm,sf),ef);
-        labeler.setFrameGUI(frm);
+        labeler.setFrame(frm);
       end
     end  % function
 
@@ -6951,7 +6951,7 @@ classdef LabelerController < handle
       if lObj.currMovie~=mftrow.mov
         lObj.movieSet(mftrow.mov);
       end
-      lObj.setFrameAndTargetGUI(mftrow.frm,mftrow.iTgt);
+      lObj.setFrameAndTarget(mftrow.frm,mftrow.iTgt);
     end
 
     function dotrain = trackCheckGPUMem_(obj,varargin)
@@ -7215,7 +7215,7 @@ classdef LabelerController < handle
       end
 
       tfSetOccurred = true;
-      labeler.setFrameGUI(frm, varargin{:});
+      labeler.setFrame(frm, varargin{:});
     end  % function
 
     function tfSetOccurred = frameUpDF(obj, df)
@@ -7350,7 +7350,7 @@ classdef LabelerController < handle
         hWB = waitbar(0,'Writing video');
         for i = 1:nFrms
           f = frms(i);
-          lObj.setFrameGUI(f);
+          lObj.setFrame(f);
           axis(ax,axlims);
           hTxt.String = sprintf('%04d',f);
           tmpFrame = getframe(ax);
@@ -7927,7 +7927,7 @@ classdef LabelerController < handle
           labeler.movieSet(iMov);
         end
       end
-      labeler.setFrameAndTargetGUI(frm, iTgt);
+      labeler.setFrameAndTarget(frm, iTgt);
     end  % function
 
     function projMacrosSetGUI(obj)
@@ -8576,9 +8576,9 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function setFrameAndTargetGUI(obj, frm, iTgt, tfforce)
+    function setFrameAndTarget(obj, frm, iTgt, tfforce)
       % Set to new frame and target for current movie.
-      % Prefer setFrameGUI() or setTarget() if possible to
+      % Prefer setFrame() or setTarget() if possible to
       % provide better continuity wrt labeling etc.
 
       % changed this to default to NOT forcing
@@ -8588,7 +8588,7 @@ classdef LabelerController < handle
 
       % This is a simple pass-through to the Labeler.  For now.
       labeler = obj.labeler_ ;
-      labeler.setFrameAndTargetGUI(frm, iTgt, tfforce) ;
+      labeler.setFrameAndTarget(frm, iTgt, tfforce) ;
     end  % function
 
     function requestMovieFilesCheckAndUserFinding(obj)
