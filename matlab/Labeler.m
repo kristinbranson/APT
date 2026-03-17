@@ -512,7 +512,7 @@ classdef Labeler < handle
   
   %% Labeling
   properties
-    labelMode             % scalar LabelMode. init: C
+    labelMode_             % scalar LabelMode. init: C
     % Multiview. Right now all 3d pts must live in all views, eg
     % .nLabelPoints=nView*NumLabelPoints. first dim of labeledpos is
     % ordered as {pt1vw1,pt2vw1,...ptNvw1,pt1vw2,...ptNvwK}
@@ -545,6 +545,7 @@ classdef Labeler < handle
 
   properties (Dependent)
     viewConfig
+    labelMode
   end
 
   properties (SetAccess=private)
@@ -1793,15 +1794,15 @@ classdef Labeler < handle
         iscompatible = (cfg.NumViews==1 && cfg.LabelMode ~= LabelMode.MULTIVIEWCALIBRATED2) || ...
           (cfg.NumViews==2 && cfg.LabelMode == LabelMode.MULTIVIEWCALIBRATED2);
         if iscompatible,
-          obj.labelMode = cfg.LabelMode;
+          obj.labelMode_ = cfg.LabelMode;
           didsetlabelmode = true;
         end
       end
       if ~didsetlabelmode,
         if cfg.NumViews==1
-          obj.labelMode = LabelMode.TEMPLATE;
+          obj.labelMode_ = LabelMode.TEMPLATE;
         else
-          obj.labelMode = LabelMode.MULTIVIEWCALIBRATED2;
+          obj.labelMode_ = LabelMode.MULTIVIEWCALIBRATED2;
         end
       end
       
@@ -2631,7 +2632,7 @@ classdef Labeler < handle
       obj.notify('updateFrameTableComplete');
       
       if obj.currMovie>0
-        obj.labelsUpdateNewFrame(true);
+        obj.labelsSyncToNewFrame_(true);
       end
       
       % Set up the prev_axes
@@ -4677,10 +4678,10 @@ classdef Labeler < handle
       obj.notify('updateAxesCLim') ;
       
       isInitOrig = obj.isinit;
-      obj.isinit = true; % Initialization hell, invariants momentarily broken
+      obj.isinit = true;  % Initialization hell, invariants momentarily broken
       obj.currMovie = iMov;
       
-      obj.labelingInit('dosettemplate',false);
+      % obj.labelingInit('dosettemplate',false);
       
       trxFile = obj.trxFilesAllFullGTaware{iMov,1};
       tfTrx = ~isempty(trxFile);
@@ -4697,17 +4698,13 @@ classdef Labeler < handle
         
       obj.setFrameAndTarget(1,1,true);
       
-      obj.isinit = isInitOrig; % end Initialization hell      
+      obj.isinit = isInitOrig;  % end Initialization hell      
 
-      % needs to be done after trx are set as labels2trkviz handles
+      % needs to be done after trx are set in case we're in TEMPLATE mode
+      obj.labelingInit_();
+
+      % If this is the first movie loaded, do gamma correction
       if isFirstMovie
-        if obj.labelMode==LabelMode.TEMPLATE
-          % Setting the template requires the .trx to be appropriately set,
-          % so for template mode we redo this (it is part of labelingInit())
-          % here.
-          obj.labelingInitTemplate();
-        end
-
         obj.notify('applyGammaCorrection') ;
       end  % if isFirstMovie
 
@@ -4796,7 +4793,7 @@ classdef Labeler < handle
       obj.currTarget = 0;
       obj.isinit = isInitOrig;
       
-      obj.labelingInit('dosettemplate',false);
+      obj.labelingInit_();
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
       obj.notify('updateTimelineTraces');
@@ -5898,28 +5895,15 @@ classdef Labeler < handle
   %% Labeling
   methods
     
-    function labelingInit(obj,varargin)
+    function labelingInit_(obj)
       % Create LabelCore and call labelCore.init() based on current 
       % .labelMode, .nLabelPoints, .labelPointsPlotInfo, .labelTemplate  
       % For calibrated labelCores, can also require .currMovie, 
       % .viewCalibrationData, .vewCalibrationDataProjWide to be properly 
       % initted
             
-      [lblmode,dosettemplate] = myparse(varargin,...
-        'labelMode',[],...
-        'dosettemplate',true...
-        );
-
-      tfLblModeChange = ~isempty(lblmode);
-      if tfLblModeChange
-        if ischar(lblmode)
-          lblmode = LabelMode.(lblmode);
-        else
-          assert(isa(lblmode,'LabelMode'));
-        end
-      else
-        lblmode = obj.labelMode;
-      end
+      % If no label mode supplied, init to the current label mode.
+      lblmode = obj.labelMode_ ;
      
       nPts = obj.nLabelPoints;
       lblPtsPlotInfo = obj.labelPointsPlotInfo;
@@ -5958,8 +5942,8 @@ classdef Labeler < handle
       end
 
       % labelmode-specific inits
-      if dosettemplate && lblmode==LabelMode.TEMPLATE
-        obj.labelingInitTemplate();
+      if lblmode==LabelMode.TEMPLATE && obj.currMovie~=0
+        obj.labelingInitTemplate_();
       end
       if obj.lblCore.supportsCalibration
         vcd = obj.viewCalibrationDataCurrent;
@@ -5970,21 +5954,20 @@ classdef Labeler < handle
           obj.lblCore.projectionSetCalRig(vcd);
         end
       end
-      obj.labelMode = lblmode;
+      obj.labelMode_ = lblmode;
       
       obj.setShowMaRoi(obj.showMaRoi);
       obj.setShowMaRoiAux(obj.showMaRoiAux);
       
-      if tfLblModeChange
-        % sometimes labelcore need this kick to get properly set up
-        obj.labelsUpdateNewFrame(true);
-      end
+      % Sometimes labelcore need this kick to get properly set up
+      % Me no like this.  -- ALT, 2026-03-17
+      obj.labelsSyncToNewFrame_(true) ;
 
       % Send the notification(s)
       obj.notify('didInitLblCore') ;
     end  % function
     
-    function labelingInitTemplate(obj)
+    function labelingInitTemplate_(obj)
       % Call .lblCore.setTemplate based on a labeled frame in the proj
       % Uses .trx as appropriate
       [tffound,iMov,frm,iTgt,xyLbl] = obj.labelFindOneLabeledFrameEarliest();
@@ -6845,7 +6828,7 @@ classdef Labeler < handle
     function labelImportTrk(obj,iMovs,trkfiles)
       mIdx = MovieIndex(iMovs,obj.gtIsGTMode);
       obj.labelImportTrkGeneric(mIdx, trkfiles);
-      obj.labelsUpdateNewFrame(true);
+      obj.labelsSyncToNewFrame_(true);
       obj.syncPropsMfahl_() ;
       obj.notify('updateFrameTableComplete');
       if obj.gtIsGTMode
@@ -8444,7 +8427,7 @@ classdef Labeler < handle
   
   methods (Access=private)
     
-    function labelsUpdateNewFrame(obj,force)
+    function labelsSyncToNewFrame_(obj, force)
       %ticinfo = tic;
       if obj.isinit
         return;
@@ -8457,23 +8440,23 @@ classdef Labeler < handle
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
       %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
-      notify(obj, 'updatePrevAxesLabels');
+      notify(obj, 'updatePrevAxesLabels') ;
     end
 
-    function labelsUpdateNewTarget(obj,prevTarget)
+    function labelsSyncToNewTarget_(obj, prevTarget)
       if ~isempty(obj.lblCore)
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
-      notify(obj, 'updatePrevAxesLabels');
+      notify(obj, 'updatePrevAxesLabels') ;
     end
 
-    function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
+    function labelsSyncToNewFrameAndTarget_(obj, prevFrm, prevTgt)
       if ~isempty(obj.lblCore)
         obj.lblCore.newFrameAndTarget(...
           prevFrm,obj.currFrame,...
           prevTgt,obj.currTarget);
       end
-      notify(obj, 'updatePrevAxesLabels');
+      notify(obj, 'updatePrevAxesLabels') ;
     end  % function
 
   end  % methods (Access=private)
@@ -9872,7 +9855,7 @@ classdef Labeler < handle
       end
       
       % What is this doing, exactly?  -- ALT, 2025-02-05
-      obj.labelingInit('labelMode',obj.labelMode);      
+      obj.labelingInit_();      
 
       % Update the timeline
       if ~isempty(newCurrentTracker)
@@ -10066,7 +10049,7 @@ classdef Labeler < handle
       newTracker.setHideViz(false);
 
       % What is this doing, exactly?  -- ALT, 2025-02-05
-      obj.labelingInit('labelMode',obj.labelMode);
+      obj.labelingInit_();
 
       % Update the timeline
       if ~isempty(newTracker)
@@ -10584,7 +10567,7 @@ classdef Labeler < handle
       tObj.track('totrackinfo', totrackinfo, 'isexternal', false, args{:}, 'projTempDir', obj.projTempDir) ;
 
       % For template mode to see new tracking results
-      obj.labelsUpdateNewFrame(true);
+      obj.labelsSyncToNewFrame_(true);
     end  % track() function
     
     function trackTbl(obj,tblMFT,varargin)
@@ -10595,7 +10578,7 @@ classdef Labeler < handle
       end
       tObj.track(tblMFT,varargin{:});
       % For template mode to see new tracking results
-      obj.labelsUpdateNewFrame(true);
+      obj.labelsSyncToNewFrame_(true);
       
       fprintf('Tracking complete at %s.\n',datestr(now));
     end
@@ -12072,7 +12055,7 @@ classdef Labeler < handle
       end
       
       if updateLabels
-        obj.labelsUpdateNewFrame(tfforcelabelupdate);
+        obj.labelsSyncToNewFrame_(tfforcelabelupdate);
       end
 
       obj.notify('updatePrevPanelAfterFrameChange') ;
@@ -12126,7 +12109,7 @@ classdef Labeler < handle
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
       if obj.hasTrx || obj.maIsMA
-        obj.labelsUpdateNewTarget(prevTarget);
+        obj.labelsSyncToNewTarget_(prevTarget);
         obj.notify('updateTargetCentrationAndZoom') ;
       end
 %       obj.updateCurrSusp();
@@ -12174,7 +12157,7 @@ classdef Labeler < handle
       obj.notify('updateTargetCentrationAndZoom') ;
       
       if ~obj.isinit
-        obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
+        obj.labelsSyncToNewFrameAndTarget_(obj.prevFrame,prevTarget);
         obj.notify('updateTrxTable');
         obj.updateShowTrx();  % All this does is send a notification, and only in some cases
       end
@@ -13095,8 +13078,13 @@ classdef Labeler < handle
       obj.notify('didSetShowMaRoiAux') ;
     end
 
+    function result = get.labelMode(obj)
+      result = obj.labelMode_ ;
+    end
+
     function set.labelMode(obj, newValue)
-      obj.labelMode = newValue ;
+      obj.labelMode_ = newValue ;
+      obj.labelingInit_() ;
       obj.notify('didSetLabelMode') ;
     end
 

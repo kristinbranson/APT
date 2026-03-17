@@ -466,7 +466,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetCurrTarget',@(s,e)(obj.cbkCurrTargetChanged(s,e)));
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetLabelMode',@(s,e)(obj.cbkLabelModeChanged()));
+        addlistener(labeler,'didSetLabelMode',@(s,e)(obj.didSetLabelMode()));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowTrx',@(s,e)(obj.cbkShowTrxChanged(s,e)));
       obj.listeners_(end+1) = ...
@@ -2579,7 +2579,7 @@ classdef LabelerController < handle
       obj.lblCoreController_.init() ;
       labeler.preProcInit();
       labeler.isinit = isinit0;
-      labeler.labelsUpdateNewFrame(true);
+      %labeler.labelsUpdateNewFrame(true);
       set(obj.menu_setup_sequential_add_mode,'Visible','on');
     end  % function
     
@@ -2605,7 +2605,8 @@ classdef LabelerController < handle
       
       % set label mode to sequential if sequential add
       if labeler.labelMode == LabelMode.SEQUENTIALADD,
-        labeler.labelingInit('labelMode',LabelMode.SEQUENTIAL);
+        % labeler.labelingInit('labelMode',LabelMode.SEQUENTIAL);
+        labeler.labelMode = LabelMode.SEQUENTIAL ;
       end
       % hide sequential add mode
       set(obj.menu_setup_sequential_add_mode,'Visible','off');
@@ -3320,7 +3321,7 @@ classdef LabelerController < handle
       hMenu.Checked = 'on';
     end
 
-    function cbkLabelModeChanged(obj)
+    function didSetLabelMode(obj)
       labeler = obj.labeler_ ;
       lblMode = labeler.labelMode;
       if isempty(lblMode) ,
@@ -5154,27 +5155,28 @@ classdef LabelerController < handle
 
     function menu_setup_sequential_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       % Switch to sequential labeling mode.
-      obj.labeler_.labelingInit('labelMode', LabelMode.SEQUENTIAL) ;
+      % obj.labeler_.labelingInit('labelMode', LabelMode.SEQUENTIAL) ;
+      obj.labeler_.labelMode = LabelMode.SEQUENTIAL ;
     end
 
     function menu_setup_sequential_add_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       % Switch to sequential-add labeling mode.
-      obj.labeler_.labelingInit('labelMode', LabelMode.SEQUENTIALADD) ;
+      obj.labeler_.labelMode = LabelMode.SEQUENTIALADD ;
     end
 
     function menu_setup_template_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       % Switch to template labeling mode.
-      obj.labeler_.labelingInit('labelMode', LabelMode.TEMPLATE) ;
+      obj.labeler_.labelMode = LabelMode.TEMPLATE ;
     end
 
     function menu_setup_multiview_calibrated_mode_2_actuated_(obj, src, evt)  %#ok<INUSD>
       % Switch to multiview calibrated labeling mode.
-      obj.labeler_.labelingInit('labelMode', LabelMode.MULTIVIEWCALIBRATED2) ;
+      obj.labeler_.labelMode = LabelMode.MULTIVIEWCALIBRATED2 ;
     end
 
     function menu_setup_multianimal_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       % Switch to multi-animal labeling mode.
-      obj.labeler_.labelingInit('labelMode', LabelMode.MULTIANIMAL) ;
+      obj.labeler_.labelMode = LabelMode.MULTIANIMAL ;
     end
 
 
@@ -6322,7 +6324,7 @@ classdef LabelerController < handle
       % Intended to be a full update of all GUI controls to bring them into sync
       % with obj.labeler_.  Currently a work in progress.
       obj.updateEnablementOfManyControls() ;
-      obj.cbkLabelModeChanged() ;
+      obj.didSetLabelMode() ;
       obj.cbkShowTrxChanged() ;
       obj.cbkShowTrxCurrTargetOnlyChanged() ;
       obj.updatePUMTrackAndFriend() ;

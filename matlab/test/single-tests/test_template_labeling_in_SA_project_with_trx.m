@@ -14,7 +14,7 @@ cleanupObj = onCleanup(@()(delete(controller))) ;
 drawnow() ;
 
 % Switch to Template labeling mode
-labeler.labelingInit('labelMode', LabelMode.TEMPLATE) ;
+labeler.labelMode = LabelMode.TEMPLATE ;
 drawnow() ;
 
 lblCore = labeler.lblCore ;
