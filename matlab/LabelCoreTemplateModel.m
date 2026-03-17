@@ -262,22 +262,22 @@ classdef LabelCoreTemplateModel < LabelCoreModel
     function setTemplate(obj, tt)
       % Set "white points" to template.
 
-      lbler = obj.labeler_ ;
+      labeler = obj.labeler_ ;
       tfTemplateHasTarget = ~any(isnan(tt.loc)) ;
       % For some projects (e.g. larva), theta can be nan. So shouldn't test
       % theta. MK 20250728
-      tfHasTrx = lbler.hasTrx ; %#ok<NASGU>
+      tfHasTrx = labeler.hasTrx ; %#ok<NASGU>
 
-      if lbler.hasTrx && ~tfTemplateHasTarget
+      if labeler.hasTrx && ~tfTemplateHasTarget
         warningNoTrace('LabelCoreTemplate:template', ...
           'Using template saved without target coordinates') ;
-      elseif ~lbler.hasTrx && tfTemplateHasTarget
+      elseif ~labeler.hasTrx && tfTemplateHasTarget
         warningNoTrace('LabelCoreTemplate:template', ...
           'Template saved with target coordinates.') ;
       end
 
       if tfTemplateHasTarget
-        [x1, y1, th1] = lbler.currentTargetLoc ;
+        [x1, y1, th1] = labeler.currentTargetLoc ;
         if isnan(th1 - tt.theta)
           xys = transformPoints(tt.pts, tt.loc, 0, [x1 y1], 0) ;
         else

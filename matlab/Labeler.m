@@ -2399,7 +2399,7 @@ classdef Labeler < handle
       starttime = tic();
       
       [nomovie, replace_path] = myparse(varargin,...
-        'nomovie',false, ... % If true, call movieSetNoMovie() instead of movieSetGUI(currMovie)
+        'nomovie',false, ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
         'replace_path',{'',''} ...
         );
       if isempty(replace_path) ,
@@ -2603,7 +2603,7 @@ classdef Labeler < handle
           currMovInfo.badfile = badfile;
           obj.movieSetNoMovie();
         else
-          obj.movieSetGUI(s.currMovie);
+          obj.movieSet(s.currMovie);
           [tfok] = obj.checkFrameAndTargetInBounds(s.currFrame,s.currTarget);
           if ~tfok,
             warning('Cached frame number %d and target number %d are out of bounds for movie %d, reverting to using first frame of first target.',...
@@ -4225,7 +4225,7 @@ classdef Labeler < handle
       % from UI functions which do this for the user. Currently movieSetAdd
       % does not have any UI so do it here.
       if ~obj.hasMovie && obj.nmoviesGTaware>0
-        obj.movieSetGUI(1,'isFirstMovie',true);
+        obj.movieSet(1,'isFirstMovie',true);
       end
     end
 
@@ -4372,7 +4372,7 @@ classdef Labeler < handle
         % AL 20200511. this may be overkill, maybe can just set
         % .currMovie directly as the current movie itself cannot be
         % rm-ed. A lot (if not all) state update here prob unnec
-        obj.movieSetGUI(obj.currMovie-1);
+        obj.movieSet(obj.currMovie-1);
       end
     end  % function
 
@@ -4440,7 +4440,7 @@ classdef Labeler < handle
 
       if ~obj.gtIsGTMode
         iMovNew = find(p==iMov0);
-        obj.movieSetGUI(iMovNew); 
+        obj.movieSet(iMovNew); 
       end
     end
     
@@ -4592,7 +4592,7 @@ classdef Labeler < handle
       badfile = [];
     end
     
-    function movieSetGUI(obj, iMov, varargin)
+    function movieSet(obj, iMov, varargin)
       % Set the current movie to the one indicated by iMov.
       % iMov: If multiview, movieSet index (row index into .movieFilesAll)
             
@@ -4757,13 +4757,13 @@ classdef Labeler < handle
       if gt~=obj.gtIsGTMode
         obj.gtSetGTMode(gt,'warnChange',true);
       end
-      tfsuccess = obj.movieSetGUI(iMov,varargin{:});
+      tfsuccess = obj.movieSet(iMov,varargin{:});
     end
     
     function movieSetNoMovie(obj,varargin)
       % Set .currMov to 0
                  
-          % Stripped cut+paste form movieSetGUI() for reference 20170714
+          % Stripped cut+paste form movieSet() for reference 20170714
           %       obj.movieReader(iView).open(movfileFull);
           %       obj.moviename = fullfile(parent,movname);
 %       obj.isinit = true; % Initialization hell, invariants momentarily broken
@@ -8503,7 +8503,7 @@ classdef Labeler < handle
           obj.movieSetNoMovie();
         else
           IMOV = 1; % FUTURE: remember last/previous iMov in "other" gt mode
-          obj.movieSetGUI(IMOV);
+          obj.movieSet(IMOV);
         end
         obj.syncPropsMfahl_() ;
         obj.notify('updateFrameTableComplete');
@@ -8995,7 +8995,7 @@ classdef Labeler < handle
 
       iMov = nextmft.mov.get();
       if iMov~=obj.currMovie
-        obj.movieSetGUI(iMov);
+        obj.movieSet(iMov);
       end
       obj.setFrameAndTargetGUI(nextmft.frm,nextmft.iTgt);
 

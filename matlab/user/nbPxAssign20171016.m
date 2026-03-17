@@ -458,7 +458,7 @@ nmov = lObj.nmovies;
 DIST_THRESH_LO = 30;
 DIST_THRESH_HI = 60; % px
 for iMov=1
-  lObj.movieSetGUI(iMov);
+  lObj.movieSet(iMov);
   frm2trx = lObj.frm2trx;
   [nfrm,ntgt] = size(frm2trx);
   trx = lObj.trx;

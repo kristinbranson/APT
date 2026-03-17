@@ -181,7 +181,7 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
               'Movie %s is not in this project', movname) ;
       end
       if obj.labeler_.currMovie ~= mov
-        obj.labeler_.movieSetGUI(mov) ;
+        obj.labeler_.movieSet(mov) ;
       end
       if obj.labeler_.currTarget ~= tgt
         obj.labeler_.setFrameAndTargetGUI(frm, tgt) ;
@@ -201,7 +201,7 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
         return ;
       end
       if obj.labeler_.currMovie ~= mov
-        obj.labeler_.movieSetGUI(mov) ;
+        obj.labeler_.movieSet(mov) ;
       end
       if obj.labeler_.currTarget ~= tgt
         obj.labeler_.setFrameAndTargetGUI(frm, tgt) ;

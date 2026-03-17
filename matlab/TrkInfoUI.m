@@ -222,7 +222,7 @@ if h.lobj.currMovie ~= h.curmov
   qstr = sprintf('Switch to movie %d?',h.curmov);
   res = questdlg(qstr,'Switch Movie');
   if strcmp(res, 'Yes')
-    h.lobj.movieSetGUI(h.curmov);
+    h.lobj.movieSet(h.curmov);
   else
     return
   end

@@ -65,7 +65,7 @@ function label_outlier_gui(lobj)
       qstr = sprintf('Switch to movie %d?',newmov);
       res = questdlg(qstr,'Switch Movie');
       if strcmp(res, 'Yes')
-        h1.lobj.movieSetGUI(newmov);
+        h1.lobj.movieSet(newmov);
       else
         return
       end

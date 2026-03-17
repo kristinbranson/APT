@@ -38,5 +38,5 @@ end
 
 if ~lObj.gtIsGTMode  
   iMovNew = find(p==iMov0);
-  lObj.movieSetGUI(iMovNew);
+  lObj.movieSet(iMovNew);
 end

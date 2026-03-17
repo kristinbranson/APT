@@ -394,7 +394,7 @@ classdef InfoTimelineModel < handle
             % AL 20200511 hack, initialization ordering. If the timeline
             % pum has 'Predictions' selected and a new project is loaded,
             % the trackers are not updated (via
-            % LabelerGUI/cbkCurrTrackerChanged) until after a movieSetGUI()
+            % LabelerGUI/cbkCurrTrackerChanged) until after a movieSet()
             % call which leads here.
             %
             % 'Imported' uses the same path as 'Predictions' as a stopgap,

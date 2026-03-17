@@ -31,7 +31,7 @@ IVIEW = 3;
 for iprj=1:NPROJ
   % add movie
   lObj.movieAdd(mfasets{iprj}{IVIEW});
-  lObj.movieSetGUI(lObj.nmovies);
+  lObj.movieSet(lObj.nmovies);
   nfrm = lObj.nframes;
   
   % set labels
@@ -72,7 +72,7 @@ pause(5);
 for iprj=1:NPROJ
   % add movie
   lObj.movieAdd(mfasets{iprj}{IVIEW});
-  lObj.movieSetGUI(lObj.nmovies);
+  lObj.movieSet(lObj.nmovies);
   nfrm = lObj.nframes;
     
   % get/set labels

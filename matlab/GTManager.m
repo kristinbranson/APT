@@ -403,7 +403,7 @@ mov = handles.iMovUn(movrow);
 function lclNavToMFT(lObj,mov,ft)
 iMov = mov.get();
 if iMov~=lObj.currMovie
-  lObj.movieSetGUI(iMov);
+  lObj.movieSet(iMov);
 end
 if numel(ft) > 1,
   itgt = ft(2);

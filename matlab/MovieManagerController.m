@@ -201,7 +201,7 @@ classdef MovieManagerController < handle
     function tblCbkMovieSelected(obj,iMov)
       assert(isscalar(iMov) && iMov>0);
       % iMov is gt-aware movie index (unsigned)
-      obj.labeler.movieSetGUI(iMov);
+      obj.labeler.movieSet(iMov);
     end
     
     function cbkPushButton(obj,src,~)
@@ -223,7 +223,7 @@ classdef MovieManagerController < handle
           if isempty(iMov)
             msgbox('All movies are labeled!');
           else
-            lObj.movieSetGUI(iMov);
+            lObj.movieSet(iMov);
           end
         case 'pbGTFrames'
           obj.parent_.gtShowGTManager();
@@ -278,7 +278,7 @@ classdef MovieManagerController < handle
       lObj.movieAddBatchFile(fname);
       lObj.rcSaveProp('lastMovieBatchFile',fname);
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
-        lObj.movieSetGUI(1);
+        lObj.movieSet(1);
       end
     end
 
@@ -451,7 +451,7 @@ classdef MovieManagerController < handle
         end
       end
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
-        lObj.movieSetGUI(1,'isFirstMovie',true);
+        lObj.movieSet(1,'isFirstMovie',true);
       end
     end
     

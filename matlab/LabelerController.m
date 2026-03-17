@@ -822,7 +822,7 @@ classdef LabelerController < handle
 
       %starttime = tic;
       tbl = obj.tblTrx;
-      if ~labeler.hasTrx || ~labeler.hasMovie || labeler.currMovie==0 % Can occur during movieSetGUI(), when invariants momentarily broken
+      if ~labeler.hasTrx || ~labeler.hasMovie || labeler.currMovie==0 % Can occur during movieSet(), when invariants momentarily broken
         ischange = ~isempty(obj.tblTrxData_);
         if ischange,
           obj.tblTrxData_ = zeros(0,2);
@@ -862,7 +862,7 @@ classdef LabelerController < handle
     function updateTrxTable_MA_(obj)
       labeler = obj.labeler_ ;
 
-      if ~labeler.hasMovie || labeler.currMovie==0 % Can occur during movieSetGUI(), when invariants momentarily broken
+      if ~labeler.hasMovie || labeler.currMovie==0 % Can occur during movieSet(), when invariants momentarily broken
         ischange = ~isempty(obj.tblTrxData_);
         if ischange,
           obj.tblTrxData_ = zeros(0,2);
@@ -995,6 +995,7 @@ classdef LabelerController < handle
         % Sync graphics to model state that was set before the controller existed
         obj.lblCoreController_.updateLabelCoords() ;
         obj.lblCoreController_.updateLabelVisibility() ;
+        obj.lblCoreController_.updateState() ;
         % Update UI elements based on model state
         if isprop(lblCore, 'streamlined')
           obj.lblCoreStreamlinedChanged() ;
@@ -4784,28 +4785,23 @@ classdef LabelerController < handle
     end
 
     function menu_go_movies_summary_actuated_(obj, src, evt)
-      obj.menu_file_managemovies_actuated_(src, evt) ;
+      obj.ShowMovieManager();
     end
 
     function ShowMovieManager(obj)
-
       labeler = obj.labeler_ ;
-
       labeler.pushBusyStatus('Opening Movie Manager...') ;  % Want to do this here, b/c the stuff in this method can take a while
       oc = onCleanup(@()(labeler.popBusyStatus()));
       drawnow;
-
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
         obj.movieManagerController_.setVisible(true);
       else
         obj.movieManagerController_ = MovieManagerController(obj, obj.labeler_);
       end
-
-    end
+    end  % function
 
     function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.ShowMovieManager();
-
     end
 
     function tfSucc = movieRmGUI(obj, iMov, varargin)
@@ -6318,7 +6314,7 @@ classdef LabelerController < handle
 
       iMov = nextmft.mov.get();
       if iMov~=labeler.currMovie
-        labeler.movieSetGUI(iMov);
+        labeler.movieSet(iMov);
       end
       labeler.setFrameAndTargetGUI(nextmft.frm,nextmft.iTgt);
     end
@@ -6953,7 +6949,7 @@ classdef LabelerController < handle
       end
       mftrow = tbl(row_index,:);
       if lObj.currMovie~=mftrow.mov
-        lObj.movieSetGUI(mftrow.mov);
+        lObj.movieSet(mftrow.mov);
       end
       lObj.setFrameAndTargetGUI(mftrow.frm,mftrow.iTgt);
     end
@@ -7928,7 +7924,7 @@ classdef LabelerController < handle
         end
       else
         if labeler.currMovie ~= iMov
-          labeler.movieSetGUI(iMov);
+          labeler.movieSet(iMov);
         end
       end
       labeler.setFrameAndTargetGUI(frm, iTgt);
@@ -8024,7 +8020,7 @@ classdef LabelerController < handle
     end  % function
     
     function tfsuccess = movieCheckFilesExistGUI(obj, iMov) % NOT labeler const
-      % Helper function for movieSetGUI(), check that movie/trxfiles exist
+      % Helper function for movieSet(), check that movie/trxfiles exist
       %
       % tfsuccess: false indicates user canceled or similar. True indicates
       % that i) labeler.movieFilesAllFull(iMov,:) all exist; ii) if labeler.hasTrx,

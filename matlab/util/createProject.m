@@ -93,7 +93,7 @@ for imovadd=1:nmovadd
   if tfmatch
     warningNoTrace('Movies already exist in project in imov=%d:',imovmatch);
     cellfun(@(x)fprintf(2,' %s\n',x),movFiles(imovadd,:));
-    lObj.movieSetGUI(imovmatch);    
+    lObj.movieSet(imovmatch);    
   else  
     if nview==1
       lObj.movieAdd(movFiles{imovadd},trxFiles{imovadd},...
@@ -102,7 +102,7 @@ for imovadd=1:nmovadd
       assert(~tfTrx);
       lObj.movieSetAdd(movFiles(imovadd,:),'offerMacroization',false);
     end
-    lObj.movieSetGUI(lObj.nmoviesGTaware);
+    lObj.movieSet(lObj.nmoviesGTaware);
   end
   
   pause(1); % prob unnec, give UI a little time
