@@ -801,23 +801,23 @@ classdef Labeler < handle
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter() ;
       obj.infoTimelineModel_ = InfoTimelineModel(obj.hasTrx);
-      if ~isgui ,
-        % If a GUI is attached, this is done by the controller, after it has
-        % registered itself with the Labeler.
-        % If no GUI attached, we do it ourselves.
-        obj.handleCreationTimeAdditionalArguments_(varargin{:}) ;
-      end
+      % if ~isgui ,
+      %   % If a GUI is attached, this is done by the controller, after it has
+      %   % registered itself with the Labeler.
+      %   % If no GUI attached, we do it ourselves.
+      %   obj.handleCreationTimeAdditionalArguments_(varargin{:}) ;
+      % end
     end
 
-    function handleCreationTimeAdditionalArguments_(obj, varargin)
-      [projfile, replace_path] = ...
-        myparse_nocheck(varargin, ...
-                        'projfile',[], ...
-                        'replace_path',{'',''}) ;
-      if projfile ,
-        obj.projLoad(projfile, 'replace_path', replace_path) ;
-      end      
-    end
+    % function handleCreationTimeAdditionalArguments_(obj, varargin)
+    %   [projfile, replace_path] = ...
+    %     myparse_nocheck(varargin, ...
+    %                     'projfile',[], ...
+    %                     'replace_path',{'',''}) ;
+    %   if projfile ,
+    %     obj.projLoad(projfile, 'replace_path', replace_path) ;
+    %   end      
+    % end
 
     function delete(obj)
       if ~isempty(obj.projTempDir) 
@@ -3960,7 +3960,7 @@ classdef Labeler < handle
               tFile = tFileMacroized;
             end
           end
-        end
+        end  % if offerMacroization
       
         movfilefull = obj.projLocalizePath(movFile);
         assert(exist(movfilefull,'file')>0,'Cannot find file ''%s''.',movfilefull);

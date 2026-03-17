@@ -432,7 +432,7 @@ classdef LabelCoreTemplateController < LabelCoreController
       % Return shortcut descriptions for Template mode.
 
       lc = obj.labelerController_ ;
-      mdl = obj.model_ ;
+      % mdl = obj.model_ ;
       shortcuts = cell(0, 3) ;
 
       shortcuts{end+1, 1} = 'Accept current labels' ;

@@ -272,12 +272,10 @@ classdef LabelerController < handle
   end
 
   methods
-    function obj = LabelerController(varargin)
+    function obj = LabelerController(labeler, varargin)
       % Process args that have to be dealt with before creating the Labeler
-      [isInDebugMode, isInAwsDebugMode, isInYodaMode, doEchoControlActuation] = ...
+      [isInYodaMode, doEchoControlActuation] = ...
         myparse_nocheck(varargin, ...
-                        'isInDebugMode',false, ...
-                        'isInAwsDebugMode',false, ...
                         'isInYodaMode', false, ...
                         'doEchoControlActuation', false) ;
 
@@ -286,8 +284,8 @@ classdef LabelerController < handle
       obj.splashScreenFigureOrEmpty_ = createSplashScreenFigure() ;
       oc = onCleanup(@()(obj.deleteSpashScreenFigureIfItExists_())) ;
 
-      % Create the labeler, tell it there will be a GUI attached
-      labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode,  'isInAwsDebugMode', isInAwsDebugMode) ;  
+      % % Create the labeler, tell it there will be a GUI attached
+      % labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode,  'isInAwsDebugMode', isInAwsDebugMode) ;  
 
       % Bring the splash screen to the foreground
       figure(obj.splashScreenFigureOrEmpty_);
@@ -301,7 +299,7 @@ classdef LabelerController < handle
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
         % Useful for debugging.
       obj.doEchoControlActuation_ = logical(doEchoControlActuation) ;
-              
+      
       % Initialize all the instance vars that will hold references to GUI controls
       handles = guihandles(mainFigure) ;
       tags = fieldnames(handles) ;
@@ -608,14 +606,14 @@ classdef LabelerController < handle
       % Update things that need updating at startup
       obj.update() ;
 
-      % Do this once listeners are set up
-      obj.controlActuated('handleCreationTimeAdditionalArgumentsGUI', [], [], varargin{:}) ;
-      % This will lead to 
-      %   obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:})
-      % getting called, but we call it via obj.controlActuated() b/c we want to
-      % be able to throw errors in the model method and have them get handled via
-      % a dialog box vs the error percolating up to the top, depending on whether
-      % a LabelerController is present.
+      % % Do this once listeners are set up
+      % obj.controlActuated('handleCreationTimeAdditionalArguments', [], [], varargin{:}) ;
+      % % This will lead to 
+      % %   obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:})
+      % % getting called, but we call it via obj.controlActuated() b/c we want to
+      % % be able to throw errors in the model method and have them get handled via
+      % % a dialog box vs the error percolating up to the top, depending on whether
+      % % a LabelerController is present.
     end
 
     function delete(obj)
@@ -6650,9 +6648,9 @@ classdef LabelerController < handle
       obj.splashScreenFigureOrEmpty_ = [] ;
     end
 
-    function handleCreationTimeAdditionalArguments_actuated_(obj, ~, ~, varargin)
-      obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
-    end
+    % function handleCreationTimeAdditionalArguments_actuated_(obj, ~, ~, varargin)
+    %   obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
+    % end
 
     function trainMonitorVizCloseRequested(obj)
       doReallyClose = false ;
