@@ -71,7 +71,6 @@ classdef LabelerController < handle
     % h_singleview_only
     image_curr
     image_prev
-    labelMode2SetupMenu
     menu_debug
     menu_debug_generate_db
     menu_evaluate
@@ -213,7 +212,6 @@ classdef LabelerController < handle
     pushbutton_exitcropmode
     pushbutton_freezetemplate
     scribeOverlay
-    setupMenu2LabelMode
     sldZoom
     slider_frame
     tbAccept
@@ -345,23 +343,6 @@ classdef LabelerController < handle
       % Update the status
       obj.updateStatusAndPointer() ;
 
-      % Misc labelmode/Setup menu
-      LABELMODE_SETUPMENU_MAP = ...
-        {LabelMode.NONE '';
-         LabelMode.SEQUENTIAL 'menu_setup_sequential_mode';
-         LabelMode.TEMPLATE 'menu_setup_template_mode';
-         LabelMode.MULTIVIEWCALIBRATED2 'menu_setup_multiview_calibrated_mode_2'; 
-         LabelMode.MULTIANIMAL 'menu_setup_multianimal_mode';
-         LabelMode.SEQUENTIALADD 'menu_setup_sequential_add_mode'};
-      tmp = LABELMODE_SETUPMENU_MAP;
-      tmp(:,1) = cellfun(@char,tmp(:,1),'uni',0);
-      tmp(2:end,2) = cellfun(@(x)handles.(x),tmp(2:end,2),'uni',0);
-      tmp = tmp';
-      obj.labelMode2SetupMenu = struct(tmp{:});
-      tmp = LABELMODE_SETUPMENU_MAP(2:end,[2 1]);
-      tmp = tmp';
-      obj.setupMenu2LabelMode = struct(tmp{:});
-
       % Make the debug menu visible, if called for
       obj.menu_debug.Visible = onIff(labeler.isInDebugMode) ;      
 
@@ -467,6 +448,8 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetCurrTarget',@(s,e)(obj.cbkCurrTargetChanged(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetLabelMode',@(s,e)(obj.didSetLabelMode()));
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateLabelMenu',@(s,e)(obj.updateLabelMenu()));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowTrx',@(s,e)(obj.cbkShowTrxChanged(s,e)));
       obj.listeners_(end+1) = ...
@@ -994,11 +977,8 @@ classdef LabelerController < handle
         obj.lblCoreController_.updateLabelCoords() ;
         obj.lblCoreController_.updateLabelVisibility() ;
         obj.lblCoreController_.updateState() ;
-        % Update UI elements based on model state
-        if isprop(lblCore, 'streamlined')
-          obj.lblCoreStreamlinedChanged() ;
-        end
       end
+      obj.updateLabelMenu() ;
       obj.updatePrevAxesLabels() ;
     end
 
@@ -1008,15 +988,6 @@ classdef LabelerController < handle
       obj.menu_view_hide_labels.Checked = onIff(labeler.doShowLabels) ;
       if ~isempty(obj.lblCoreController_)
         obj.lblCoreController_.updateLabelVisibility() ;
-      end
-    end  % function
-
-    function lblCoreStreamlinedChanged(obj)
-      % Sync menu check to model streamlined state.
-      labeler = obj.labeler_ ;
-      lblCore = labeler.lblCore ;
-      if ~isempty(lblCore) && isprop(lblCore, 'streamlined')
-        obj.menu_setup_streamlined.Checked = onIff(lblCore.streamlined) ;
       end
     end  % function
 
@@ -1681,12 +1652,12 @@ classdef LabelerController < handle
       hasMovie = labeler.hasMovie ;  
         % Project has one or more movie specified.  
         % Note that hasMovie implies hasProject
-      nview = labeler.nview ;
-      isMultiView = nview>1 ;
-      isSingleView = ~isMultiView ;
-      isMA = labeler.maIsMA ;  % is a multi-animal project
+      % nview = labeler.nview ;
+      % isMultiView = nview>1 ;
+      % isSingleView = ~isMultiView ;
+      % isMA = labeler.maIsMA ;  % is a multi-animal project
         % Note that isMA implies isSingleView
-      nLabelPointsAdd = labeler.nLabelPointsAdd ;
+      % nLabelPointsAdd = labeler.nLabelPointsAdd ;
       isInCropMode = labeler.cropIsCropMode ;
       hasTracker = ~isempty(labeler.tracker);
         % Note that hasTracker implies hasProject
@@ -1700,7 +1671,7 @@ classdef LabelerController < handle
       % Update the main menubar menus
       set(obj.menu_file,'Enable','on');
       set(obj.menu_view,'Enable',onIff(hasMovie));
-      set(obj.menu_labeling_setup,'Enable',onIff(hasMovie));
+      obj.updateLabelMenu() ;
       set(obj.menu_go,'Enable',onIff(hasMovie));
       set(obj.menu_track,'Enable',onIff(hasMovie));
       set(obj.menu_evaluate,'Enable',onIff(hasMovie||isInGTMode));
@@ -1725,9 +1696,6 @@ classdef LabelerController < handle
       
       % Update items in the View menu
       obj.updateTrxMenuCheckEnable();
-
-      % Update setup menu item
-      set(obj.menu_setup_label_outliers, 'Enable', onIff(hasMovie)) ;
 
       % These things
       set(obj.tbAdjustCropSize,'Enable',onIff(hasProject));
@@ -1765,12 +1733,6 @@ classdef LabelerController < handle
       
       set(obj.menu_go_targets_summary,'Enable',onIff(hasProject && ~isInGTMode)) ;
 
-      set(obj.menu_setup_sequential_mode,'Visible',onIff(hasMovie && isSingleView && ~isMA)) ;
-      set(obj.menu_setup_template_mode,'Visible',onIff(hasMovie && isSingleView && ~isMA)) ;
-      set(obj.menu_setup_multiview_calibrated_mode_2,'Visible',onIff(hasMovie && isMultiView));
-      set(obj.menu_setup_multianimal_mode,'Visible',onIff(hasMovie && isMA), 'Enable', 'off');
-        % When visible, multianimal is the only available mode, so disable the menu
-      set(obj.menu_setup_sequential_add_mode, 'Visible', onIff(hasMovie && isSingleView && nLabelPointsAdd~=0)) ;
     end  % function
 
     function update_text_trackerinfo(obj)
@@ -3308,70 +3270,72 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function menuSetupLabelModeHelp_(obj, labelMode)
-      % Set .Checked for menu_setup_<variousLabelModes> based on labelMode
-      menus = fieldnames(obj.setupMenu2LabelMode);
-      for m = menus(:)',m=m{1}; %#ok<FXSET>
-        obj.(m).Checked = 'off';
-      end
-      if isempty(labelMode) ,
-        return
-      end
-      hMenu = obj.labelMode2SetupMenu.(char(labelMode));
-      hMenu.Checked = 'on';
-    end
-
     function didSetLabelMode(obj)
       labeler = obj.labeler_ ;
       lblMode = labeler.labelMode;
       if isempty(lblMode) ,
         return
       end
-      obj.menuSetupLabelModeHelp_(lblMode) ;
-      switch lblMode
-        case LabelMode.SEQUENTIAL
-          obj.menu_setup_streamlined.Visible = 'off';
-          obj.menu_setup_load_calibration_file.Visible = 'off';
-          obj.menu_setup_use_calibration.Visible = 'off';
-          obj.menu_setup_ma_twoclick_align.Visible = 'off';
-          obj.menu_view_zoom_toggle.Visible = 'off';
-          obj.menu_view_pan_toggle.Visible = 'off';
-          obj.menu_view_showhide_labelrois.Visible = 'off';
-        case LabelMode.SEQUENTIALADD
-          obj.menu_setup_streamlined.Visible = 'off';
-          obj.menu_setup_load_calibration_file.Visible = 'off';
-          obj.menu_setup_use_calibration.Visible = 'off';
-          obj.menu_setup_ma_twoclick_align.Visible = 'off';
-          obj.menu_view_zoom_toggle.Visible = 'off';
-          obj.menu_view_pan_toggle.Visible = 'off';
-          obj.menu_view_showhide_labelrois.Visible = 'off';
-        case LabelMode.MULTIANIMAL
-          obj.menu_setup_streamlined.Visible = 'off';
-          obj.menu_setup_load_calibration_file.Visible = 'off';
-          obj.menu_setup_use_calibration.Visible = 'off';
-          obj.menu_setup_ma_twoclick_align.Visible = 'on';
-          obj.menu_setup_ma_twoclick_align.Checked = labeler.isTwoClickAlign;
-          obj.menu_view_zoom_toggle.Visible = 'on';
-          obj.menu_view_pan_toggle.Visible = 'on';
-          obj.menu_view_showhide_labelrois.Visible = 'on';
-        case LabelMode.TEMPLATE
-          %     obj.menu_setup_createtemplate.Visible = 'on';
-          obj.menu_setup_streamlined.Visible = 'off';
-          obj.menu_setup_load_calibration_file.Visible = 'off';
-          obj.menu_setup_use_calibration.Visible = 'off';
-          obj.menu_setup_ma_twoclick_align.Visible = 'off';
-          obj.menu_view_zoom_toggle.Visible = 'off';
-          obj.menu_view_pan_toggle.Visible = 'off';
-          obj.menu_view_showhide_labelrois.Visible = 'off';
-        case LabelMode.MULTIVIEWCALIBRATED2
-          obj.menu_setup_streamlined.Visible = 'on';
-          obj.menu_setup_load_calibration_file.Visible = 'on';
-          obj.menu_setup_use_calibration.Visible = 'on';
-          obj.menu_setup_ma_twoclick_align.Visible = 'off';
-          obj.menu_view_zoom_toggle.Visible = 'off';
-          obj.menu_view_pan_toggle.Visible = 'off';
-          obj.menu_view_showhide_labelrois.Visible = 'off';
-      end
+      obj.updateLabelMenu() ;
+      isMultiviewLabelingMode = (lblMode == LabelMode.MULTIVIEWCALIBRATED2) ;
+      isMultianimalLabelingMode = (lblMode == LabelMode.MULTIANIMAL) ;
+      set(obj.menu_setup_load_calibration_file, 'Visible', onIff(isMultiviewLabelingMode)) ;
+      set(obj.menu_view_zoom_toggle, 'Visible', onIff(isMultianimalLabelingMode)) ;
+      set(obj.menu_view_pan_toggle, 'Visible', onIff(isMultianimalLabelingMode)) ;
+      set(obj.menu_view_showhide_labelrois, 'Visible', onIff(isMultianimalLabelingMode)) ;
+    end  % function
+
+    function updateLabelMenu(obj)
+      % Sync the Label menu and all its children to the current model state.
+      labeler = obj.labeler_ ;
+      labelMode = labeler.labelMode ;
+      hasLabelMode = ~isempty(labelMode) ;
+      hasMovie = labeler.hasMovie ;
+      isSingleView = ~labeler.isMultiView ;
+      % isMultiView = labeler.isMultiView ;
+      isProjectMA = labeler.maIsMA ;
+      nLabelPointsAdd = labeler.nLabelPointsAdd ;
+      isMultiviewLabelingMode = hasLabelMode && (labelMode == LabelMode.MULTIVIEWCALIBRATED2) ;
+      isMultianimalLabelingMode = hasLabelMode && (labelMode == LabelMode.MULTIANIMAL) ;
+      lc = labeler.lblCore ;
+      isStreamlined = isMultiviewLabelingMode && labeler.isLabelingStreamlined ;
+      isShowingCalibration = isMultiviewLabelingMode && ~isempty(lc) && lc.supportsCalibration && lc.isCalRig && lc.showCalibration ;
+      isTwoClickAlign = isMultianimalLabelingMode && labeler.isTwoClickAlign ;
+      set(obj.menu_labeling_setup, ...
+        'Enable', onIff(hasMovie)) ;
+      set(obj.menu_setup_sequential_mode, ...
+        'Visible', onIff(hasMovie && isSingleView && ~isProjectMA), ...
+        'Checked', onIff(hasLabelMode && labelMode == LabelMode.SEQUENTIAL)) ;
+      set(obj.menu_setup_sequential_add_mode, ...
+        'Visible', onIff(hasMovie && isSingleView && nLabelPointsAdd ~= 0), ...
+        'Checked', onIff(hasLabelMode && labelMode == LabelMode.SEQUENTIALADD)) ;
+      set(obj.menu_setup_template_mode, ...
+        'Visible', onIff(hasMovie && isSingleView && ~isProjectMA), ...
+        'Checked', onIff(hasLabelMode && labelMode == LabelMode.TEMPLATE)) ;
+      set(obj.menu_setup_multianimal_mode, ...
+        'Visible', 'off', ...
+        'Checked', onIff(isMultianimalLabelingMode)) ;
+      set(obj.menu_setup_multiview_calibrated_mode_2, ...
+        'Visible', 'off', ...
+        'Checked', onIff(isMultiviewLabelingMode)) ;
+      isAnyModeItemVisible = hasMovie && isSingleView && (~isProjectMA || nLabelPointsAdd ~= 0) ;
+      set(obj.menu_setup_streamlined, ...
+        'Visible', onIff(isMultiviewLabelingMode), ...
+        'Checked', onIff(isStreamlined), ...
+        'Separator', onIff(isAnyModeItemVisible)) ;
+      set(obj.menu_setup_use_calibration, ...
+        'Visible', onIff(isMultiviewLabelingMode), ...
+        'Checked', onIff(isShowingCalibration)) ;
+      set(obj.menu_setup_ma_twoclick_align, ...
+        'Visible', onIff(isMultianimalLabelingMode), ...
+        'Checked', onIff(isTwoClickAlign)) ;
+      set(obj.menu_setup_label_overlay_montage, ...
+        'Visible', 'on') ;
+      set(obj.menu_setup_label_outliers, ...
+        'Visible', 'on', ...
+        'Enable', onIff(hasMovie)) ;
+      set(obj.menu_track_set_labels, ...
+        'Visible', 'on') ;
     end  % function
 
     function updateTrxMenuCheckEnable(obj,src,evt) %#ok<INUSD>
@@ -4783,7 +4747,7 @@ classdef LabelerController < handle
       end
     end
 
-    function menu_go_movies_summary_actuated_(obj, src, evt)
+    function menu_go_movies_summary_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.ShowMovieManager();
     end
 
@@ -5224,30 +5188,16 @@ classdef LabelerController < handle
       end
     end
 
-
-
     function menu_setup_label_outliers_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       label_outlier_gui(labeler) ;
     end
 
-
-
-
     function menu_setup_streamlined_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
+      % Toggle streamlined labeling mode.
       labeler = obj.labeler_ ;
-
-
-      lc = labeler.lblCore ;
-      assert(isa(lc, 'LabelCoreMultiViewCalibrated2Model')) ;
-      lc.streamlined = ~lc.streamlined;
-
-    end
-
-
+      labeler.isLabelingStreamlined = ~labeler.isLabelingStreamlined ;
+    end  % function
 
     function menu_setup_ma_twoclick_align_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5258,17 +5208,8 @@ classdef LabelerController < handle
       src.Checked = onIff(tftc); % skip listener business for now
     end
 
-
-
-
     function menu_setup_use_calibration_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
-
       lc = labeler.lblCore;
       if lc.supportsCalibration,
         lc.toggleShowCalibration();
@@ -5276,18 +5217,10 @@ classdef LabelerController < handle
       else
         src.Checked = 'off';
       end
-
     end
 
-
-
     function menu_setup_load_calibration_file_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       lastCalFile = labeler.rcGetProp('lastCalibrationFile');
       if isempty(lastCalFile)
         lastCalFile = pwd;
@@ -5297,10 +5230,7 @@ classdef LabelerController < handle
         return;
       end
       fname = fullfile(pth,fname);
-
       crObj = CalRig.loadCreateCalRigObjFromFile(fname);
-
-
       vcdPW = labeler.viewCalProjWide;
       if isempty(vcdPW)
         resp = questdlg('Should calibration apply to i) all movies in project or ii) current movie only?',...
@@ -5325,26 +5255,20 @@ classdef LabelerController < handle
       end
 
       % Currently there is no UI for altering labeler.viewCalProjWide once it is set
-
       if tfProjWide
         obj.viewCalSetProjWide_(crObj);%,'tfSetViewSizes',tfSetViewSizes);
       else
         labeler.viewCalSetCurrMovie(crObj);%,'tfSetViewSizes',tfSetViewSizes);
       end
-
-
       lc = labeler.lblCore;
       if lc.supportsCalibration,
         lc.setShowCalibration(true);
       end
       obj.menu_setup_use_calibration.Checked = onIff(lc.showCalibration);
       labeler.rcSaveProp('lastCalibrationFile',fname);
-    end
+    end  % function
 
     function menu_view_adjustbrightness_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt_(obj);
       if tfproceed
         try
@@ -5360,19 +5284,11 @@ classdef LabelerController < handle
       	addlistener(hConstrast,'ObjectBeingDestroyed',...
       		@(s,e) closeImContrast(obj,iAxRead,iAxApply));
       end
-
-    end
-
-
+    end  % function
 
     function menu_view_converttograyscale_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       tf = ~strcmp(src.Checked,'on');
-
       labeler.movieForceGrayscale = tf;
       if labeler.hasMovie
         % Pure convenience: update image for user rather than wait for next
@@ -5380,8 +5296,6 @@ classdef LabelerController < handle
         labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
       end
     end
-
-
 
     function menu_view_gammacorrect_actuated_(obj, src, evt)  %#ok<INUSD>
       [tfok,~,iAxApply] = hlpAxesAdjustPrompt_(obj);
@@ -5454,8 +5368,6 @@ classdef LabelerController < handle
       labeler.movieCenterOnTarget = ~labeler.movieCenterOnTarget;
     end
 
-
-
     function menu_view_rotate_video_target_up_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.movieRotateTargetUp = ~labeler.movieRotateTargetUp;
@@ -5471,7 +5383,6 @@ classdef LabelerController < handle
       obj.navPrefsUI() ;
     end
 
-
     % function menu_view_flip_flipud_movie_only_actuated_(obj, src, evt)  %#ok<INUSD>
     %   labeler = obj.labeler_ ;
     %   [tfproceed,~,iAxApply] = obj.hlpAxesAdjustPrompt_();  % Prompt which views to flip if multiview
@@ -5486,8 +5397,6 @@ classdef LabelerController < handle
     %   end
     % end
 
-
-
     function menu_view_flip_flipud_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt_(obj);
@@ -5501,8 +5410,6 @@ classdef LabelerController < handle
         end
       end
     end  % function
-
-
 
     function menu_view_flip_fliplr_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5527,25 +5434,22 @@ classdef LabelerController < handle
       if isempty(labeler.projPrefs),
         return;
       end
-
       % viewCfg = labeler.projPrefs.View;
       % movieInvert = ViewConfig.getMovieInvert(viewCfg);
       % obj.menu_view_flip_flipud_movie_only.Checked = onIff(any(movieInvert));
-
       for i = 1:numel(obj.axes_all),
         if strcmpi(obj.axes_all(i).XDir,'reverse'),
           obj.menu_view_flip_fliplr.Checked = 'on';
           break;
         end
       end
-
       for i = 1:numel(obj.axes_all),
         if strcmpi(obj.axes_all(i).YDir,'normal'),
           obj.menu_view_flip_fliplr.Checked = 'on';
           break;
         end
       end
-    end
+    end  % function
 
     % function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
     %   ax = obj.axes_curr;
@@ -5553,8 +5457,6 @@ classdef LabelerController < handle
     %   ax.Toolbar.Visible = onoff;
     %   src.Checked = onoff;
     % end
-
-
 
     function menu_view_fit_entire_image_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5565,15 +5467,11 @@ classdef LabelerController < handle
       labeler.movieCenterOnTarget = false;
     end
 
-
-
     function menu_view_hide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       % Toggle label visibility.
       labeler = obj.labeler_ ;
       labeler.doShowLabels = ~labeler.doShowLabels ;
     end
-
-
 
     function menu_view_showhide_preds_all_targets_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5589,8 +5487,6 @@ classdef LabelerController < handle
       end
       obj.updateShowPredMenus();
     end
-
-
 
     function menu_view_showhide_preds_curr_target_only_actuated_(obj, src, evt) %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5608,12 +5504,7 @@ classdef LabelerController < handle
     end
 
     function menu_view_showhide_preds_none_actuated_(obj, src, evt) %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       tracker = labeler.tracker;
       if ~isempty(tracker)
         tracker.setHideViz(true); % do not show tracking
@@ -5623,8 +5514,7 @@ classdef LabelerController < handle
         end
         obj.updateShowPredMenus();
       end
-
-    end
+    end  % function
 
     function menu_view_hide_predictions_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5640,22 +5530,17 @@ classdef LabelerController < handle
       end
     end  % function
 
-
     function menu_view_show_tick_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       % just use checked state of menu for now, no other state
       toggleOnOff(src,'Checked');
       hlpTickGridBang([obj.axes_all ; obj.axes_prev], obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
     end
 
-
-
     function menu_view_show_grid_actuated_(obj, src, evt)  %#ok<INUSD>
       % just use checked state of menu for now, no other state
       toggleOnOff(src,'Checked');
       hlpTickGridBang([obj.axes_all ; obj.axes_prev], obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
     end
-
-
 
     function menu_track_setparametersfile_actuated_(obj, src, evt)  %#ok<INUSD>
       % Really, "configure parameters"
@@ -6325,6 +6210,7 @@ classdef LabelerController < handle
       % with obj.labeler_.  Currently a work in progress.
       obj.updateEnablementOfManyControls() ;
       obj.didSetLabelMode() ;
+      obj.updateLabelMenu() ;
       obj.cbkShowTrxChanged() ;
       obj.cbkShowTrxCurrTargetOnlyChanged() ;
       obj.updatePUMTrackAndFriend() ;

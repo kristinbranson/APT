@@ -138,6 +138,7 @@ classdef Labeler < handle
     didSetLabelMode
     didSetLastLabelChangeTS
     didInitLblCore
+    updateLabelMenu
 
     gtIsGTModeChanged 
     gtSuggUpdated  % general update occurred of gtSuggMFTable*
@@ -787,6 +788,13 @@ classdef Labeler < handle
     silent
   end
 
+  properties (Transient)
+    isLabelingStreamlined_ = false
+  end
+  
+  properties (Dependent)
+    isLabelingStreamlined
+  end
   
   % Primary lifecycle methods
   methods 
@@ -2622,7 +2630,7 @@ classdef Labeler < handle
 %       % <-> Hide Predictions)
 %       obj.labelingInit();
 
-      t0 = tic;
+      % t0 = tic;
 
       obj.labeledposNeedsSave = false;
       obj.doesNeedSave_ = false;
@@ -2717,7 +2725,7 @@ classdef Labeler < handle
       % obj.notify('update_menu_track_tracker_history') ;
       % obj.notify('didSetCurrTracker') ;
       % obj.notify('update_text_trackerinfo') ;
-      fprintf('Updated GUI (%f s).\n',toc(t0));
+      % fprintf('Updated GUI (%f s).\n',toc(t0));
 
       % If any movies were missing, error now.  We do this late so that the
       % project still gets loaded, and the user can fix any missing movies in the
@@ -5929,17 +5937,11 @@ classdef Labeler < handle
         
         % AL: Need strategy for persisting/carrying lblCore state between
         % movies. newMovie prob doesn't need to call labelingInit.
-        if isprop(lc,'streamlined')
-          streamlinedPrev = lc.streamlined;
-        end
         delete(lc);
         obj.lblCore = [];
       end
       obj.lblCore = LabelCoreModel.createSafe(obj, lblmode) ;
       obj.lblCore.init(nPts, lblPtsPlotInfo) ;
-      if isprop(obj.lblCore,'streamlined') && exist('streamlinedPrev','var')>0
-        obj.lblCore.streamlined = streamlinedPrev;
-      end
 
       % labelmode-specific inits
       if lblmode==LabelMode.TEMPLATE && obj.currMovie~=0
@@ -13897,5 +13899,13 @@ classdef Labeler < handle
       end
     end  % function
 
+    function result = get.isLabelingStreamlined(obj)
+      result = obj.isLabelingStreamlined_ ;
+    end
+
+    function set.isLabelingStreamlined(obj, newValue)
+      obj.isLabelingStreamlined_ = newValue ;
+      obj.notify('updateLabelMenu') ;
+    end
   end  % methods
 end  % classdef

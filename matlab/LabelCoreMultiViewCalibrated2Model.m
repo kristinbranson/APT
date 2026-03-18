@@ -30,8 +30,6 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
   end
 
   properties (Transient)
-    streamlined_ = false ;    % if true, streamlined labeling; labels not shown unless they exist
-
     iPt2iAx_                  % [npts]. iPt2iAx_(iPt) gives the axis index for iPt
     iSet2iPt_                 % [nset x nview]. A point 'set' is a nview-tuple of point
                               % indices that represent a single physical (3d) point.
@@ -58,7 +56,6 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
     isCalRig                  % scalar logical
     showCalibration           % scalar logical
     showEpiLines              % scalar logical
-    streamlined               % scalar logical
   end
 
   methods  % dep prop getters
@@ -112,16 +109,6 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
       % Set epipolar line visibility and notify controllers.
       obj.showEpiLines_ = v ;
       obj.notify('updateEpiLineVisibility') ;
-    end  % function
-
-    function v = get.streamlined(obj)
-      % Return whether streamlined labeling is on.
-      v = obj.streamlined_ ;
-    end  % function
-
-    function set.streamlined(obj, v)
-      % Set streamlined labeling mode.
-      obj.streamlined_ = v ;
     end  % function
 
   end  % methods

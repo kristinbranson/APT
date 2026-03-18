@@ -264,7 +264,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
           end
         else
           % All unadjusted: show in template color or hide
-          if mdl.streamlined_
+          if obj.labeler_.isLabelingStreamlined
             [obj.hPts_.XData] = deal(nan) ;
             [obj.hPts_.YData] = deal(nan) ;
             [obj.hPtsTxt_.Position] = deal([nan nan 1]) ;
@@ -342,7 +342,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
           mdl.setOccludedI(iPt, false) ;
         end
 
-        if mdl.streamlined_ && all(mdl.tfAdjusted_)
+        if obj.labeler_.isLabelingStreamlined && all(mdl.tfAdjusted_)
           mdl.enterAccepted(true) ;
         else
           switch mdl.state
@@ -594,7 +594,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       mdl.setEstOccludedI(iPt, false) ;
       mdl.setOccludedI(iPt, true) ;
 
-      if mdl.streamlined_ && all(mdl.tfAdjusted_)
+      if obj.labeler_.isLabelingStreamlined && all(mdl.tfAdjusted_)
         mdl.enterAccepted(true) ;
       else
         switch mdl.state
