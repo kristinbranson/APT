@@ -3604,8 +3604,8 @@ classdef DeepTracker < LabelTracker
 %       end
       if obj.lObj.hasMovie
         obj.trackCurrResUpdate() ;
+        obj.vizModelInit_() ;
       end
-      obj.vizModelInit_() ;
     end  % function
   end  % methods
   

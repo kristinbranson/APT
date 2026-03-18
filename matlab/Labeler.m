@@ -1109,7 +1109,7 @@ classdef Labeler < handle
     end
     
     function v = get.hasMovie(obj)
-      v = obj.hasProject && obj.movieReader(1).isOpen;
+      v = obj.hasProject && ~isempty(obj.currMovie) && obj.currMovie > 0 && ~isempty(obj.movieReader) && obj.movieReader(1).isOpen ;
     end    
 
     function v = get.moviefile(obj)
@@ -8431,7 +8431,7 @@ classdef Labeler < handle
     
     function labelsSyncToNewFrame_(obj, force)
       %ticinfo = tic;
-      if obj.isinit
+      if obj.isinit || ~obj.hasMovie
         return;
       end
       if exist('force','var')==0

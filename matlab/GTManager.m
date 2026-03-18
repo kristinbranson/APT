@@ -120,7 +120,7 @@ handles = updateAll(handles);
 guidata(hFig,handles);
 set(hFig,'Visible','on');
 
-centerfig(handles.figure1,mainController.mainFigure_);
+centerfig(handles.figure1,controller.mainFigure_);
 
 function columnnames = getTblFrameColumnNames(handles)
 if handles.labeler.hasTrx,
