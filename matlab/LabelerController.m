@@ -75,7 +75,6 @@ classdef LabelerController < handle
     menu_debug_generate_db
     menu_evaluate
     menu_evaluate_gtcomputeperf
-    menu_evaluate_gtcomputeperfimported
     menu_evaluate_gtexportresults
     menu_evaluate_gtloadsuggestions
     menu_evaluate_gtsavesuggestions
@@ -3495,7 +3494,6 @@ classdef LabelerController < handle
       obj.menu_evaluate_gtsavesuggestions.Enable = onIffGT;
       obj.menu_evaluate_gtsetsuggestions.Enable = onIffGT;
       obj.menu_evaluate_gtcomputeperf.Enable = onIffGT;
-      obj.menu_evaluate_gtcomputeperfimported.Enable = onIffGT;
       obj.menu_evaluate_gtexportresults.Enable = onIffGT;      
       obj.menu_evaluate_gt_frames.Enable = onIffGT ;
     end
@@ -5886,12 +5884,6 @@ classdef LabelerController < handle
         error('Internal error: The dialog returned an unanticpated value') ;
       end
     end  % function
-
-    function menu_evaluate_gtcomputeperfimported_actuated_(obj, src, evt)  %#ok<INUSD>
-      % No longer supported (labels2 infrastructure removed)
-      error('LabelerGUI:removed', ...
-            'GT performance from imported predictions is no longer supported. Import tracking results and use regular GT computation.') ;
-    end
 
     function menu_evaluate_gtexportresults_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
