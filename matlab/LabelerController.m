@@ -1673,7 +1673,7 @@ classdef LabelerController < handle
       obj.updateLabelMenu() ;
       set(obj.menu_go,'Enable',onIff(hasMovie));
       set(obj.menu_track,'Enable',onIff(hasMovie));
-      set(obj.menu_evaluate,'Enable',onIff(hasMovie||isInGTMode));
+      obj.update_menu_evaluate() ;
       set(obj.menu_help,'Enable','on');
       if ~isempty(obj.menu_debug) && isgraphics(obj.menu_debug)
         set(obj.menu_debug,'Enable',onIff(hasProject)) ;
@@ -3471,7 +3471,6 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;       
       gt = labeler.gtIsGTMode;
       onIffGT = onIff(gt);
-      obj.menu_evaluate_gt_frames.Visible = onIffGT;
       obj.update_menu_evaluate() ;
       obj.txGTMode.Visible = onIffGT;
       % if ~isempty(obj.GTManagerFigure)
@@ -3486,16 +3485,19 @@ classdef LabelerController < handle
     end
 
     function update_menu_evaluate(obj)
-      labeler = obj.labeler_ ;       
+      labeler = obj.labeler_ ;
       gt = labeler.gtIsGTMode ;
+      hasMovie = labeler.hasMovie ;
       onIffGT = onIff(gt) ;
+      obj.menu_evaluate.Enable = onIff(hasMovie || gt) ;
       obj.menu_evaluate_gtmode.Checked = onIffGT;
-      obj.menu_evaluate_gtloadsuggestions.Visible = onIffGT;
-      obj.menu_evaluate_gtsavesuggestions.Visible = onIffGT;
-      obj.menu_evaluate_gtsetsuggestions.Visible = onIffGT;
-      obj.menu_evaluate_gtcomputeperf.Visible = onIffGT;
-      obj.menu_evaluate_gtcomputeperfimported.Visible = onIffGT;
-      obj.menu_evaluate_gtexportresults.Visible = onIffGT;      
+      obj.menu_evaluate_gtloadsuggestions.Enable = onIffGT;
+      obj.menu_evaluate_gtsavesuggestions.Enable = onIffGT;
+      obj.menu_evaluate_gtsetsuggestions.Enable = onIffGT;
+      obj.menu_evaluate_gtcomputeperf.Enable = onIffGT;
+      obj.menu_evaluate_gtcomputeperfimported.Enable = onIffGT;
+      obj.menu_evaluate_gtexportresults.Enable = onIffGT;      
+      obj.menu_evaluate_gt_frames.Enable = onIffGT ;
     end
 
     function cbkCropIsCropModeChanged(obj, src, evt)  %#ok<INUSD>
@@ -6198,6 +6200,7 @@ classdef LabelerController < handle
         obj.movieManagerController_.lblerLstnCbkGTMode() ; % todo check if needed
       end
       obj.updateTimelinePopupMenus() ;
+      obj.update_menu_evaluate() ;
       obj.updateShowPredMenus();
       obj.updateFlipMenus();
       obj.update_menu_track_tracker_history() ;
@@ -6293,14 +6296,13 @@ classdef LabelerController < handle
       end      
     end
 
-    function tf = isGTManagerFigure(obj)
+    function tf = doesGTManagerFigureExist(obj)
       hGTMgr = obj.GTManagerFigure ;
       tf = ~isempty(hGTMgr) && ishandle(hGTMgr);
     end
 
     function gtShowGTManager(obj)
-      if obj.isGTManagerFigure()
-        %hGTMgr.Visible = 'on';
+      if obj.doesGTManagerFigureExist()
         figure(obj.GTManagerFigure);
       else
         obj.GTManagerFigure = GTManager(obj, obj.labeler_);
@@ -6308,7 +6310,7 @@ classdef LabelerController < handle
     end
 
     function gtCloseGTManager(obj)
-      if obj.isGTManagerFigure(),
+      if obj.doesGTManagerFigureExist(),
         close(obj.GTManagerFigure);
       end
     end
