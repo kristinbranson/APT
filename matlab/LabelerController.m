@@ -74,7 +74,6 @@ classdef LabelerController < handle
     menu_debug
     menu_debug_generate_db
     menu_evaluate
-    menu_evaluate_crossvalidate
     menu_evaluate_gtcomputeperf
     menu_evaluate_gtcomputeperfimported
     menu_evaluate_gtexportresults
@@ -5654,35 +5653,6 @@ classdef LabelerController < handle
 
     function menu_evaluate_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.gtShowGTManager();
-    end
-
-
-
-    function menu_evaluate_crossvalidate_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      tbl = labeler.labelGetMFTableLabeled;
-      if labeler.maIsMA
-        tbl = tbl(:,1:2);
-        tbl = unique(tbl);
-        str = 'frames';
-      else
-        tbl = tbl(:,1:3);
-        str = 'targets';
-      end
-      n = height(tbl);
-      inputstr = sprintf('This project has %d labeled %s.\nNumber of folds for k-fold cross validation:',...
-        n,str);
-      resp = inputdlg(inputstr,'Cross Validation',1,{'3'});
-      if isempty(resp)
-        return;
-      end
-      nfold = str2double(resp{1});
-      if round(nfold)~=nfold || nfold<=1
-        error('LabelerGUI:xvalid', 'Number of folds must be a positive integer greater than one.') ;
-      end
-      tbl.split = ceil(nfold*rand(n,1));
-      t = labeler.tracker;
-      t.trainsplit(tbl);
     end
 
 
