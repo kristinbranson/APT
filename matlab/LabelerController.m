@@ -33,6 +33,8 @@ classdef LabelerController < handle
     trackingErrorMontageFigures_ = gobjects(1,0)
     gtManagerFigure_  % the ground truth manager *figure*
     plotAllLabelsFigure_ = gobjects(1,0)
+    labelingActionsFigure_ = gobjects(1,0)
+    messageBoxFigure_ = gobjects(1,0)
   end
 
   properties  % private/protected by convention
@@ -613,6 +615,13 @@ classdef LabelerController < handle
       result = [obj.mainFigure_, obj.auxiliaryViewFigures_] ;
     end % function
 
+    function msgbox_(obj, varargin)
+      % Show a non-modal message box, storing the handle so it can be
+      % cleaned up later.  Arguments are forwarded to msgbox().
+      deleteValidGraphicsHandles(obj.messageBoxFigure_) ;
+      obj.messageBoxFigure_ = msgbox(varargin{:}) ;
+    end  % function
+
     function deleteExistingSatellites_(obj)
       % Delete all satellite figures and subcontrollers, resetting their
       % properties to empty.
@@ -644,6 +653,10 @@ classdef LabelerController < handle
       obj.trackingErrorMontageFigures_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.plotAllLabelsFigure_) ;
       obj.plotAllLabelsFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.labelingActionsFigure_) ;
+      obj.labelingActionsFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.messageBoxFigure_) ;
+      obj.messageBoxFigure_ = gobjects(1,0) ;
       if ~isempty(obj.trackingMonitorVisualizer_)
         if isvalid(obj.trackingMonitorVisualizer_) ,
           delete(obj.trackingMonitorVisualizer_) ;
@@ -2804,9 +2817,9 @@ classdef LabelerController < handle
       lObj = obj.labeler_ ;
       res = web(lObj.DLCONFIGINFOURL,'-new');
       if res ~= 0,
-        msgbox({'Information on configuring Deep Learning GPU/Backends can be found at'
-                'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking.'},...
-                'Deep Learning GPU/Backend Information','replace');
+        obj.msgbox_({'Information on configuring Deep Learning GPU/Backends can be found at'
+                     'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking.'}, ...
+                    'Deep Learning GPU/Backend Information') ;
       end
     end  % function
 
@@ -4514,7 +4527,7 @@ classdef LabelerController < handle
       end
       if ~labeler.hasMovie
         set(src,'Value',0);
-        msgbox('There is no movie open.');
+        obj.msgbox_('There is no movie open.') ;
         return;
       end
 
@@ -5114,17 +5127,14 @@ classdef LabelerController < handle
       else
         h = obj.lblCoreController_.getLabelingHelp() ;
       end
-      msgbox(h,'Labeling Actions','help',struct('Interpreter','tex','WindowStyle','replace'));
+      obj.labelingActionsFigure_ = ...
+        msgbox(h, 'Labeling Actions', 'help', struct('Interpreter', 'tex', 'WindowStyle', 'replace')) ;
     end
-
-
 
     function menu_help_about_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.aboutFigure_ = about(obj) ;
     end
-
-
-
+    
     function menu_setup_sequential_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       % Switch to sequential labeling mode.
       % obj.labeler_.labelingInit('labelMode', LabelMode.SEQUENTIAL) ;
@@ -5749,13 +5759,13 @@ classdef LabelerController < handle
       if labeler.maIsMA
         % MA: use tracker predictions
         if isempty(tracker) || isempty(tracker.trkVizer)
-          msgbox('No predictions for current frame or no valid tracklet selected. Nothing to use as a label');
+          obj.msgbox_('No predictions for current frame or no valid tracklet selected. Nothing to use as a label') ;
           return
         end
         [tfhaspred,xy,tfocc] = tracker.getTrackingResultsCurrFrm();
         iTgt = tracker.trkVizer.currTrklet;
         if isnan(iTgt) || ~tfhaspred(iTgt)
-          msgbox('No predictions for current frame or no valid tracklet selected. Nothing to use as a label');
+          obj.msgbox_('No predictions for current frame or no valid tracklet selected. Nothing to use as a label') ;
           return
         end
         xy = xy(:,:,iTgt) ;
@@ -5770,13 +5780,13 @@ classdef LabelerController < handle
       else
         % SA: use tracker predictions
         if isempty(tracker)
-          msgbox('No predictions for current frame.');
+          obj.msgbox_('No predictions for current frame.') ;
           return
         end
         [tfhaspred,xy,tfocc] = tracker.getTrackingResultsCurrFrm(); %#ok<ASGLU>
         itgt = labeler.currTarget;
         if ~tfhaspred(itgt)
-          msgbox('No predictions for current frame.');
+          obj.msgbox_('No predictions for current frame.') ;
           return
         end
         xy = xy(:,:,itgt) ;
@@ -6167,7 +6177,7 @@ classdef LabelerController < handle
 
       nextmft = labeler.gtNextUnlabeledMFT();
       if isempty(nextmft),
-        msgbox('No more unlabeled frames in to-label list.','','modal');
+        uiwait(msgbox('No more unlabeled frames in to-label list.', '', 'modal')) ;
         return;
       end
 
@@ -7191,7 +7201,7 @@ classdef LabelerController < handle
           nTgts = lObj.labelPosLabeledFramesStats();
           frms = find(nTgts>0);
           if isempty(frms) ,
-            msgbox('Current movie has no labeled frames.');
+            obj.msgbox_('Current movie has no labeled frames.') ;
             return;
           end
         otherwise
@@ -8478,7 +8488,7 @@ classdef LabelerController < handle
       % Show a message box to the user on behalf of the Labeler.
       labeler = obj.labeler_ ;
       params = labeler.dialogLaunchPad ;
-      msgbox(params.text, params.title) ;
+      obj.msgbox_(params.text, params.title) ;
     end  % function
 
     function requestQuestionDialog(obj)
