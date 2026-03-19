@@ -1844,11 +1844,6 @@ classdef Labeler < handle
         cfg.Track.PredictPointsPlot.Colors = ...
           feval(cfg.Track.PredictPointsPlot.ColorMapName,nSet);
       end
-      if ~isfield(cfg.Track.ImportPointsPlot,'Colors') || ...
-          size(cfg.Track.ImportPointsPlot.Colors,1)~=nSet
-        cfg.Track.ImportPointsPlot.Colors = ...
-          feval(cfg.Track.ImportPointsPlot.ColorMapName,nSet);
-      end
       % .PredictPointsPlot color nvariants:
       % - ppp.ColorMapName, ppp.Colors both exist
       % - ppp.Colors is [nSet x 3]
