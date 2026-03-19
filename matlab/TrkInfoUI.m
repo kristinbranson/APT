@@ -1,9 +1,9 @@
-function TrkInfoUI(controller, lobj)
+function f = TrkInfoUI(controller, lobj)
 
 assert(lobj.maIsMA,'UI is functional only for multi-animal projects');
 f = findall(groot(),'tag','TrkInfoUI');
 if isempty(f)
-  init_figure(controller, lobj);
+  f = init_figure(controller, lobj);
 else
   figure(f);
   h = guidata(f);

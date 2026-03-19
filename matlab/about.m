@@ -1,4 +1,4 @@
-function about(controller)
+function h = about(controller)
 
 %%
 PURPLE = [0.147058823529412 0.033333333333333 0.245098039215686];

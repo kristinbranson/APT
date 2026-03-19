@@ -1,4 +1,4 @@
-function label_outlier_gui(lobj)
+function fig = label_outlier_gui(lobj)
 
   if ~lobj.hasMovie ,
     error('Need to have at least one movie in order to label outliers')

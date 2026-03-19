@@ -196,8 +196,10 @@ classdef TrainMonitorViz < handle
     end
     
     function delete(obj)
-      deleteValidGraphicsHandles(obj.hfig);
-      obj.hfig = [];
+      deleteValidGraphicsHandles(obj.trainMontageFigs) ;
+      obj.trainMontageFigs = [] ;
+      deleteValidGraphicsHandles(obj.hfig) ;
+      obj.hfig = [] ;
     end
     
     function splitaxs(obj,nsets)

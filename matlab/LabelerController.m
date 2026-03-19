@@ -14,6 +14,11 @@ classdef LabelerController < handle
     isPlaying_ = false  % whether a video is currently playing or not
     labelTLInfo  % an InfoTimelineController object
     splashScreenFigureOrEmpty_  % GH to the splash screen figure, or empty
+    labelOutlierFigure_ = gobjects(1,0)
+    aboutFigure_ = gobjects(1,0)
+    trkInfoFigure_ = gobjects(1,0)
+    landmarkSpecsFigure_ = gobjects(1,0)
+    trackingErrorMontageFigures_ = gobjects(1,0)
   end
 
   properties  % private/protected by convention
@@ -592,6 +597,11 @@ classdef LabelerController < handle
       % We also delete the model.
       deleteValidGraphicsHandles(obj.satellites_) ;
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
+      deleteValidGraphicsHandles(obj.labelOutlierFigure_) ;
+      deleteValidGraphicsHandles(obj.aboutFigure_) ;
+      deleteValidGraphicsHandles(obj.trkInfoFigure_) ;
+      deleteValidGraphicsHandles(obj.landmarkSpecsFigure_) ;
+      deleteValidGraphicsHandles(obj.trackingErrorMontageFigures_) ;
       delete(obj.trackingMonitorVisualizer_) ;
       delete(obj.trainingMonitorVisualizer_) ;
       if ~isempty(obj.backendTestController_)
@@ -1320,6 +1330,7 @@ classdef LabelerController < handle
         frmLblsThis = frmLblsAll(plotIdxs) ;
         for iView=1:labeler.nview
           h(end+1, 1) = figure('Name', 'Tracking Error Montage', 'windowstyle', 'docked') ; %#ok<AGROW>
+          obj.trackingErrorMontageFigures_(end+1) = h(end) ;
           pColIdx = (1:nphyspts)+(iView-1)*nphyspts ;
           pColIdx = [pColIdx pColIdx+npts] ; %#ok<AGROW>
           Shape.montage(I(:, iView), tblPostRead.pLbl(:, pColIdx), 'fig', h(end), ...
@@ -5097,7 +5108,7 @@ classdef LabelerController < handle
 
 
     function menu_help_about_actuated_(obj, src, evt)  %#ok<INUSD>
-      about(obj);
+      obj.aboutFigure_ = about(obj) ;
     end
 
 
@@ -5175,7 +5186,7 @@ classdef LabelerController < handle
 
     function menu_setup_label_outliers_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      label_outlier_gui(labeler) ;
+      obj.labelOutlierFigure_ = label_outlier_gui(labeler) ;
     end
 
     function menu_setup_streamlined_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5623,7 +5634,7 @@ classdef LabelerController < handle
     function menu_go_targets_summary_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if labeler.maIsMA
-        TrkInfoUI(obj, labeler);
+        obj.trkInfoFigure_ = TrkInfoUI(obj, labeler) ;
       else
         obj.raiseTargetsTableFigure_();
       end
@@ -6026,7 +6037,8 @@ classdef LabelerController < handle
 
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      LandmarkSpecs('parent', obj, 'lObj', labeler) ;
+      landmarkSpecs = LandmarkSpecs('parent', obj, 'lObj', labeler) ;
+      obj.landmarkSpecsFigure_ = landmarkSpecs.hFig ;
     end
 
     function menu_track_viz_dataaug_actuated_(obj, src, evt)  %#ok<INUSD>
