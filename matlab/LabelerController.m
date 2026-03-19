@@ -31,7 +31,7 @@ classdef LabelerController < handle
     trkInfoFigure_ = gobjects(1,0)
     landmarkSpecsFigure_ = gobjects(1,0)
     trackingErrorMontageFigures_ = gobjects(1,0)
-    GTManagerFigure_  % the ground truth manager *figure*       
+    gtManagerFigure_  % the ground truth manager *figure*       
   end
 
   properties  % private/protected by convention
@@ -621,7 +621,7 @@ classdef LabelerController < handle
       deleteValidGraphicsHandles(obj.targetSummaryFigure_) ;
       deleteValidGraphicsHandles(obj.suspiciousFramesFigure_) ;
       deleteValidGraphicsHandles(obj.auxiliaryViewFigures_) ;
-      deleteValidGraphicsHandles(obj.GTManagerFigure_) ;
+      deleteValidGraphicsHandles(obj.gtManagerFigure_) ;
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       deleteValidGraphicsHandles(obj.labelOutlierFigure_) ;
       deleteValidGraphicsHandles(obj.aboutFigure_) ;
@@ -6281,21 +6281,21 @@ classdef LabelerController < handle
     end
 
     function tf = doesGTManagerFigureExist(obj)
-      hGTMgr = obj.GTManagerFigure_ ;
+      hGTMgr = obj.gtManagerFigure_ ;
       tf = ~isempty(hGTMgr) && ishandle(hGTMgr);
     end
 
     function gtShowGTManager(obj)
       if obj.doesGTManagerFigureExist()
-        figure(obj.GTManagerFigure_);
+        figure(obj.gtManagerFigure_);
       else
-        obj.GTManagerFigure_ = GTManager(obj, obj.labeler_);
+        obj.gtManagerFigure_ = GTManager(obj, obj.labeler_);
       end
     end
 
     function gtCloseGTManager(obj)
       if obj.doesGTManagerFigureExist(),
-        close(obj.GTManagerFigure_);
+        close(obj.gtManagerFigure_);
       end
     end
 
