@@ -3695,7 +3695,8 @@ classdef Labeler < handle
         s = rmfield(s,'labels2GT') ;
       end
       if tfHadLabels2
-        warningNoTrace('Imported labels (labels2) found in project file. These are no longer supported and will be discarded. Re-import tracking results via File > Import Tracking Results.') ;
+        warningNoTrace(['Imported labels (labels2) found in project file. These are no longer supported and will be discarded.  ' ...
+                        'Re-import tracking results via File > Import Tracking Results.']) ;
       end
       
       % KB 20210626 - added info about state of code to saved lbl file

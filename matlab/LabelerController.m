@@ -158,11 +158,6 @@ classdef LabelerController < handle
     menu_view_flip_flipud
     % menu_view_flip_flipud_movie_only
     menu_view_gammacorrect
-    % menu_view_showhide_imported_predictions  % removed with labels2 infrastructure
-    % menu_view_showhide_imported_preds_all
-    % menu_view_showhide_imported_preds_curr_target_only
-    % menu_view_showhide_imported_preds_none
-    % menu_view_hide_imported_predictions
     menu_view_hide_labels
     menu_view_showhide_predictions
     menu_view_showhide_trajectories

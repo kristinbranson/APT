@@ -4,7 +4,7 @@ classdef ShiftArrowMovieNavMode
     NEXTTIMELINETHRESH ('Next where timeline stat exceeds threshold')
     NEXTLABELED ('Next labeled')
     NEXTTRACKED ('Next tracked')
-    NEXTIMPORTED ('Next imported')
+    % NEXTIMPORTED ('Next imported')
   end
   properties 
     prettyStr
@@ -35,10 +35,10 @@ classdef ShiftArrowMovieNavMode
             tgt = [];
           end
           [tffound,f] = Labels.findLabelNear(s,f0,tgt,dir*2);
-        case ShiftArrowMovieNavMode.NEXTIMPORTED
-          warningNoTrace('Imported labels navigation is no longer supported.') ;
-          tffound = false;
-          f = nan;
+        % case ShiftArrowMovieNavMode.NEXTIMPORTED
+        %   warningNoTrace('Imported labels navigation is no longer supported.') ;
+        %   tffound = false;
+        %   f = nan;
         case ShiftArrowMovieNavMode.NEXTTRACKED
           tObj = lObj.tracker;
           if isempty(tObj)

@@ -8,7 +8,7 @@ classdef InfoTimelineModel < handle
 
   properties (Constant)
     TLPROPFILESTR = 'landmark_features.yaml';
-    TLPROPTYPES = {'Labels', 'Predictions', 'Imported', 'All Frames'} ;
+    TLPROPTYPES = {'Labels', 'Predictions', 'All Frames'} ;
   end
 
   properties  % Private by convention
@@ -390,17 +390,12 @@ classdef InfoTimelineModel < handle
             else
               tldata = nan(labeler.nLabelPoints,1); % looks like we don't need 2nd dim to be nfrmtot
             end
-          case {'Predictions', 'Imported'}
+          case 'Predictions'
             % AL 20200511 hack, initialization ordering. If the timeline
             % pum has 'Predictions' selected and a new project is loaded,
             % the trackers are not updated (via
             % LabelerGUI/cbkCurrTrackerChanged) until after a movieSet()
             % call which leads here.
-            %
-            % 'Imported' uses the same path as 'Predictions' as a stopgap,
-            % because imported tracks are now stored in the same place as
-            % predictions.  Ideally 'Imported' should be removed as a
-            % separate prop type entirely.
             tracker = labeler.tracker ;
             if ~isempty(tracker) && isvalid(tracker)
               tldata = tracker.getPropValues(pcode);
