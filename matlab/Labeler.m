@@ -379,8 +379,13 @@ classdef Labeler < handle
 
   properties
     moviename  % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
-    movieCenterOnTarget = false  % scalar logical.
-    movieRotateTargetUp = false
+    movieCenterOnTarget_ = false  % scalar logical.
+    movieRotateTargetUp_ = false
+  end
+
+  properties (Dependent)
+    movieCenterOnTarget
+    movieRotateTargetUp
   end
 
   properties (Transient)
@@ -754,7 +759,7 @@ classdef Labeler < handle
   %% Misc
   properties
     prevFrame = nan       % last previously VISITED frame
-    currTarget = 1      % always 1 if proj doesn't have trx    
+    currTarget_ = 1      % always 1 if proj doesn't have trx    
     currImHudModel  % scalar AxisHUDModel object. init: C
   end
 %   properties
@@ -771,7 +776,7 @@ classdef Labeler < handle
   end
 
   properties 
-    currFrame = 1  % current frame
+    currFrame_ = 1  % current frame
     currIm = []             % [nview] cell vec of image data. init: C
     currImRoi = []
     % selectedFrames_ = []     % vector of frames currently selected frames; typically t0:t1
@@ -785,6 +790,8 @@ classdef Labeler < handle
   end
 
   properties (Dependent)
+    currFrame
+    currTarget
     silent
   end
 
@@ -1678,24 +1685,32 @@ classdef Labeler < handle
     %   end
     % end
 
+    function v = get.movieCenterOnTarget(obj)
+      v = obj.movieCenterOnTarget_ ;
+    end
+
     function set.movieCenterOnTarget(obj,v)
-      obj.movieCenterOnTarget = v;
-      if ~v && obj.movieRotateTargetUp %#ok<MCSUP>
-        obj.movieRotateTargetUp = false; %#ok<MCSUP>
+      obj.movieCenterOnTarget_ = v ;
+      if ~v && obj.movieRotateTargetUp
+        obj.movieRotateTargetUp = false ;
       end
       obj.notify('updateTargetCentrationAndZoom') ;
       obj.notify('didSetMovieCenterOnTarget') ;
+    end
+
+    function v = get.movieRotateTargetUp(obj)
+      v = obj.movieRotateTargetUp_ ;
     end
 
     function set.movieRotateTargetUp(obj,v)
       if obj.maIsMA && obj.currTarget==0 ,
         warningNoTrace('Labeler:MA', 'No labeled target selected. Not rotating');
       else
-        if v && ~obj.movieCenterOnTarget %#ok<MCSUP>
+        if v && ~obj.movieCenterOnTarget
           %warningNoTrace('Labeler:prop','Setting .movieCenterOnTarget to true.');
-          obj.movieCenterOnTarget = true; %#ok<MCSUP>
+          obj.movieCenterOnTarget = true ;
         end
-        obj.movieRotateTargetUp = v;
+        obj.movieRotateTargetUp_ = v;
         obj.notify('updateTargetCentrationAndZoom') ;
       end
       obj.notify('didSetMovieRotateTargetUp') ;
@@ -13135,8 +13150,12 @@ classdef Labeler < handle
     %   obj.notify('didSetCurrTracker') ;
     % end
 
+    function result = get.currTarget(obj)
+      result = obj.currTarget_ ;
+    end
+    
     function set.currTarget(obj, newValue)
-      obj.currTarget = newValue ;
+      obj.currTarget_ = newValue ;
       sendMaybe(obj.tracker, 'newLabelerTarget')
       obj.notify('didSetCurrTarget') ;
     end
@@ -13249,8 +13268,12 @@ classdef Labeler < handle
       result = obj.progressMeter_ ;
     end
 
+    function result = get.currFrame(obj) 
+      result = obj.currFrame_ ;
+    end
+
     function set.currFrame(obj, newValue)
-      obj.currFrame = newValue ;
+      obj.currFrame_ = newValue ;
       obj.infoTimelineModel_.didSetCurrFrame(newValue) ;
       sendMaybe(obj.tracker, 'newLabelerFrame') ;
       obj.notify('updateAfterCurrentFrameSet') ;
