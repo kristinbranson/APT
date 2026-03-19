@@ -1784,11 +1784,8 @@ classdef LabelerController < handle
         'frm1' 'Start Frm' 'integer' 30
         'nFrmLbl' '# Frms Lbled' 'integer' 60
         'nFrmTrk' '# Frms Trked' 'integer' 60
-        'nFrmImported' '# Frms Imported' 'integer' 90
         'nFrmLblTrk' '# Frms Lbled&Trked' 'integer' 120
         'lblTrkMeanErr' 'Track Err' 'float' 60
-        'nFrmLblImported' '# Frms Lbled&Imported' 'integer'  120
-        'lblImportedMeanErr' 'Imported Err' 'float' 60
         'nFrmXV' '# Frms XV' 'integer' 40
         'xvMeanErr' 'XV Err' 'float' 40 };
       tblfldsassert(tblSumm,FLDINFO(:,1));

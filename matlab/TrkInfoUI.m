@@ -36,13 +36,13 @@ gl = uigridlayout(f,[nr nc]);
 gl.RowHeight = {150,'1x',50};
 gl.ColumnWidth = {'1x',100};
 
-sel_btn = uiswitch(gl,'slider','ValueChangedFcn',@pred_imported_callback);
-sel_btn.Layout.Row = 1;
-sel_btn.Layout.Column = 2;
-sel_btn.Items = {'Imported','Predicted'};
-sel_btn.Value = {'Imported'};
-sel_btn.Orientation = 'Vertical';
-h.sel_btn = sel_btn;
+% sel_btn = uiswitch(gl,'slider','ValueChangedFcn',@pred_imported_callback);
+% sel_btn.Layout.Row = 1;
+% sel_btn.Layout.Column = 2;
+% sel_btn.Items = {'Imported', 'Predicted'};
+% sel_btn.Value = {'Predicted'};
+% sel_btn.Orientation = 'Vertical';
+% h.sel_btn = sel_btn;
 
 
 mov_list = lobj.movieFilesAllFullGTaware;
@@ -131,11 +131,7 @@ end
 
 has_pred = ~isempty(pred_trk) && pred_trk.hasdata;
 
-if has_pred
-  h.sel_btn.Enable = 'off';
-  h.sel_btn.Value = 'Predicted';
-else
-  h.sel_btn.Enable = 'off';
+if ~has_pred
   h.tbl.Data = {};
   h.trk = {};
   h.has_data = false;
@@ -208,13 +204,12 @@ function [tdat,sf,ef,breaks,top_links] = get_data(trk)
   
 end
 
-function pred_imported_callback(handle,event,~)
- h = guidata(handle);
- h.sel_btn.Value = event.Value;
- guidata(handle,h)
- update_movie(h.fig);
- 
-end
+% function pred_imported_callback(handle,event,~)
+%  h = guidata(handle);
+%  h.sel_btn.Value = event.Value;
+%  guidata(handle,h)
+%  update_movie(h.fig); 
+% end
 
 function h = switch_target(h,tgt)
 if ~h.has_data, return; end

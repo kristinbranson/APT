@@ -98,7 +98,7 @@ tbl.ColumnFormat{1} = MARKERS;
 strcmp(tbl.ColumnName{6},'Label Font Angle');
 tbl.ColumnFormat{6} = {'normal' 'italic'};
 ncol = numel(tbl.ColumnFormat);
-set(tbl,'Data',cell(3,ncol),'RowName',{'Label' 'Prediction' 'Imported'});
+set(tbl,'Data',cell(3,ncol),'RowName',{'Label' 'Prediction'});
 
 MarkerControlsSet(handles,sPropsMrkr);
 
@@ -132,7 +132,6 @@ pum = handles.pumShowing;
 pum.String = { ...
   'Labels'
   'Predictions'
-  'Imported'
   };
 pum.Value = 1;
 
@@ -308,7 +307,7 @@ function MarkerControlsSet(handles,s)
 % s: as in structure returned by MarkerControlsGet
 
 uitbl = handles.tblProps;
-assert(isequal(uitbl.RowName,{'Label' 'Prediction' 'Imported'}'));
+assert(isequal(uitbl.RowName,{'Label' 'Prediction'}'));
 
 FLDS_MARKER = {'Marker' 'MarkerSize' 'LineWidth'};
 tMrkr = struct2table([s.MarkerProps]');
