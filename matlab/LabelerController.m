@@ -31,7 +31,8 @@ classdef LabelerController < handle
     trkInfoFigure_ = gobjects(1,0)
     landmarkSpecsFigure_ = gobjects(1,0)
     trackingErrorMontageFigures_ = gobjects(1,0)
-    gtManagerFigure_  % the ground truth manager *figure*       
+    gtManagerFigure_  % the ground truth manager *figure*
+    plotAllLabelsFigure_ = gobjects(1,0)
   end
 
   properties  % private/protected by convention
@@ -612,36 +613,65 @@ classdef LabelerController < handle
       result = [obj.mainFigure_, obj.auxiliaryViewFigures_] ;
     end % function
 
+    function deleteExistingSatellites_(obj)
+      % Delete all satellite figures and subcontrollers, resetting their
+      % properties to empty.
+      deleteValidGraphicsHandles(obj.gtTrackingDialogFigure_) ;
+      obj.gtTrackingDialogFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.gtResultFigures_) ;
+      obj.gtResultFigures_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.targetSummaryFigure_) ;
+      obj.targetSummaryFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.suspiciousFramesFigure_) ;
+      obj.suspiciousFramesFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.auxiliaryViewFigures_) ;
+      obj.auxiliaryViewFigures_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.gtManagerFigure_) ;
+      obj.gtManagerFigure_ = [] ;
+      deleteValidGraphicsHandles(obj.waitbarFigure_) ;
+      obj.waitbarFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.splashScreenFigure_) ;
+      obj.splashScreenFigure_ = [] ;
+      deleteValidGraphicsHandles(obj.labelOutlierFigure_) ;
+      obj.labelOutlierFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.aboutFigure_) ;
+      obj.aboutFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.trkInfoFigure_) ;
+      obj.trkInfoFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.landmarkSpecsFigure_) ;
+      obj.landmarkSpecsFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.trackingErrorMontageFigures_) ;
+      obj.trackingErrorMontageFigures_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.plotAllLabelsFigure_) ;
+      obj.plotAllLabelsFigure_ = gobjects(1,0) ;
+      if ~isempty(obj.trackingMonitorVisualizer_)
+        if isvalid(obj.trackingMonitorVisualizer_) ,
+          delete(obj.trackingMonitorVisualizer_) ;
+        end
+        obj.trackingMonitorVisualizer_ = [] ;
+      end
+      if ~isempty(obj.trainingMonitorVisualizer_)
+        if isvalid(obj.trainingMonitorVisualizer_) ,
+          delete(obj.trainingMonitorVisualizer_) ;
+        end
+        obj.trainingMonitorVisualizer_ = [] ;
+      end
+      if ~isempty(obj.backendTestController_)
+        delete(obj.backendTestController_) ;
+        obj.backendTestController_ = [] ;
+      end
+      if ~isempty(obj.movieManagerController_)
+        delete(obj.movieManagerController_) ;
+        obj.movieManagerController_ = [] ;
+      end
+    end  % function
+
     function delete(obj)
       % Having the figure without a controller would be bad, so we make sure to
       % delete the figure (and subfigures) in our destructor.
       % We also delete the model.
-      deleteValidGraphicsHandles(obj.gtTrackingDialogFigure_) ;
-      deleteValidGraphicsHandles(obj.gtResultFigures_) ;
-      deleteValidGraphicsHandles(obj.targetSummaryFigure_) ;
-      deleteValidGraphicsHandles(obj.suspiciousFramesFigure_) ;
-      deleteValidGraphicsHandles(obj.auxiliaryViewFigures_) ;
-      deleteValidGraphicsHandles(obj.gtManagerFigure_) ;
-      deleteValidGraphicsHandles(obj.waitbarFigure_) ;
-      deleteValidGraphicsHandles(obj.labelOutlierFigure_) ;
-      deleteValidGraphicsHandles(obj.aboutFigure_) ;
-      deleteValidGraphicsHandles(obj.trkInfoFigure_) ;
-      deleteValidGraphicsHandles(obj.landmarkSpecsFigure_) ;
-      deleteValidGraphicsHandles(obj.trackingErrorMontageFigures_) ;
-      delete(obj.trackingMonitorVisualizer_) ;
-      delete(obj.trainingMonitorVisualizer_) ;
-      if ~isempty(obj.backendTestController_)
-        delete(obj.backendTestController_) ;
-      end
-      if ~isempty(obj.movieManagerController_)
-        delete(obj.movieManagerController_) ;
-      end
+      obj.deleteExistingSatellites_() ;
       deleteValidGraphicsHandles(obj.mainFigure_) ;
-      % In principle, a controller shouldn't delete its model---the model should be
-      % allowed to persist until there are no more references to it.  
-      % But it seems like this might surprise & annoy clients, b/c they expect that
-      % when they quit APT via the GUI, the model should be deleted, even if (say)
-      % there's still a reference to it in the top level scope.
       delete(obj.labeler_) ;
     end  % function
 
@@ -1994,16 +2024,8 @@ classdef LabelerController < handle
 
     function didCreateNewProject(obj)
       labeler =  obj.labeler_ ;
-      
-      deleteValidGraphicsHandles(obj.gtTrackingDialogFigure_) ;
-      obj.gtTrackingDialogFigure_ = gobjects(1,0) ;
-      deleteValidGraphicsHandles(obj.gtResultFigures_) ;
-      obj.gtResultFigures_ = gobjects(1,0) ;
-      deleteValidGraphicsHandles(obj.targetSummaryFigure_) ;
-      obj.targetSummaryFigure_ = gobjects(1,0) ;
-      deleteValidGraphicsHandles(obj.suspiciousFramesFigure_) ;
-      obj.suspiciousFramesFigure_ = gobjects(1,0) ;
-      deleteValidGraphicsHandles(obj.auxiliaryViewFigures_) ;
+
+      obj.deleteExistingSatellites_() ;
 
       % Initialize the uitable of labeled frames
       obj.initTblFramesTrx_() ;
@@ -2129,10 +2151,6 @@ classdef LabelerController < handle
       
       obj.labelTLInfo_.updateForNewProject();
       
-      if ~isempty(obj.movieManagerController_)
-        delete(obj.movieManagerController_) ;
-      end
-      obj.movieManagerController_ = [];
       % t0 = tic;
       % obj.movieManagerController_ = MovieManagerController(labeler) ;
       % fprintf('Creating movie manager takes %f s\n',toc(t0));
@@ -6705,6 +6723,7 @@ classdef LabelerController < handle
       if isempty(hfig) || ~ishandle(hfig),
         hfig = figure;
         set(hfig,'Position',[10,10,800*nviews,800]);
+        obj.plotAllLabelsFigure_ = hfig ;
       else
         figure(hfig);
       end
@@ -7187,9 +7206,11 @@ classdef LabelerController < handle
       vr.FrameRate = framerate;
 
       vr.open();
+      hTxt = text(230,10,'','parent',obj.axes_curr,'Color','white','fontsize',24);
+      cleanupTxt = onCleanup(@() delete(hTxt)) ;
+      hWB = waitbar(0,'Writing video');
+      cleanupWB = onCleanup(@() deleteValidGraphicsHandles(hWB)) ;
       try
-        hTxt = text(230,10,'','parent',obj.axes_curr,'Color','white','fontsize',24);
-        hWB = waitbar(0,'Writing video');
         for i = 1:nFrms
           f = frms(i);
           lObj.setFrame(f);
@@ -7201,12 +7222,9 @@ classdef LabelerController < handle
         end
       catch ME
         vr.close();
-        delete(hTxt);
         ME.rethrow();
       end
       vr.close();
-      delete(hTxt);
-      delete(hWB);
     end  % function
 
     function [tfok,trkfiles] = resolveTrkfilesVsTrkRawname_(obj,iMovs,...

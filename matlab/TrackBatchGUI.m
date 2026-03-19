@@ -37,6 +37,13 @@ classdef TrackBatchGUI < handle
       uiwait(obj.gdata.fig);
       toTrack = obj.toTrack;
     end
+
+    function delete(obj)
+      % Clean up the figure if it still exists.
+      if ~isempty(obj.gdata) && isfield(obj.gdata, 'fig')
+        deleteValidGraphicsHandles(obj.gdata.fig) ;
+      end
+    end  % function
     
     function initData(obj,toTrack)
       obj.toTrack = toTrack;
