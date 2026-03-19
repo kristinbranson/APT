@@ -248,7 +248,7 @@ classdef LabelerController < handle
     GTManagerFigure  % the ground truth manager *figure*
     shortcutkeys
     shortcutfns
-    fakeMenuTags
+
     menu_track_backend_config
     menu_track_backend_config_jrc
     menu_track_backend_config_aws
@@ -568,13 +568,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'requestQuestionDialog',@(s,e)(obj.requestQuestionDialog())) ;
 
-      obj.fakeMenuTags = {
-        'menu_view_zoom_toggle'
-        'menu_view_pan_toggle'
-        'menu_view_hide_trajectories'
-        'menu_view_hide_predictions'
-        'menu_view_hide_imported_predictions'
-        };
+
 
       % % Stash the guidata
       % guidata(mainFigure, obj) ;
@@ -2249,7 +2243,7 @@ classdef LabelerController < handle
       for i = 1:numel(fns)
         h = findobj(main_figure,'Tag',fns{i},'-property','Accelerator');
         if isempty(h) || ~ishandle(h) || ...
-            (ismember(fns{i},obj.fakeMenuTags) && isprop(h,'Visible') && strcmpi(h.Visible,'off')),
+            (ismember(fns{i},apt.mainFigureFakeMenuTags()) && isprop(h,'Visible') && strcmpi(h.Visible,'off')),
           continue;
         end
         ismenu(i) = true;
@@ -2504,7 +2498,6 @@ classdef LabelerController < handle
       % reset colors to defaults
       labeler.labelPointsPlotInfo.Colors = feval(labeler.labelPointsPlotInfo.ColorMapName,newnphyspts);
       labeler.predPointsPlotInfo.Colors = feval(labeler.predPointsPlotInfo.ColorMapName,newnphyspts);
-      labeler.impPointsPlotInfo.Colors = feval(labeler.impPointsPlotInfo.ColorMapName,newnphyspts);
 
       % reset reference frame plotting
       obj.updatePrevAxesLabels();

@@ -3,7 +3,6 @@ classdef LandmarkSetType
     % caution, order matters here for clients
     Label ('labelPointsPlotInfo')
     Prediction ('predPointsPlotInfo')
-    Imported ('impPointsPlotInfo')
   end
   properties
     labelerPropPlotInfo

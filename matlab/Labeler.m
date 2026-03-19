@@ -544,7 +544,6 @@ classdef Labeler < handle
   properties
     labelPointsPlotInfo   % struct containing cosmetic info for labelPoints. init: C
     predPointsPlotInfo   % " predicted points. init: C
-    impPointsPlotInfo
     isTwoClickAlign = true  % KB 20220506 store the state of whether two-click alignment is selected
     viewConfig_ = []  % [nview] struct array, downdated from controller via downdateViewConfig event
   end
@@ -1854,7 +1853,6 @@ classdef Labeler < handle
       % - ppp.ColorMapName, ppp.Colors both exist
       % - ppp.Colors is [nSet x 3]
       obj.predPointsPlotInfo = cfg.Track.PredictPointsPlot;
-      obj.impPointsPlotInfo = cfg.Track.ImportPointsPlot;
             
       obj.trackNFramesSmall = cfg.Track.PredictFrameStep;
       obj.trackNFramesLarge = cfg.Track.PredictFrameStepBig;
@@ -1990,7 +1988,6 @@ classdef Labeler < handle
       cfg.Track.PredictFrameStepBig = obj.trackNFramesLarge;
       cfg.Track.PredictNeighborhood = obj.trackNFramesNear;
       cfg.Track.PredictPointsPlot = obj.predPointsPlotInfo;
-      cfg.Track.ImportPointsPlot = obj.impPointsPlotInfo;
       
       cfg.PrevAxes.Mode = char(obj.prevAxesMode);
       pSpec = obj.corePrevAxesTargetSpec_ ;
@@ -7516,22 +7513,10 @@ classdef Labeler < handle
       obj.notify('updatePredictionColors') ;
     end
     
-    function setLandmarkImportedColors(obj,colors,colormapname)
-      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
-      % colors: "setwise" colors
-      szassert(colors,[obj.nPhysPoints 3]);
-
-      obj.impPointsPlotInfo.Colors = colors;
-      obj.impPointsPlotInfo.ColorMapName = colormapname;
-    end
-
     function setLandmarkLabelCosmetics(obj, pvMarker, pvText, textOffset)
       % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
-
       lc = obj.lblCore ;
-
       lc.setMarkerCosmetics(pvMarker) ;
-
       obj.notify('updatePrevAxesLabels') ;
       lc.setTextCosmetics(pvText, textOffset) ;
     end

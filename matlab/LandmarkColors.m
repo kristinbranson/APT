@@ -69,7 +69,7 @@ centerOnOtherFigureGivenPositionBang(hObject, pos, units) ;
 % Marker State
 % This is stored only in the table. Get and Set using Set/GetMarker*.
 lsetTypesCell = num2cell(enumeration('LandmarkSetType'));
-ppiAll = {lObj.labelPointsPlotInfo; lObj.predPointsPlotInfo; lObj.impPointsPlotInfo};
+ppiAll = {lObj.labelPointsPlotInfo; lObj.predPointsPlotInfo};
 FLDS = {'MarkerProps' 'TextProps' 'TextOffset'};
 sPropsMrkr = cellfun(@(x)structrestrictflds(x,FLDS),ppiAll);
 [sPropsMrkr.landmarkSetType] = deal(lsetTypesCell{:});
