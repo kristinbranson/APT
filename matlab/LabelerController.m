@@ -597,9 +597,8 @@ classdef LabelerController < handle
       if ~isempty(obj.backendTestController_)
         delete(obj.backendTestController_) ;
       end
-      try
-        deleteValidGraphicsHandles(obj.movieManagerController_.hFig) ;
-      catch % fail silently :)
+      if ~isempty(obj.movieManagerController_)
+        delete(obj.movieManagerController_) ;
       end
       deleteValidGraphicsHandles(obj.mainFigure_) ;
       % In principle, a controller shouldn't delete its model---the model should be
@@ -2125,7 +2124,9 @@ classdef LabelerController < handle
       
       obj.labelTLInfo.updateForNewProject();
       
-      deleteValidGraphicsHandles(obj.movieManagerController_) ;
+      if ~isempty(obj.movieManagerController_)
+        delete(obj.movieManagerController_) ;
+      end
       obj.movieManagerController_ = [];
       % t0 = tic;
       % obj.movieManagerController_ = MovieManagerController(labeler) ;
