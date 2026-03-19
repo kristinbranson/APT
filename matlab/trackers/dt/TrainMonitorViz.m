@@ -9,7 +9,6 @@ classdef TrainMonitorViz < handle
     %hannlastupdated % [1] textbox/annotation handle
     hline % [nmodel x 2] line handle, one loss curve per view
     hlinekill % [nmodel x 2] line handle, killed marker per view
-    trainMontageFigs = []; % figure handles for showing training image montages
     setidx % [1 x nmodel], which set each line belongs to
     
     wasAborted = []  % 1 x nmodel, whether training has been aborted
@@ -61,9 +60,10 @@ classdef TrainMonitorViz < handle
           'Show error messages'}});
   end
 
-  properties (Transient) 
+  properties (Transient)
     parent_
     labeler_
+    trainMontageFigures_ = []  % figure handles for showing training image montages
   end
 
   properties (Dependent)
@@ -196,8 +196,8 @@ classdef TrainMonitorViz < handle
     end
     
     function delete(obj)
-      deleteValidGraphicsHandles(obj.trainMontageFigs) ;
-      obj.trainMontageFigs = [] ;
+      deleteValidGraphicsHandles(obj.trainMontageFigures_) ;
+      obj.trainMontageFigures_ = [] ;
       deleteValidGraphicsHandles(obj.hfig) ;
       obj.hfig = [] ;
     end
@@ -509,7 +509,7 @@ classdef TrainMonitorViz < handle
     
     function showTrainingImages(obj)
       trnImgIfo = obj.dtObj.loadTrainingImages();
-      obj.trainMontageFigs = obj.dtObj.trainImageMontage(trnImgIfo,'hfigs',obj.trainMontageFigs);
+      obj.trainMontageFigures_ = obj.dtObj.trainImageMontage(trnImgIfo,'hfigs',obj.trainMontageFigures_);
     end  % function
     
     function result = queryAllJobsStatus(obj)      
