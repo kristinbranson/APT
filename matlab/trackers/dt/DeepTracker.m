@@ -1574,41 +1574,6 @@ classdef DeepTracker < LabelTracker
       bgTrnMonitor.start();
     end  % trnSpawn_() function
     
-    function hfigs = trainImageMontage(obj,trnImgMats,varargin)
-      % trnImgMats: cellstr, or could be loaded mats
-      
-      pppi = obj.lObj.labelPointsPlotInfo;
-      mrkrProps = struct2paramscell(pppi.MarkerProps);
-      margs0 = {'nr',3,'nc',3,'maskalpha',0.3,...
-        'framelblscolor',[1 1 0],...
-        'pplotargs',mrkrProps};
-
-      hfigs = myparse(varargin,'hfigs',[]);
-
-      if isempty(hfigs),
-        hfigs = nan(1,numel(trnImgMats));
-      end
-
-      for i=1:numel(trnImgMats)
-        ti = trnImgMats{i};
-        if isempty(ti)
-          continue;
-        end
-        
-        dam = DataAugMontage();
-        dam.init(ti);
-        npts = size(dam.locs,2);
-        colors = pppi.Colors(1:npts,:); % for eg H/T which has only two pts
-        margs = [margs0 {'colors' colors}];
-        if numel(hfigs) >= i && hfigs(i) > 0 && ishandle(hfigs(i)) && ~any(hfigs(1:i-1)==hfigs(i)),
-          hfig = hfigs(i);
-        else
-          hfig = [];
-        end
-        hfigs(i) = dam.show(margs,'hfig',hfig);
-      end
-    end
-
     function [tf,tpdir] = trainPackExists(obj)
       dm = obj.trnLastDMC;      
       if ~isempty(dm) 

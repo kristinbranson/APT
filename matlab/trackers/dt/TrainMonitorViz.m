@@ -508,8 +508,43 @@ classdef TrainMonitorViz < handle
     end  % function
     
     function showTrainingImages(obj)
-      trnImgIfo = obj.dtObj.loadTrainingImages();
-      obj.trainMontageFigures_ = obj.dtObj.trainImageMontage(trnImgIfo,'hfigs',obj.trainMontageFigures_);
+      trnImgIfo = obj.dtObj.loadTrainingImages() ;
+      obj.trainMontageFigures_ = obj.trainImageMontage(trnImgIfo, 'hfigs', obj.trainMontageFigures_) ;
+    end  % function
+
+    function hfigs = trainImageMontage(obj, trnImgMats, varargin)
+      % Show montage of training images with data augmentation.
+
+      pppi = obj.labeler_.labelPointsPlotInfo ;
+      mrkrProps = struct2paramscell(pppi.MarkerProps) ;
+      margs0 = {'nr', 3, 'nc', 3, 'maskalpha', 0.3, ...
+        'framelblscolor', [1 1 0], ...
+        'pplotargs', mrkrProps} ;
+
+      hfigs = myparse(varargin, 'hfigs', []) ;
+
+      if isempty(hfigs),
+        hfigs = nan(1, numel(trnImgMats)) ;
+      end
+
+      for i = 1:numel(trnImgMats)
+        ti = trnImgMats{i} ;
+        if isempty(ti)
+          continue ;
+        end
+
+        dam = DataAugMontage() ;
+        dam.init(ti) ;
+        npts = size(dam.locs, 2) ;
+        colors = pppi.Colors(1:npts, :) ;
+        margs = [margs0 {'colors' colors}] ;
+        if numel(hfigs) >= i && hfigs(i) > 0 && ishandle(hfigs(i)) && ~any(hfigs(1:i-1)==hfigs(i)),
+          hfig = hfigs(i) ;
+        else
+          hfig = [] ;
+        end
+        hfigs(i) = dam.show(margs, 'hfig', hfig) ;
+      end
     end  % function
     
     function result = queryAllJobsStatus(obj)      
