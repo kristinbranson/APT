@@ -27,9 +27,7 @@ handles.controller = controller;
 
 hFig = uifigure('Units','pixels','Position',[951,1400,733,733],...
   'Name','Groundtruth Navigator','Visible','off');
-if ~isempty(controller)
-  controller.addSatellite(hFig) ;
-end
+% Figure is tracked via obj.GTManagerFigure in LabelerController.gtShowGTManager()
 
 handles.figure1 = hFig;
 

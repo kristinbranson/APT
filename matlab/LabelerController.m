@@ -3,7 +3,11 @@ classdef LabelerController < handle
     labeler_  % the controlled Labeler object
     mainFigure_  % the GH to the main figure
     listeners_
-    satellites_ = gobjects(1,0)  % handles of dialogs, figures, etc that will get deleted when this object is deleted
+    gtTrackingDialogFigure_ = gobjects(1,0)
+    gtResultFigures_ = gobjects(1,0)        % array: percentiles + per-keypoint
+    targetSummaryFigure_ = gobjects(1,0)
+    suspiciousFramesFigure_ = gobjects(1,0)
+    auxiliaryViewFigures_ = gobjects(1,0)    % array: one per extra view
     waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
     trackingMonitorVisualizer_  % a subcontroller
     trainingMonitorVisualizer_  % a subcontroller
@@ -48,8 +52,13 @@ classdef LabelerController < handle
     currImHud  % scalar AxisHUD, or []. The HUD readout for the main axis.
   end
 
+  properties (Dependent)
+    figs_all  
+      % 1 x nviews, 1st el is main figure, el 2 is 2nd view fig, el 3 is 3rd view fig, etc.
+      % So doesn't include any of the other satellite figures that APT creates.
+  end
+
   properties  % these are all the things that used to be in the main figure's guidata, but are not simple controls
-    figs_all
     axes_all
     images_all
   end
@@ -311,7 +320,6 @@ classdef LabelerController < handle
       end
       
       % Set these things
-      obj.figs_all = obj.mainFigure_ ;
       obj.axes_all = obj.axes_curr ;
       obj.images_all = obj.image_curr ;
       
@@ -591,11 +599,21 @@ classdef LabelerController < handle
       % % a LabelerController is present.
     end
 
+    function result = get.figs_all(obj)
+      % Return the concatenation of the main figure and all auxiliary view figures.
+      result = [obj.mainFigure_, obj.auxiliaryViewFigures_] ;
+    end % function
+
     function delete(obj)
       % Having the figure without a controller would be bad, so we make sure to
       % delete the figure (and subfigures) in our destructor.
       % We also delete the model.
-      deleteValidGraphicsHandles(obj.satellites_) ;
+      deleteValidGraphicsHandles(obj.gtTrackingDialogFigure_) ;
+      deleteValidGraphicsHandles(obj.gtResultFigures_) ;
+      deleteValidGraphicsHandles(obj.targetSummaryFigure_) ;
+      deleteValidGraphicsHandles(obj.suspiciousFramesFigure_) ;
+      deleteValidGraphicsHandles(obj.auxiliaryViewFigures_) ;
+      deleteValidGraphicsHandles(obj.GTManagerFigure) ;
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       deleteValidGraphicsHandles(obj.labelOutlierFigure_) ;
       deleteValidGraphicsHandles(obj.aboutFigure_) ;
@@ -1140,7 +1158,7 @@ classdef LabelerController < handle
       DIALOGTTL = 'GT Tracking';
       msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
       h = msgbox(msg,DIALOGTTL);
-      obj.addSatellite(h) ;  % register dialog to we can delete when main window closes
+      obj.gtTrackingDialogFigure_ = h ;
       %obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
     end
 
@@ -1219,8 +1237,7 @@ classdef LabelerController < handle
 
       % circles around keypoints indicating prctiles of error
       fig_1 = figure('Name','Groundtruth error percentiles');
-      %obj.satellites_(1,end+1) = fig_1 ;
-      obj.addSatellite(fig_1) ;
+      obj.gtResultFigures_(end+1) = fig_1 ;
 
       [allims,allpos] = labeler.cropTargetImageFromMovie(t.mov(1),t.frm(1),t.iTgt(1),exampleLbl);
       prcs = prctile(l2err_filtered,plotParams.prc_vals,1);
@@ -1242,8 +1259,7 @@ classdef LabelerController < handle
 
       % Err by landmark
       fig_2 = figure('Name','Groundtruth error per keypoint');
-      %obj.satellites_(1,end+1) = fig_2 ;
-      obj.addSatellite(fig_2) ;
+      obj.gtResultFigures_(end+1) = fig_2 ;
       errs = reshape(l2err_filtered,[],nphyspt,nviews);
       PlotErrorHists(errs,'hparent',fig_2,'kpcolors',clrs,...
         'prcs',prcs,'prc_vals',plotParams.prc_vals,...
@@ -1804,9 +1820,9 @@ classdef LabelerController < handle
       hBtn.Units = 'normalized';
       hF.Visible = 'on';
 
-      obj.addSatellite(hF) ;
+      obj.targetSummaryFigure_ = hF ;
     end  % function
-    
+
     function target_table_row_actuated_(obj, source, event, row, rowdata)  %#ok<INUSD>
       % Does what needs doing when the target table row is selected.
 
@@ -1827,31 +1843,14 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;      
       [tfok, tblBig] = labeler.hlpTargetsTableUIgetBigTable() ;
       if tfok
-        fig = obj.findSatelliteByTag_('target_table_figure') ;
-        if ~isempty(fig) ,
+        fig = obj.targetSummaryFigure_ ;
+        if ~isempty(fig) && isvalid(fig) ,
           navTbl = fig.UserData ;
           navTbl.setData(labeler.trackGetSummaryTable(tblBig)) ;
         end
       end
     end  % function
     
-    function result = isSatellite(obj, h)
-      result = any(obj.satellites_ == h) ;
-    end
-
-    function h = findSatelliteByTag_(obj, query_tag)
-      % Find the handle with Tag query_tag in obj.depHandles.
-      % If no matching tag, returns [].
-      tags = arrayfun(@(h)(h.Tag), obj.satellites_, 'UniformOutput', false) ;
-      is_match = strcmp(query_tag, tags) ;
-      index = find(is_match,1) ;
-      if isempty(index) ,
-        h = [] ;
-      else
-        h = obj.satellites_(index) ;
-      end
-    end  % function
-
     function suspComputeUI(obj)
       labeler = obj.labeler_ ;      
       tfsucc = labeler.suspCompute();
@@ -1868,7 +1867,7 @@ classdef LabelerController < handle
                            'ColumnName',tblFlds);
       nt.setData(tbl);
       hF.UserData = nt;
-      obj.addSatellite(hF);
+      obj.suspiciousFramesFigure_ = hF ;
     end  % function
 
     function susp_frame_table_row_actuated_(obj, source, event, row, rowdata)  %#ok<INUSD>
@@ -1921,25 +1920,6 @@ classdef LabelerController < handle
         pollingResult = labeler.tracker.bgTrnMonitor.pollingResult ;
         obj.trainingMonitorVisualizer_.resultsReceived(pollingResult) ;
       end
-    end  % function
-
-    function addSatellite(obj, h)
-      % Add a 'satellite' figure, so we don't lose track of them.
-
-      % 'GC' dead handles
-      isValid = arrayfun(@isvalid, obj.satellites_) ;
-      obj.satellites_ = obj.satellites_(isValid) ;
-
-      % Make sure it's really a new one, then add it
-      isSameAsNewGuy = arrayfun(@(sat)(sat==h), obj.satellites_);
-      if ~any(isSameAsNewGuy)
-        obj.satellites_(1, end+1) = h ;
-      end
-    end  % function
-
-    function clearSatellites(obj)
-      deleteValidGraphicsHandles(obj.satellites_);
-      obj.satellites_ = gobjects(1,0);
     end  % function
 
     function raiseTrainingEndedDialog_(obj)
@@ -2007,24 +1987,31 @@ classdef LabelerController < handle
     function didCreateNewProject(obj)
       labeler =  obj.labeler_ ;
       
-      obj.clearSatellites() ;
-      
+      deleteValidGraphicsHandles(obj.gtTrackingDialogFigure_) ;
+      obj.gtTrackingDialogFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.gtResultFigures_) ;
+      obj.gtResultFigures_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.targetSummaryFigure_) ;
+      obj.targetSummaryFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.suspiciousFramesFigure_) ;
+      obj.suspiciousFramesFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.auxiliaryViewFigures_) ;
+
       % Initialize the uitable of labeled frames
       obj.initTblFramesTrx_() ;
-      
-      % figs, axes, images
-      deleteValidGraphicsHandles(obj.figs_all(2:end));
-      obj.figs_all = obj.figs_all(1);
+
+      % axes, images
       obj.axes_all = obj.axes_all(1);
       obj.images_all = obj.images_all(1);
       obj.axes_occ = obj.axes_occ(1);
-      
+
       nview = labeler.nview;
+      obj.auxiliaryViewFigures_ = gobjects(1, nview-1) ;
       figs = gobjects(1,nview);
       axs = gobjects(1,nview);
       ims = gobjects(1,nview);
       axsOcc = gobjects(1,nview);
-      figs(1) = obj.figs_all;
+      figs(1) = obj.mainFigure_ ;
       axs(1) = obj.axes_all;
       ims(1) = obj.images_all;
       axsOcc(1) = obj.axes_occ;
@@ -2047,7 +2034,7 @@ classdef LabelerController < handle
                  );
         figs(iView) = thisfig ;
         axs(iView) = axes('Parent', thisfig, 'Position', [0,0,1,1]) ;
-        obj.addSatellite(thisfig) ;
+        obj.auxiliaryViewFigures_(iView-1) = thisfig ;
 
         % Set up the figure toolbar how we want it
         makeFigureMenubarAndToolbarAPTAppropriateBang(thisfig) ;
@@ -2075,7 +2062,6 @@ classdef LabelerController < handle
         axes_toolbar = axtoolbar(axs(iView), 'default');
         axes_toolbar.Visible = 'off';        
       end  % for loop over non-primary view figures
-      obj.figs_all = figs;
       obj.axes_all = axs;
       obj.images_all = ims;
       obj.axes_occ = axsOcc;
@@ -3184,7 +3170,7 @@ classdef LabelerController < handle
     end  % function
     
     function cbkAuxFigCloseReq(controller, src, evt)  %#ok<INUSD>
-      if ~controller.isSatellite(src) 
+      if ~any(controller.auxiliaryViewFigures_ == src)
         delete(src);
         return  
       end
