@@ -3596,16 +3596,12 @@ classdef DeepTracker < LabelTracker
     end  % function
 
     function newLabelerMovie(obj)
-%       if ~obj.lObj.maIsMA && obj.lObj.hasTrx
-%         % in this case, the number of targets (trx) can vary by movie and
-%         % currently .trkVizer (TrackingVisualizerMT) needs to be updated
-%         % for the number of targets
-%         obj.vizInit(); 
-%       end
       if obj.lObj.hasMovie
         obj.trackCurrResUpdate() ;
-        obj.vizModelInit_() ;
+      else
+        obj.trackCurrResInit() ;
       end
+      obj.vizModelInit_() ;
     end  % function
   end  % methods
   
