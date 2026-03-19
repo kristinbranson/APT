@@ -394,21 +394,6 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
       tf = obj.iPt2iSet_(iPt) == obj.iSetWorking_ ;
     end  % function
 
-    function [tfSel, iSelPt, iAx] = projectionPointSelected(obj)
-      % Determine the currently selected point based on working set and
-      % which figure has focus.
-      %
-      % TODO: get(0,'CurrentFigure') is a GUI concern. Eventually move
-      % this to the controller.
-      iAx = find(get(0, 'CurrentFigure') == obj.labeler_.gdata.figs_all) ;
-      iWS = obj.iSetWorking_ ;
-      tfSel = isscalar(iAx) && ~isnan(iWS) ;
-      if tfSel
-        iSelPt = obj.iSet2iPt_(iWS, iAx) ;
-      else
-        iSelPt = nan ;
-      end
-    end  % function
 
   end  % methods
 

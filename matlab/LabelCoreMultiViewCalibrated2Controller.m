@@ -475,7 +475,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       elseif any(strcmp(key, {'a' 'hyphen'}))
         obj.labelerController_.frameDown(tfCtrl) ;
       elseif strcmp(key, 'o') && ~tfCtrl
-        [tfSel, iSel] = mdl.projectionPointSelected() ;
+        [tfSel, iSel] = obj.projectionPointSelected_() ;
         if tfSel
           mdl.toggleEstOccPoint(iSel) ;
         end
@@ -487,7 +487,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
           obj.setPtFullOcc_(iPt) ;
         end
       elseif any(strcmp(key, {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
-        [tfSel, iSel, iAx] = mdl.projectionPointSelected() ;
+        [tfSel, iSel, iAx] = obj.projectionPointSelected_() ;
         if tfSel && ~mdl.tfOcc(iSel)
           tfShift = any(strcmp('shift', modifier)) ;
           xy = mdl.getLabelCoordsI(iSel) ;
@@ -661,6 +661,20 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       end
 
       set(obj.pjtHLinesRecon_, 'Visible', 'off') ;
+    end  % function
+
+    function [tfSel, iSelPt, iAx] = projectionPointSelected_(obj)
+      % Determine the currently selected point based on working set and
+      % which figure has focus.
+      mdl = obj.model_ ;
+      iAx = find(get(0, 'CurrentFigure') == obj.hFig_) ;
+      iWS = mdl.iSetWorking_ ;
+      tfSel = isscalar(iAx) && ~isnan(iWS) ;
+      if tfSel
+        iSelPt = mdl.iSet2iPt_(iWS, iAx) ;
+      else
+        iSelPt = nan ;
+      end
     end  % function
 
     function toggleEpipolarState_(obj)
