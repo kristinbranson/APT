@@ -68,14 +68,13 @@ classdef LabelCoreController < handle
       obj.labeler_ = labeler ;
       obj.model_ = model ;
 
-      gd = labelerController ;
-      obj.hFig_ = gd.figs_all ;
-      obj.hAx_ = gd.axes_all ;
-      obj.hIms_ = gd.images_all ;
-      obj.hAxOcc_ = gd.axes_occ ;
-      obj.tbAccept_ = gd.tbAccept ;
-      obj.pbClear_ = gd.pbClear ;
-      obj.txLblCoreAux_ = gd.txLblCoreAux ;
+      obj.hFig_ = labelerController.figs_all ;
+      obj.hAx_ = labelerController.axes_all ;
+      obj.hIms_ = labelerController.images_all ;
+      obj.hAxOcc_ = labelerController.axes_occ ;
+      obj.tbAccept_ = labelerController.tbAccept ;
+      obj.pbClear_ = labelerController.pbClear ;
+      obj.txLblCoreAux_ = labelerController.txLblCoreAux ;
       set(obj.tbAccept_, 'Style', 'togglebutton') ;
     end  % function
 
