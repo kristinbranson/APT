@@ -94,7 +94,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       trkletID = tvm.ptrx(iTrklet).id ;
       nTrkletTot = numel(tvm.ptrx) ;
       obj.hud.updateTrklet(trkletID, nTrkletTot) ;
-      obj.parent_.labelTLInfo.updateTraces() ;
+      obj.parent_.updateTimelineTraces() ;
       iviz = find(tvm.iTrxViz2iTrx == iTrklet) ;
       if isempty(iviz)
         warning('This should not happen. Not setting primary trx') ;

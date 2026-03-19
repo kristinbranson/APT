@@ -2,27 +2,36 @@ classdef LabelerController < handle
   properties  % private/protected by convention
     labeler_  % the controlled Labeler object
     mainFigure_  % the GH to the main figure
+    auxiliaryViewFigures_ = gobjects(1,0)    % array: one per view beyond the main view.  Will stay empty for single-view projects
     listeners_
-    gtTrackingDialogFigure_ = gobjects(1,0)
-    gtResultFigures_ = gobjects(1,0)        % array: percentiles + per-keypoint
-    targetSummaryFigure_ = gobjects(1,0)
-    suspiciousFramesFigure_ = gobjects(1,0)
-    auxiliaryViewFigures_ = gobjects(1,0)    % array: one per extra view
-    waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
+  end
+
+  properties  % subcontrollers
+    labelTLInfo_  % an InfoTimelineController object
     trackingMonitorVisualizer_  % a subcontroller
     trainingMonitorVisualizer_  % a subcontroller
     movieManagerController_
     backendTestController_
-    pxTxUnsavedChangesWidth_  
-      % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed when we resize
-    isPlaying_ = false  % whether a video is currently playing or not
-    labelTLInfo  % an InfoTimelineController object
-    splashScreenFigureOrEmpty_  % GH to the splash screen figure, or empty
+    lblCoreController_  % scalar LabelCoreController, or []. The controller for the label core model.
+    currImHud  % scalar AxisHUD, or []. The HUD readout for the main axis.  A subcontroller.
+    axesesHighlightManager_  
+      % Manages the highlighting of axes for GT mode.  This is controller-like
+      % but might not be a controller in the strictest sense.
+  end
+
+  properties  % "uncontrolled" satellite figures---satellite figures that aren't managed by controllers (at present)
+    gtTrackingDialogFigure_ = gobjects(1,0)
+    gtResultFigures_ = gobjects(1,0)        % array: percentiles + per-keypoint
+    targetSummaryFigure_ = gobjects(1,0)
+    suspiciousFramesFigure_ = gobjects(1,0)
+    waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
+    splashScreenFigure_  % GH to the splash screen figure, or empty
     labelOutlierFigure_ = gobjects(1,0)
     aboutFigure_ = gobjects(1,0)
     trkInfoFigure_ = gobjects(1,0)
     landmarkSpecsFigure_ = gobjects(1,0)
     trackingErrorMontageFigures_ = gobjects(1,0)
+    GTManagerFigure_  % the ground truth manager *figure*       
   end
 
   properties  % private/protected by convention
@@ -48,8 +57,9 @@ classdef LabelerController < handle
       % block.  Useful for debugging.  "Do, or do not.  There is no try." --Yoda
     doEchoControlActuation_ = false
       % When true, controlActuated() prints the control name to the console.
-    lblCoreController_  % scalar LabelCoreController, or []. The controller for the label core model.
-    currImHud  % scalar AxisHUD, or []. The HUD readout for the main axis.
+    pxTxUnsavedChangesWidth_  
+      % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed when we resize
+    isPlaying_ = false  % whether a video is currently playing or not    
   end
 
   properties (Dependent)
@@ -255,11 +265,9 @@ classdef LabelerController < handle
   end
 
   properties
-    axesesHighlightManager_
     hLinkPrevCurr
     newProjAxLimsSetInConfig
     h_ignore_arrows
-    GTManagerFigure  % the ground truth manager *figure*
     shortcutkeys
     shortcutfns
 
@@ -286,14 +294,14 @@ classdef LabelerController < handle
 
       % Create the splash screen figure
       % (Do this after creation of main figure so splash screen figure is on top.)
-      obj.splashScreenFigureOrEmpty_ = createSplashScreenFigure() ;
+      obj.splashScreenFigure_ = createSplashScreenFigure() ;
       oc = onCleanup(@()(obj.deleteSpashScreenFigureIfItExists_())) ;
 
       % % Create the labeler, tell it there will be a GUI attached
       % labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode,  'isInAwsDebugMode', isInAwsDebugMode) ;  
 
       % Bring the splash screen to the foreground
-      figure(obj.splashScreenFigureOrEmpty_);
+      figure(obj.splashScreenFigure_);
 
       % Set up the main instance variables
       obj.labeler_ = labeler ;
@@ -335,7 +343,7 @@ classdef LabelerController < handle
       % populate the two popup menus that determine what is shown in the timeline
       % axes.
       itm = labeler.infoTimelineModel ;
-      obj.labelTLInfo = InfoTimelineController(labeler, obj.axes_timeline_manual , obj.axes_timeline_islabeled) ;
+      obj.labelTLInfo_ = InfoTimelineController(labeler, obj.axes_timeline_manual , obj.axes_timeline_islabeled) ;
       set(obj.pumTimelineProp,...
           'String',itm.getPropsDisp(),...
           'Value',itm.curprop);
@@ -613,7 +621,7 @@ classdef LabelerController < handle
       deleteValidGraphicsHandles(obj.targetSummaryFigure_) ;
       deleteValidGraphicsHandles(obj.suspiciousFramesFigure_) ;
       deleteValidGraphicsHandles(obj.auxiliaryViewFigures_) ;
-      deleteValidGraphicsHandles(obj.GTManagerFigure) ;
+      deleteValidGraphicsHandles(obj.GTManagerFigure_) ;
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       deleteValidGraphicsHandles(obj.labelOutlierFigure_) ;
       deleteValidGraphicsHandles(obj.aboutFigure_) ;
@@ -1626,7 +1634,7 @@ classdef LabelerController < handle
       if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit ,
         iTgt = lObj.currTarget;
         obj.currImHud.updateTarget(iTgt) ;
-        obj.labelTLInfo.updateTraces();
+        obj.labelTLInfo_.updateTraces();
         if lObj.gtIsGTMode
           tfHilite = lObj.gtCurrMovFrmTgtIsInGTSuggestions();
         else
@@ -2119,7 +2127,7 @@ classdef LabelerController < handle
       
       obj.updateShortcuts() ;
       
-      obj.labelTLInfo.updateForNewProject();
+      obj.labelTLInfo_.updateForNewProject();
       
       if ~isempty(obj.movieManagerController_)
         delete(obj.movieManagerController_) ;
@@ -2501,8 +2509,8 @@ classdef LabelerController < handle
       obj.updatePrevAxesLabels();
       
       % init info timeline
-      obj.labelTLInfo.updateForNewProject();
-      obj.labelTLInfo.updateTraces();
+      obj.labelTLInfo_.updateForNewProject();
+      obj.labelTLInfo_.updateTraces();
       
       % Clear all the trained trackers
       labeler.clearAllTrackers();
@@ -2886,7 +2894,7 @@ classdef LabelerController < handle
       obj.update_menu_track_backend_config();
 
       % Update the InfoTimelineController
-      obj.labelTLInfo.updateTraces();
+      obj.labelTLInfo_.updateTraces();
     end  % function
     
     function updateTrainingMonitor(obj)
@@ -3240,7 +3248,7 @@ classdef LabelerController < handle
       if (labeler.hasTrx || labeler.maIsMA) && ~labeler.isinit ,
         iTgt = labeler.currTarget;
         obj.currImHud.updateTarget(iTgt) ;
-        obj.labelTLInfo.updateTraces();
+        obj.labelTLInfo_.updateTraces();
         obj.updateHighlightingOfAxes();
 
         % Update prediction TV primary target
@@ -3459,7 +3467,7 @@ classdef LabelerController < handle
       %   obj.GTManagerFigure.Visible = onIffGT;
       % end
       obj.updateHighlightingOfAxes();
-      obj.labelTLInfo.updateGTModeRelatedControls() ;
+      obj.labelTLInfo_.updateGTModeRelatedControls() ;
       % mmc = obj.movieManagerController_ ;
       % if ~isempty(mmc) ,
       %   mmc.lblerLstnCbkGTMode() ;
@@ -3588,8 +3596,8 @@ classdef LabelerController < handle
         %   end
       end
 
-      obj.labelTLInfo.updateForNewMovie(obj.tbTLSelectMode.BackgroundColor);
-      obj.labelTLInfo.updateTraces();
+      obj.labelTLInfo_.updateForNewMovie(obj.tbTLSelectMode.BackgroundColor);
+      obj.labelTLInfo_.updateTraces();
 
       nframes = labeler.nframes;
       sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
@@ -3646,7 +3654,7 @@ classdef LabelerController < handle
     end  % function
 
     function cbkDataImported(obj, src, evt)  %#ok<INUSD>
-      obj.labelTLInfo.updateTraces();  % Using this as a "refresh" for now
+      obj.labelTLInfo_.updateTraces();  % Using this as a "refresh" for now
     end  % function
 
     function cbkSkeletonEdgesChanged(obj, src, evt)  %#ok<INUSD>
@@ -4063,10 +4071,10 @@ classdef LabelerController < handle
       itm = labeler.infoTimelineModel ;
       %props = itm.getPropsDisp(itm.curproptype);
       %propTypes = itm.getPropTypesDisp();
-      obj.labelTLInfo.updateCurrentFrameLineWidths() ;
-      obj.labelTLInfo.updateCurrentFrameLineXData() ;
-      obj.labelTLInfo.updateSelectionImageCData() ;
-      obj.labelTLInfo.updateContextMenu() ;
+      obj.labelTLInfo_.updateCurrentFrameLineWidths() ;
+      obj.labelTLInfo_.updateCurrentFrameLineXData() ;
+      obj.labelTLInfo_.updateSelectionImageCData() ;
+      obj.labelTLInfo_.updateContextMenu() ;
       set(obj.tbTLSelectMode, 'Value', itm.selectOn, 'Enable',onIff(hasProject)) ;  % a togglebutton
       set(obj.pbClearSelection,'Enable',onIff(hasProject && hasMovie && labeler.areAnyFramesSelected())) ;
       %set(obj.pumTimelinePropType,'String',propTypes,'Value',itm.curproptype,'Enable',onIff(hasProject));
@@ -4093,17 +4101,17 @@ classdef LabelerController < handle
 
     function updateTimelineStatThresh(obj)
       % Update the timeline statistic threshold display.
-      obj.labelTLInfo.updateStatThresh();
+      obj.labelTLInfo_.updateStatThresh();
     end
 
     function updateTimelineTraces(obj)
       % Update the labels/prediction traces shown in the timeline.
-      obj.labelTLInfo.updateTraces();
+      obj.labelTLInfo_.updateTraces();
     end
 
     function updateTimelineLandmarkColors(obj)
       % Update the timeline landmark colors.
-      obj.labelTLInfo.updateLandmarkColors();
+      obj.labelTLInfo_.updateLandmarkColors();
     end
 
     % function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
@@ -6120,7 +6128,7 @@ classdef LabelerController < handle
     
     function cbkGTSuggUpdated(obj, ~, ~)
       % Update the main window controls when the GT suggestions change.
-      obj.labelTLInfo.updateGTModeRelatedControls() ;
+      obj.labelTLInfo_.updateGTModeRelatedControls() ;
     end
 
     % function cbkGTResUpdated(obj, s, e)
@@ -6273,21 +6281,21 @@ classdef LabelerController < handle
     end
 
     function tf = doesGTManagerFigureExist(obj)
-      hGTMgr = obj.GTManagerFigure ;
+      hGTMgr = obj.GTManagerFigure_ ;
       tf = ~isempty(hGTMgr) && ishandle(hGTMgr);
     end
 
     function gtShowGTManager(obj)
       if obj.doesGTManagerFigureExist()
-        figure(obj.GTManagerFigure);
+        figure(obj.GTManagerFigure_);
       else
-        obj.GTManagerFigure = GTManager(obj, obj.labeler_);
+        obj.GTManagerFigure_ = GTManager(obj, obj.labeler_);
       end
     end
 
     function gtCloseGTManager(obj)
       if obj.doesGTManagerFigureExist(),
-        close(obj.GTManagerFigure);
+        close(obj.GTManagerFigure_);
       end
     end
 
@@ -6344,7 +6352,7 @@ classdef LabelerController < handle
   methods
     function updateAfterCurrentFrameSet(obj)
       labeler = obj.labeler_ ;
-      obj.labelTLInfo.updateAfterCurrentFrameSet();
+      obj.labelTLInfo_.updateAfterCurrentFrameSet();
       set(obj.edit_frame,'String',num2str(labeler.currFrame));
       sldval = (labeler.currFrame-1)/(labeler.nframes-1);
       if isnan(sldval)
@@ -6473,15 +6481,15 @@ classdef LabelerController < handle
     end  % function
 
     function deleteSpashScreenFigureIfItExists_(obj)
-      hfigsplash = obj.splashScreenFigureOrEmpty_ ;
+      hfigsplash = obj.splashScreenFigure_ ;
       if isempty(hfigsplash) || ~ishghandle(hfigsplash)
-        obj.splashScreenFigureOrEmpty_ = [] ;
+        obj.splashScreenFigure_ = [] ;
         return
       end
       % main_figure = obj.mainFigure_ ;
       % refocusSplashScreen(hfigsplash, main_figure) ;  % why refocus on the splash screen just before deleting it?  -- ALT, 2025-07-08
       delete(hfigsplash) ;
-      obj.splashScreenFigureOrEmpty_ = [] ;
+      obj.splashScreenFigure_ = [] ;
     end
 
     % function handleCreationTimeAdditionalArguments_actuated_(obj, ~, ~, varargin)
@@ -6657,7 +6665,7 @@ classdef LabelerController < handle
 
     function cbkGTSuggMFTableLbledUpdated(obj)
       % React to incremental update to labeler.gtSuggMFTableLbled
-      obj.labelTLInfo.updateGTModeRelatedControlsLight();
+      obj.labelTLInfo_.updateGTModeRelatedControlsLight();
     end
 
     function timelineButtonDown(obj, src, evt)

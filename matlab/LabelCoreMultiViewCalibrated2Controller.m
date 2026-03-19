@@ -619,13 +619,13 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       % Create epipolar and reconstructed point line handles.
       mdl = obj.model_ ;
       ppimvcm = mdl.ptsPlotInfo.MultiViewCalibratedMode ;
-      gdata = obj.labelerController_ ;
+      labelerController = obj.labelerController_ ;
       nView = mdl.nView ;
 
       hLEpi = gobjects(nView, nView) ;
       hLRcn = gobjects(1, nView) ;
       for iV = 1:nView
-        ax = gdata.axes_all(iV) ;
+        ax = labelerController.axes_all(iV) ;
         for j = 1:nView
           hLEpi(iV, j) = plot(ax, nan, nan, '-', ...
             'LineWidth', ppimvcm.EpipolarLineWidth, ...
