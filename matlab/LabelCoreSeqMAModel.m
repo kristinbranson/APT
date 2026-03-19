@@ -37,6 +37,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
   properties (Transient)
     iPtMove_                % scalar. Either nan, or index of pt being moved
     nPtsLabeled_            % scalar integer. 0..nPts, or inf.
+    tvm_                    % scalar TrackingVisualizerMTModel
   end
 
   properties
@@ -88,6 +89,9 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       % Initialize SeqMA-specific state.
       obj.kpfIPtFor1Key_ = 1 ;
       obj.state_ = LabelState.ACCEPTED ;
+      lObj = obj.labeler_ ;
+      obj.tvm_ = TrackingVisualizerMTModel(lObj, 'labelPointsPlotInfo', 'lblCoreSeqMA') ;
+      obj.tvm_.doPch = true ;
     end  % function
 
   end  % methods
