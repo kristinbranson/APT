@@ -1059,9 +1059,8 @@ classdef LabelerController < handle
     end
 
     function updateLabelVisibilityAndShowLabelsMenuCheckmark(obj)
-      % Update the visibility of labels
-      labeler = obj.labeler_ ;
-      obj.menu_view_hide_labels.Checked = onIff(labeler.doShowLabels) ;
+      % Update the visibility of labels and the corresponding menu checkmark.
+      obj.updateViewMenu() ;
       if ~isempty(obj.lblCoreController_)
         obj.lblCoreController_.updateLabelVisibility() ;
       end
@@ -1745,7 +1744,7 @@ classdef LabelerController < handle
 
       % Update the main menubar menus
       obj.updateFileMenu() ;
-      set(obj.menu_view,'Enable',onIff(hasMovie));
+      obj.updateViewMenu() ;
       obj.updateLabelMenu() ;
       set(obj.menu_go,'Enable',onIff(hasMovie));
       set(obj.menu_track,'Enable',onIff(hasMovie));
@@ -1754,9 +1753,6 @@ classdef LabelerController < handle
       if ~isempty(obj.menu_debug) && isgraphics(obj.menu_debug)
         set(obj.menu_debug,'Enable',onIff(hasProject)) ;
       end
-      
-      % Update items in the View menu
-      obj.updateTrxMenuCheckEnable();
 
       % These things
       set(obj.tbAdjustCropSize,'Enable',onIff(hasProject));
@@ -1789,7 +1785,6 @@ classdef LabelerController < handle
       obj.pbTrain.Enable = onIff(hasTracker);
       obj.pbTrack.Enable = onIff(hasTracker);
       obj.pumTrack.Enable = onIff(hasTracker) ;
-      obj.menu_view_showhide_predictions.Enable = onIff(hasTracker);
       set(obj.menu_track_auto_params_update, 'Checked', hasProject && labeler.trackAutoSetParams) ;
       
       set(obj.menu_go_targets_summary,'Enable',onIff(hasProject && ~isInGTMode)) ;
@@ -2912,7 +2907,7 @@ classdef LabelerController < handle
       obj.menu_track.Enable = onOrOff;
       obj.pbTrain.Enable = onOrOff;
       obj.pbTrack.Enable = onOrOff;
-      obj.menu_view_showhide_predictions.Enable = onOrOff;
+      obj.updateViewMenu() ;
 
       % % Remake the tracker history submenu
       % obj.update_menu_track_tracker_history_() ;
@@ -2949,14 +2944,8 @@ classdef LabelerController < handle
     end  % function
 
     function updateShowPredMenus(obj)
-      lObj = obj.labeler_ ;
-      tracker = lObj.tracker ;
-      if isempty(tracker),
-        return;
-      end
-      obj.menu_view_showhide_preds_all_targets.Checked = onIff(~tracker.hideViz && ~tracker.showPredsCurrTargetOnly) ;
-      obj.menu_view_showhide_preds_curr_target_only.Checked = onIff(~tracker.hideViz && tracker.showPredsCurrTargetOnly) ;
-      obj.menu_view_showhide_preds_none.Checked = onIff(tracker.hideViz) ;
+      % Update the prediction show/hide menu checkmarks.
+      obj.updateViewMenu() ;
     end
 
     function cbkTrackerHideVizChanged(obj)
@@ -3200,8 +3189,7 @@ classdef LabelerController < handle
         [axes_all.CameraPositionMode] = deal('auto');
       end
       [axes_all.DataAspectRatio] = deal([1 1 1]);
-      obj.menu_view_show_tick_labels.Checked = onIff(~isempty(axes_all(1).XTickLabel));
-      obj.menu_view_show_grid.Checked = axes_all(1).XGrid;
+      obj.updateViewMenu() ;
     end  % function
     
     function cbkAuxFigCloseReq(controller, src, evt)  %#ok<INUSD>
@@ -3293,11 +3281,8 @@ classdef LabelerController < handle
         return
       end
       obj.updateFileMenu() ;
+      obj.updateViewMenu() ;
       obj.updateLabelMenu() ;
-      isMultianimalLabelingMode = (lblMode == LabelMode.MULTIANIMAL) ;
-      set(obj.menu_view_zoom_toggle, 'Visible', onIff(isMultianimalLabelingMode)) ;
-      set(obj.menu_view_pan_toggle, 'Visible', onIff(isMultianimalLabelingMode)) ;
-      set(obj.menu_view_showhide_labelrois, 'Visible', onIff(isMultianimalLabelingMode)) ;
     end  % function
 
     function updateLabelMenu(obj)
@@ -3380,6 +3365,97 @@ classdef LabelerController < handle
       set(obj.menu_file_quit, 'Enable', 'on') ;
     end  % function
 
+    function updateViewMenu(obj)
+      % Sync the View menu and all its children to the current model state.
+      labeler = obj.labeler_ ;
+      hasProject = labeler.hasProject ;
+      hasMovie = labeler.hasMovie ;
+      hasTrx = labeler.hasTrx ;
+      isMA = labeler.maIsMA ;
+      labelMode = labeler.labelMode ;
+      isMultianimalLabelingMode = ~isempty(labelMode) && (labelMode == LabelMode.MULTIANIMAL) ;
+      tracker = labeler.tracker ;
+      hasTracker = ~isempty(tracker) ;
+      hasSkeleton = ~isempty(labeler.skeletonEdges) ;
+
+      % Top-level View menu
+      set(obj.menu_view, 'Enable', onIff(hasMovie)) ;
+
+      % Zoom/Rotation submenu
+      hasTrxOrMA = hasTrx || isMA ;
+      set(obj.menu_view_trajectories_centervideoontarget, ...
+        'Enable', onIff(hasTrxOrMA), ...
+        'Checked', onIff(labeler.movieCenterOnTarget)) ;
+      set(obj.menu_view_rotate_video_target_up, ...
+        'Enable', onIff(hasTrxOrMA), ...
+        'Checked', onIff(labeler.movieRotateTargetUp)) ;
+      set(obj.menu_view_zoom_toggle, ...
+        'Enable', onIff(isMultianimalLabelingMode)) ;
+      set(obj.menu_view_pan_toggle, ...
+        'Enable', onIff(isMultianimalLabelingMode)) ;
+
+      % Show/Hide submenu
+      set(obj.menu_view_hide_labels, ...
+        'Checked', onIff(labeler.doShowLabels)) ;
+      set(obj.menu_view_showhide_skeleton, ...
+        'Enable', onIff(hasSkeleton), ...
+        'Checked', onIff(hasSkeleton && labeler.showSkeleton)) ;
+      set(obj.menu_view_showhide_labelrois, ...
+        'Enable', onIff(isMultianimalLabelingMode)) ;
+      set(obj.menu_view_showhide_maroi, ...
+        'Checked', onIff(labeler.showMaRoi)) ;
+      set(obj.menu_view_showhide_maroiaux, ...
+        'Checked', onIff(labeler.showMaRoiAux)) ;
+
+      % Trajectories sub-submenu
+      hasNonMATrx = hasProject && ~isMA && hasTrx ;
+      set(obj.menu_view_showhide_trajectories, ...
+        'Enable', onIff(hasNonMATrx)) ;
+      set(obj.menu_view_trajectories_showall, ...
+        'Checked', onIff(hasNonMATrx && labeler.showTrx && ~labeler.showTrxCurrTargetOnly)) ;
+      set(obj.menu_view_trajectories_showcurrent, ...
+        'Checked', onIff(hasNonMATrx && labeler.showTrxCurrTargetOnly)) ;
+      set(obj.menu_view_trajectories_dontshow, ...
+        'Checked', onIff(hasNonMATrx && ~labeler.showTrx && ~labeler.showTrxCurrTargetOnly)) ;
+
+      % Predictions sub-submenu
+      set(obj.menu_view_showhide_predictions, ...
+        'Enable', onIff(hasTracker)) ;
+      if hasTracker
+        set(obj.menu_view_showhide_preds_all_targets, ...
+          'Checked', onIff(~tracker.hideViz && ~tracker.showPredsCurrTargetOnly)) ;
+        set(obj.menu_view_showhide_preds_curr_target_only, ...
+          'Checked', onIff(~tracker.hideViz && tracker.showPredsCurrTargetOnly)) ;
+        set(obj.menu_view_showhide_preds_none, ...
+          'Checked', onIff(tracker.hideViz)) ;
+      end
+
+      % Occluded points box
+      set(obj.menu_view_occluded_points_box, ...
+        'Checked', onIff(labeler.showOccludedBox)) ;
+
+      % Axes guides
+      axes_all = obj.axes_all ;
+      if ~isempty(axes_all)
+        set(obj.menu_view_show_tick_labels, ...
+          'Checked', onIff(~isempty(axes_all(1).XTickLabel))) ;
+        set(obj.menu_view_show_grid, ...
+          'Checked', axes_all(1).XGrid) ;
+      end
+
+      % Video appearance
+      set(obj.menu_view_converttograyscale, ...
+        'Checked', onIff(labeler.movieForceGrayscale)) ;
+
+      % Flip menus (read from axes state, only meaningful in single-view)
+      if ~labeler.isMultiView && ~isempty(axes_all)
+        isFlippedLR = strcmpi(axes_all(1).XDir, 'reverse') ;
+        isFlippedUD = strcmpi(axes_all(1).YDir, 'normal') ;
+        set(obj.menu_view_flip_fliplr, 'Checked', onIff(isFlippedLR)) ;
+        set(obj.menu_view_flip_flipud, 'Checked', onIff(isFlippedUD)) ;
+      end
+    end  % function
+
     function updateTrxMenuCheckEnable(obj,src,evt) %#ok<INUSD>
       if nargin < 2,
         src = nan;
@@ -3409,10 +3485,10 @@ classdef LabelerController < handle
     end  % function
 
     function cbkShowOccludedBoxChanged(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;       
-      onOff = onIff(labeler.showOccludedBox);
-      obj.menu_view_occluded_points_box.Checked = onOff;
-      set([obj.text_occludedpoints,obj.axes_occ],'Visible',onOff);
+      labeler = obj.labeler_ ;
+      obj.updateViewMenu() ;
+      onOff = onIff(labeler.showOccludedBox) ;
+      set([obj.text_occludedpoints, obj.axes_occ], 'Visible', onOff) ;
     end  % function
 
     function cbkShowTrxCurrTargetOnlyChanged(obj, varargin)
@@ -3459,35 +3535,28 @@ classdef LabelerController < handle
     end  % function
 
     function cbkMovieCenterOnTargetChanged(obj, src, evt)   %#ok<INUSD>
-      labeler = obj.labeler_ ;       
-      tf = labeler.movieCenterOnTarget;
-      mnu = obj.menu_view_trajectories_centervideoontarget;
-      mnu.Checked = onIff(tf);
-      if tf,
-        obj.videoZoom(labeler.targetZoomRadiusDefault);
+      labeler = obj.labeler_ ;
+      obj.updateViewMenu() ;
+      if labeler.movieCenterOnTarget
+        obj.videoZoom(labeler.targetZoomRadiusDefault) ;
       end
     end  % function
 
     function cbkMovieRotateTargetUpChanged(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;       
-      tf = labeler.movieRotateTargetUp;
-      if tf
-        ax = obj.axes_curr;
-        warnst = warning('off','LabelerGUI:axDir');
+      labeler = obj.labeler_ ;
+      if labeler.movieRotateTargetUp
+        ax = obj.axes_curr ;
+        warnst = warning('off', 'LabelerGUI:axDir') ;
         % When axis is in image mode, ydir should be reversed!
-        ax.XDir = 'normal';
-        ax.YDir = 'reverse';
-        warning(warnst);
+        ax.XDir = 'normal' ;
+        ax.YDir = 'reverse' ;
+        warning(warnst) ;
       end
-      mnu = obj.menu_view_rotate_video_target_up;
-      mnu.Checked = onIff(tf);
+      obj.updateViewMenu() ;
     end  % function
 
     function cbkMovieForceGrayscaleChanged(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;       
-      tf = labeler.movieForceGrayscale;
-      mnu = obj.menu_view_converttograyscale;
-      mnu.Checked = onIff(tf);
+      obj.updateViewMenu() ;
     end  % function
 
     function cbkMovieViewBGsubbedChanged(obj, src, evt)  %#ok<INUSD>
@@ -3694,15 +3763,8 @@ classdef LabelerController < handle
         obj.sldZoom.UserData = log([minzoomrad maxzoomrad]);
       end
 
-      TRX_MENUS = {...
-        'menu_view_trajectories_centervideoontarget'
-        'menu_view_rotate_video_target_up'};
-      %  'menu_label_overlay_montage_trx_centered'};
-      tftblon = labeler.hasTrx || labeler.maIsMA;
-      onOff = onIff(tftblon);
-      cellfun(@(x)set(obj.(x),'Enable',onOff),TRX_MENUS);
-      hTbl = obj.tblTrx;
-      set(hTbl,'Enable',onOff);
+      tftblon = labeler.hasTrx || labeler.maIsMA ;
+      set(obj.tblTrx, 'Enable', onIff(tftblon)) ;
 
       obj.updatePUMTrackAndFriend() ;
 
@@ -3753,9 +3815,7 @@ classdef LabelerController < handle
     function cbkShowSkeletonChanged(obj, src, evt)  %#ok<INUSD>
       % Respond to showSkeleton changing.
       labeler = obj.labeler_ ;
-      hasSkeleton = ~isempty(labeler.skeletonEdges) ;
-      isChecked = onIff(hasSkeleton && labeler.showSkeleton) ;
-      set(obj.menu_view_showhide_skeleton, 'Enable', hasSkeleton, 'Checked', isChecked) ;
+      obj.updateViewMenu() ;
       tv = obj.tvTrkPred_ ;
       if ~isempty(tv)
         tv.setShowSkeleton(labeler.showSkeleton) ;
@@ -3768,8 +3828,7 @@ classdef LabelerController < handle
     function cbkShowMaRoiChanged(obj, src, evt)  %#ok<INUSD>
       % Respond to showMaRoi changing.
       labeler = obj.labeler_ ;
-      onOff = onIff(labeler.showMaRoi);
-      obj.menu_view_showhide_maroi.Checked = onOff;
+      obj.updateViewMenu() ;
       if labeler.labelMode == LabelMode.MULTIANIMAL
         if ~isempty(obj.lblCoreController_)
           obj.lblCoreController_.tv_.setShowPches(labeler.showMaRoi) ;
@@ -3780,8 +3839,7 @@ classdef LabelerController < handle
     function cbkShowMaRoiAuxChanged(obj, src, evt)  %#ok<INUSD>
       % Respond to showMaRoiAux changing.
       labeler = obj.labeler_ ;
-      onOff = onIff(labeler.showMaRoiAux);
-      obj.menu_view_showhide_maroiaux.Checked = onOff;
+      obj.updateViewMenu() ;
       if labeler.labelMode == LabelMode.MULTIANIMAL
         if ~isempty(obj.lblCoreController_)
           obj.lblCoreController_.roiSetShow(labeler.showMaRoiAux) ;
@@ -5485,28 +5543,8 @@ classdef LabelerController < handle
     end  % function
 
     function updateFlipMenus(obj)
-      labeler = obj.labeler_;
-      if labeler.isMultiView,
-        return;
-      end
-      if isempty(labeler.projPrefs),
-        return;
-      end
-      % viewCfg = labeler.projPrefs.View;
-      % movieInvert = ViewConfig.getMovieInvert(viewCfg);
-      % obj.menu_view_flip_flipud_movie_only.Checked = onIff(any(movieInvert));
-      for i = 1:numel(obj.axes_all),
-        if strcmpi(obj.axes_all(i).XDir,'reverse'),
-          obj.menu_view_flip_fliplr.Checked = 'on';
-          break;
-        end
-      end
-      for i = 1:numel(obj.axes_all),
-        if strcmpi(obj.axes_all(i).YDir,'normal'),
-          obj.menu_view_flip_fliplr.Checked = 'on';
-          break;
-        end
-      end
+      % Update the flip menu checkmarks.
+      obj.updateViewMenu() ;
     end  % function
 
     % function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
