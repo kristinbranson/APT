@@ -69,8 +69,8 @@ classdef UncertainFramesModel < handle
     end  % function
 
     function [frameIndex, tragletIndex] = frameAndTragletIndexFromPairIndex(obj, pairIndex)
-      frameIndex = obj.frameIndexFromPairIndex(pairIndex) ;
-      tragletIndex = obj.tragletIndexFromPairIndex(pairIndex) ;
+      frameIndex = obj.frameIndexFromPairIndex_(pairIndex) ;
+      tragletIndex = obj.tragletIndexFromPairIndex_(pairIndex) ;
     end  % function
   end  % methods
 
@@ -79,6 +79,7 @@ classdef UncertainFramesModel < handle
       % Compute the most uncertain frame-traglet pairs from the current
       % movie's tracking results.
       if ~obj.isVisible_ 
+        obj.labeler_.notify('updateUncertainFrames') ;
         return
       end
 
@@ -89,13 +90,13 @@ classdef UncertainFramesModel < handle
         return
       end
 
-      trkResAll = labeler.trkResGTaware ;
-      if isempty(trkResAll) || size(trkResAll, 1) < labeler.currMovie
+      tracker = labeler.tracker ;
+      if isempty(tracker)
         obj.clear_() ;
         return
       end
 
-      trkFile = trkResAll{labeler.currMovie, 1, 1} ;
+      trkFile = tracker.trkP ;
       if isempty(trkFile) || ~isa(trkFile, 'TrkFile') || ~trkFile.hasdata()
         obj.clear_() ;
         return

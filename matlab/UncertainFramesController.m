@@ -7,7 +7,6 @@ classdef UncertainFramesController < handle
     model_  % UncertainFramesModel
     figure_  % figure handle
     listbox_  % uicontrol listbox handle
-    titleText_  % uicontrol text showing movie name / status
   end
 
   properties (Dependent, Hidden)
@@ -32,15 +31,6 @@ classdef UncertainFramesController < handle
         'Visible', 'off', ...
         'CloseRequestFcn', @(src, evt)(obj.hideRequested())) ;
 
-      % titlePosition = [10 figurePosition(4)-30 figurePosition(3)-20 20] ;
-      obj.titleText_ = uicontrol(...
-        'Parent', obj.figure_, ...
-        'Style', 'text', ...
-        'String', 'Computing...', ...
-        'HorizontalAlignment', 'left', ...
-        'Tag', 'uncertain_frames_title') ;
-
-      % listboxPosition = [10 10 figurePosition(3)-20 figurePosition(4)-50] ;
       obj.listbox_ = uicontrol(...
         'Parent', obj.figure_, ...
         'Style', 'listbox', ...
@@ -72,13 +62,10 @@ classdef UncertainFramesController < handle
       if model.isValid
         strings = model.listboxString ;
         nEntries = numel(strings) ;
-        movieName = obj.labeler_.moviename ;
-        obj.titleText_.String = sprintf('%s  (%d entries)', movieName, nEntries) ;
         obj.listbox_.String = strings ;
         obj.listbox_.Value = max(1, min(obj.listbox_.Value, nEntries)) ;
         obj.listbox_.Enable = 'on' ;
       else
-        obj.titleText_.String = 'No tracking data for current movie' ;
         obj.listbox_.String = {} ;
         obj.listbox_.Value = 1 ;
         obj.listbox_.Enable = 'off' ;
@@ -109,8 +96,7 @@ classdef UncertainFramesController < handle
       figPos = obj.figure_.Position ;
       figWidth = figPos(3) ;
       figHeight = figPos(4) ;
-      obj.titleText_.Position = [10 figHeight-30 figWidth-20 20] ;
-      obj.listbox_.Position = [10 10 figWidth-20 figHeight-50] ;
+      obj.listbox_.Position = [10 10 figWidth-20 figHeight-20] ;
     end  % function
   end  % methods
 end  % classdef

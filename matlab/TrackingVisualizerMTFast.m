@@ -160,7 +160,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
     function updateSkelStc(hSkel, skelEdges, npt, xy, varargin)
       % Set hSkel.XData/.YData per xy
 
-      [linestyle,alpha,linewidth] = myparse(varargin,'linestyle','','alpha',0.5, 'linewidth',0.5);
+      [linestyle,alpha,linewidth] = myparse(varargin,'linestyle','-','alpha',0.5, 'linewidth',0.5);
 
       se = skelEdges;
       k = size(se,1);
