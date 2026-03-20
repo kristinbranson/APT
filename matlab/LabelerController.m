@@ -142,7 +142,7 @@ classdef LabelerController < handle
     menu_help_about
     menu_help_doc
     menu_help_labeling_actions
-    menu_labeling_setup
+    menu_label
     menu_quit_but_dont_delete_temp_folder
     % menu_setup_createtemplate
     menu_setup_label_outliers
@@ -3316,7 +3316,7 @@ classdef LabelerController < handle
       isStreamlined = isMultiviewLabelingMode && labeler.isLabelingStreamlined ;
       isShowingCalibration = isMultiviewLabelingMode && ~isempty(lc) && lc.supportsCalibration && lc.isCalRig && lc.showCalibration ;
       isTwoClickAlign = isMultianimalLabelingMode && labeler.isTwoClickAlign ;
-      set(obj.menu_labeling_setup, ...
+      set(obj.menu_label, ...
         'Enable', onIff(hasMovie)) ;
       set(obj.menu_setup_sequential_mode, ...
         'Enable', onIff(hasMovie && isSingleView && ~isProjectMA), ...
