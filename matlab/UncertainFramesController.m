@@ -1,5 +1,5 @@
 classdef UncertainFramesController < handle
-% Owns the figure and listbox for displaying uncertain frames.
+  % Owns the figure and listbox for displaying uncertain frames.
 
   properties (Access=private, Transient)  % private by convention
     labelerController_  % parent controller

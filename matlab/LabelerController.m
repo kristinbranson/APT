@@ -1744,7 +1744,7 @@ classdef LabelerController < handle
       %
 
       % Update the main menubar menus
-      set(obj.menu_file,'Enable','on');
+      obj.updateFileMenu() ;
       set(obj.menu_view,'Enable',onIff(hasMovie));
       obj.updateLabelMenu() ;
       set(obj.menu_go,'Enable',onIff(hasMovie));
@@ -1754,20 +1754,6 @@ classdef LabelerController < handle
       if ~isempty(obj.menu_debug) && isgraphics(obj.menu_debug)
         set(obj.menu_debug,'Enable',onIff(hasProject)) ;
       end
-
-      % Update items in the File menu
-      set(obj.menu_file_new,'Enable','on');
-      set(obj.menu_file_save,'Enable',onIff(hasProject));
-      set(obj.menu_file_saveas,'Enable',onIff(hasProject));
-      set(obj.menu_file_load,'Enable','on');
-      set(obj.menu_file_shortcuts,'Enable',onIff(hasProject));
-      set(obj.menu_file_managemovies,'Enable',onIff(hasProject));
-      set(obj.menu_file_import,'Enable',onIff(hasProject));
-      set(obj.menu_file_export,'Enable',onIff(hasMovie));
-      set(obj.menu_file_crop_mode,'Enable',onIff(hasMovie));
-      set(obj.menu_file_clean_tempdir,'Enable',onIff(hasProject));
-      set(obj.menu_file_bundle_tempdir,'Enable',onIff(hasProject));        
-      set(obj.menu_file_quit,'Enable','on');
       
       % Update items in the View menu
       obj.updateTrxMenuCheckEnable();
@@ -1807,7 +1793,6 @@ classdef LabelerController < handle
       set(obj.menu_track_auto_params_update, 'Checked', hasProject && labeler.trackAutoSetParams) ;
       
       set(obj.menu_go_targets_summary,'Enable',onIff(hasProject && ~isInGTMode)) ;
-
     end  % function
 
     function update_text_trackerinfo(obj)
@@ -3307,10 +3292,9 @@ classdef LabelerController < handle
       if isempty(lblMode) ,
         return
       end
+      obj.updateFileMenu() ;
       obj.updateLabelMenu() ;
-      isMultiviewLabelingMode = (lblMode == LabelMode.MULTIVIEWCALIBRATED2) ;
       isMultianimalLabelingMode = (lblMode == LabelMode.MULTIANIMAL) ;
-      set(obj.menu_setup_load_calibration_file, 'Visible', onIff(isMultiviewLabelingMode)) ;
       set(obj.menu_view_zoom_toggle, 'Visible', onIff(isMultianimalLabelingMode)) ;
       set(obj.menu_view_pan_toggle, 'Visible', onIff(isMultianimalLabelingMode)) ;
       set(obj.menu_view_showhide_labelrois, 'Visible', onIff(isMultianimalLabelingMode)) ;
@@ -3335,38 +3319,65 @@ classdef LabelerController < handle
       set(obj.menu_labeling_setup, ...
         'Enable', onIff(hasMovie)) ;
       set(obj.menu_setup_sequential_mode, ...
-        'Visible', onIff(hasMovie && isSingleView && ~isProjectMA), ...
+        'Enable', onIff(hasMovie && isSingleView && ~isProjectMA), ...
         'Checked', onIff(hasLabelMode && labelMode == LabelMode.SEQUENTIAL)) ;
       set(obj.menu_setup_sequential_add_mode, ...
-        'Visible', onIff(hasMovie && isSingleView && nLabelPointsAdd ~= 0), ...
+        'Enable', onIff(hasMovie && isSingleView && nLabelPointsAdd ~= 0), ...
         'Checked', onIff(hasLabelMode && labelMode == LabelMode.SEQUENTIALADD)) ;
       set(obj.menu_setup_template_mode, ...
-        'Visible', onIff(hasMovie && isSingleView && ~isProjectMA), ...
+        'Enable', onIff(hasMovie && isSingleView && ~isProjectMA), ...
         'Checked', onIff(hasLabelMode && labelMode == LabelMode.TEMPLATE)) ;
       set(obj.menu_setup_multianimal_mode, ...
-        'Visible', 'off', ...
+        'Enable', onIff(isMultianimalLabelingMode), ...
         'Checked', onIff(isMultianimalLabelingMode)) ;
       set(obj.menu_setup_multiview_calibrated_mode_2, ...
-        'Visible', 'off', ...
+        'Enable', onIff(isMultiviewLabelingMode), ...
         'Checked', onIff(isMultiviewLabelingMode)) ;
-      isAnyModeItemVisible = hasMovie && isSingleView && (~isProjectMA || nLabelPointsAdd ~= 0) ;
       set(obj.menu_setup_streamlined, ...
-        'Visible', onIff(isMultiviewLabelingMode), ...
+        'Enable', onIff(isMultiviewLabelingMode), ...
         'Checked', onIff(isStreamlined), ...
-        'Separator', onIff(isAnyModeItemVisible)) ;
+        'Separator', 'on') ;
       set(obj.menu_setup_use_calibration, ...
-        'Visible', onIff(isMultiviewLabelingMode), ...
+        'Enable', onIff(isMultiviewLabelingMode), ...
         'Checked', onIff(isShowingCalibration)) ;
       set(obj.menu_setup_ma_twoclick_align, ...
-        'Visible', onIff(isMultianimalLabelingMode), ...
+        'Enable', onIff(isMultianimalLabelingMode), ...
         'Checked', onIff(isTwoClickAlign)) ;
-      set(obj.menu_setup_label_overlay_montage, ...
-        'Visible', 'on') ;
+      % set(obj.menu_setup_label_overlay_montage, ...
+      %   'Visible', 'on') ;
       set(obj.menu_setup_label_outliers, ...
-        'Visible', 'on', ...
         'Enable', onIff(hasMovie)) ;
-      set(obj.menu_track_set_labels, ...
-        'Visible', 'on') ;
+      % set(obj.menu_track_set_labels, ...
+      %   'Visible', 'on') ;
+    end  % function
+
+    function updateFileMenu(obj)
+      % Sync the File menu and all its children to the current model state.
+      labeler = obj.labeler_ ;
+      hasProject = labeler.hasProject ;
+      hasMovie = labeler.hasMovie ;
+      isInCropMode = labeler.cropIsCropMode ;
+      hasTrx = labeler.hasTrx ;
+      labelMode = labeler.labelMode ;
+      isMultiviewLabelingMode = ~isempty(labelMode) && (labelMode == LabelMode.MULTIVIEWCALIBRATED2) ;
+
+      set(obj.menu_file, 'Enable', 'on') ;
+      set(obj.menu_file_new, 'Enable', 'on') ;
+      set(obj.menu_file_load, 'Enable', 'on') ;
+      set(obj.menu_file_save, 'Enable', onIff(hasProject)) ;
+      set(obj.menu_file_saveas, 'Enable', onIff(hasProject)) ;
+      set(obj.menu_file_managemovies, 'Enable', onIff(hasProject)) ;
+      set(obj.menu_setup_load_calibration_file, ...
+        'Enable', onIff(isMultiviewLabelingMode)) ;
+      set(obj.menu_file_import, 'Enable', onIff(hasProject)) ;
+      set(obj.menu_file_export, 'Enable', onIff(hasMovie)) ;
+      set(obj.menu_file_shortcuts, 'Enable', onIff(hasProject)) ;
+      set(obj.menu_file_crop_mode, ...
+        'Enable', onIff(hasMovie && ~hasTrx), ...
+        'Checked', onIff(isInCropMode)) ;
+      set(obj.menu_file_clean_tempdir, 'Enable', onIff(hasProject)) ;
+      set(obj.menu_file_bundle_tempdir, 'Enable', onIff(hasProject)) ;
+      set(obj.menu_file_quit, 'Enable', 'on') ;
     end  % function
 
     function updateTrxMenuCheckEnable(obj,src,evt) %#ok<INUSD>
@@ -3583,26 +3594,20 @@ classdef LabelerController < handle
     end  % function
 
     function cbkNewMovie(obj, src, evt)  %#ok<INUSD>
+      % Update the GUI after the currMovie changes.
+
+      % Get a ref to the Labeler
       labeler = obj.labeler_ ;       
 
-      %movRdrs = labeler.movieReader;
-      %ims = arrayfun(@(x)x.readframe(1),movRdrs,'uni',0);
-      hAxs = obj.axes_all;
-      hIms = obj.images_all; % Labeler has already loaded with first frame
-      assert(isequal(labeler.nview,numel(hAxs),numel(hIms)));
+      % Sanity check: does the number of view axes match the number of views?
+      % Does the number of current-frame images match this number also?
+      hAxs = obj.axes_all ;
+      hIms = obj.images_all ;
+      assert(isequal(labeler.nview, numel(hAxs), numel(hIms))) ;
 
-      tfResetAxLims = evt.isFirstMovieOfProject || labeler.movieRotateTargetUp;
-      tfResetAxLims = repmat(tfResetAxLims,labeler.nview,1);
-      % if isfield(handles,'newProjAxLimsSetInConfig')
-      %   % AL20170520 Legacy projects did not save their axis lims in the .lbl
-      %   % file.
-      %   tfResetAxLims = tfResetAxLims | ~obj.newProjAxLimsSetInConfig;
-      %   handles = rmfield(handles,'newProjAxLimsSetInConfig');
-      % end
-
-      % if labeler.hasMovie && evt.isFirstMovieOfProject,
-      obj.updateEnablementOfManyControls() ;
-      % end
+      % First call update() to handle most things
+      % obj.updateEnablementOfManyControls() ;
+      obj.update() ;
 
       if ~labeler.gtIsGTMode,
         set(obj.menu_go_targets_summary,'Enable','on');
@@ -3639,6 +3644,8 @@ classdef LabelerController < handle
       end
 
       % Deal with Axis and Color limits.
+      tfResetAxLims = evt.isFirstMovieOfProject || labeler.movieRotateTargetUp;
+      tfResetAxLims = repmat(tfResetAxLims, labeler.nview, 1) ;
       for iView = 1:labeler.nview
         % AL20170518. Different scenarios leads to different desired behavior
         % here:
@@ -3707,7 +3714,6 @@ classdef LabelerController < handle
       if labeler.cropIsCropMode
         obj.cropUpdateCropHRects_() ;
       end
-      obj.menu_file_crop_mode.Enable = onIff(~labeler.hasTrx);
 
       % update HUD, statusbar
       mname = labeler.moviename;
@@ -3722,18 +3728,7 @@ classdef LabelerController < handle
         str = sprintf('%s %d: %s',movstr,labeler.currMovie,mname);
       end
       set(obj.txMoviename,'String',str);
-
-      % by default, use calibration if there is calibration for this movie
-      lc = labeler.lblCore;
-      if ~isempty(lc) && lc.supportsCalibration,
-        obj.menu_setup_use_calibration.Checked = onIff(lc.isCalRig && lc.showCalibration);
-      end
-
-      % Update uncertain frames if the figure is visible
-      if labeler.uncertainFramesModel_.isVisible
-        labeler.uncertainFramesModel_.syncFromPredictions() ;
-      end
-    end  % function
+    end  % function cbkNewMovie
 
     function cbkDataImported(obj, src, evt)  %#ok<INUSD>
       obj.labelTLInfo_.updateTraces();  % Using this as a "refresh" for now
@@ -3795,11 +3790,9 @@ classdef LabelerController < handle
     end  % function
     
     function initializeResizeInfo_(obj)
-
       % Record the width of txUnsavedChanges, so we can keep it fixed
       hTx = obj.txUnsavedChanges;
       hPnlPrev = obj.uipanel_prev;
-      
       hTxUnits0 = hTx.Units;
       hPnlPrevUnits0 = hPnlPrev.Units;
       hTx.Units = 'pixels';
@@ -3807,12 +3800,10 @@ classdef LabelerController < handle
       pxTxUnsavedChangesWidth = hTx.Position(3);
       hTx.Units = hTxUnits0;
       hPnlPrev.Units = hPnlPrevUnits0;
-
       obj.pxTxUnsavedChangesWidth_ = pxTxUnsavedChangesWidth ;
     end
     
     function resize(obj)
-
       % Take steps to keep right edge of unsaved changes text box aligned with right
       % edge of the previous/reference frame panel
       pxTxUnsavedChangesWidth = obj.pxTxUnsavedChangesWidth_ ;
@@ -3828,8 +3819,6 @@ classdef LabelerController < handle
       hTx.Units = hTxUnits0;
       hPnlPrev.Units = hPnlPrevUnits0;
       obj.resizeTblFramesTrx_();
-
-      %obj.updateStatus() ;  % do we need this here?
     end
     
     function cropReactNewCropMode_(obj)
@@ -3855,8 +3844,8 @@ classdef LabelerController < handle
       set(obj.text_trackerinfo,'Visible',offIfIsInCropMode);
 
       cellfun(@(x)set(obj.(x),'Visible',offIfIsInCropMode),REGCONTROLS);
-      obj.menu_file_crop_mode.Checked = onIfIsInCropMode;
 
+      obj.updateFileMenu() ;
       obj.cropUpdateCropHRects_() ;
       obj.cropUpdateCropAdjustingCropSize_(false) ;
     end
@@ -6210,19 +6199,7 @@ classdef LabelerController < handle
       obj.labelTLInfo_.updateGTModeRelatedControls() ;
     end
 
-    % function cbkGTResUpdated(obj, s, e)
-    %   % i think there are listeners in the GTManager, not sure why we need
-    %   % this too
-    %   % if ~exist('s', 'var') ,
-    %   %   s = [] ;
-    %   % end
-    %   % if ~exist('e', 'var') ,
-    %   %   e = [] ;
-    %   % end
-    % end
-
-    function gtGoToNextUnlabeled(obj)
-      
+    function gtGoToNextUnlabeled(obj)      
       labeler = obj.labeler_;
       assert(labeler.gtIsGTMode);
 
@@ -6239,7 +6216,6 @@ classdef LabelerController < handle
       labeler.setFrameAndTarget(nextmft.frm,nextmft.iTgt);
     end
 
-
     function update(obj)
       % Intended to be a full update of all GUI controls to bring them into sync
       % with obj.labeler_.  Currently a work in progress.
@@ -6252,7 +6228,6 @@ classdef LabelerController < handle
       obj.updateTargetCentrationAndZoom() ;
       obj.cbkMovieCenterOnTargetChanged() ;
       obj.cbkMovieForceGrayscaleChanged() ;
-      obj.updateMainFigureName() ;
       obj.updateMainAxesName() ;
       obj.updateGUIFigureNames() ;
       obj.updateMainFigureName() ;
@@ -6279,6 +6254,7 @@ classdef LabelerController < handle
       end
       sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
       sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;
+      sendMaybe(obj.uncertainFramesController_, 'update') ;
     end
     
     function save(obj)
