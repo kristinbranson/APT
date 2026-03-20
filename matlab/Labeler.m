@@ -194,6 +194,7 @@ classdef Labeler < handle
     requestMacroizationGUI
     requestMessageBox
     requestQuestionDialog
+    updateUncertainFrames
   end
 
   events  % used to come from labeler.tracker
@@ -666,9 +667,14 @@ classdef Labeler < handle
   end
 
   properties (SetAccess=private, Transient)
-    suspDiag  % Transient "userdata", diagnostic output from suspComputeFcn    
+    suspDiag  % Transient "userdata", diagnostic output from suspComputeFcn
   end
-  
+
+  %% Uncertain Frames
+  properties (Transient)
+    uncertainFramesModel_  % UncertainFramesModel object
+  end
+
   %% PreProc
   properties
     ppdb  % PreProcDB for DL
@@ -816,6 +822,7 @@ classdef Labeler < handle
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter() ;
       obj.infoTimelineModel_ = InfoTimelineModel(obj.hasTrx);
+      obj.uncertainFramesModel_ = UncertainFramesModel(obj) ;
       % if ~isgui ,
       %   % If a GUI is attached, this is done by the controller, after it has
       %   % registered itself with the Labeler.

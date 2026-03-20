@@ -14,9 +14,10 @@ classdef LabelerController < handle
     backendTestController_
     lblCoreController_  % scalar LabelCoreController, or []. The controller for the label core model.
     currImHud  % scalar AxisHUD, or []. The HUD readout for the main axis.  A subcontroller.
-    axesesHighlightManager_  
+    axesesHighlightManager_
       % Manages the highlighting of axes for GT mode.  This is controller-like
       % but might not be a controller in the strictest sense.
+    uncertainFramesController_  % UncertainFramesController, or []
   end
 
   properties  % "uncontrolled" satellite figures---satellite figures that aren't managed by controllers (at present)
@@ -107,6 +108,7 @@ classdef LabelerController < handle
     menu_evaluate_gtsavesuggestions
     menu_evaluate_gtmode
     menu_evaluate_gt_frames
+    menu_evaluate_show_uncertain_frames
     menu_evaluate_gtsetsuggestions
     menu_file
     menu_file_bundle_tempdir
@@ -500,6 +502,9 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'cropCropsChanged',@(s,e)(obj.cbkCropCropsChanged(s,e)));
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateUncertainFrames', ...
+                    @(s,e)(obj.updateUncertainFrames())) ;
+      obj.listeners_(end+1) = ...
         addlistener(labeler,'newMovie',@(s,e)(obj.cbkNewMovie(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'dataImported',@(s,e)(obj.cbkDataImported(s,e)));
@@ -676,6 +681,12 @@ classdef LabelerController < handle
       if ~isempty(obj.movieManagerController_)
         delete(obj.movieManagerController_) ;
         obj.movieManagerController_ = [] ;
+      end
+      if ~isempty(obj.uncertainFramesController_)
+        if isvalid(obj.uncertainFramesController_)
+          delete(obj.uncertainFramesController_) ;
+        end
+        obj.uncertainFramesController_ = [] ;
       end
     end  % function
 
@@ -3516,9 +3527,44 @@ classdef LabelerController < handle
       obj.menu_evaluate_gtsavesuggestions.Enable = onIffGT;
       obj.menu_evaluate_gtsetsuggestions.Enable = onIffGT;
       obj.menu_evaluate_gtcomputeperf.Enable = onIffGT;
-      obj.menu_evaluate_gtexportresults.Enable = onIffGT;      
+      obj.menu_evaluate_gtexportresults.Enable = onIffGT;
       obj.menu_evaluate_gt_frames.Enable = onIffGT ;
+      obj.menu_evaluate_show_uncertain_frames.Enable = onIff(hasMovie) ;
     end
+
+    function updateUncertainFrames(obj)
+      % Update the uncertain-frames controller if it exists and is visible.
+      labeler = obj.labeler_ ;
+      model = labeler.uncertainFramesModel_ ;
+      if model.isVisible
+        % If supposed to be visible, make sure the controller exists
+        ufc0 = obj.uncertainFramesController_ ;
+        if isempty(ufc0) || ~isvalid(ufc0) || ~ufc0.hasValidFigure
+          obj.uncertainFramesController_ = UncertainFramesController(labeler.uncertainFramesModel_, obj, labeler) ;
+        end
+      end
+      ufc1 = obj.uncertainFramesController_ ;      
+      ufc1.update() ;
+    end  % function
+
+    function menu_evaluate_show_uncertain_frames_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Make the "Uncertain Frames" figure visible
+      labeler = obj.labeler_ ;
+      model = labeler.uncertainFramesModel_ ;
+      model.isVisible = true ;
+    end  % function
+
+    function uncertain_frames_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Navigate to the selected uncertain frame.
+      labeler = obj.labeler_ ;
+      model = labeler.uncertainFramesModel_ ;
+      if ~model.isValid
+        return
+      end
+      selectedIndex = src.Value ;
+      [frm, iTgt] = model.frameAndTragletIndexFromPairIndex(selectedIndex) ;
+      labeler.setFrameAndTarget(frm, iTgt) ;
+    end  % function
 
     function cbkCropIsCropModeChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;       
@@ -3681,6 +3727,11 @@ classdef LabelerController < handle
       lc = labeler.lblCore;
       if ~isempty(lc) && lc.supportsCalibration,
         obj.menu_setup_use_calibration.Checked = onIff(lc.isCalRig && lc.showCalibration);
+      end
+
+      % Update uncertain frames if the figure is visible
+      if labeler.uncertainFramesModel_.isVisible
+        labeler.uncertainFramesModel_.syncFromPredictions() ;
       end
     end  % function
 
