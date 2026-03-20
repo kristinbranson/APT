@@ -100,21 +100,21 @@ if isfield(handles,'menu_view_trajectories_centervideoontarget'),
   SetTooltip(handles.menu_view_trajectories_centervideoontarget,'When checked, axes will be rotated so that current target is facing up',jobjs,jobjnames);
 end
 
-if isfield(handles,'menu_setup_sequential_mode'),
-  SetTooltip(handles.menu_setup_sequential_mode,'Sequential labeling: Click landmark locations in order',jobjs,jobjnames);
+if isfield(handles,'menu_label_sequential_mode'),
+  SetTooltip(handles.menu_label_sequential_mode,'Sequential labeling: Click landmark locations in order',jobjs,jobjnames);
 end
-if isfield(handles,'menu_setup_template_mode'),
-  SetTooltip(handles.menu_setup_template_mode,'Template labeling: Move around initial landmark locations',jobjs,jobjnames);
+if isfield(handles,'menu_label_template_mode'),
+  SetTooltip(handles.menu_label_template_mode,'Template labeling: Move around initial landmark locations',jobjs,jobjnames);
 end
-if isfield(handles,'menu_setup_multiview_calibrated_mode_2'),
-  SetTooltip(handles.menu_setup_multiview_calibrated_mode_2,'Multi-view calibrated mode: Show epipolar line after labeling in one view',jobjs,jobjnames);
+if isfield(handles,'menu_label_multiview_mode'),
+  SetTooltip(handles.menu_label_multiview_mode,'Multi-view calibrated mode: Show epipolar line after labeling in one view',jobjs,jobjnames);
 end
 
-if isfield(handles,'menu_setup_label_overlay_montage'),
-  SetTooltip(handles.menu_setup_label_overlay_montage,'Plot all labels on one frame to see label distribution',jobjs,jobjnames);
+if isfield(handles,'menu_label_overlay_montage'),
+  SetTooltip(handles.menu_label_overlay_montage,'Plot all labels on one frame to see label distribution',jobjs,jobjnames);
 end
-if isfield(handles,'menu_setup_label_overlay_montage_trx_centered'),
-  SetTooltip(handles.menu_setup_label_overlay_montage_trx_centered,'Plot all trajectory-aligned labels on one frame to see label distribution',jobjs,jobjnames);
+if isfield(handles,'menu_label_overlay_montage_trx_centered'),
+  SetTooltip(handles.menu_label_overlay_montage_trx_centered,'Plot all trajectory-aligned labels on one frame to see label distribution',jobjs,jobjnames);
 end
 
 % go menu
@@ -137,8 +137,8 @@ if isfield(handles,'menu_track_clear_tracking_results'),
   SetTooltip(handles.menu_track_clear_tracking_results,'Remove tracking results for the current tracker, for all movies',jobjs,jobjnames);
 end
 
-if isfield(handles,'menu_track_set_labels'),
-  SetTooltip(handles.menu_track_set_labels,'Set labels to predictions for current frame',jobjs,jobjnames);
+if isfield(handles,'menu_label_set_labels'),
+  SetTooltip(handles.menu_label_set_labels,'Set labels to predictions for current frame',jobjs,jobjnames);
 end
 
 % h = findjobj_modern(handles.pbClear);

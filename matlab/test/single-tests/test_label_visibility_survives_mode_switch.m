@@ -25,7 +25,7 @@ assert(labeler.labelMode == LabelMode.SEQUENTIAL, ...
 assert(~isempty(xDataBefore), 'No label-point graphics found at start.') ;
 
 % Switch to template mode via menu
-controller.controlActuated('menu_setup_template_mode') ;
+controller.controlActuated('menu_label_template_mode') ;
 drawnow() ;
 
 assert(labeler.labelMode == LabelMode.TEMPLATE, ...
@@ -33,7 +33,7 @@ assert(labeler.labelMode == LabelMode.TEMPLATE, ...
        char(labeler.labelMode)) ;
 
 % Switch back to sequential mode via menu
-controller.controlActuated('menu_setup_sequential_mode') ;
+controller.controlActuated('menu_label_sequential_mode') ;
 drawnow() ;
 
 assert(labeler.labelMode == LabelMode.SEQUENTIAL, ...
