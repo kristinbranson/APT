@@ -8,12 +8,15 @@ classdef UncertainFramesModel < handle
     tragletIndexFromPairIndex_  % [N x 1] traglet indices (into TrkFile)
     targetIndexFromPairIndex_  % [N x 1] target indices (for navigation)
     minConfidenceFromPairIndex_  % [N x 1] min-confidence values
-    isValid_ = false  % scalar logical, true if data has been computed
+    isLaden_ = false  % scalar logical, true if there is anything to show
     isVisible_ = false  % scalar logical, whether the UFC figure is visible
+    isFresh_ = false  
+      % scalar logical, whether the data in this object is up-to-date with the
+      % data in the rest of the Labeler.  (Opposite of stale.)
   end
 
   properties (Dependent)
-    isValid
+    isLaden
     isVisible
   end
 
@@ -32,9 +35,9 @@ classdef UncertainFramesModel < handle
       obj.minConfidenceFromPairIndex_ = zeros(0, 1) ;
     end  % function
 
-    function result = get.isValid(obj)
-      % Return whether computed data is valid.
-      result = obj.isValid_ ;
+    function result = get.isLaden(obj)
+      % Return whether there is anything to show.
+      result = obj.isLaden_ ;
     end  % function
 
     function result = get.isVisible(obj)
@@ -45,11 +48,18 @@ classdef UncertainFramesModel < handle
     function set.isVisible(obj, newValue)
       obj.isVisible_ = newValue ;
       obj.syncFromPredictions_() ;
+      obj.labeler_.notify('updateUncertainFrames') ;      
     end  % function
+
+    function syncFromPredictions(obj)
+      obj.isFresh_ = false ;
+      obj.syncFromPredictions_() ;
+      obj.labeler_.notify('updateUncertainFrames') ;            
+    end
 
     function result = get.listboxString(obj)
       % Return a cellstr suitable for display in a listbox.
-      if ~obj.isValid_
+      if ~obj.isLaden_
         result = {} ;
         return
       end
@@ -78,8 +88,7 @@ classdef UncertainFramesModel < handle
     function syncFromPredictions_(obj)
       % Compute the most uncertain frame-traglet pairs from the current
       % movie's tracking results.
-      if ~obj.isVisible_ 
-        obj.labeler_.notify('updateUncertainFrames') ;
+      if ~obj.isVisible_ || obj.isFresh_
         return
       end
 
@@ -159,9 +168,8 @@ classdef UncertainFramesModel < handle
       obj.tragletIndexFromPairIndex_ = allTraglets(keepIndices) ;
       obj.targetIndexFromPairIndex_ = allTargets(keepIndices) ;
       obj.minConfidenceFromPairIndex_ = allMinConf(keepIndices) ;
-      obj.isValid_ = true ;
-
-      obj.labeler_.notify('updateUncertainFrames') ;
+      obj.isLaden_ = true ;
+      obj.isFresh_ = true ;
     end  % function
 
     function clear_(obj)
@@ -170,8 +178,8 @@ classdef UncertainFramesModel < handle
       obj.tragletIndexFromPairIndex_ = zeros(0, 1) ;
       obj.targetIndexFromPairIndex_ = zeros(0, 1) ;
       obj.minConfidenceFromPairIndex_ = zeros(0, 1) ;
-      obj.isValid_ = false ;
-      obj.labeler_.notify('updateUncertainFrames') ;
+      obj.isLaden_ = false ;
+      obj.isFresh_ = true ;
     end  % function
   end  % methods
 end  % classdef

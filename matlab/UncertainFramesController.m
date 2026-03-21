@@ -59,7 +59,7 @@ classdef UncertainFramesController < handle
         % No need to update if not visible
         return
       end
-      if model.isValid
+      if model.isLaden
         strings = model.listboxString ;
         nEntries = numel(strings) ;
         obj.listbox_.String = strings ;

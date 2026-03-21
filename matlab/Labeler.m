@@ -4726,6 +4726,9 @@ classdef Labeler < handle
       % needs to be done after trx are set in case we're in TEMPLATE mode
       obj.labelingInit_();
 
+      % Sync the "Uncertain Frames" data to reflect the changed movie
+      obj.uncertainFramesModel_.syncFromPredictions() ;
+      
       % If this is the first movie loaded, do gamma correction
       if isFirstMovie
         obj.notify('applyGammaCorrection') ;
@@ -4737,27 +4740,11 @@ classdef Labeler < handle
       obj.notify('updateTimelineLandmarkColors');
       obj.notify('updateTimelinePopupMenus');
       obj.notify('updateTimelineSelection');
-
-      % AL20160615: omg this is the plague.
-      % AL20160605: These three calls semi-obsolete. new projects will not
-      % have empty .labeledpos, .labeledpostag, or .labeledpos2 elements;
-      % these are set at movieAdd() time.
-      %
-      % However, some older projects will have these empty els; and
-      % maybe it's worth keeping the ability to have empty els for space
-      % reasons (as opposed to eg filling in all els in lblModernize()).
-      % Wait and see.
-      % AL20170828 convert to asserts 
-%       assert(~isempty(obj.labeledpos{iMov}));
-%       assert(~isempty(obj.labeledposTS{iMov}));
-%       assert(~isempty(obj.labeledposMarked{iMov}));
-%       assert(~isempty(obj.labeledpostag{iMov}));
-%       assert(~isempty(obj.labeledpos2{iMov}));
            
       edata = NewMovieEventData(isFirstMovie);
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
       notify(obj,'newMovie',edata);
-      
+
       obj.syncPropsMfahl_() ;
       obj.notify('updateFrameTableComplete');
       
@@ -4767,8 +4754,7 @@ classdef Labeler < handle
         obj.setFrameAndTarget(obj.currTrx.firstframe,obj.currTarget,true);
       else
         obj.setFrameAndTarget(1,1,true);
-      end
-            
+      end            
     end  % function
     
     function tfsuccess = movieSetMIdx(obj,mIdx,varargin)
@@ -4816,8 +4802,13 @@ classdef Labeler < handle
       obj.currTarget = 0;
       obj.isinit = isInitOrig;
       
+      % Init the LabelCore
       obj.labelingInit_();
-      % obj.selectedFrames_ = [] ;
+
+      % Sync the "Uncertain Frames" data to reflect the changed movie
+      obj.uncertainFramesModel_.syncFromPredictions() ;
+
+      % Set up the timeline axes for the lack of a movie
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
       obj.notify('updateTimelineTraces');
       obj.notify('updateTimelineLandmarkColors');
@@ -5599,15 +5590,7 @@ classdef Labeler < handle
             obj.trx(i).id = i;
           end
         end
-        %maxID = max([obj.trx.id]);
-      else
-        %maxID = -1;
       end
-%       id2t = nan(maxID+1,1);
-%       for i = 1:obj.nTrx
-%         id2t(obj.trx(i).id+1) = i;
-%       end
-%       obj.trxIdPlusPlus2Idx = id2t;
       if isnan(obj.nframes)
         obj.frm2trx = [];
       else
@@ -5616,8 +5599,8 @@ classdef Labeler < handle
       end
       
       obj.currImHudModel.hasTgt = obj.hasTrx || obj.maIsMA ;
-      obj.notify('updateHudReadoutFields') ;
       
+      obj.notify('updateHudReadoutFields') ;      
       obj.notify('didSetTrx') ;
     end
        

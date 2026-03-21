@@ -355,6 +355,9 @@ classdef LabelerController < handle
           'String',itm.getPropTypesDisp(),...
           'Value',itm.curproptype);
 
+      % Create the UncertainFramesController to manage that
+      obj.uncertainFramesController_ = UncertainFramesController(labeler.uncertainFramesModel_, obj, labeler) ;
+
       % Update the controls enablement  
       obj.updateEnablementOfManyControls() ;
       
@@ -626,7 +629,7 @@ classdef LabelerController < handle
       obj.nonmodalMessageBoxFigure_ = msgbox(varargin{:}) ;
     end  % function
 
-    function deleteExistingSatellites_(obj)
+    function deleteExistingUncontrolledSatellites_(obj)
       % Delete all satellite figures and subcontrollers, resetting their
       % properties to empty.
       deleteValidGraphicsHandles(obj.gtTrackingDialogFigure_) ;
@@ -661,6 +664,9 @@ classdef LabelerController < handle
       obj.labelingActionsFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.nonmodalMessageBoxFigure_) ;
       obj.nonmodalMessageBoxFigure_ = gobjects(1,0) ;
+    end
+
+    function deleteExistingSubcontrollers_(obj)    
       if ~isempty(obj.trackingMonitorVisualizer_)
         if isvalid(obj.trackingMonitorVisualizer_) ,
           delete(obj.trackingMonitorVisualizer_) ;
@@ -693,7 +699,8 @@ classdef LabelerController < handle
       % Having the figure without a controller would be bad, so we make sure to
       % delete the figure (and subfigures) in our destructor.
       % We also delete the model.
-      obj.deleteExistingSatellites_() ;
+      obj.deleteExistingUncontrolledSatellites_() ;
+      obj.deleteExistingSubcontrollers_() ;
       deleteValidGraphicsHandles(obj.mainFigure_) ;
       delete(obj.labeler_) ;
     end  % function
@@ -2021,7 +2028,7 @@ classdef LabelerController < handle
     function didCreateNewProject(obj)
       labeler =  obj.labeler_ ;
 
-      obj.deleteExistingSatellites_() ;
+      obj.deleteExistingUncontrolledSatellites_() ;
 
       % Initialize the uitable of labeled frames
       obj.initTblFramesTrx_() ;
@@ -3669,20 +3676,10 @@ classdef LabelerController < handle
       % end
     end
 
-
     function updateUncertainFrames(obj)
       % Update the uncertain-frames controller if it exists and is visible.
-      labeler = obj.labeler_ ;
-      model = labeler.uncertainFramesModel_ ;
-      if model.isVisible
-        % If supposed to be visible, make sure the controller exists
-        ufc0 = obj.uncertainFramesController_ ;
-        if isempty(ufc0) || ~isvalid(ufc0) || ~ufc0.hasValidFigure
-          obj.uncertainFramesController_ = UncertainFramesController(labeler.uncertainFramesModel_, obj, labeler) ;
-        end
-      end
-      ufc1 = obj.uncertainFramesController_ ;      
-      ufc1.update() ;
+      ufc = obj.uncertainFramesController_ ;
+      ufc.update() ;
     end  % function
 
     function menu_evaluate_show_uncertain_frames_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -3696,7 +3693,7 @@ classdef LabelerController < handle
       % Navigate to the selected uncertain frame.
       labeler = obj.labeler_ ;
       model = labeler.uncertainFramesModel_ ;
-      if ~model.isValid
+      if ~model.isLaden
         return
       end
       selectedIndex = src.Value ;
