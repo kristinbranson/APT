@@ -361,8 +361,8 @@ classdef LabelerController < handle
       % Update the status
       obj.updateStatusAndPointer() ;
 
-      % Make the debug menu visible, if called for
-      obj.menu_debug.Visible = onIff(labeler.isInDebugMode) ;      
+      % Sync the debug menu to the current model state
+      obj.updateDebugMenu() ;
 
       % Set up some custom callbacks
       %obj.controller = obj ;
@@ -1747,10 +1747,8 @@ classdef LabelerController < handle
       obj.updateGoMenu() ;
       obj.updateTrackerMenu() ;
       obj.updateEvaluateMenu() ;
-      set(obj.menu_help,'Enable','on');
-      if ~isempty(obj.menu_debug) && isgraphics(obj.menu_debug)
-        set(obj.menu_debug,'Enable',onIff(hasProject)) ;
-      end
+      % Help menu is static, doesn't need to be updated
+      obj.updateDebugMenu() ;
 
       % These things
       set(obj.tbAdjustCropSize,'Enable',onIff(hasProject));
@@ -3503,6 +3501,32 @@ classdef LabelerController < handle
 
       % Items that require a movie but not GT mode
       set(obj.menu_evaluate_show_uncertain_frames, 'Enable', onIff(hasMovie)) ;
+    end  % function
+
+    function updateDebugMenu(obj)
+      % Sync the Debug menu and all its children to the current model state.
+      labeler = obj.labeler_ ;
+      isInDebugMode = labeler.isInDebugMode ;
+      hasProject = labeler.hasProject ;
+      hasTracker = ~isempty(labeler.tracker) ;
+
+      % Top-level Debug menu
+      set(obj.menu_debug, ...
+        'Visible', onIff(isInDebugMode), ...
+        'Enable', onIff(hasProject)) ;
+      if ~(isInDebugMode && hasProject)
+        return
+      end
+
+      % Training-related items
+      set(obj.menu_start_training_but_dont_call_python, ...
+        'Enable', onIff(hasTracker)) ;
+      set(obj.menu_debug_generate_db, ...
+        'Enable', onIff(hasTracker)) ;
+
+      % Tracking-related items
+      set(obj.menu_start_tracking_but_dont_call_python, ...
+        'Enable', onIff(hasTracker)) ;
     end  % function
 
     function updateTrxMenuCheckEnable(obj,src,evt) %#ok<INUSD>
