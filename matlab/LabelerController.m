@@ -1722,7 +1722,7 @@ classdef LabelerController < handle
       % Determine the state from the state of the Labeler      
       labeler = obj.labeler_ ;
       hasProject = labeler.hasProject ;
-      hasMovie = labeler.hasMovie ;  
+      % hasMovie = labeler.hasMovie ;  
         % Project has one or more movie specified.  
         % Note that hasMovie implies hasProject
       % nview = labeler.nview ;
@@ -3483,7 +3483,12 @@ classdef LabelerController < handle
       enableIffGT = onIff(isInGTMode) ;
 
       % Top-level Evaluate menu
-      set(obj.menu_evaluate, 'Enable', onIff(hasMovie || isInGTMode)) ;
+      isEvaluateMenuEnabled = hasMovie || isInGTMode ;
+      set(obj.menu_evaluate, 'Enable', onIff(isEvaluateMenuEnabled)) ;
+      if ~isEvaluateMenuEnabled
+        % Can return early if the top-level menu is disabled
+        return
+      end
 
       % GT mode toggle
       set(obj.menu_evaluate_gtmode, 'Checked', enableIffGT) ;
