@@ -175,7 +175,6 @@ classdef LabelerController < handle
     menu_track_tag_tracker
     menu_track_tracker_history
     menu_track_tracking_algorithm
-    menu_track_trainincremental
     menu_track_viz_dataaug
     menu_view
     menu_view_adjustbrightness
@@ -1747,7 +1746,7 @@ classdef LabelerController < handle
       obj.updateLabelMenu() ;
       obj.updateGoMenu() ;
       obj.updateTrackerMenu() ;
-      obj.update_menu_evaluate() ;
+      obj.updateEvaluateMenu() ;
       set(obj.menu_help,'Enable','on');
       if ~isempty(obj.menu_debug) && isgraphics(obj.menu_debug)
         set(obj.menu_debug,'Enable',onIff(hasProject)) ;
@@ -3458,9 +3457,6 @@ classdef LabelerController < handle
       set(obj.menu_track_auto_params_update, ...
         'Checked', onIff(hasProject && labeler.trackAutoSetParams)) ;
 
-      % Incremental Train is obsolete, keep hidden
-      set(obj.menu_track_trainincremental, 'Visible', 'off') ;
-
       % Backend Configuration checkmarks
       if ~isempty(obj.menu_track_backend_config_jrc)
         if hasProject
@@ -3477,6 +3473,31 @@ classdef LabelerController < handle
 
       % Populate the Tracker History submenu
       obj.update_menu_track_tracker_history() ;
+    end  % function
+
+    function updateEvaluateMenu(obj)
+      % Sync the Evaluate menu and all its children to the current model state.
+      labeler = obj.labeler_ ;
+      hasMovie = labeler.hasMovie ;
+      isInGTMode = labeler.gtIsGTMode ;
+      enableIffGT = onIff(isInGTMode) ;
+
+      % Top-level Evaluate menu
+      set(obj.menu_evaluate, 'Enable', onIff(hasMovie || isInGTMode)) ;
+
+      % GT mode toggle
+      set(obj.menu_evaluate_gtmode, 'Checked', enableIffGT) ;
+
+      % GT-mode-only items
+      set(obj.menu_evaluate_gtsetsuggestions, 'Enable', enableIffGT) ;
+      set(obj.menu_evaluate_gtloadsuggestions, 'Enable', enableIffGT) ;
+      set(obj.menu_evaluate_gtsavesuggestions, 'Enable', enableIffGT) ;
+      set(obj.menu_evaluate_gtcomputeperf, 'Enable', enableIffGT) ;
+      set(obj.menu_evaluate_gtexportresults, 'Enable', enableIffGT) ;
+      set(obj.menu_evaluate_gt_frames, 'Enable', enableIffGT) ;
+
+      % Items that require a movie but not GT mode
+      set(obj.menu_evaluate_show_uncertain_frames, 'Enable', onIff(hasMovie)) ;
     end  % function
 
     function updateTrxMenuCheckEnable(obj,src,evt) %#ok<INUSD>
@@ -3606,7 +3627,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;       
       gt = labeler.gtIsGTMode;
       onIffGT = onIff(gt);
-      obj.update_menu_evaluate() ;
+      obj.updateEvaluateMenu() ;
       obj.txGTMode.Visible = onIffGT;
       % if ~isempty(obj.GTManagerFigure)
       %   obj.GTManagerFigure.Visible = onIffGT;
@@ -3619,21 +3640,6 @@ classdef LabelerController < handle
       % end
     end
 
-    function update_menu_evaluate(obj)
-      labeler = obj.labeler_ ;
-      gt = labeler.gtIsGTMode ;
-      hasMovie = labeler.hasMovie ;
-      onIffGT = onIff(gt) ;
-      obj.menu_evaluate.Enable = onIff(hasMovie || gt) ;
-      obj.menu_evaluate_gtmode.Checked = onIffGT;
-      obj.menu_evaluate_gtloadsuggestions.Enable = onIffGT;
-      obj.menu_evaluate_gtsavesuggestions.Enable = onIffGT;
-      obj.menu_evaluate_gtsetsuggestions.Enable = onIffGT;
-      obj.menu_evaluate_gtcomputeperf.Enable = onIffGT;
-      obj.menu_evaluate_gtexportresults.Enable = onIffGT;
-      obj.menu_evaluate_gt_frames.Enable = onIffGT ;
-      obj.menu_evaluate_show_uncertain_frames.Enable = onIff(hasMovie) ;
-    end
 
     function updateUncertainFrames(obj)
       % Update the uncertain-frames controller if it exists and is visible.
@@ -5741,13 +5747,6 @@ classdef LabelerController < handle
 
 
 
-    function menu_track_trainincremental_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      labeler.trainIncremental();
-    end
-
-
-
     function menu_go_targets_summary_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if labeler.maIsMA
@@ -6293,7 +6292,7 @@ classdef LabelerController < handle
         obj.movieManagerController_.lblerLstnCbkGTMode() ; % todo check if needed
       end
       obj.updateTimelinePopupMenus() ;
-      obj.update_menu_evaluate() ;
+      obj.updateEvaluateMenu() ;
       obj.updateShowPredMenus();
       obj.updateFlipMenus();
       obj.updateTrackerMenu() ;
