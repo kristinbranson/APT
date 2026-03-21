@@ -5821,7 +5821,7 @@ classdef Labeler < handle
     function setShowTrx(obj,tf)
       assert(isscalar(tf) && islogical(tf));
       obj.showTrx = tf;
-      obj.updateShowTrx();
+      obj.fireUpdateTrxSetShowTrueMaybe_();
     end
 
     function setShowOccludedBox(obj,tf)
@@ -5832,16 +5832,16 @@ classdef Labeler < handle
     function setShowTrxCurrTargetOnly(obj,tf)
       assert(isscalar(tf) && islogical(tf));
       obj.showTrxCurrTargetOnly = tf;
-      obj.updateShowTrx();
+      obj.fireUpdateTrxSetShowTrueMaybe_();
     end
     
     function setShowTrxIDLbl(obj,tf)
       assert(isscalar(tf) && islogical(tf));
       obj.showTrxIDLbl = tf;
-      obj.updateShowTrx();
+      obj.fireUpdateTrxSetShowTrueMaybe_();
     end
     
-    function updateShowTrx(obj)
+    function fireUpdateTrxSetShowTrueMaybe_(obj)
       if obj.maIsMA
         % Consdider/todo: update showtrx/traj for MA        
         % tv = obj.labeledpos2trkViz.      
@@ -12119,7 +12119,7 @@ classdef Labeler < handle
       end
 %       obj.updateCurrSusp();
       if obj.hasTrx
-        obj.updateShowTrx();
+        obj.fireUpdateTrxSetShowTrueMaybe_();
       end
     end
     
@@ -12164,7 +12164,7 @@ classdef Labeler < handle
       if ~obj.isinit
         obj.labelsSyncToNewFrameAndTarget_(obj.prevFrame,prevTarget);
         obj.notify('updateTrxTable');
-        obj.updateShowTrx();  % All this does is send a notification, and only in some cases
+        obj.fireUpdateTrxSetShowTrueMaybe_();  % All this does is send a notification, and only in some cases
       end
 
       obj.notify('updatePrevPanelAfterFrameChange') ;
