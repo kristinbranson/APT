@@ -6327,8 +6327,7 @@ classdef LabelerController < handle
       obj.updateStatusAndPointer() ;
       obj.updateBackgroundProcessingStatus_() ;
       obj.cbkGTSuggUpdated() ;
-      % obj.cbkGTResUpdated() ;
-      obj.cbkCurrTrackerChanged() ;
+      obj.labelTLInfo_.update() ;
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
         obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ; % todo check if needed
       end
