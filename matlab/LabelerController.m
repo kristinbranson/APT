@@ -6314,6 +6314,7 @@ classdef LabelerController < handle
       obj.updateMainFigureName() ;
       obj.cbkShowOccludedBoxChanged() ;
       obj.cbkUpdateCropGUITools() ;
+      obj.labelTLInfo_.update() ;
       obj.updateGTModeRelatedControls() ;
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
         obj.movieManagerController_.lblerLstnCbkGTMode() ; % todo check if needed
@@ -6327,7 +6328,6 @@ classdef LabelerController < handle
       obj.updateStatusAndPointer() ;
       obj.updateBackgroundProcessingStatus_() ;
       obj.cbkGTSuggUpdated() ;
-      obj.labelTLInfo_.update() ;
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
         obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ; % todo check if needed
       end

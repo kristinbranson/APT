@@ -195,7 +195,7 @@ classdef InfoTimelineController < handle
       obj.updateStatThresh() ;
 
       % Update GT mode related controls (segmented line visibility and
-      % data).  Note: updateForNewMovie() above also calls this, so it
+      % data).  Note: updateForMovie_() above also calls this, so it
       % is redundant in most cases, but is needed when only the GT mode
       % has changed without a movie change.
       obj.updateGTModeRelatedControls() ;
@@ -323,10 +323,16 @@ classdef InfoTimelineController < handle
       % Update .hPts, .hMarked, .hPtStat
       
       lObj = obj.lObj ;
-      if lObj.isinit || isempty(lObj.nLabelPoints) || isnan(lObj.nLabelPoints)
+      if ~lObj.hasMovie
+        set(obj.hPts, 'XData', nan, 'YData', nan) ;
+        set(obj.hPtStat, 'XData', nan, 'YData', nan) ;
+        set(obj.hPtsL, 'XData', nan, 'YData', nan) ;
+        set(obj.hCurrFrame, 'XData', [nan nan]) ;
+        set(obj.hStatThresh, 'XData', [nan nan]) ;
+        set(obj.hAx, 'YLim', [0 1]) ;
         return
       end
-      
+
       rawTraceData = lObj.getTimelineDataForCurrentMovieAndTarget();  % [nptsxnfrm]
       traceData = rawTraceData(~isnan(rawTraceData));
 
