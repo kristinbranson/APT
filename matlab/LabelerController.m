@@ -2152,7 +2152,7 @@ classdef LabelerController < handle
       
       obj.updateShortcuts() ;
       
-      obj.labelTLInfo_.updateForNewProject();
+      obj.labelTLInfo_.update();
       
       % t0 = tic;
       % obj.movieManagerController_ = MovieManagerController(labeler) ;
@@ -2530,8 +2530,9 @@ classdef LabelerController < handle
       obj.updatePrevAxesLabels();
       
       % init info timeline
-      obj.labelTLInfo_.updateForNewProject();
-      obj.labelTLInfo_.updateTraces();
+      obj.labelTLInfo_.update() ;
+      % obj.labelTLInfo_.updateForNewProject();
+      % obj.labelTLInfo_.updateTraces();
       
       % Clear all the trained trackers
       labeler.clearAllTrackers();
@@ -3798,8 +3799,8 @@ classdef LabelerController < handle
         %   end
       end
 
-      obj.labelTLInfo_.updateForNewMovie(obj.tbTLSelectMode.BackgroundColor);
-      obj.labelTLInfo_.updateTraces();
+      % obj.labelTLInfo_.updateForNewMovie();
+      % obj.labelTLInfo_.updateTraces();
 
       nframes = labeler.nframes;
       sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];

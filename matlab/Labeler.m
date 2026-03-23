@@ -4736,10 +4736,10 @@ classdef Labeler < handle
 
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
-      obj.notify('updateTimelineTraces');
-      obj.notify('updateTimelineLandmarkColors');
-      obj.notify('updateTimelinePopupMenus');
-      obj.notify('updateTimelineSelection');
+      % obj.notify('updateTimelineTraces');
+      % obj.notify('updateTimelineLandmarkColors');
+      % obj.notify('updateTimelinePopupMenus');
+      % obj.notify('updateTimelineSelection');
            
       edata = NewMovieEventData(isFirstMovie);
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
@@ -5599,7 +5599,7 @@ classdef Labeler < handle
       end
       
       obj.currImHudModel.hasTgt = obj.hasTrx || obj.maIsMA ;
-      
+
       obj.notify('updateHudReadoutFields') ;      
       obj.notify('didSetTrx') ;
     end

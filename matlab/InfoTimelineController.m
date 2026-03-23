@@ -9,13 +9,11 @@ classdef InfoTimelineController < handle
   % Note that objects of this class do not implement any listeners, and do not
   % directly respond to any UI callbacks.
   %
-  % As of Aug 16 2025, the update*() methods are still a hodge-podge of
-  % situationally-appropriate updates, which should likely be streamlined
-  % at some point.  Ideally the update() method would be the core update method,
-  % and would be a general-purpose method to update all the controls that are
-  % owned by this object, no matter the situation.  Additional less-general
-  % update*() methods would be for use in more specific settings when the
-  % performance of update() is inadequate.
+  % The update() method is the core update method, and is a general-purpose
+  % method to update all the controls that are owned by this object, no
+  % matter the situation.  Additional less-general update*() methods are for
+  % use in more specific settings when the performance of update() is
+  % inadequate.
 
   properties (Constant)
     axLmaxntgt = 3  % applies to hAxL for MA projs; number of tgts to display
@@ -122,8 +120,92 @@ classdef InfoTimelineController < handle
       obj.hSegLineGTLbled = [];
     end
         
-    function updateForNewProject(obj)
-      % Update the controls in the wake of a new project being created/loaded.
+    function update(obj)
+      % Bring all controls fully into sync with the model, regardless of
+      % the current state of the model.  More-specific update*() methods
+      % exist for use in more-specific settings when the performance of
+      % this method is inadequate.
+
+      lObj = obj.lObj ;
+
+      % If there is no movie loaded, the timeline has nothing to show.
+      % (hasMovie implies hasProject.)  Push all widgets to a known-good
+      % blank state so they don't show stale data.
+      if ~lObj.hasMovie
+        % Delete per-project handles that may be stale
+        deleteValidGraphicsHandles(obj.hPts) ;
+        obj.hPts = [] ;
+        deleteValidGraphicsHandles(obj.hPtStat) ;
+        obj.hPtStat = [] ;
+        deleteValidGraphicsHandles(obj.hPtsL) ;
+        obj.hPtsL = [] ;
+        % Delete per-movie handles that may be stale
+        deleteValidGraphicsHandles(obj.hSelIm) ;
+        obj.hSelIm = [] ;
+        % Reset persistent line handles to show nothing
+        set(obj.hCurrFrame, 'XData', [nan nan]) ;
+        set(obj.hCurrFrameL, 'XData', [nan nan]) ;
+        set(obj.hStatThresh, 'XData', [nan nan], 'Visible', 'off') ;
+        set(obj.hSegLineGT, 'XData', nan, 'YData', nan, 'Visible', 'off') ;
+        set(obj.hSegLineGTLbled, 'XData', nan, 'YData', nan, 'Visible', 'off') ;
+        % Disable context menu items
+        set(obj.hCMenuClearBout, 'Enable', 'off') ;
+        return ;
+      end
+
+      % From here on, we know a project and movie are loaded.
+
+      % Ensure the per-landmark handle arrays (hPts, hPtStat, hPtsL) are
+      % the right size for the current project.  If they're not,
+      % updateForNewProject() will delete and recreate them.
+      if numel(obj.hPts) ~= lObj.nLabelPoints
+        obj.updateForProject_() ;
+      end
+
+      % Ensure the per-movie controls (selection image, segmented GT
+      % lines) are initialized for the current movie's frame count.  This
+      % must happen before updateGTModeRelatedControls(), because that
+      % method sets data on the segmented GT lines using the current
+      % movie's nframes.  If the lines are still sized for a previous
+      % movie, the XData/YData sizes will be mismatched.
+      obj.updateForMovie_() ;
+
+      % Update the data traces (hPts, hPtStat, hPtsL)
+      obj.updateTraces() ;
+
+      % Update the landmark colors
+      obj.updateLandmarkColors() ;
+
+      % Update the current frame line position and axes limits.  Must
+      % happen after updateTraces(), because updateTraces() sets YLim on
+      % hAx, and updateCurrentFrameLineXData() reads YLim for
+      % hCurrFrame's YData.
+      obj.updateCurrentFrameLineXData() ;
+
+      % Update current frame line widths (depends on selection mode)
+      obj.updateCurrentFrameLineWidths() ;
+
+      % Update selection image CData
+      itm = lObj.infoTimelineModel ;
+      if itm.selectOn
+        obj.updateSelectionImageCData() ;
+      end
+
+      % Update statistic threshold display
+      obj.updateStatThresh() ;
+
+      % Update GT mode related controls (segmented line visibility and
+      % data).  Note: updateForNewMovie() above also calls this, so it
+      % is redundant in most cases, but is needed when only the GT mode
+      % has changed without a movie change.
+      obj.updateGTModeRelatedControls() ;
+
+      % Update context menu
+      obj.updateContextMenu() ;
+    end  % function
+
+    function updateForProject_(obj)
+      % Update the controls to match the current project.
 
       % Get the core things we need from the labeler
       lObj = obj.lObj ;
@@ -200,8 +282,8 @@ classdef InfoTimelineController < handle
       set(obj.hStatThresh,'XData',[nan nan],'ZData',[1 1]);
     end
     
-    function updateForNewMovie(obj, colorTBSelect)
-      % Update the controls in the wake of a new movie being made current.
+    function updateForMovie_(obj)
+      % Update the controls to sync with the current movie.
 
       % Return early if labeler is being initialized
       lObj = obj.lObj ;
@@ -225,7 +307,8 @@ classdef InfoTimelineController < handle
               'CData', uint8(zeros(1,nframes)), ...
               'HitTest', 'off',...
               'CDataMapping', 'direct') ;
-      obj.hAx.Colormap = [ 0 0 0 ; colorTBSelect ] ;      
+      PURPLE = [80 31 124]/256 ;
+      obj.hAx.Colormap = [ 0 0 0 ; PURPLE ] ;      
       xlims = [1 nframes];
       sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
