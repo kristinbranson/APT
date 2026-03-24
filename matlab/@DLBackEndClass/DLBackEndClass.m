@@ -1998,7 +1998,7 @@ classdef DLBackEndClass < handle
 
     function testBackendConfig(obj, labeler)
       obj.testText_ = {''};
-      labeler.notify('updateBackendTestText') ;
+      labeler.notify_('updateBackendTestText') ;
       switch obj.type,
         case DLBackEnd.Bsub,
           obj.testBsubBackendConfig_(labeler) ;

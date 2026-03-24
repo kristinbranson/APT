@@ -349,7 +349,7 @@ classdef DeepTracker < LabelTracker
       deactivate@LabelTracker(obj) ;
       delete(obj.trkVizer) ;
       obj.trkVizer = [] ;
-      obj.lObj.notify('updateTrkPredViz') ;
+      obj.lObj.notify_('updateTrkPredViz') ;
     end  % function
 
     function activate(obj)
@@ -3367,14 +3367,15 @@ classdef DeepTracker < LabelTracker
           tblTrkRes = [tblTrkRes; tblI]; %#ok<AGROW>
         end         
       end
-    end
+    end  % function
+
     function clearTrackingResults(obj)
       % FUTURE TODO: For now we do not actually delete the previous trkfiles.
       obj.trackResInit();
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
-    end
-  end
+    end  % function
+  end  % methods
   
   %% TrackCurrRes = tracked state for current movie. Loaded into .trkP*
   methods
@@ -3384,6 +3385,7 @@ classdef DeepTracker < LabelTracker
       % all calls to trackCurrResInit should be followed by calls to
       % vizInit() to destroy trkVizer.
     end
+
     function trackCurrResUpdate(obj)
       % update trackCurrRes (.trkP*) from trackRes (tracking DB)
       labeler = obj.lObj ;
@@ -3409,7 +3411,7 @@ classdef DeepTracker < LabelTracker
       end
       %obj.lObj.doNotify('newTrackingResults');
       obj.lObj.setCurPropTypePredictionDefault();
-    end
+    end  % function
     
     function [tfhaspred,xy,tfocc] = getTrackingResultsCurrFrm(obj)
       % See TrkFile/getPTrkFrame
@@ -3478,9 +3480,9 @@ classdef DeepTracker < LabelTracker
           % predictions to show tracklets for
           if obj.lObj.maIsMA
             obj.lObj.currImHudModel.hasTrklet = false ;
-            obj.lObj.notify('updateHudReadoutFields') ;
+            obj.lObj.notify_('updateHudReadoutFields') ;
           end
-          obj.lObj.notify('updateTrkPredViz') ;
+          obj.lObj.notify_('updateTrkPredViz') ;
         end
         return
       end
@@ -3515,7 +3517,7 @@ classdef DeepTracker < LabelTracker
       tvm.trkInit(obj.trkP) ;
 
       % Notify controller to create/update TV
-      lObj.notify('updateTrkPredViz') ;
+      lObj.notify_('updateTrkPredViz') ;
     end  % function
     function setHideViz(obj, tf)
       % Set hideViz on model state.  TVM stores the flag; controller

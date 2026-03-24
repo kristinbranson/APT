@@ -405,6 +405,7 @@ classdef Labeler < handle
     % after the dialog is dismissed.
     dialogLaunchPad_
     dialogLandingPad_
+    degreeOfNotificationEnablement_ = 1
   end
 
   properties (Dependent)
@@ -852,8 +853,27 @@ classdef Labeler < handle
       end
     end  % function    
   end  % methods
-  
-          
+
+  methods
+    function notify_(obj, eventName, varargin)
+      % Like notify(), but suppressed when notifications are disabled.
+      if obj.degreeOfNotificationEnablement_ > 0
+        obj.notify(eventName, varargin{:}) ;
+      end
+    end  % function
+
+    function disableNotifications_(obj)
+      % Decrement the notification enablement counter, disabling notifications.
+      obj.degreeOfNotificationEnablement_ = obj.degreeOfNotificationEnablement_ - 1 ;
+    end  % function
+
+    function enableNotificationsMaybe_(obj)
+      % Increment the notification enablement counter, capped at 1.
+      obj.degreeOfNotificationEnablement_ = min(1, obj.degreeOfNotificationEnablement_ + 1) ;
+    end  % function
+  end  % methods
+
+
   %% Prop access
   methods % dependent prop getters
     function v = get.dialogLaunchPad(obj)
@@ -1624,20 +1644,20 @@ classdef Labeler < handle
     function set.labels(obj,v)
       obj.labels = v;
       if ~obj.isinit %#ok<MCSUP>
-        obj.notify('updateTrxTable');
+        obj.notify_('updateTrxTable');
         obj.syncPropsMfahl_() ;
-        obj.notify('updateFrameTableIncremental');
+        obj.notify_('updateFrameTableIncremental');
       end
-      %obj.notify('didSetLabels') ;
-      obj.notify('updateTimelineTraces') ;
+      %obj.notify_('didSetLabels') ;
+      obj.notify_('updateTimelineTraces') ;
     end
 
     function set.labelsGT(obj,v)
       obj.labelsGT = v;
       if ~obj.isinit %#ok<MCSUP>
-        obj.notify('updateTrxTable');
+        obj.notify_('updateTrxTable');
         obj.syncPropsMfahl_() ;
-        obj.notify('updateFrameTableIncremental');
+        obj.notify_('updateFrameTableIncremental');
         obj.gtUpdateSuggMFTableLbledIncremental();
       end
     end
@@ -1646,7 +1666,7 @@ classdef Labeler < handle
       obj.labelsRoi = v;
       if ~obj.isinit %#ok<MCSUP>
         obj.syncPropsMfahl_() ;
-        obj.notify('updateFrameTableIncremental');
+        obj.notify_('updateFrameTableIncremental');
       end
     end
 
@@ -1654,7 +1674,7 @@ classdef Labeler < handle
       obj.labelsRoiGT = v;
       if ~obj.isinit %#ok<MCSUP>
         obj.syncPropsMfahl_() ;
-        obj.notify('updateFrameTableIncremental');
+        obj.notify_('updateFrameTableIncremental');
       end
     end
 
@@ -1662,9 +1682,9 @@ classdef Labeler < handle
       if isscalar(v) && islogical(v) ,
         [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
         obj.movieForceGrayscale = v;
-        obj.notify('didSetMovieForceGrayscale') ;
+        obj.notify_('didSetMovieForceGrayscale') ;
       else
-        obj.notify('didSetMovieForceGrayscale') ;
+        obj.notify_('didSetMovieForceGrayscale') ;
         error('APT:invalidValue', 'Invalid value for movieForceGrayscale') ;
       end
     end
@@ -1685,9 +1705,9 @@ classdef Labeler < handle
     %       end
     %       obj.movieInvert = v;
     %     end
-    %     obj.notify('didSetMovieInvert') ;
+    %     obj.notify_('didSetMovieInvert') ;
     %   else        
-    %     obj.notify('didSetMovieInvert') ;
+    %     obj.notify_('didSetMovieInvert') ;
     %     error('APT:invalidValue', 'Invalid value for movieInvert') ;
     %   end
     % end
@@ -1701,8 +1721,8 @@ classdef Labeler < handle
       if ~v && obj.movieRotateTargetUp
         obj.movieRotateTargetUp = false ;
       end
-      obj.notify('updateTargetCentrationAndZoom') ;
-      obj.notify('didSetMovieCenterOnTarget') ;
+      obj.notify_('updateTargetCentrationAndZoom') ;
+      obj.notify_('didSetMovieCenterOnTarget') ;
     end
 
     function v = get.movieRotateTargetUp(obj)
@@ -1718,9 +1738,9 @@ classdef Labeler < handle
           obj.movieCenterOnTarget = true ;
         end
         obj.movieRotateTargetUp_ = v;
-        obj.notify('updateTargetCentrationAndZoom') ;
+        obj.notify_('updateTargetCentrationAndZoom') ;
       end
-      obj.notify('didSetMovieRotateTargetUp') ;
+      obj.notify_('didSetMovieRotateTargetUp') ;
     end
 
     function set.targetZoomRadiusDefault(obj,v)
@@ -1735,12 +1755,12 @@ classdef Labeler < handle
       assert(isscalar(v) && isnumeric(v));
       obj.movieShiftArrowNavModeThresh = v;
       obj.infoTimelineModel.statThresh = v;
-      obj.notify('updateTimelineStatThresh');
+      obj.notify_('updateTimelineStatThresh');
     end
     
     function toggleTimelineIsStatThreshVisible(obj)
       obj.infoTimelineModel.toggleIsStatThreshVisible();
-      obj.notify('updateTimelineStatThresh');
+      obj.notify_('updateTimelineStatThresh');
     end
   end
   
@@ -1893,7 +1913,7 @@ classdef Labeler < handle
       obj.maIsMA = cfg.MultiAnimal && ~cfg.Trx.HasTrx;
       obj.projectHasTrx = cfg.Trx.HasTrx;
 
-      obj.notify('newProject');
+      obj.notify_('newProject');
 
       % order important: this needs to occur after 'newProject' event so
       % that figs are set up. (names get changed)
@@ -1956,7 +1976,7 @@ classdef Labeler < handle
       cfg.LabelMode = char(obj.labelMode);
       % Downdate view config from controller, then overlay model-owned props
       obj.viewConfig_ = [] ;
-      obj.notify('downdateViewConfig') ;
+      obj.notify_('downdateViewConfig') ;
       viewCfg = obj.viewConfig_ ;
       if isempty(viewCfg)
         % No controller present (batch mode); use defaults
@@ -2012,7 +2032,7 @@ classdef Labeler < handle
 
     function setShortcuts(obj,scs)
       obj.projPrefs.Shortcuts = scs;
-      notify(obj, 'updateShortcuts');
+      obj.notify_('updateShortcuts') ;
     end
 
   end
@@ -2247,7 +2267,7 @@ classdef Labeler < handle
       obj.isinit = false;
       
       obj.syncPropsMfahl_() ;
-      obj.notify('updateFrameTableComplete');
+      obj.notify_('updateFrameTableComplete');
       obj.labeledposNeedsSave = false;
       obj.doesNeedSave_ = false;
 
@@ -2270,7 +2290,7 @@ classdef Labeler < handle
       obj.setDoesNeedSave(true, 'New project') ;      
       
       % Do a full update of the GUI
-      obj.notify('update') ;
+      obj.notify_('update') ;
     end
     
     function projSave(obj, fname)      
@@ -2652,7 +2672,7 @@ classdef Labeler < handle
 %       obj.suspScore = obj.suspScore;
 
       obj.syncPropsMfahl_() ;
-      obj.notify('updateFrameTableComplete');
+      obj.notify_('updateFrameTableComplete');
       
       if obj.currMovie>0
         obj.labelsSyncToNewFrame_(true);
@@ -2668,14 +2688,14 @@ classdef Labeler < handle
           obj.corePrevAxesTargetSpec_ = CorePrevAxesTargetSpec(modeInfoStruct) ;
         end
       end
-      obj.notify('updatePrevPanel') ;
+      obj.notify_('updatePrevPanel') ;
 
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
       % mode
       obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
  
       % obj.setPropertiesToFireCallbacksToInitializeUI_() ;
-      %obj.notify('update') ;
+      %obj.notify_('update') ;
 
       % The fact that we (presumably) have to update before doing these next few
       % things suggests to me (along with their visual-centric names) that maybe
@@ -2730,16 +2750,16 @@ classdef Labeler < handle
       obj.infoTimelineModel_.didChangeCurrentTracker(auxPropList) ;
 
       % Send a bunch of notifications to update the UI, if present
-      obj.notify('update') ;
-      obj.notify('didLoadProject');  % should phase this out eventually
-      % obj.notify('cropUpdateCropGUITools');
-      % obj.notify('gtIsGTModeChanged');
-      % obj.notify('gtSuggUpdated');
-      % obj.notify('gtResUpdated');
-      % obj.notify('update_menu_track_tracking_algorithm') ;
-      % obj.notify('update_menu_track_tracker_history') ;
-      % obj.notify('didSetCurrTracker') ;
-      % obj.notify('update_text_trackerinfo') ;
+      obj.notify_('update') ;
+      obj.notify_('didLoadProject');  % should phase this out eventually
+      % obj.notify_('cropUpdateCropGUITools');
+      % obj.notify_('gtIsGTModeChanged');
+      % obj.notify_('gtSuggUpdated');
+      % obj.notify_('gtResUpdated');
+      % obj.notify_('update_menu_track_tracking_algorithm') ;
+      % obj.notify_('update_menu_track_tracker_history') ;
+      % obj.notify_('didSetCurrTracker') ;
+      % obj.notify_('update_text_trackerinfo') ;
       % fprintf('Updated GUI (%f s).\n',toc(t0));
 
       % If any movies were missing, error now.  We do this late so that the
@@ -3885,7 +3905,7 @@ classdef Labeler < handle
         % Ask the controller (if present) to show the selection dialog
         obj.dialogLaunchPad_ = struct('listStr', {liststr}) ;
         obj.dialogLandingPad_ = [] ;
-        obj.notify('requestMacroizationGUI') ;
+        obj.notify_('requestMacroizationGUI') ;
         macroizationSelection = obj.dialogLandingPad_ ;
 
         if isempty(macroizationSelection)
@@ -3924,7 +3944,7 @@ classdef Labeler < handle
       % moviefile: string or cellstr (can have macros)
       % trxfile: (optional) string or cellstr 
       
-      %notify(obj,'startAddMovie');      
+      %obj.notify_('startAddMovie') ;
       
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
       
@@ -4068,7 +4088,7 @@ classdef Labeler < handle
 %         end
       end  % for iMov = ...
       
-      %notify(obj,'finishAddMovie');            
+      %obj.notify_('finishAddMovie') ;
       
     end  % function
     
@@ -4385,8 +4405,8 @@ classdef Labeler < handle
           obj.gtTblRes = MFTable.remapIntegerKey(obj.gtTblRes,'mov',...
                                                  edata.mIdxOrig2New);
         end
-        obj.notify('gtSuggUpdated');
-        obj.notify('gtResUpdated');
+        obj.notify_('gtSuggUpdated');
+        obj.notify_('gtResUpdated');
       end
 
       obj.prevAxesMovieRemap_(edata.mIdxOrig2New);
@@ -4461,7 +4481,7 @@ classdef Labeler < handle
         p,nmov,obj.nmoviesGT);
       obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
       sendMaybe(obj.tracker, 'labelerMoviesReordered', edata) ;
-      notify(obj,'moviesReordered',edata);
+      obj.notify_('moviesReordered', edata) ;
 
       if ~obj.gtIsGTMode
         iMovNew = find(p==iMov0);
@@ -4638,7 +4658,7 @@ classdef Labeler < handle
       mIdx = MovieIndex(iMov, obj.gtIsGTMode) ;
       obj.dialogLaunchPad_ = struct('mIdxToCheck', mIdx) ;
       obj.dialogLandingPad_ = [] ;
-      obj.notify('requestMovieFilesCheckAndUserFinding') ;
+      obj.notify_('requestMovieFilesCheckAndUserFinding') ;
       didMovieCheckSucceed = obj.dialogLandingPad_ ;
       if isempty(didMovieCheckSucceed)
         % Means there's no controller
@@ -4699,7 +4719,7 @@ classdef Labeler < handle
           obj.cmax_auto(iView) = cmax_auto(iView);
         end
       end
-      obj.notify('updateAxesCLim') ;
+      obj.notify_('updateAxesCLim') ;
       
       isInitOrig = obj.isinit;
       obj.isinit = true;  % Initialization hell, invariants momentarily broken
@@ -4732,22 +4752,22 @@ classdef Labeler < handle
       
       % If this is the first movie loaded, do gamma correction
       if isFirstMovie
-        obj.notify('applyGammaCorrection') ;
+        obj.notify_('applyGammaCorrection') ;
       end  % if isFirstMovie
 
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
-      % obj.notify('updateTimelineTraces');
-      % obj.notify('updateTimelineLandmarkColors');
-      % obj.notify('updateTimelinePopupMenus');
-      % obj.notify('updateTimelineSelection');
+      % obj.notify_('updateTimelineTraces');
+      % obj.notify_('updateTimelineLandmarkColors');
+      % obj.notify_('updateTimelinePopupMenus');
+      % obj.notify_('updateTimelineSelection');
            
-      edata = NewMovieEventData(isFirstMovie);
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
-      notify(obj,'newMovie',edata);
+      edata = NewMovieEventData(isFirstMovie);
+      obj.notify_('newMovie', edata) ;
 
       obj.syncPropsMfahl_() ;
-      obj.notify('updateFrameTableComplete');
+      obj.notify_('updateFrameTableComplete');
       
       % Proj/Movie/LblCore initialization can maybe be improved
       % Call setFrame again now that lblCore is set up
@@ -4767,28 +4787,9 @@ classdef Labeler < handle
       tfsuccess = obj.movieSet(iMov,varargin{:});
     end
     
-    function movieSetNoMovie(obj,varargin)
-      % Set .currMov to 0
-                 
-          % Stripped cut+paste form movieSet() for reference 20170714
-          %       obj.movieReader(iView).open(movfileFull);
-          %       obj.moviename = fullfile(parent,movname);
-%       obj.isinit = true; % Initialization hell, invariants momentarily broken
-          %       obj.currMovie = iMov;
-          %       obj.setFrameAndTarget(1,1);
-          %       obj.trxSet(trxvar);
-          %       obj.trxfile = trxFile; % this must come after .trxSet() call
-%       obj.isinit = false; % end Initialization hell
-          %       obj.labelsMiscInit();
-          %       obj.labelingInit();
-          %       edata = NewMovieEventData(isFirstMovie);
-          %       notify(obj,'newMovie',edata);
-          %       obj.updateFrameTableComplete();
-          %       if obj.hasTrx
-          %         obj.setFrameAndTarget(obj.currTrx.firstframe,obj.currTarget);
-          %       else
-          %         obj.setFrameAndTarget(1,1);
-          %       end
+    function movieSetNoMovie(obj, varargin)
+      % Set the Labeler to the state where no movie is the current movie.  This
+      % sets .currMov to 0.
               
       for i=1:obj.nview
         obj.movieReader(i).close();
@@ -4811,30 +4812,30 @@ classdef Labeler < handle
 
       % Set up the timeline axes for the lack of a movie
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
-      obj.notify('updateTimeline');
-      % obj.notify('updateTimelineTraces');
-      % obj.notify('updateTimelineLandmarkColors');
-      % obj.notify('updateTimelinePopupMenus');
-      % obj.notify('updateTimelineSelection');
+      obj.notify_('updateTimeline');
+      % obj.notify_('updateTimelineTraces');
+      % obj.notify_('updateTimelineLandmarkColors');
+      % obj.notify_('updateTimelinePopupMenus');
+      % obj.notify_('updateTimelineSelection');
 
-      edata = NewMovieEventData(false);
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
-      notify(obj,'newMovie',edata);
+      edata = NewMovieEventData(false);
+      obj.notify_('newMovie', edata) ;
       obj.syncPropsMfahl_() ;
-      obj.notify('updateFrameTableComplete');
+      obj.notify_('updateFrameTableComplete');
 
       % Set state equivalent to obj.setFrameAndTarget();
       for iView=1:obj.nview
         obj.currIm{iView} = 0;
         obj.currImRoi{iView} = [ 1 1 1 1 ] ;
       end
-      obj.notify('updateCurrImagesAllViews') ;
+      obj.notify_('updateCurrImagesAllViews') ;
       obj.prevIm = 0 ;
       obj.prevImRoi = [ 1 1 1 1 ] ;
       if ~obj.gtIsGTMode
         obj.clearPrevAxesModeTarget() ;  % fires updatePrevPanel
       else
-        obj.notify('updatePrevPanel') ;
+        obj.notify_('updatePrevPanel') ;
       end
       obj.currTarget = 1;
       obj.currFrame = 1;
@@ -5602,8 +5603,8 @@ classdef Labeler < handle
       
       obj.currImHudModel.hasTgt = obj.hasTrx || obj.maIsMA ;
 
-      obj.notify('updateHudReadoutFields') ;      
-      obj.notify('didSetTrx') ;
+      obj.notify_('updateHudReadoutFields') ;      
+      obj.notify_('didSetTrx') ;
     end
        
     function [sf,ef] = trxGetFrameLimits(obj)
@@ -5837,7 +5838,7 @@ classdef Labeler < handle
         % flag controlling display of trx/traj; tv.tvtrx would only show
         % viz when both tfHideViz==false and tfShowTraj==true.
       elseif obj.hasTrx
-        obj.notify('updateTrxSetShowTrue') ;
+        obj.notify_('updateTrxSetShowTrue') ;
       end
     end
             
@@ -5866,7 +5867,7 @@ classdef Labeler < handle
       elseif ~isempty(se) && isempty(old_se) && ~obj.showSkeleton ,
         obj.showSkeleton = true ;
       end
-      obj.notify('didSetSkeletonEdges') ;
+      obj.notify_('didSetSkeletonEdges') ;
     end
 
     function setShowSkeleton(obj, tf)
@@ -5966,7 +5967,7 @@ classdef Labeler < handle
       obj.labelsSyncToNewFrame_(true) ;
 
       % Send the notification(s)
-      obj.notify('didInitLblCore') ;
+      obj.notify_('didInitLblCore') ;
     end  % function
     
     function labelingInitTemplate_(obj)
@@ -6449,7 +6450,7 @@ classdef Labeler < handle
       obj.(PROPS.LPOS){iMov}(iPt,1,frms,iTgt) = xy(1);
       obj.(PROPS.LPOS){iMov}(iPt,2,frms,iTgt) = xy(2);
       obj.syncPropsMfahl_() ;
-      obj.notify('updateFrameTableComplete'); % above sets mutate .labeledpos{obj.currMovie} in more than just .currFrame
+      obj.notify_('updateFrameTableComplete'); % above sets mutate .labeledpos{obj.currMovie} in more than just .currFrame
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       end
@@ -6616,7 +6617,7 @@ classdef Labeler < handle
       obj.(PROPS.LBL){iMov} = s;
 
       obj.syncPropsMfahl_() ;
-      obj.notify('updateFrameTableComplete');
+      obj.notify_('updateFrameTableComplete');
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       else
@@ -6786,7 +6787,7 @@ classdef Labeler < handle
       end
       obj.updateMovieFilesAllHaveLbls();
       obj.syncPropsMfahl_() ;
-      obj.notify('updateFrameTableComplete');
+      obj.notify_('updateFrameTableComplete');
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       else
@@ -6832,14 +6833,14 @@ classdef Labeler < handle
       obj.labelImportTrkGeneric(mIdx, trkfiles);
       obj.labelsSyncToNewFrame_(true);
       obj.syncPropsMfahl_() ;
-      obj.notify('updateFrameTableComplete');
+      obj.notify_('updateFrameTableComplete');
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       else
         obj.lastLabelChangeTS = now;
       end
       obj.labeledposNeedsSave = true;
-      obj.notify('dataImported');
+      obj.notify_('dataImported');
       obj.rcSaveProp('lastTrkFileImported',trkfiles{end});
     end
 %     
@@ -7465,9 +7466,9 @@ classdef Labeler < handle
           case LandmarkSetType.Label
             ppi = obj.labelPointsPlotInfo ;
             obj.lblCore.setSkeletonCosmetics(ppi.SkeletonProps) ;            
-            % obj.notify('updateLabelSkeletonCosmetics') ;
+            % obj.notify_('updateLabelSkeletonCosmetics') ;
           case LandmarkSetType.Prediction
-            obj.notify('updatePredictionSkeletonCosmetics') ;
+            obj.notify_('updatePredictionSkeletonCosmetics') ;
         end
       end          
     end
@@ -7485,7 +7486,7 @@ classdef Labeler < handle
     %   ptcolors = obj.mapSetColorsToPointColors(colors);
     %   lc.updateColors(ptcolors);
     %   LabelCore.setPtsColor(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH,ptcolors);
-    %   obj.notify('updateTimelineLandmarkColors');
+    %   obj.notify_('updateTimelineLandmarkColors');
     % end
     
     function setLandmarkPredictionColors(obj,colors,colormapname)
@@ -7497,14 +7498,14 @@ classdef Labeler < handle
       obj.predPointsPlotInfo.Colors = colors;
       obj.predPointsPlotInfo.ColorMapName = colormapname;
       cellfun(@(t)(t.updateLandmarkColors()), obj.trackerHistory_ ) ;
-      obj.notify('updatePredictionColors') ;
+      obj.notify_('updatePredictionColors') ;
     end
     
     function setLandmarkLabelCosmetics(obj, pvMarker, pvText, textOffset)
       % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
       lc = obj.lblCore ;
       lc.setMarkerCosmetics(pvMarker) ;
-      obj.notify('updatePrevAxesLabels') ;
+      obj.notify_('updatePrevAxesLabels') ;
       lc.setTextCosmetics(pvText, textOffset) ;
     end
 
@@ -7523,7 +7524,7 @@ classdef Labeler < handle
         obj.predPointsPlotInfo.TextProps.(f) = pvText.(f);
       end
       obj.predPointsPlotInfo.TextOffset = textOffset;
-      obj.notify('updatePredictionCosmetics') ;
+      obj.notify_('updatePredictionCosmetics') ;
     end  % function
     
     function setTrajImportedColors(obj,colors,colormapname)
@@ -8430,14 +8431,14 @@ classdef Labeler < handle
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
       %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
-      notify(obj, 'updatePrevAxesLabels') ;
+      obj.notify_('updatePrevAxesLabels') ;
     end
 
     function labelsSyncToNewTarget_(obj, prevTarget)
       if ~isempty(obj.lblCore)
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
-      notify(obj, 'updatePrevAxesLabels') ;
+      obj.notify_('updatePrevAxesLabels') ;
     end
 
     function labelsSyncToNewFrameAndTarget_(obj, prevFrm, prevTgt)
@@ -8446,7 +8447,7 @@ classdef Labeler < handle
           prevFrm,obj.currFrame,...
           prevTgt,obj.currTarget);
       end
-      notify(obj, 'updatePrevAxesLabels') ;
+      obj.notify_('updatePrevAxesLabels') ;
     end  % function
 
   end  % methods (Access=private)
@@ -8479,8 +8480,8 @@ classdef Labeler < handle
           obj.movieSet(IMOV);
         end
         obj.syncPropsMfahl_() ;
-        obj.notify('updateFrameTableComplete');
-        obj.notify('gtIsGTModeChanged');
+        obj.notify_('updateFrameTableComplete');
+        obj.notify_('gtIsGTModeChanged');
       end
     end
 
@@ -8566,8 +8567,8 @@ classdef Labeler < handle
       obj.gtSuggMFTable = tblMFT;
       obj.gtUpdateSuggMFTableLbledComplete();
       obj.gtTblRes = [];
-      obj.notify('gtSuggUpdated');
-      obj.notify('gtResUpdated');      
+      obj.notify_('gtSuggUpdated');
+      obj.notify_('gtResUpdated');      
     end
 
     function gtUpdateSuggMFTableLbledComplete(obj,varargin)
@@ -8580,7 +8581,7 @@ classdef Labeler < handle
       if isempty(tbl)
         obj.gtSuggMFTableLbled = false(0,1);
         if donotify
-          obj.notify('gtSuggUpdated'); % use this event for full/general update
+          obj.notify_('gtSuggUpdated'); % use this event for full/general update
         end
         return;
       end
@@ -8597,7 +8598,7 @@ classdef Labeler < handle
       szassert(tfAllTgtsLbled,[height(tbl) 1]);
       obj.gtSuggMFTableLbled = tfAllTgtsLbled;
       if donotify
-        obj.notify('gtSuggUpdated'); % use this event for full/general update
+        obj.notify_('gtSuggUpdated'); % use this event for full/general update
       end
     end
 
@@ -8622,7 +8623,7 @@ classdef Labeler < handle
         s = obj.labelsGT{iMov};
         [tf,p] = Labels.isLabeledFT(s,frm,iTgt);
         obj.gtSuggMFTableLbled(tfInTbl) = tf && nnz(isnan(p))==0;
-        obj.notify('gtSuggMFTableLbledUpdated');
+        obj.notify_('gtSuggMFTableLbledUpdated');
       end
     end
 
@@ -8808,7 +8809,7 @@ classdef Labeler < handle
       tObj.trackList('totrackinfo',totrackinfo,'backend',backend,'isgt',true,argsrest{:});
 
       % Broadcast a notification about recent events
-      obj.notify('didSpawnTrackingForGT') ;
+      obj.notify_('didSpawnTrackingForGT') ;
     end  % function
     
     function showGTResults(obj,varargin)
@@ -8827,7 +8828,7 @@ classdef Labeler < handle
 
       obj.gtComputeGTPerformanceTable(tblLbl,gtResultTbl); % also sets obj.gtTblRes
       % obj.didSpawnTrackingForGT_ = [] ;  % reset this
-      obj.notify('didComputeGTResults') ;
+      obj.notify_('didComputeGTResults') ;
       obj.popBusyStatus();
     end  % function
 
@@ -8923,12 +8924,12 @@ classdef Labeler < handle
       tblGTres = [tblTrkRes tblTmp table(err,muerr,fp,fn,'VariableNames',{'L2err' 'meanL2err','FP','FN'})];
       
       obj.gtTblRes = tblGTres;
-      obj.notify('gtResUpdated');
+      obj.notify_('gtResUpdated');
     end  % function
 
     function gtClearGTPerformanceTable(obj)
       obj.gtTblRes = [] ;
-      obj.notify('gtResUpdated') ;
+      obj.notify_('gtResUpdated') ;
     end
 
     function [nextmft,loc] = gtNextUnlabeledMFT(obj)
@@ -9803,7 +9804,7 @@ classdef Labeler < handle
         return ;
       end
       tracker.userTag = tag ;
-      obj.notify('update_menu_track_tracker_history') ;
+      obj.notify_('update_menu_track_tracker_history') ;
     end  % function
 
     function trackMakeExistingTrackerCurrentGivenIndex(obj, iTrk)
@@ -9854,14 +9855,14 @@ classdef Labeler < handle
         auxPropList = [] ;
       end      
       obj.infoTimelineModel_.didChangeCurrentTracker(auxPropList) ;
-      obj.notify('updateTimelinePopupMenus');
-      % obj.notify('updateTimelineSelection');
+      obj.notify_('updateTimelinePopupMenus');
+      % obj.notify_('updateTimelineSelection');
 
       % Send the notifications
-      obj.notify('didSetCurrTracker') ;
-      % obj.notify('update_menu_track_tracking_algorithm_quick') ;      
-      obj.notify('update_menu_track_tracker_history') ;
-      obj.notify('update_text_trackerinfo') ;
+      obj.notify_('didSetCurrTracker') ;
+      % obj.notify_('update_menu_track_tracking_algorithm_quick') ;      
+      obj.notify_('update_menu_track_tracker_history') ;
+      obj.notify_('update_text_trackerinfo') ;
     end  % function
 
     function trackMakeBackupOfCurrentTrackerIfHasBeenTrained(obj)
@@ -9900,7 +9901,7 @@ classdef Labeler < handle
       obj.trackerHistory_ = trackersNew ;
       
       % Send the notification
-      obj.notify('update_menu_track_tracker_history') ;
+      obj.notify_('update_menu_track_tracker_history') ;
     end  % function
     
     % function trackMakeNewTrackerGivenIndex(obj, tciIndex, varargin)
@@ -9962,13 +9963,13 @@ classdef Labeler < handle
     %     auxPropList = [] ;
     %   end
     %   obj.infoTimelineModel_.didChangeCurrentTracker(auxPropList) ;
-    %   obj.notify('updateTimelineAndFriends');
+    %   obj.notify_('updateTimelineAndFriends');
     % 
     %   % Send the needed notifications
-    %   obj.notify('didSetCurrTracker') ;      
-    %   % obj.notify('update_menu_track_tracking_algorithm_quick') ;
-    %   obj.notify('update_menu_track_tracker_history') ;      
-    %   obj.notify('update_text_trackerinfo') ;      
+    %   obj.notify_('didSetCurrTracker') ;      
+    %   % obj.notify_('update_menu_track_tracking_algorithm_quick') ;
+    %   obj.notify_('update_menu_track_tracker_history') ;      
+    %   obj.notify_('update_text_trackerinfo') ;      
     % end  % function
 
     function t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
@@ -10048,14 +10049,14 @@ classdef Labeler < handle
         auxPropList = [] ;
       end
       obj.infoTimelineModel_.didChangeCurrentTracker(auxPropList) ;
-      obj.notify('updateTimelinePopupMenus');
-      % obj.notify('updateTimelineSelection');
+      obj.notify_('updateTimelinePopupMenus');
+      % obj.notify_('updateTimelineSelection');
       
       % Send the needed notifications
-      obj.notify('didSetCurrTracker') ;      
-      % obj.notify('update_menu_track_tracking_algorithm_quick') ;
-      obj.notify('update_menu_track_tracker_history') ;      
-      obj.notify('update_text_trackerinfo') ;      
+      obj.notify_('didSetCurrTracker') ;      
+      % obj.notify_('update_menu_track_tracking_algorithm_quick') ;
+      obj.notify_('update_menu_track_tracker_history') ;      
+      obj.notify_('update_text_trackerinfo') ;      
     end  % function
 
     % function trackMakeNewTrackerGivenAlgoName(obj, algoName, varargin)
@@ -10161,7 +10162,7 @@ classdef Labeler < handle
         end
         
         if obj.maIsMA && ~istrack,
-          obj.notify('updatePreProcParams') ;
+          obj.notify_('updatePreProcParams') ;
         end
       end
       
@@ -10446,7 +10447,7 @@ classdef Labeler < handle
     
     function track(obj, varargin)
       % When this method exits, update the views
-      oc = onCleanup(@()(obj.notify('update'))) ;
+      oc = onCleanup(@()(obj.notify_('update'))) ;
 
       tm = obj.getTrackModeMFTSet() ;
       [okToProceed, message] = obj.doProjectAndMovieExist() ;
@@ -10580,14 +10581,14 @@ classdef Labeler < handle
       cellfun(@delete, trackers(2:end)) ;
       currentTracker = trackers(1) ;  % singleton cell array
       obj.trackerHistory_ = currentTracker ;
-      obj.notify('update_menu_track_tracker_history') ;
+      obj.notify_('update_menu_track_tracker_history') ;
     end
     
     function resetCurrentTracker(obj)
       obj.pushBusyStatus('Resetting current trained tracker and all tracking results...');      
       oc = onCleanup(@()(obj.popBusyStatus())) ;
-      obj.notify('update_text_trackerinfo') ;
-      obj.notify('update_menu_track_tracker_history') ;
+      obj.notify_('update_text_trackerinfo') ;
+      obj.notify_('update_menu_track_tracker_history') ;
     end
     
     function deleteCurrentTracker(obj)
@@ -10601,8 +10602,8 @@ classdef Labeler < handle
         tracker = obj.tracker ;
         tracker.init() ;
       end
-      obj.notify('update_text_trackerinfo') ;
-      obj.notify('update_menu_track_tracker_history') ;
+      obj.notify_('update_text_trackerinfo') ;
+      obj.notify_('update_menu_track_tracker_history') ;
     end  % function
     
     function [tfsucc,tblPCache,s] = trackCreateDeepTrackerStrippedLbl(obj, varargin)
@@ -11555,7 +11556,7 @@ classdef Labeler < handle
         obj.syncCropInfoToCurrMov();
       end
       obj.cropIsCropMode = tf;
-      obj.notify('cropIsCropModeChanged');
+      obj.notify_('cropIsCropModeChanged');
     end
     
     function syncCropInfoToCurrMov(obj)      
@@ -11599,7 +11600,7 @@ classdef Labeler < handle
       obj.cropInitCropsGen(wh,'movieInfoAll','movieFilesAllCropInfo');
       obj.cropInitCropsGen(wh,'movieInfoAllGT','movieFilesAllGTCropInfo');
       obj.preProcNonstandardParamChanged();
-      obj.notify('cropCropsChanged');
+      obj.notify_('cropCropsChanged');
     end
 
     function cropInitCropsGen(obj,widthHeight,fldMIA,fldMFACI,varargin)
@@ -11746,7 +11747,7 @@ classdef Labeler < handle
 %       if tfSzChanged,
 %         obj.preProcNonstandardParamChanged();
 %       end
-      obj.notify('cropCropsChanged'); 
+      obj.notify_('cropCropsChanged'); 
     end
     
     function reportLabelChange(obj)      
@@ -11769,7 +11770,7 @@ classdef Labeler < handle
       obj.cropSetSizeAllCropsHlp(iview,widthHeight,'movieInfoAllGT',...
         'movieFilesAllGTCropInfo');
       obj.preProcNonstandardParamChanged();
-      obj.notify('cropCropsChanged'); 
+      obj.notify_('cropCropsChanged'); 
     end
 
     function cropSetSizeAllCropsHlp(obj,iview,widthHeight,fldMIA,fldMFACI)
@@ -11801,7 +11802,7 @@ classdef Labeler < handle
       end
       obj.movieFilesAllCropInfo(:) = {CropInfo.empty(0,0)};
       obj.movieFilesAllGTCropInfo(:) = {CropInfo.empty(0,0)};
-      obj.notify('cropCropsChanged'); 
+      obj.notify_('cropCropsChanged'); 
     end
     
     function wh = cropGetCurrentCropWidthHeightOrDefault(obj)
@@ -12038,7 +12039,7 @@ classdef Labeler < handle
         fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
       
-      obj.notify('updateTargetCentrationAndZoom') ;
+      obj.notify_('updateTargetCentrationAndZoom') ;
       
       if debugtiming,
         fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
@@ -12048,18 +12049,18 @@ classdef Labeler < handle
         obj.labelsSyncToNewFrame_(tfforcelabelupdate);
       end
 
-      obj.notify('updatePrevPanelAfterFrameChange') ;
+      obj.notify_('updatePrevPanelAfterFrameChange') ;
 
       if debugtiming,
         fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
       
       if updateTables
-        obj.notify('updateTrxTable');
+        obj.notify_('updateTrxTable');
       end
       
       if updateTrajs
-        obj.notify('updateTrxSetShowFalse') ;
+        obj.notify_('updateTrxSetShowFalse') ;
       end
       
       if debugtiming,
@@ -12100,7 +12101,7 @@ classdef Labeler < handle
       obj.currTarget = iTgt;
       if obj.hasTrx || obj.maIsMA
         obj.labelsSyncToNewTarget_(prevTarget);
-        obj.notify('updateTargetCentrationAndZoom') ;
+        obj.notify_('updateTargetCentrationAndZoom') ;
       end
 %       obj.updateCurrSusp();
       if obj.hasTrx
@@ -12144,15 +12145,15 @@ classdef Labeler < handle
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
       
-      obj.notify('updateTargetCentrationAndZoom') ;
+      obj.notify_('updateTargetCentrationAndZoom') ;
       
       if ~obj.isinit
         obj.labelsSyncToNewFrameAndTarget_(obj.prevFrame,prevTarget);
-        obj.notify('updateTrxTable');
+        obj.notify_('updateTrxTable');
         obj.fireUpdateTrxSetShowTrueMaybe_();  % All this does is send a notification, and only in some cases
       end
 
-      obj.notify('updatePrevPanelAfterFrameChange') ;
+      obj.notify_('updatePrevPanelAfterFrameChange') ;
     end  % function setFrameAndTarget
   end
 
@@ -12303,7 +12304,7 @@ classdef Labeler < handle
     %     validateattributes(newValue,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes}) ;
     %     obj.selectedFrames_ = newValue ;  
     %   end
-    %   obj.notify('updateTimelineAndFriends');
+    %   obj.notify_('updateTimelineAndFriends');
     % end
     
     
@@ -12344,7 +12345,7 @@ classdef Labeler < handle
                                                'doBGsub',obj.movieViewBGsubbed,'docrop',true);                  
           end          
         end
-        obj.notify('updateCurrImagesAllViews') ;
+        obj.notify_('updateCurrImagesAllViews') ;
 
         obj.currFrame = frameIndex;
         
@@ -12836,7 +12837,7 @@ classdef Labeler < handle
       % of the status strings to we can pop them off as nested tasks complete.
       obj.howBusy_ = obj.howBusy_ + 1 ;
       obj.rawStatusStringStack_ = horzcat(obj.rawStatusStringStack_, {new_raw_status_string}) ;
-      obj.notify('updateStatusAndPointer') ;     
+      obj.notify_('updateStatusAndPointer') ;     
     end
 
     function popBusyStatus(obj)
@@ -12847,7 +12848,7 @@ classdef Labeler < handle
       % arrow.
       obj.howBusy_ = max(0, obj.howBusy_ - 1) ;
       obj.rawStatusStringStack_ = obj.rawStatusStringStack_(1:obj.howBusy_) ;
-      obj.notify('updateStatusAndPointer') ;      
+      obj.notify_('updateStatusAndPointer') ;      
     end
 
     function result = get.isStatusBusy(obj)
@@ -12949,13 +12950,13 @@ classdef Labeler < handle
           else
             obj.rawClearStatusString_ = sprintf('%s since $PROJECTNAME %s at %s', why, info.action, datestr(info.timestamp,16)) ;
           end
-          obj.notify('updateStatusAndPointer') ;
+          obj.notify_('updateStatusAndPointer') ;
         end        
       else
         error('APT:invalidValue', 'Illegal value for doesNeedSave') ;
       end
 
-      obj.notify('updateDoesNeedSave') ;
+      obj.notify_('updateDoesNeedSave') ;
     end
     
     function value = get_backend_property(obj, property_name)
@@ -12967,7 +12968,7 @@ classdef Labeler < handle
       backend = obj.trackDLBackEnd ;
       backend.(property_name) = new_value ;  % this can throw if value is invalid
       if strcmp(property_name, 'type') ,
-        obj.notify('didSetTrackDLBackEnd') ;
+        obj.notify_('didSetTrackDLBackEnd') ;
       end
       obj.setDoesNeedSave(true, 'Changed backend parameter') ;  % this is a public method, will send update notification
     end
@@ -12976,7 +12977,7 @@ classdef Labeler < handle
       obj.projname = newValue ;
       str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now(),16));
       obj.setRawClearStatusString_(str) ;      
-      obj.notify('didSetProjectName') ;
+      obj.notify_('didSetProjectName') ;
     end
 
     function set.projFSInfo(obj, newValue)
@@ -12986,65 +12987,65 @@ classdef Labeler < handle
         str = sprintf('Project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16)) ;
         obj.setRawClearStatusString_(str) ;
       end
-      obj.notify('didSetProjFSInfo') ;
+      obj.notify_('didSetProjFSInfo') ;
     end
 
     function set.movieFilesAll(obj, newValue)
       obj.movieFilesAll = newValue ;
-      obj.notify('didSetMovieFilesAll') ;
+      obj.notify_('didSetMovieFilesAll') ;
     end
 
     function set.movieFilesAllGT(obj, newValue)
       obj.movieFilesAllGT = newValue ;
-      obj.notify('didSetMovieFilesAllGT') ;
+      obj.notify_('didSetMovieFilesAllGT') ;
     end
 
     function set.movieFilesAllHaveLbls(obj, newValue)
       if ~isequal(newValue, obj.movieFilesAllHaveLbls) ,
         obj.movieFilesAllHaveLbls = newValue ;
-        obj.notify('didSetMovieFilesAllHaveLbls') ;
+        obj.notify_('didSetMovieFilesAllHaveLbls') ;
       end
     end
 
     function set.movieFilesAllGTHaveLbls(obj, newValue)
       if ~isequal(newValue, obj.movieFilesAllGTHaveLbls) ,
         obj.movieFilesAllGTHaveLbls = newValue ;
-        obj.notify('didSetMovieFilesAllGTHaveLbls') ;
+        obj.notify_('didSetMovieFilesAllGTHaveLbls') ;
       end
     end
 
     function set.trxFilesAll(obj, newValue)
       obj.trxFilesAll = newValue ;
-      obj.notify('didSetTrxFilesAll') ;
+      obj.notify_('didSetTrxFilesAll') ;
     end
 
     function set.trxFilesAllGT(obj, newValue)
       obj.trxFilesAllGT = newValue ;
-      obj.notify('didSetTrxFilesAllGT') ;
+      obj.notify_('didSetTrxFilesAllGT') ;
     end
 
     function set.showTrx(obj, newValue)
       % Note that setShowTrx() also exists, seems like maybe what clients are
       % intended to call?  -- ALT, 2023-05-15
       obj.showTrx = newValue ;
-      obj.notify('didSetShowTrx') ;
+      obj.notify_('didSetShowTrx') ;
     end
     
     function set.showTrxCurrTargetOnly(obj, newValue)
       % Note that setShowTrxCurrTargetOnly() also exists, seems like maybe what clients are
       % intended to call?  -- ALT, 2023-05-15
       obj.showTrxCurrTargetOnly = newValue ;
-      obj.notify('didSetShowTrxCurrTargetOnly') ;
+      obj.notify_('didSetShowTrxCurrTargetOnly') ;
     end
     
     function set.showOccludedBox(obj, newValue)
       obj.showOccludedBox = newValue ;
-      obj.notify('didSetShowOccludedBox') ;
+      obj.notify_('didSetShowOccludedBox') ;
     end
 
     function set.showSkeleton(obj, newValue)
       obj.showSkeleton = newValue ;
-      obj.notify('didSetShowSkeleton') ;
+      obj.notify_('didSetShowSkeleton') ;
     end
 
     function result = get.doShowLabels(obj)
@@ -13055,17 +13056,17 @@ classdef Labeler < handle
     function set.doShowLabels(obj, newValue)
       % Set whether labels are shown.
       obj.doShowLabels_ = newValue ;
-      obj.notify('didSetDoShowLabels') ;
+      obj.notify_('didSetDoShowLabels') ;
     end
 
     function set.showMaRoi(obj, newValue)
       obj.showMaRoi = newValue ;
-      obj.notify('didSetShowMaRoi') ;
+      obj.notify_('didSetShowMaRoi') ;
     end
 
     function set.showMaRoiAux(obj, newValue)
       obj.showMaRoiAux = newValue ;
-      obj.notify('didSetShowMaRoiAux') ;
+      obj.notify_('didSetShowMaRoiAux') ;
     end
 
     function result = get.labelMode(obj)
@@ -13075,7 +13076,7 @@ classdef Labeler < handle
     function set.labelMode(obj, newValue)
       obj.labelMode_ = newValue ;
       obj.labelingInit_() ;
-      obj.notify('didSetLabelMode') ;
+      obj.notify_('didSetLabelMode') ;
     end
 
     function set.labeledposNeedsSave(obj, newValue)
@@ -13085,7 +13086,7 @@ classdef Labeler < handle
 
     function set.lastLabelChangeTS(obj, newValue)
       obj.lastLabelChangeTS = newValue ;
-      obj.notify('didSetLastLabelChangeTS') ;
+      obj.notify_('didSetLastLabelChangeTS') ;
     end
 
     % function set.lblCore(obj, newValue)
@@ -13119,7 +13120,7 @@ classdef Labeler < handle
     %   end
     % 
     %   % Send the notification
-    %   obj.notify('didSetCurrTracker') ;
+    %   obj.notify_('didSetCurrTracker') ;
     % end
 
     function result = get.currTarget(obj)
@@ -13129,37 +13130,37 @@ classdef Labeler < handle
     function set.currTarget(obj, newValue)
       obj.currTarget_ = newValue ;
       sendMaybe(obj.tracker, 'newLabelerTarget')
-      obj.notify('didSetCurrTarget') ;
+      obj.notify_('didSetCurrTarget') ;
     end
 
     function set.trackModeIdx(obj, newValue)
       obj.trackModeIdx = newValue ;
-      obj.notify('didSetTrackModeIdx') ;
+      obj.notify_('didSetTrackModeIdx') ;
     end
       
     function set.trackDLBackEnd(obj, newValue)
       obj.trackDLBackEnd = newValue ;
-      obj.notify('didSetTrackDLBackEnd') ;
+      obj.notify_('didSetTrackDLBackEnd') ;
     end
       
     function set.trackNFramesSmall(obj, newValue)
       obj.trackNFramesSmall = newValue ;
-      obj.notify('didSetTrackNFramesSmall') ;
+      obj.notify_('didSetTrackNFramesSmall') ;
     end
       
     function set.trackNFramesLarge(obj, newValue)
       obj.trackNFramesLarge = newValue ;
-      obj.notify('didSetTrackNFramesLarge') ;
+      obj.notify_('didSetTrackNFramesLarge') ;
     end
 
     function set.trackNFramesNear(obj, newValue)
       obj.trackNFramesNear = newValue ;
-      obj.notify('didSetTrackNFramesNear') ;
+      obj.notify_('didSetTrackNFramesNear') ;
     end
 
     function set.trackParams(obj, newValue)
       obj.trackParams = newValue ;
-      obj.notify('didSetTrackParams') ;
+      obj.notify_('didSetTrackParams') ;
     end
 
     function result = getMftInfoStruct(obj)
@@ -13248,7 +13249,7 @@ classdef Labeler < handle
       obj.currFrame_ = newValue ;
       obj.infoTimelineModel_.didSetCurrFrame(newValue) ;
       sendMaybe(obj.tracker, 'newLabelerFrame') ;
-      obj.notify('updateAfterCurrentFrameSet') ;
+      obj.notify_('updateAfterCurrentFrameSet') ;
     end    
 
     function setPropertiesToFireCallbacksToInitializeUI_(obj)
@@ -13275,33 +13276,33 @@ classdef Labeler < handle
     % function didUpdateTrackerInfo(obj)
     %   % Notify listeners that trackerInfo was updated in obj.tracker.
     %   % Called by the current tracker when this happens.
-    %   obj.notify('update_text_trackerinfo') ;
+    %   obj.notify_('update_text_trackerinfo') ;
     % end
     
     function needRefreshTrackMonitorViz(obj)
-      obj.notify('refreshTrackMonitorViz') ;
+      obj.notify_('refreshTrackMonitorViz') ;
     end
 
     function didReceivePollResultsRetrograde(obj, track_or_train)
       if strcmp(track_or_train, 'train') ,
-        obj.notify('updateTrainMonitorViz') ;
+        obj.notify_('updateTrainMonitorViz') ;
       elseif strcmp(track_or_train, 'track') ,
-        obj.notify('updateTrackMonitorViz') ;
+        obj.notify_('updateTrackMonitorViz') ;
       else
         error('Internal error: %s should be ''track'' or ''train''', track_or_train) ;
       end
     end
 
     % function didReceiveTrackingPollResults_(obj)
-    %   obj.notify('updateTrackMonitorViz') ;
+    %   obj.notify_('updateTrackMonitorViz') ;
     % end
     % 
     % function didReceiveTrainingPollResults_(obj)
-    %   obj.notify('updateTrainMonitorViz') ;
+    %   obj.notify_('updateTrainMonitorViz') ;
     % end    
 
     function needRefreshTrainMonitorViz(obj)
-      obj.notify('refreshTrainMonitorViz') ;
+      obj.notify_('refreshTrainMonitorViz') ;
     end
 
     function result = get.backend(obj)
@@ -13313,7 +13314,7 @@ classdef Labeler < handle
     end    
     
     % function raiseTrainingStoppedDialog_(obj) 
-    %   obj.notify('raiseTrainingStoppedDialog') ;      
+    %   obj.notify_('raiseTrainingStoppedDialog') ;      
     % end
 
     function abortTraining(obj)
@@ -13332,7 +13333,7 @@ classdef Labeler < handle
       % Used by child objects to fire events from the Labeler
       % dbstack
       % fprintf('About to call tracker.doNotify(''%s'')\n', eventName) ;
-      obj.notify(eventName) ;
+      obj.notify_(eventName) ;
     end
 
     % function initializeTrackersAllAndFriends_(obj)
@@ -13349,7 +13350,7 @@ classdef Labeler < handle
     %                  'UniformOutput', false) ;  % 1 x number-of-trackers
     %   obj.trackersAllCreateInfo_ = trackersCreateInfo ;
     %   obj.trackersAll_ = tAll ;
-    %   %obj.notify('update_menu_track_tracking_algorithm') ;
+    %   %obj.notify_('update_menu_track_tracking_algorithm') ;
     % end
 
     function result = get.trackerHistory(obj)
@@ -13523,7 +13524,7 @@ classdef Labeler < handle
     %   backend_type_string = obj.trackDLBackEnd.prettyName();
     %   obj.backgroundProcessingStatusString_ = ...
     %     sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
-    %   obj.notify('trainStart') ;
+    %   obj.notify_('trainStart') ;
     % end
 
     % function trackingDidStart(obj)
@@ -13533,7 +13534,7 @@ classdef Labeler < handle
     %   backend_type_string = obj.trackDLBackEnd.prettyName();
     %   obj.backgroundProcessingStatusString_ = ...
     %     sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
-    %   obj.notify('trainStart') ;
+    %   obj.notify_('trainStart') ;
     % end
 
     function trainingEndedRetrograde(obj, endCause, pollingResultOrEmpty)
@@ -13544,7 +13545,7 @@ classdef Labeler < handle
       elseif endCause == EndCause.error
         obj.printErrorInfo_('train', pollingResultOrEmpty)
       end
-      obj.notify('trainEnd') ;  % With a controller present, this will causes any needed dialogs to be raised
+      obj.notify_('trainEnd') ;  % With a controller present, this will causes any needed dialogs to be raised
     end
     
     function trackingEndedRetrograde(obj, endCause, pollingResultOrEmpty)
@@ -13556,7 +13557,7 @@ classdef Labeler < handle
       elseif endCause == EndCause.error
         obj.printErrorInfo_('track', pollingResultOrEmpty)
       end
-      obj.notify('trackEnd') ;  % With a controller present, this will causes any needed dialogs to be raised
+      obj.notify_('trackEnd') ;  % With a controller present, this will causes any needed dialogs to be raised
     end
     
     function printErrorInfo_(obj, train_or_track, pollingResultOrEmpty)
@@ -13590,7 +13591,7 @@ classdef Labeler < handle
 
     function set.backgroundProcessingStatusString(obj, str)
       obj.backgroundProcessingStatusString_ = str ;
-      obj.notify('update') ;
+      obj.notify_('update') ;
     end
   end  % methods
 
@@ -13603,12 +13604,12 @@ classdef Labeler < handle
   methods
     function updateTrainingMonitorRetrograde(obj)
       % Called by children to generate a notification
-      obj.notify('updateTrainingMonitor') ;
+      obj.notify_('updateTrainingMonitor') ;
     end  % function
 
     function updateTrackingMonitorRetrograde(obj)
       % Called by children to generate a notification
-      obj.notify('updateTrackingMonitor') ;
+      obj.notify_('updateTrackingMonitor') ;
     end  % function
 
     function pushBusyStatusRetrograde(obj, new_raw_status_string)
@@ -13638,8 +13639,8 @@ classdef Labeler < handle
       %   selectedFrames = find(itm.isSelectedFromFrameIndex) ;
       %   obj.selectedFrames_ = selectedFrames ;
       % end
-      % obj.notify('updateTimelinePopupMenus');
-      obj.notify('updateTimelineSelection');
+      % obj.notify_('updateTimelinePopupMenus');
+      obj.notify_('updateTimelineSelection');
     end
 
     function data = getTimelineDataForCurrentMovieAndTarget(obj)
@@ -13716,23 +13717,23 @@ classdef Labeler < handle
       % Throws error if file cannot be loaded or doesn't contain required variable
       
       obj.infoTimelineModel.addCustomFeatureGivenFileName(fileName);
-      obj.notify('updateTimelineTraces') ;
-      obj.notify('updateTimelinePopupMenus');
-      % obj.notify('updateTimelineSelection');
+      obj.notify_('updateTimelineTraces') ;
+      obj.notify_('updateTimelinePopupMenus');
+      % obj.notify_('updateTimelineSelection');
     end
 
     function clearBoutInTimeline(obj)
       frameIndex = obj.currFrame ;
       obj.infoTimelineModel_.clearBout(frameIndex) ;
-      % obj.notify('updateTimelinePopupMenus');
-      obj.notify('updateTimelineSelection');
+      % obj.notify_('updateTimelinePopupMenus');
+      obj.notify_('updateTimelineSelection');
     end    
 
     function clearSelectedFrames(obj)
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.clearSelection(obj.nframes) ;
-      % obj.notify('updateTimelinePopupMenus');
-      obj.notify('updateTimelineSelection');
+      % obj.notify_('updateTimelinePopupMenus');
+      obj.notify_('updateTimelineSelection');
     end
 
     function result = get.infoTimelineModel(obj)
@@ -13765,7 +13766,7 @@ classdef Labeler < handle
     function setTimelineFramesInView(obj, nframes)
       validateattributes(nframes,{'numeric'},{'nonnegative' 'integer'});
       obj.projPrefs.InfoTimelines.FrameRadius = round(nframes/2);      
-      obj.notify('update') ;
+      obj.notify_('update') ;
     end
 
     % function setTimelineCurrentPropertyTypeToDefault(obj)
@@ -13777,25 +13778,25 @@ classdef Labeler < handle
     %     itm.curprop = iprop;
     %   end
     %   itm.isdefault = true ;
-    %   obj.notify('updateTimelineTraces');
-    %   obj.notify('updateTimelineLandmarkColors');
+    %   obj.notify_('updateTimelineTraces');
+    %   obj.notify_('updateTimelineLandmarkColors');
     % end
     
     function setTimelineCurrentPropertyType(obj, iproptype, iprop)
       % iproptype, iprop assumed to be consistent already.
       itm = obj.infoTimelineModel ;
       itm.setCurrentPropertyType(iproptype, iprop) ;
-      obj.notify('updateTimelineTraces');
-      obj.notify('updateTimelineLandmarkColors');
-      obj.notify('updateTimelinePopupMenus');
-      % obj.notify('updateTimelineSelection');
+      obj.notify_('updateTimelineTraces');
+      obj.notify_('updateTimelineLandmarkColors');
+      obj.notify_('updateTimelinePopupMenus');
+      % obj.notify_('updateTimelineSelection');
     end  % function    
 
     function popBusyStatusAndSendUpdateNotification_(obj)
       % Utility method, often called via onCleanup() in another method,
       % to clear the busy status and notify the controller it needs to update.
       obj.popBusyStatus() ;
-      obj.notify('update') ;
+      obj.notify_('update') ;
     end  % function        
 
     function muckAbout_(obj)  %#ok<MANU>
@@ -13828,7 +13829,7 @@ classdef Labeler < handle
                                     'frm', obj.currFrame, ...
                                     'iTgt', obj.currTarget, ...
                                     'gtmode', obj.gtIsGTMode) ;
-      obj.notify('updatePrevPanel') ;
+      obj.notify_('updatePrevPanel') ;
     end
 
     function prevAxesMovieRemap_(obj, mIdxOrig2New)
@@ -13841,19 +13842,19 @@ classdef Labeler < handle
         obj.corePrevAxesTargetSpec_ = ...
           CorePrevAxesTargetSpec.setprop(obj.corePrevAxesTargetSpec_, ...
                                               'iMov', newIdx) ;
-        obj.notify('updatePrevPanel') ;
+        obj.notify_('updatePrevPanel') ;
       end
     end  % function
 
     function clearPrevAxesModeTarget(obj)
       % Clear the frozen prev-axes target spec.
       obj.corePrevAxesTargetSpec_ = [] ;
-      obj.notify('updatePrevPanel') ;
+      obj.notify_('updatePrevPanel') ;
     end  % function
 
     function restorePrevAxesMode(obj)
       % Fire updatePrevPanel to restore the prev-axes display to match the current model state.
-      obj.notify('updatePrevPanel') ;
+      obj.notify_('updatePrevPanel') ;
     end
 
     function setPrevAxesMode(obj, mode)
@@ -13862,7 +13863,7 @@ classdef Labeler < handle
       oc = onCleanup(@()(obj.popBusyStatus())) ;      
       assert(isa(mode, 'PrevAxesMode')) ;
       obj.prevAxesMode_ = mode ;
-      obj.notify('updatePrevPanel') ;
+      obj.notify_('updatePrevPanel') ;
     end
 
     function messageUser_(obj, text, title)
@@ -13873,7 +13874,7 @@ classdef Labeler < handle
       end
       if obj.isgui
         obj.dialogLaunchPad_ = struct('text', text, 'title', title) ;
-        obj.notify('requestMessageBox') ;
+        obj.notify_('requestMessageBox') ;
       else
         fprintf('%s\n', text) ;
       end
@@ -13888,7 +13889,7 @@ classdef Labeler < handle
                                       'buttons', {buttons}, ...
                                       'default', default) ;
         obj.dialogLandingPad_ = default ;
-        obj.notify('requestQuestionDialog') ;
+        obj.notify_('requestQuestionDialog') ;
         answer = obj.dialogLandingPad_ ;
       else
         answer = default ;
@@ -13901,7 +13902,7 @@ classdef Labeler < handle
 
     function set.isLabelingStreamlined(obj, newValue)
       obj.isLabelingStreamlined_ = newValue ;
-      obj.notify('updateLabelMenu') ;
+      obj.notify_('updateLabelMenu') ;
     end
   end  % methods
 end  % classdef

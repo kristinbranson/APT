@@ -494,7 +494,7 @@ classdef TestAPT < handle
       %labeller = Labeler() ;
       labeller.initFromConfig(cfg);
       labeller.projNew(cfg.ProjectName);
-      labeller.notify('projLoaded');
+      labeller.notify_('projLoaded');
     end
     
     function add_movies_(obj)
@@ -531,7 +531,7 @@ classdef TestAPT < handle
                   labeller.(PROPS.MFACI){ndx}(iview).roi = roi;
                 end
               end
-              labeller.notify('cropCropsChanged'); 
+              labeller.notify_('cropCropsChanged'); 
           end
       end
     end  % function
@@ -967,7 +967,7 @@ classdef TestAPT < handle
 %       labeller = Labeler();
 %       labeller.initFromConfig(cfg);
 %       labeller.projNew(cfg.ProjectName);
-%       labeller.notify('projLoaded');
+%       labeller.notify_('projLoaded');
 % 
 %       PROPS = labeller.gtGetSharedProps();
 %       % select 7 movie sets from > 512, because movies < 512 don't have ortho
@@ -996,7 +996,7 @@ classdef TestAPT < handle
 %           % Set the crops
 %           labeller.(PROPS.MFACI){ndx}(iview).roi = roi;
 %         end
-%         labeller.notify('cropCropsChanged'); 
+%         labeller.notify_('cropCropsChanged'); 
 % 
 %         % Add the labels from trk file.
 %         cur_l = labeller.labeledpos{ndx};
@@ -1039,7 +1039,7 @@ classdef TestAPT < handle
 %           % Set the crops
 %           labeller.(PROPS.MFACI){ndx+numel(mov_lbl)}(iview).roi = roi;
 %         end
-%         labeller.notify('cropCropsChanged'); 
+%         labeller.notify_('cropCropsChanged'); 
 % 
 %       end
 % 

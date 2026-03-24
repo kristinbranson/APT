@@ -103,7 +103,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       obj.refreshHotkeyDesc() ;
 
       obj.labeler_.currImHudModel.hasLblPt = true ;
-      obj.labeler_.notify('updateHudReadoutFields') ;
+      obj.labeler_.notify_('updateHudReadoutFields') ;
 
       % Set up axis BDFs for multi-view
       for iView = 1:mdl.nView

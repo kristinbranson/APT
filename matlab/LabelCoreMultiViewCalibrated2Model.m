@@ -316,7 +316,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
                  'buttons', {buttons}, ...
                  'default', default) ;
         labeler.dialogLandingPad_ = default ;
-        labeler.notify('requestQuestionDialog') ;
+        labeler.notify_('requestQuestionDialog') ;
         res = labeler.dialogLandingPad_ ;
       end
     end  % function

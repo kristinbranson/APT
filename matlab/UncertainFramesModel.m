@@ -48,13 +48,13 @@ classdef UncertainFramesModel < handle
     function set.isVisible(obj, newValue)
       obj.isVisible_ = newValue ;
       obj.syncFromPredictions_() ;
-      obj.labeler_.notify('updateUncertainFrames') ;      
+      obj.labeler_.notify_('updateUncertainFrames') ;      
     end  % function
 
     function syncFromPredictions(obj)
       obj.isFresh_ = false ;
       obj.syncFromPredictions_() ;
-      obj.labeler_.notify('updateUncertainFrames') ;            
+      obj.labeler_.notify_('updateUncertainFrames') ;            
     end
 
     function result = get.listboxString(obj)

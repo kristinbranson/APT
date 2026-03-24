@@ -7279,7 +7279,7 @@ classdef LabelerController < handle
       lObj.movieViewBGsubbed = v;
       lObj.hlpSetCurrPrevFrameGUI(lObj.currFrame,true);
       clim(obj.axes_curr,'auto');
-      lObj.notify('didSetMovieViewBGsubbed');
+      lObj.notify_('didSetMovieViewBGsubbed');
     end  % function
 
     function labelMakeLabelMovie_(obj,fname,varargin)
