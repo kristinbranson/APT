@@ -1764,7 +1764,7 @@ classdef Labeler < handle
     end
     
     function tfIsReady = isReady(obj)
-      tfIsReady = ~obj.isinit && obj.hasMovie && obj.hasProject;
+      tfIsReady = ~obj.isinit && obj.hasMovie ;  % Note that hasMovie implies hasProject
     end
     
     function setMovieShiftArrowNavModeThresh(obj,v)
