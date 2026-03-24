@@ -29,9 +29,9 @@ classdef InfoTimelineController < handle
     hCMenuClearBout  % scalar context menu
     hCMenuSetNumFramesShown
     hCMenuToggleThresholdViz
-    hPts  % [npts] line handles
+    hPts  % [nLabelPoints] line handles 
     hPtStat  % scalar line handle
-    hPtsL  % [npts] patch handles (non-MA projs), or [1] image handle (MA projs)    
+    hPtsL  % [nLabelPoints] patch handles (non-MA projs), or [1] image handle (MA projs)    
     hSelIm  % scalar image handle for selection
     hSegLineGT  % scalar line handle
     hSegLineGTLbled  % scalar line handle
@@ -330,16 +330,15 @@ classdef InfoTimelineController < handle
         return
       end
 
-      rawTraceData = lObj.getTimelineDataForCurrentMovieAndTarget();  % [nptsxnfrm]
-      traceData = rawTraceData(~isnan(rawTraceData));
+      traceData = lObj.getTimelineDataForCurrentMovieAndTarget();  % [nLabelPoints x nFrames]
+      nonnanTraceData = traceData(~isnan(traceData));
 
       set(obj.hPts,'XData',nan,'YData',nan);
       set(obj.hPtStat,'XData',nan,'YData',nan);
       
-      if ~isempty(traceData)
-        
-        y1 = min(traceData(:));
-        y2 = max(traceData(:));
+      if ~isempty(nonnanTraceData)        
+        y1 = min(nonnanTraceData(:));
+        y2 = max(nonnanTraceData(:));
         if y1 == y2,
           if y1==0
             y1 = -eps;
@@ -352,31 +351,31 @@ classdef InfoTimelineController < handle
         end
         %dy = max(y2-y1,eps);
         %lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
-        x = 1:size(rawTraceData,2);
+        x = 1:size(traceData,2);
         if ishandle(obj.hSelIm),
           set(obj.hSelIm,'YData',[y1,y2]);
         end
         
         set(obj.hAx,'YLim',[y1,y2]);
         set(obj.hCurrFrame,'YData',[y1,y2]);
-        if size(rawTraceData,1) == lObj.nLabelPoints,
+        if size(traceData,1) == lObj.nLabelPoints,
           for i=1:lObj.nLabelPoints
-            set(obj.hPts(i),'XData',x,'YData',rawTraceData(i,:));
+            set(obj.hPts(i),'XData',x,'YData',traceData(i,:));
           end
-        elseif size(rawTraceData,1) == 1,
-          set(obj.hPtStat,'XData',x,'YData',rawTraceData(1,:));
+        elseif size(traceData,1) == 1,
+          set(obj.hPtStat,'XData',x,'YData',traceData(1,:));
         else
-          warningNoTrace(sprintf('InfoTimeline: Number of rows in statistics was %d, expected either %d or 1',size(rawTraceData,1),lObj.nLabelPoints));
+          warningNoTrace(sprintf('InfoTimeline: Number of rows in statistics was %d, expected either %d or 1',size(traceData,1),lObj.nLabelPoints));
         end
         
         set(obj.hStatThresh,'XData',x([1 end]));
-      end
+      end  % if ~isempty(traceData)
       
       if lObj.maIsMA
-        tflbledDisp = lObj.getLabeledTgts(obj.axLmaxntgt);
-        set(obj.hPtsL,'CData',uint8(tflbledDisp'));          
+        tflbledDisp = lObj.getLabeledTgts(obj.axLmaxntgt) ;
+        set(obj.hPtsL,'CData',uint8(tflbledDisp')) ;
       else
-        islabeled = lObj.getIsLabeledCurrMovTgt(); % [nptsxnfrm]
+        islabeled = lObj.getIsLabeledCurrMovTgt() ; % [nLabelPoints x nFrames]
         for i = 1:lObj.nLabelPoints,
           if any(islabeled(i,:)),
             [t0s,t1s] = get_interval_ends(islabeled(i,:));
