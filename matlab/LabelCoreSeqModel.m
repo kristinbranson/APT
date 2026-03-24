@@ -117,15 +117,15 @@ classdef LabelCoreSeqModel < LabelCoreModel
         obj.labeler_.labelPosClear() ;
       end
       obj.state_ = LabelState.LABEL ;
-      obj.notify('updateLabelCoords') ;
-      obj.notify('updateState') ;
+      obj.notify_('updateLabelCoords') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function adjust2Label(obj)
       % Enter LABEL from ADJUST.
       obj.iPtMove_ = nan ;
       obj.state_ = LabelState.LABEL ;
-      obj.notify('updateState') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function beginAdjust(obj)
@@ -133,7 +133,7 @@ classdef LabelCoreSeqModel < LabelCoreModel
       assert(obj.nPtsLabeled_ == obj.nPts_) ;
       obj.iPtMove_ = nan ;
       obj.state_ = LabelState.ADJUST ;
-      obj.notify('updateState') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function beginAccepted(obj, tfSetLabelPos)
@@ -147,7 +147,7 @@ classdef LabelCoreSeqModel < LabelCoreModel
       obj.iPtMove_ = nan ;
       obj.clearSelected() ;
       obj.state_ = LabelState.ACCEPTED ;
-      obj.notify('updateState') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function storeLabels(obj)
@@ -174,14 +174,14 @@ classdef LabelCoreSeqModel < LabelCoreModel
       i = nlbled + 1 ;
       if tfAxOcc
         obj.tfOcc_(i) = true ;
-        obj.notify('updateOccluded') ;
+        obj.notify_('updateOccluded') ;
       else
         obj.xy_(i, :) = xy ;
         if tfShift
           obj.tfEstOcc_(i) = true ;
         end
         obj.lastChangedIPt_ = i ;
-        obj.notify('updateLabelCoordsI') ;
+        obj.notify_('updateLabelCoordsI') ;
       end
       obj.nPtsLabeled_ = i ;
       if i == obj.nPts_
@@ -200,11 +200,11 @@ classdef LabelCoreSeqModel < LabelCoreModel
       obj.labeler_.labelPosSetI(pos, iPt) ;
       obj.tfEstOcc_(iPt) = tfShift ;
       obj.lastChangedIPt_ = iPt ;
-      obj.notify('updateLabelCoordsI') ;
+      obj.notify_('updateLabelCoordsI') ;
       obj.toggleSelectPoint(iPt) ;
       if obj.tfOcc_(iPt)
         obj.tfOcc_(iPt) = false ;
-        obj.notify('updateOccluded') ;
+        obj.notify_('updateOccluded') ;
       end
     end  % function
 
@@ -220,7 +220,7 @@ classdef LabelCoreSeqModel < LabelCoreModel
       end
       obj.toggleSelectPoint(iPt) ;
       obj.tfOcc_(iPt) = true ;
-      obj.notify('updateOccluded') ;
+      obj.notify_('updateOccluded') ;
     end  % function
 
     function undoLastLabel(obj)
@@ -236,9 +236,9 @@ classdef LabelCoreSeqModel < LabelCoreModel
             obj.xy_(nlbled, :) = [nan nan] ;
             obj.nPtsLabeled_ = nlbled - 1 ;
             obj.lastChangedIPt_ = nlbled ;
-            obj.notify('updateLabelCoordsI') ;
-            obj.notify('updateOccluded') ;
-            obj.notify('updateSelected') ;
+            obj.notify_('updateLabelCoordsI') ;
+            obj.notify_('updateOccluded') ;
+            obj.notify_('updateSelected') ;
           end
         case LabelState.ACCEPTED
           % No undo in ACCEPTED state
@@ -252,7 +252,7 @@ classdef LabelCoreSeqModel < LabelCoreModel
       % Toggle the estimated-occluded flag for a point.
       obj.tfEstOcc_(iPt) = ~obj.tfEstOcc_(iPt) ;
       assert(~(obj.tfEstOcc_(iPt) && obj.tfOcc_(iPt))) ;
-      obj.notify('updateEstOccluded') ;
+      obj.notify_('updateEstOccluded') ;
     end  % function
 
   end  % methods

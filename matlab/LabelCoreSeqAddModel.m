@@ -97,7 +97,7 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
         obj.setLabelCoords(lpos2) ;
       end
       obj.state_ = LabelState.LABEL ;
-      obj.notify('updateState') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function beginAccepted(obj, tfSetLabelPos)
@@ -111,7 +111,7 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
       obj.iPtMove_ = nan ;
       obj.clearSelected() ;
       obj.state_ = LabelState.ACCEPTED ;
-      obj.notify('updateState') ;
+      obj.notify_('updateState') ;
     end  % function
 
   end  % methods

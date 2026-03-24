@@ -3,7 +3,7 @@ classdef LabelCoreModel < handle
 %
 % Owns labeling state: current coordinates, occluded/selected flags,
 % and the labeling state machine. Communicates state changes to
-% controllers via obj.notify() events. Does not own any graphics handles.
+% controllers via obj.notify_() events. Does not own any graphics handles.
 %
 % This is the model half of the LabelCore MVC split. The controller
 % half is LabelCoreController.
@@ -260,7 +260,7 @@ classdef LabelCoreModel < handle
       % Set coordinates for specific point(s) in xy_.
       obj.xy_(iPt, :) = xy ;
       obj.lastChangedIPt_ = iPt ;
-      obj.notify('updateLabelCoordsI') ;
+      obj.notify_('updateLabelCoordsI') ;
     end  % function
 
     function setLabelCoords(obj, xy, varargin)
@@ -273,19 +273,19 @@ classdef LabelCoreModel < handle
       if ~isempty(lblTags)
         obj.tfEstOcc_ = logical(lblTags) ;
       end
-      obj.notify('updateLabelCoords') ;
+      obj.notify_('updateLabelCoords') ;
     end  % function
 
     function setOccludedI(obj, iPt, tfIsOccluded)
       % Set the fully-occluded flag for a single point and notify controllers.
       obj.tfOcc_(iPt) = tfIsOccluded ;
-      obj.notify('updateOccluded') ;
+      obj.notify_('updateOccluded') ;
     end  % function
 
     function setEstOccludedI(obj, iPt, tfIsEstOccluded)
       % Set the estimated-occluded flag for a single point and notify controllers.
       obj.tfEstOcc_(iPt) = tfIsEstOccluded ;
-      obj.notify('updateEstOccluded') ;
+      obj.notify_('updateEstOccluded') ;
     end  % function
 
   end  % methods
@@ -296,7 +296,7 @@ classdef LabelCoreModel < handle
     function setColors(obj, colors)
       % Set ptsPlotInfo_.Colors and notify controllers.
       obj.ptsPlotInfo_.Colors = colors ;
-      obj.notify('updateColors') ;
+      obj.notify_('updateColors') ;
     end  % function
 
     function setMarkerCosmetics(obj, pvMarker)
@@ -305,7 +305,7 @@ classdef LabelCoreModel < handle
       for f = flds(:)' , f = f{1} ; %#ok<FXSET>
         obj.ptsPlotInfo_.MarkerProps.(f) = pvMarker.(f) ;
       end
-      obj.notify('updateMarkerCosmetics') ;
+      obj.notify_('updateMarkerCosmetics') ;
     end  % function
 
     function setTextCosmetics(obj, pvText, txtoffset)
@@ -315,13 +315,25 @@ classdef LabelCoreModel < handle
         obj.ptsPlotInfo_.TextProps.(f) = pvText.(f) ;
       end
       obj.ptsPlotInfo_.TextOffset = txtoffset ;
-      obj.notify('updateTextCosmetics') ;
+      obj.notify_('updateTextCosmetics') ;
     end  % function
 
     function setSkeletonCosmetics(obj, skeletonProps)
       % Set ptsPlotInfo_.SkeletonProps and notify controllers.
       obj.ptsPlotInfo_.SkeletonProps = skeletonProps ;
-      obj.notify('updateSkeletonCosmetics') ;
+      obj.notify_('updateSkeletonCosmetics') ;
+    end  % function
+
+  end  % methods
+
+  %% Notification
+  methods
+
+    function notify_(obj, eventName, varargin)
+      % Like notify(), but suppressed when the parent Labeler's notifications are disabled.
+      if obj.labeler_.degreeOfNotificationEnablement_ > 0
+        obj.notify(eventName, varargin{:}) ;
+      end
     end  % function
 
   end  % methods
@@ -340,7 +352,7 @@ classdef LabelCoreModel < handle
       tfSl = ~obj.tfSel_(iPts) ;
       obj.tfSel_(:) = false ;
       obj.tfSel_(iPts) = tfSl ;
-      obj.notify('updateSelected') ;
+      obj.notify_('updateSelected') ;
     end  % function
 
     function clearSelected(obj, iExclude)

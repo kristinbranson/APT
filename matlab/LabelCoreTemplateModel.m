@@ -170,7 +170,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
       obj.tfMoved_ = false ;
 
       obj.state_ = LabelState.ADJUST ;
-      obj.notify('updateState') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function enterAccepted(obj, tfSetLabelPos)
@@ -184,7 +184,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
         obj.storeLabels() ;
       end
       obj.state_ = LabelState.ACCEPTED ;
-      obj.notify('updateState') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function storeLabels(obj)
@@ -204,7 +204,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
       if ~obj.tfAdjusted_(iSel)
         obj.tfAdjusted_(iSel) = true ;
         obj.lastChangedIPt_ = iSel ;
-        obj.notify('updateAdjusted') ;
+        obj.notify_('updateAdjusted') ;
       end
     end  % function
 
@@ -212,7 +212,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
       % Mark all points as adjusted.
       obj.tfAdjusted_(:) = true ;
       obj.lastChangedIPt_ = 0 ;  % 0 signals "all points"
-      obj.notify('updateAdjusted') ;
+      obj.notify_('updateAdjusted') ;
     end  % function
 
     function setAllPointsUnadjusted(obj, resetType)
@@ -221,7 +221,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
       obj.tfAdjusted_(:) = false ;
       obj.lastSetAllUnadjustedResetType_ = resetType ;
       obj.lastChangedIPt_ = 0 ;  % 0 signals "all points"
-      obj.notify('updateAdjusted') ;
+      obj.notify_('updateAdjusted') ;
     end  % function
 
   end  % methods
@@ -232,7 +232,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
     function toggleEstOccPoint(obj, iPt)
       % Toggle the estimated-occluded flag for a point.
       obj.tfEstOcc_(iPt) = ~obj.tfEstOcc_(iPt) ;
-      obj.notify('updateEstOccluded') ;
+      obj.notify_('updateEstOccluded') ;
       if obj.state_ == LabelState.ACCEPTED
         obj.storeLabels() ;
       end
@@ -315,12 +315,12 @@ classdef LabelCoreTemplateModel < LabelCoreModel
       if tf
         obj.xy(iSel, :) = pos ;
         obj.lastChangedIPt = iSel ;
-        obj.notify('updateLabelCoordsI') ;
+        obj.notify_('updateLabelCoordsI') ;
         obj.setPointAdjusted(iSel) ;
         obj.toggleSelectPoint(iSel) ;
         if obj.tfOcc(iSel)
           obj.tfOcc(iSel) = false ;
-          obj.notify('updateOccluded') ;
+          obj.notify_('updateOccluded') ;
         end
         switch obj.state
           case LabelState.ADJUST
@@ -347,7 +347,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
         obj.toggleSelectPoint(iSel) ;
         obj.tfOcc(iSel) = true ;
         obj.tfEstOcc(iSel) = false ;
-        obj.notify('updateOccluded') ;
+        obj.notify_('updateOccluded') ;
         % controller.refreshPtMarkers('iPts', iSel) ;
           % Hopefully handled by that update above?
         switch obj.state

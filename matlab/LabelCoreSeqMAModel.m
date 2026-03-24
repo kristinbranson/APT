@@ -170,7 +170,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       end
 
       % Notify controller to update all MA track results and ROI
-      obj.notify('updateNewFrameTarget') ;
+      obj.notify_('updateNewFrameTarget') ;
     end  % function
 
     function resetState(obj)
@@ -181,7 +181,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       obj.tfOcc_(:) = false ;
       obj.tfEstOcc_(:) = false ;
       obj.tfSel_(:) = false ;
-      obj.notify('updateLabelCoords') ;
+      obj.notify_('updateLabelCoords') ;
     end  % function
 
     function acceptLabels(obj)
@@ -190,7 +190,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       obj.labeler_.notify_('updateTrxTable') ;
       obj.labeler_.restorePrevAxesMode() ;
       obj.beginAccepted() ;
-      obj.notify('updateAccepted') ;
+      obj.notify_('updateAccepted') ;
     end  % function
 
     function beginAccepted(obj)
@@ -202,11 +202,11 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       obj.clearSelected() ;
       obj.tcInit() ;
       if obj.tcOn_ && ~isempty(obj.tc_prev_axis_)
-        obj.notify('restoreVideoAxis') ;
+        obj.notify_('restoreVideoAxis') ;
         obj.tc_prev_axis_ = [] ;
       end
       obj.state_ = LabelState.ACCEPTED ;
-      obj.notify('updateState') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function beginAcceptedReset(obj)
@@ -214,19 +214,19 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       obj.resetState() ;
       obj.tcInit() ;
       if obj.tcOn_ && ~isempty(obj.tc_prev_axis_)
-        obj.notify('restoreVideoAxis') ;
+        obj.notify_('restoreVideoAxis') ;
         obj.tc_prev_axis_ = [] ;
       end
       obj.state_ = LabelState.ACCEPTED ;
-      obj.notify('updateState') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function beginLabel(obj)
       % Enter Label state and clear all label state for current frame/target.
       obj.resetState() ;
       obj.state_ = LabelState.LABEL ;
-      obj.notify('updateBeginLabel') ;
-      obj.notify('updateState') ;
+      obj.notify_('updateBeginLabel') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function storeLabels(obj)
@@ -249,14 +249,14 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       i = nlbled + 1 ;
       if tfAxOcc
         obj.tfOcc_(i) = true ;
-        obj.notify('updateOccluded') ;
+        obj.notify_('updateOccluded') ;
       else
         obj.xy_(i, :) = pos ;
         if tfShift
           obj.tfEstOcc_(i) = true ;
         end
         obj.lastChangedIPt_ = i ;
-        obj.notify('updateLabelCoordsI') ;
+        obj.notify_('updateLabelCoordsI') ;
       end
       obj.nPtsLabeled_ = i ;
       if i == obj.nPts_
@@ -271,10 +271,10 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       switch obj.tcipt_
         case 0
           obj.tcipt_ = 1 ;
-          obj.notify('updateTwoClickState') ;
+          obj.notify_('updateTwoClickState') ;
         case 1
           obj.tcipt_ = 2 ;
-          obj.notify('updateTwoClickState') ;
+          obj.notify_('updateTwoClickState') ;
         otherwise
           error('LabelCoreSeqMAModel:badTcipt', ...
                 'Unexpected tcipt_ value %d.', obj.tcipt_) ;
@@ -292,11 +292,11 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       obj.labeler_.labelPosSetI(pos, iPt) ;
       obj.tfEstOcc_(iPt) = tfShift ;
       obj.lastChangedIPt_ = iPt ;
-      obj.notify('updateLabelCoordsI') ;
+      obj.notify_('updateLabelCoordsI') ;
       obj.toggleSelectPoint(iPt) ;
       if obj.tfOcc_(iPt)
         obj.tfOcc_(iPt) = false ;
-        obj.notify('updateOccluded') ;
+        obj.notify_('updateOccluded') ;
       end
     end  % function
 
@@ -310,7 +310,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       end
       obj.toggleSelectPoint(iPt) ;
       obj.tfOcc_(iPt) = true ;
-      obj.notify('updateOccluded') ;
+      obj.notify_('updateOccluded') ;
     end  % function
 
     function undoLastLabel(obj)
@@ -326,9 +326,9 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
             obj.xy_(nlbled, :) = [nan nan] ;
             obj.nPtsLabeled_ = nlbled - 1 ;
             obj.lastChangedIPt_ = nlbled ;
-            obj.notify('updateLabelCoordsI') ;
-            obj.notify('updateOccluded') ;
-            obj.notify('updateSelected') ;
+            obj.notify_('updateLabelCoordsI') ;
+            obj.notify_('updateOccluded') ;
+            obj.notify_('updateSelected') ;
           end
         case LabelState.ACCEPTED
           % No undo in ACCEPTED state
@@ -342,7 +342,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       % Toggle the estimated-occluded flag for a point.
       obj.tfEstOcc_(iPt) = ~obj.tfEstOcc_(iPt) ;
       assert(~(obj.tfEstOcc_(iPt) && obj.tfOcc_(iPt))) ;
-      obj.notify('updateEstOccluded') ;
+      obj.notify_('updateEstOccluded') ;
     end  % function
 
     function cbkNewTgt(obj)
@@ -382,7 +382,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       end
       obj.tcInit() ;
       obj.tcOn_ = tfon ;
-      obj.notify('updateTwoClickState') ;
+      obj.notify_('updateTwoClickState') ;
     end  % function
 
     function tcInit(obj)

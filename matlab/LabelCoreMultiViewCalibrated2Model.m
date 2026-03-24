@@ -4,7 +4,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
 % Owns all data state for multi-view calibrated labeling: point-to-axis
 % mappings, point set mappings, working set, calibration rig, adjusted/
 % stored flags, epipolar line visibility state, etc. Communicates state
-% changes to the controller via obj.notify() events.
+% changes to the controller via obj.notify_() events.
 %
 % This is the model half of the LabelCoreMultiViewCalibrated2 MVC split.
 % The controller half is LabelCoreMultiViewCalibrated2Controller.
@@ -108,7 +108,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
     function set.showEpiLines(obj, v)
       % Set epipolar line visibility and notify controllers.
       obj.showEpiLines_ = v ;
-      obj.notify('updateEpiLineVisibility') ;
+      obj.notify_('updateEpiLineVisibility') ;
     end  % function
 
   end  % methods
@@ -195,14 +195,14 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
         obj.enterAdjust(true, false) ;
       end
 
-      obj.notify('updateProjection') ;
+      obj.notify_('updateProjection') ;
     end  % function
 
     function clearLabels(obj)
       % Clear current labels and enter adjustment state.
       obj.enterAdjust(true, true) ;
       obj.projectionWorkingSetClear_() ;
-      obj.notify('updateProjection') ;
+      obj.notify_('updateProjection') ;
     end  % function
 
     function acceptLabels(obj)
@@ -233,7 +233,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
         obj.tfStored_(:) = false ;
         obj.currFrameAdjust_ = obj.labeler_.currFrame ;
         obj.lastChangedIPt_ = 0 ;  % 0 signals "all points"
-        obj.notify('updateAdjusted') ;
+        obj.notify_('updateAdjusted') ;
       end
       if tfClearLabeledPos
         obj.labeler_.labelPosClear() ;
@@ -244,7 +244,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
 
       obj.currFrameAdjust_ = obj.labeler_.currFrame ;
       obj.state_ = LabelState.ADJUST ;
-      obj.notify('updateState') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function enterAccepted(obj, tfSetLabelPos)
@@ -264,8 +264,8 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
       obj.currFrameAdjust_ = nan ;
       obj.state_ = LabelState.ACCEPTED ;
       obj.lastChangedIPt_ = 0 ;  % 0 signals "all points"
-      obj.notify('updateAdjusted') ;
-      obj.notify('updateState') ;
+      obj.notify_('updateAdjusted') ;
+      obj.notify_('updateState') ;
     end  % function
 
     function setPointAdjusted(obj, iSel)
@@ -274,14 +274,14 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
       if ~obj.tfAdjusted_(iSel)
         obj.tfAdjusted_(iSel) = true ;
         obj.lastChangedIPt_ = iSel ;
-        obj.notify('updateAdjusted') ;
+        obj.notify_('updateAdjusted') ;
       end
     end  % function
 
     function toggleEstOccPoint(obj, iPt)
       % Toggle the estimated-occluded flag for a point.
       obj.tfEstOcc_(iPt) = ~obj.tfEstOcc_(iPt) ;
-      obj.notify('updateEstOccluded') ;
+      obj.notify_('updateEstOccluded') ;
       if obj.state_ == LabelState.ACCEPTED
         obj.enterAdjust(false, false) ;
       end
@@ -367,13 +367,13 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
     function projectionWorkingSetClear_(obj)
       % Clear the working set (model state only).
       obj.iSetWorking_ = nan ;
-      obj.notify('updateWorkingSet') ;
+      obj.notify_('updateWorkingSet') ;
     end  % function
 
     function projectionWorkingSetSet_(obj, iSet)
       % Set the working set to iSet (model state only).
       obj.iSetWorking_ = iSet ;
-      obj.notify('updateWorkingSet') ;
+      obj.notify_('updateWorkingSet') ;
     end  % function
 
     function projectionWorkingSetToggle(obj, iSet)
@@ -416,7 +416,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
       % Set whether calibration info is shown and notify.
       obj.showCalibration_ = val ;
       if obj.isCalRig
-        obj.notify('updateProjection') ;
+        obj.notify_('updateProjection') ;
       end
     end  % function
 
