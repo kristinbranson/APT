@@ -10,17 +10,14 @@ classdef MovieManagerController < handle
     tblMovieSet
     tabHandles % [2] "handles" struct array
   end
+
   properties (Constant)
     JTABLEPROPS_NOTRX = {'ColumnName',{'Movie' 'Num Labels'},...
                          'ColumnWidth',{'1x',250}};
     JTABLEPROPS_TRX = {'ColumnName',{'Movie' 'Trx' 'Num Labels'},...
                        'ColumnWidth',{'2x','1x',100}};
   end
-  
-  events
-    tableClicked % fires when any movietable is clicked
-  end
-  
+    
   methods
     
     % MovieManagerController messages between Labeler and Tables
@@ -121,7 +118,7 @@ classdef MovieManagerController < handle
       obj.hFig.Position(1:2) = parentCenter - childSize / 2;
     end
 
-    function lclDeleteFig(obj,src,evt)
+    function lclDeleteFig(obj,~,~)
       listenObjs = obj.listeners;
       for i=1:numel(listenObjs)
         o = listenObjs{i};
@@ -140,7 +137,7 @@ classdef MovieManagerController < handle
       end
     end
 
-    function cellSelectionCallbackTblMovies(obj,src,evt)
+    function cellSelectionCallbackTblMovies(obj,~,evt)
       rows = evt.Indices(:,1);
       if obj.labeler.nview > 1,
         gdata = guidata(obj.hFig);
@@ -154,15 +151,9 @@ classdef MovieManagerController < handle
         gdata.labelSet.Text = sprintf('Selected set %d',rows);
       end
       obj.labeler.moviesSelected = obj.getSelectedMovies() ;
-      obj.notify('tableClicked');
-      % iMov = obj.getSelectedMoviesTblMovies();
-      % if ~isempty(iMov)
-      %   iMov = iMov(1);
-      %   obj.tblCbkMovieSelected(iMov);
-      % end
     end
 
-    function doubleClickFcnCallbackTblMovies(obj,src,evt)
+    function doubleClickFcnCallbackTblMovies(obj,~,evt)
       row = evt.InteractionInformation.DisplayRow;
       if isempty(row),
         return;
