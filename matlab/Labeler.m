@@ -176,6 +176,7 @@ classdef Labeler < handle
     updateBackendTestText
     updateAfterCurrentFrameSet
     update
+    updateTimeline
     updateTimelineSelection
     updateTimelinePopupMenus
     updateTimelineStatThresh
@@ -4810,10 +4811,11 @@ classdef Labeler < handle
 
       % Set up the timeline axes for the lack of a movie
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
-      obj.notify('updateTimelineTraces');
-      obj.notify('updateTimelineLandmarkColors');
-      obj.notify('updateTimelinePopupMenus');
-      obj.notify('updateTimelineSelection');
+      obj.notify('updateTimeline');
+      % obj.notify('updateTimelineTraces');
+      % obj.notify('updateTimelineLandmarkColors');
+      % obj.notify('updateTimelinePopupMenus');
+      % obj.notify('updateTimelineSelection');
 
       edata = NewMovieEventData(false);
       sendMaybe(obj.tracker, 'newLabelerMovie') ;

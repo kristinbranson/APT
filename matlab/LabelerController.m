@@ -533,6 +533,8 @@ classdef LabelerController < handle
       % obj.listeners_(end+1) = ...
       %   addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
       obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updateTimeline',@(s,e)(obj.updateTimeline())) ;
+      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateTimelinePopupMenus',@(s,e)(obj.updateTimelinePopupMenus())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateTimelineSelection',@(s,e)(obj.updateTimelineSelection())) ;
@@ -4273,6 +4275,11 @@ classdef LabelerController < handle
       %set(obj.pbClearSelection,'Enable',onIff(hasProject && hasMovie && labeler.areAnyFramesSelected())) ;
       set(obj.pumTimelinePropType,'String',propTypes,'Value',itm.curproptype,'Enable',onIff(hasProject));
       set(obj.pumTimelineProp,'String',props,'Value',itm.curprop,'Enable',onIff(hasProject));
+    end
+
+    function updateTimeline(obj)
+      % Do a full update of the timeline.
+      obj.labelTLInfo_.update() ;
     end
 
     function updateTimelineStatThresh(obj)
