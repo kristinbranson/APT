@@ -13854,17 +13854,17 @@ classdef Labeler < handle
     end  % function
 
     function syncPropsMovieFilesAllHaveLabels_(obj)
+      % Update the movieFilesAllHaveLbls entry for the current movie to
+      % reflect the current number of labeled targets.
+      if ~obj.hasMovie
+        return
+      end
       [nTgts,nPts,nRois] = obj.labelPosLabeledFramesStats();
       tfFrm = nTgts>0 | nPts>0 | nRois>0;
-
       nTgtsLbledFrms = nTgts(tfFrm);
-
       nTgtsTot = sum(nTgtsLbledFrms);
-
-      if obj.hasMovie
-        PROPS = obj.gtGetSharedProps();
-        obj.(PROPS.MFAHL)(obj.currMovie) = nTgtsTot;
-      end
+      PROPS = obj.gtGetSharedProps();
+      obj.(PROPS.MFAHL)(obj.currMovie) = nTgtsTot;
     end  % function
 
     function setPrevAxesModeTarget(obj)
