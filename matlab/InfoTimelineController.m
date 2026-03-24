@@ -186,10 +186,7 @@ classdef InfoTimelineController < handle
       obj.updateCurrentFrameLineWidths() ;
 
       % Update selection image CData
-      itm = lObj.infoTimelineModel ;
-      if itm.selectOn
-        obj.updateSelectionImageCData() ;
-      end
+      obj.updateSelectionImageCData() ;
 
       % Update statistic threshold display
       obj.updateStatThresh() ;
@@ -401,10 +398,7 @@ classdef InfoTimelineController < handle
       % after labeler.currFrame is set.      
       if isnan(obj.lObj.nLabelPoints), return; end      
       obj.updateCurrentFrameLineXData() ;      
-      itm = obj.lObj.infoTimelineModel ;
-      if itm.selectOn
-        obj.updateSelectionImageCData() ;
-      end
+      obj.updateSelectionImageCData() ;
       obj.updateContextMenu() ;
     end  % function
 
@@ -439,7 +433,7 @@ classdef InfoTimelineController < handle
     
     function updateSelectionImageCData(obj)
       itm = obj.lObj.infoTimelineModel ;
-      if ~isempty(obj.hSelIm) && isvalid(obj.hSelIm) 
+      if itm.selectOn && ~isempty(obj.hSelIm) && isvalid(obj.hSelIm)
         obj.hSelIm.CData = itm.isSelectedFromFrameIndex ;
       end
     end  % function   
@@ -555,6 +549,13 @@ classdef InfoTimelineController < handle
       lObj = obj.lObj ;
       % Gray menu item if not in a bout
       set(obj.hCMenuClearBout,'Enable',onIff(lObj.isCurrentFrameSelected()));
+    end  % function
+
+    function updateSelection(obj)
+      obj.updateCurrentFrameLineWidths() ;
+      obj.updateCurrentFrameLineXData() ;
+      obj.updateSelectionImageCData() ;
+      obj.updateContextMenu() ;      
     end  % function
   end  % methods  
 end  % classdef
