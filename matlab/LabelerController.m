@@ -867,6 +867,7 @@ classdef LabelerController < handle
       end
       tfShow = labeler.which_trx_are_showing() ;
       tv = obj.tvTrx_ ;
+      tv.setShow(tfShow);
       tv.updateTrx(tfShow);
     end
 
@@ -5525,6 +5526,7 @@ classdef LabelerController < handle
 
     function menu_view_trajectories_showcurrent_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
+      labeler.setShowTrx(true);
       labeler.setShowTrxCurrTargetOnly(true); 
       obj.updateTrxMenuCheckEnable(src);
     end

@@ -5870,11 +5870,11 @@ classdef Labeler < handle
       obj.fireUpdateTrxSetShowTrueMaybe_();
     end
     
-    function setShowTrxIDLbl(obj,tf)
-      assert(isscalar(tf) && islogical(tf));
-      obj.showTrxIDLbl = tf;
-      obj.fireUpdateTrxSetShowTrueMaybe_();
-    end
+    % function setShowTrxIDLbl(obj,tf)
+    %   assert(isscalar(tf) && islogical(tf));
+    %   obj.showTrxIDLbl = tf;
+    %   obj.fireUpdateTrxSetShowTrueMaybe_();
+    % end
     
     function fireUpdateTrxSetShowTrueMaybe_(obj)
       if obj.maIsMA
