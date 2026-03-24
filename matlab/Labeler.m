@@ -822,7 +822,7 @@ classdef Labeler < handle
       obj.isgui = isgui ;
       obj.isInDebugMode = isInDebugMode ;
       obj.isInAwsDebugMode = isInAwsDebugMode ;
-      obj.progressMeter_ = ProgressMeter() ;
+      obj.progressMeter_ = ProgressMeter(obj) ;
       obj.infoTimelineModel_ = InfoTimelineModel(obj.hasTrx);
       obj.uncertainFramesModel_ = UncertainFramesModel(obj) ;
       % if ~isgui ,
@@ -4761,8 +4761,11 @@ classdef Labeler < handle
       % obj.notify_('updateTimelineLandmarkColors');
       % obj.notify_('updateTimelinePopupMenus');
       % obj.notify_('updateTimelineSelection');
-           
+      
+      % If a tracker is present, instruct it to sync itself to the new state,
+      % with the new current movie.
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
+
       edata = NewMovieEventData(isFirstMovie);
       obj.notify_('newMovie', edata) ;
 
@@ -4818,7 +4821,10 @@ classdef Labeler < handle
       % obj.notify_('updateTimelinePopupMenus');
       % obj.notify_('updateTimelineSelection');
 
+      % If a tracker is present, instruct it to sync itself to the new state,
+      % with no movie current.
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
+
       edata = NewMovieEventData(false);
       obj.notify_('newMovie', edata) ;
       obj.syncPropsMfahl_() ;
