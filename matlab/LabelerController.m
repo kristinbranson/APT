@@ -6317,6 +6317,7 @@ classdef LabelerController < handle
       obj.updateTimelinePopupMenus() ;
       obj.updateEvaluateMenu() ;
       obj.updateShowPredMenus();
+      obj.updateTrkPredViz() ;
       obj.updateFlipMenus();
       obj.updateTrackerMenu() ;
       obj.update_text_trackerinfo() ;
@@ -7945,6 +7946,8 @@ classdef LabelerController < handle
 
     function updatePrevPanelAfterFrameChange(obj)
       % Update the prev-axes image, frame text, and Freeze button after a frame change.
+      % The updates doen here should be a strict subset of those in
+      % updatePrevPanel()
       labeler = obj.labeler_ ;
 
       % In degenerate cases, make all invisible
@@ -8390,7 +8393,6 @@ classdef LabelerController < handle
 
       % Update the label line, text gobjects
       obj.updatePrevAxesLabels() ;
-
     end  % function
 
     function updatePrevAxesForFrozenMode_(obj)
