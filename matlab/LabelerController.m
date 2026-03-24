@@ -6483,7 +6483,7 @@ classdef LabelerController < handle
   methods
     function updateAfterCurrentFrameSet(obj)
       labeler = obj.labeler_ ;
-      obj.labelTLInfo_.updateAfterCurrentFrameSet();
+      obj.labelTLInfo_.updateSelection();
       set(obj.edit_frame,'String',num2str(labeler.currFrame));
       sldval = (labeler.currFrame-1)/(labeler.nframes-1);
       if isnan(sldval)

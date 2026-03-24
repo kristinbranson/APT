@@ -180,13 +180,13 @@ classdef InfoTimelineController < handle
       % happen after updateTraces(), because updateTraces() sets YLim on
       % hAx, and updateCurrentFrameLineXData() reads YLim for
       % hCurrFrame's YData.
-      obj.updateCurrentFrameLineXData() ;
+      obj.updateCurrentFrameLineXData_() ;
 
       % Update current frame line widths (depends on selection mode)
-      obj.updateCurrentFrameLineWidths() ;
+      obj.updateCurrentFrameLineWidths_() ;
 
       % Update selection image CData
-      obj.updateSelectionImageCData() ;
+      obj.updateSelectionImageCData_() ;
 
       % Update statistic threshold display
       obj.updateStatThresh() ;
@@ -198,7 +198,7 @@ classdef InfoTimelineController < handle
       obj.updateGTModeRelatedControls() ;
 
       % Update context menu
-      obj.updateContextMenu() ;
+      obj.updateContextMenu_() ;
     end  % function
 
     function updateForProject_(obj)
@@ -393,16 +393,16 @@ classdef InfoTimelineController < handle
       end
     end  % function
     
-    function updateAfterCurrentFrameSet(obj)
-      % This gets called after the user changes the frame they're looking at, i.e.
-      % after labeler.currFrame is set.      
-      if isnan(obj.lObj.nLabelPoints), return; end      
-      obj.updateCurrentFrameLineXData() ;      
-      obj.updateSelectionImageCData() ;
-      obj.updateContextMenu() ;
-    end  % function
+    % function updateAfterCurrentFrameSet(obj)
+    %   % This gets called after the user changes the frame they're looking at, i.e.
+    %   % after labeler.currFrame is set.      
+    %   if isnan(obj.lObj.nLabelPoints), return; end      
+    %   obj.updateCurrentFrameLineXData() ;      
+    %   obj.updateSelectionImageCData() ;
+    %   obj.updateContextMenu() ;
+    % end  % function
 
-    function updateCurrentFrameLineXData(obj)
+    function updateCurrentFrameLineXData_(obj)
       if isnan(obj.lObj.nLabelPoints), return; end
       if isempty(obj.lObj.projPrefs)
         return
@@ -431,7 +431,7 @@ classdef InfoTimelineController < handle
       set(obj.hCurrFrameL,'XData',[currFrame currFrame],'YData',obj.hAxL.YLim);
     end  % function
     
-    function updateSelectionImageCData(obj)
+    function updateSelectionImageCData_(obj)
       itm = obj.lObj.infoTimelineModel ;
       if itm.selectOn && ~isempty(obj.hSelIm) && isvalid(obj.hSelIm)
         obj.hSelIm.CData = itm.isSelectedFromFrameIndex ;
@@ -533,7 +533,7 @@ classdef InfoTimelineController < handle
       setSegmentedLineOnOffAtBang(obj.hSegLineGTLbled, currFrm, tfHiliteOn) ;
     end    
 
-    function updateCurrentFrameLineWidths(obj)
+    function updateCurrentFrameLineWidths_(obj)
       itm = obj.lObj.infoTimelineModel ;
       selectOn = itm.selectOn;
       if selectOn
@@ -545,17 +545,17 @@ classdef InfoTimelineController < handle
       end
     end  % function
 
-    function updateContextMenu(obj)
+    function updateContextMenu_(obj)
       lObj = obj.lObj ;
       % Gray menu item if not in a bout
       set(obj.hCMenuClearBout,'Enable',onIff(lObj.isCurrentFrameSelected()));
     end  % function
 
     function updateSelection(obj)
-      obj.updateCurrentFrameLineWidths() ;
-      obj.updateCurrentFrameLineXData() ;
-      obj.updateSelectionImageCData() ;
-      obj.updateContextMenu() ;      
+      obj.updateCurrentFrameLineWidths_() ;
+      obj.updateCurrentFrameLineXData_() ;
+      obj.updateSelectionImageCData_() ;
+      obj.updateContextMenu_() ;      
     end  % function
   end  % methods  
 end  % classdef
