@@ -405,7 +405,18 @@ classdef Labeler < handle
     % after the dialog is dismissed.
     dialogLaunchPad_
     dialogLandingPad_
+  end
+
+  properties (Transient)
     degreeOfNotificationEnablement_ = 1
+      % When positive, notify_() fires events normally.  When zero or
+      % negative, notify_() suppresses them.  Manipulated by
+      % disableNotifications_() and enableNotificationsMaybe_().  Sub-models
+      % (LabelCoreModel, ProgressMeter, etc.) read this property to decide
+      % whether to fire their own notifications.  It's possible that with more
+      % careful design we could eliminate the need for this, but as-is it is a
+      % very useful 'relief valve' to make a bunch of model changes and wait
+      % until they're all done before firing events to do updates.
   end
 
   properties (Dependent)
@@ -857,6 +868,8 @@ classdef Labeler < handle
   methods
     function notify_(obj, eventName, varargin)
       % Like notify(), but suppressed when notifications are disabled.
+      % See comments at degreeOfNotificationEnablement_ declaration for more
+      % details.
       if obj.degreeOfNotificationEnablement_ > 0
         obj.notify(eventName, varargin{:}) ;
       end
@@ -864,11 +877,15 @@ classdef Labeler < handle
 
     function disableNotifications_(obj)
       % Decrement the notification enablement counter, disabling notifications.
+      % See comments at degreeOfNotificationEnablement_ declaration for more
+      % details.
       obj.degreeOfNotificationEnablement_ = obj.degreeOfNotificationEnablement_ - 1 ;
     end  % function
 
     function enableNotificationsMaybe_(obj)
       % Increment the notification enablement counter, capped at 1.
+      % See comments at degreeOfNotificationEnablement_ declaration for more
+      % details.
       obj.degreeOfNotificationEnablement_ = min(1, obj.degreeOfNotificationEnablement_ + 1) ;
     end  % function
   end  % methods

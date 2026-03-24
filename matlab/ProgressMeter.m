@@ -34,6 +34,8 @@ classdef ProgressMeter < handle
 
     function notify_(obj, eventName, varargin)
       % Like notify(), but suppressed when the parent Labeler's notifications are disabled.
+      % See comments at Labeler.degreeOfNotificationEnablement_ declaration for more
+      % details.
       if obj.labeler_.degreeOfNotificationEnablement_ > 0
         obj.notify(eventName, varargin{:}) ;
       end
