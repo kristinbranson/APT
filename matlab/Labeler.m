@@ -1662,7 +1662,7 @@ classdef Labeler < handle
       obj.labels = v;
       if ~obj.isinit %#ok<MCSUP>
         obj.notify_('updateTrxTable');
-        obj.syncPropsMfahl_() ;
+        obj.syncPropsMovieFilesAllHaveLabels_() ;
         obj.notify_('updateFrameTableIncremental');
       end
       %obj.notify_('didSetLabels') ;
@@ -1673,7 +1673,7 @@ classdef Labeler < handle
       obj.labelsGT = v;
       if ~obj.isinit %#ok<MCSUP>
         obj.notify_('updateTrxTable');
-        obj.syncPropsMfahl_() ;
+        obj.syncPropsMovieFilesAllHaveLabels_() ;
         obj.notify_('updateFrameTableIncremental');
         obj.gtUpdateSuggMFTableLbledIncremental();
       end
@@ -1682,7 +1682,7 @@ classdef Labeler < handle
     function set.labelsRoi(obj,v)
       obj.labelsRoi = v;
       if ~obj.isinit %#ok<MCSUP>
-        obj.syncPropsMfahl_() ;
+        obj.syncPropsMovieFilesAllHaveLabels_() ;
         obj.notify_('updateFrameTableIncremental');
       end
     end
@@ -1690,7 +1690,7 @@ classdef Labeler < handle
     function set.labelsRoiGT(obj,v)
       obj.labelsRoiGT = v;
       if ~obj.isinit %#ok<MCSUP>
-        obj.syncPropsMfahl_() ;
+        obj.syncPropsMovieFilesAllHaveLabels_() ;
         obj.notify_('updateFrameTableIncremental');
       end
     end
@@ -2282,7 +2282,7 @@ classdef Labeler < handle
       
       obj.isinit = false;
       
-      obj.syncPropsMfahl_() ;
+      obj.syncPropsMovieFilesAllHaveLabels_() ;
       obj.notify_('updateFrameTableComplete');
       obj.labeledposNeedsSave = false;
       obj.doesNeedSave_ = false;
@@ -2687,7 +2687,7 @@ classdef Labeler < handle
       obj.doesNeedSave_ = false;
 %       obj.suspScore = obj.suspScore;
 
-      obj.syncPropsMfahl_() ;
+      obj.syncPropsMovieFilesAllHaveLabels_() ;
       obj.notify_('updateFrameTableComplete');
       
       if obj.currMovie>0
@@ -4801,7 +4801,7 @@ classdef Labeler < handle
       obj.notify_('newMovie', edata) ;
 
       % Sync the frame table and do an update
-      obj.syncPropsMfahl_() ;
+      obj.syncPropsMovieFilesAllHaveLabels_() ;
       obj.notify_('updateFrameTableComplete');
       
       % Proj/Movie/LblCore initialization can maybe be improved
@@ -4870,7 +4870,7 @@ classdef Labeler < handle
       obj.notify_('newMovie', edata) ;
 
       % Sync the frame table and do an update
-      obj.syncPropsMfahl_() ;
+      obj.syncPropsMovieFilesAllHaveLabels_() ;
       obj.notify_('updateFrameTableComplete');
 
       % Set state equivalent to obj.setFrameAndTarget();
@@ -6498,7 +6498,7 @@ classdef Labeler < handle
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LPOS){iMov}(iPt,1,frms,iTgt) = xy(1);
       obj.(PROPS.LPOS){iMov}(iPt,2,frms,iTgt) = xy(2);
-      obj.syncPropsMfahl_() ;
+      obj.syncPropsMovieFilesAllHaveLabels_() ;
       obj.notify_('updateFrameTableComplete'); % above sets mutate .labeledpos{obj.currMovie} in more than just .currFrame
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
@@ -6665,7 +6665,7 @@ classdef Labeler < handle
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LBL){iMov} = s;
 
-      obj.syncPropsMfahl_() ;
+      obj.syncPropsMovieFilesAllHaveLabels_() ;
       obj.notify_('updateFrameTableComplete');
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
@@ -6835,7 +6835,7 @@ classdef Labeler < handle
         end
       end
       obj.updateMovieFilesAllHaveLbls();
-      obj.syncPropsMfahl_() ;
+      obj.syncPropsMovieFilesAllHaveLabels_() ;
       obj.notify_('updateFrameTableComplete');
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
@@ -6881,7 +6881,7 @@ classdef Labeler < handle
       mIdx = MovieIndex(iMovs,obj.gtIsGTMode);
       obj.labelImportTrkGeneric(mIdx, trkfiles);
       obj.labelsSyncToNewFrame_(true);
-      obj.syncPropsMfahl_() ;
+      obj.syncPropsMovieFilesAllHaveLabels_() ;
       obj.notify_('updateFrameTableComplete');
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
@@ -8528,7 +8528,7 @@ classdef Labeler < handle
           IMOV = 1; % FUTURE: remember last/previous iMov in "other" gt mode
           obj.movieSet(IMOV);
         end
-        obj.syncPropsMfahl_() ;
+        obj.syncPropsMovieFilesAllHaveLabels_() ;
         obj.notify_('updateFrameTableComplete');
         obj.notify_('gtIsGTModeChanged');
       end
@@ -13853,7 +13853,7 @@ classdef Labeler < handle
       nop() ;
     end  % function
 
-    function syncPropsMfahl_(obj)
+    function syncPropsMovieFilesAllHaveLabels_(obj)
       [nTgts,nPts,nRois] = obj.labelPosLabeledFramesStats();
       tfFrm = nTgts>0 | nPts>0 | nRois>0;
 
