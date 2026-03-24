@@ -4763,8 +4763,13 @@ classdef Labeler < handle
       % obj.notify_('updateTimelineSelection');
       
       % If a tracker is present, instruct it to sync itself to the new state,
-      % with the new current movie.
+      % with the new current movie.  Notifications are disabled during this
+      % call because the tracker may mutate model state that would otherwise
+      % fire premature update events.
+      obj.disableNotifications_() ;
+      cleaner = onCleanup(@() obj.enableNotificationsMaybe_()) ;
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
+      delete(cleaner) ;
 
       edata = NewMovieEventData(isFirstMovie);
       obj.notify_('newMovie', edata) ;
@@ -4822,8 +4827,13 @@ classdef Labeler < handle
       % obj.notify_('updateTimelineSelection');
 
       % If a tracker is present, instruct it to sync itself to the new state,
-      % with no movie current.
+      % with no movie current.  Notifications are disabled during this call
+      % because the tracker may mutate model state that would otherwise fire
+      % premature update events.
+      obj.disableNotifications_() ;
+      cleaner = onCleanup(@() obj.enableNotificationsMaybe_()) ;
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
+      delete(cleaner) ;
 
       edata = NewMovieEventData(false);
       obj.notify_('newMovie', edata) ;
