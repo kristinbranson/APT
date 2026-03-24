@@ -4763,9 +4763,6 @@ classdef Labeler < handle
 
       % needs to be done after trx are set in case we're in TEMPLATE mode
       obj.labelingInit_();
-
-      % Sync the "Uncertain Frames" data to reflect the changed movie
-      obj.uncertainFramesModel_.syncFromPredictions() ;
       
       % If this is the first movie loaded, do gamma correction
       if isFirstMovie
@@ -4788,18 +4785,25 @@ classdef Labeler < handle
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
       delete(cleaner) ;
 
+      % Sync the "Uncertain Frames" data to reflect the changed movie
+      % This need to run after the tracker is synched b/c it needs to use the
+      % tracker predictions.
+      obj.uncertainFramesModel_.syncFromPredictions() ;
+      
+      % Notify the controller that the movie has been changed      
       edata = NewMovieEventData(isFirstMovie);
       obj.notify_('newMovie', edata) ;
 
+      % Sync the frame table and do an update
       obj.syncPropsMfahl_() ;
       obj.notify_('updateFrameTableComplete');
       
       % Proj/Movie/LblCore initialization can maybe be improved
       % Call setFrame again now that lblCore is set up
       if obj.hasTrx
-        obj.setFrameAndTarget(obj.currTrx.firstframe,obj.currTarget,true);
+        obj.setFrameAndTarget(obj.currTrx.firstframe, obj.currTarget, true);
       else
-        obj.setFrameAndTarget(1,1,true);
+        obj.setFrameAndTarget(1, 1, true);
       end            
     end  % function
     
@@ -4832,9 +4836,6 @@ classdef Labeler < handle
       % Init the LabelCore
       obj.labelingInit_();
 
-      % Sync the "Uncertain Frames" data to reflect the changed movie
-      obj.uncertainFramesModel_.syncFromPredictions() ;
-
       % Set up the timeline axes for the lack of a movie
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
       obj.notify_('updateTimeline');
@@ -4852,8 +4853,16 @@ classdef Labeler < handle
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
       delete(cleaner) ;
 
+      % Sync the "Uncertain Frames" data to reflect the changed movie
+      % This need to run after the tracker is synched b/c it needs to use the
+      % tracker predictions.
+      obj.uncertainFramesModel_.syncFromPredictions() ;
+
+      % Notify the controller that the movie has been changed      
       edata = NewMovieEventData(false);
       obj.notify_('newMovie', edata) ;
+
+      % Sync the frame table and do an update
       obj.syncPropsMfahl_() ;
       obj.notify_('updateFrameTableComplete');
 
