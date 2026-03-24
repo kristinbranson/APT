@@ -1911,7 +1911,6 @@ classdef Labeler < handle
       obj.currIm = cell(obj.nview,1);
       obj.currImRoi = cell(obj.nview,1);
       obj.currImHudModel = AxisHUDModel() ;
-      %obj.movieSetNoMovie();
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
@@ -2268,7 +2267,7 @@ classdef Labeler < handle
       obj.viewCalibrationDataGT = [];
       obj.labelTemplate = []; % order important here
       obj.gtIsGTMode = false;
-      obj.movieSetNoMovie(); % order important here      
+      obj.movieSetNoMovie_(); % order important here      
       obj.labels = cell(0,1);
       obj.labelsGT = cell(0,1);
       obj.labelsRoi = cell(0,1);
@@ -2460,7 +2459,7 @@ classdef Labeler < handle
       starttime = tic();
       
       [nomovie, replace_path] = myparse(varargin,...
-        'nomovie',false, ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
+        'nomovie',false, ... % If true, set Labeler to the weird "no current movie" state
         'replace_path',{'',''} ...
         );
       if isempty(replace_path) ,
@@ -2656,13 +2655,13 @@ classdef Labeler < handle
 
       t0 = tic;
       if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
-        obj.movieSetNoMovie();
+        obj.movieSetNoMovie_();
       else
         [tfok,badfile] = obj.movieCheckFilesExist(s.currMovie,s.gtIsGTMode);
         if ~tfok
           currMovInfo.iMov = s.currMovie;
           currMovInfo.badfile = badfile;
-          obj.movieSetNoMovie();
+          obj.movieSetNoMovie_();
         else
           obj.movieSet(s.currMovie);
           [tfok] = obj.checkFrameAndTargetInBounds(s.currFrame,s.currTarget);
@@ -4358,9 +4357,13 @@ classdef Labeler < handle
       assert(isscalar(iMov));
 
       nMovOrig = obj.getnmoviesGTawareArg(gt);
-      assert(any(iMov==1:nMovOrig),'Invalid movie index ''%d''.',iMov);
+      assert(any(iMov==1:nMovOrig), 'Invalid movie index ''%d''.', iMov);
       if iMov==obj.currMovie
-        error('Labeler:movieRm','Cannot remove current movie.');
+        if nMovOrig == 1
+          obj.movieSetNoMovie_() ;
+        else
+          error('Labeler:movieRm', 'Cannot remove current movie.') ;
+        end
       end
 
       % haslbls1 = obj.labelPosMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
@@ -4441,9 +4444,12 @@ classdef Labeler < handle
     function movieRmAll(obj)
       % Remove all movies without GUI prompts.
       nmov = obj.nmoviesGTaware ;
-      obj.movieSetNoMovie() ;
-      for imov=1:nmov
-        obj.movieRm(1) ;
+      if nmov==0
+        return
+      end
+      obj.movieSetNoMovie_() ;
+      for imov=nmov:-1:1
+        obj.movieRm(imov) ;
       end
     end
     
@@ -4816,9 +4822,10 @@ classdef Labeler < handle
       tfsuccess = obj.movieSet(iMov,varargin{:});
     end
     
-    function movieSetNoMovie(obj, varargin)
+    function movieSetNoMovie_(obj, varargin)
       % Set the Labeler to the state where no movie is the current movie.  This
-      % sets .currMov to 0.
+      % sets .currMov to 0.  This is useful e.g. when we are about to delete all
+      % the movies.
               
       for i=1:obj.nview
         obj.movieReader(i).close();
@@ -8516,7 +8523,7 @@ classdef Labeler < handle
         obj.gtIsGTMode = tf;
         nMov = obj.nmoviesGTaware;
         if nMov==0
-          obj.movieSetNoMovie();
+          obj.movieSetNoMovie_();
         else
           IMOV = 1; % FUTURE: remember last/previous iMov in "other" gt mode
           obj.movieSet(IMOV);

@@ -4994,9 +4994,12 @@ classdef LabelerController < handle
       % Remove all movies, prompting user if movies have labels.
       labeler = obj.labeler_ ;
       nmov = labeler.nmoviesGTaware ;
-      labeler.movieSetNoMovie() ;
-      for imov=1:nmov
-        obj.movieRmGUI(1, 'force', true) ;
+      if nmov==0
+        return
+      end
+      labeler.movieSet(1) ;
+      for imov = nmov:-1:1
+        obj.movieRmGUI(imov, 'force', true) ;
       end
     end
 
