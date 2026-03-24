@@ -104,8 +104,7 @@ classdef Labeler < handle
     updateDoesNeedSave
     updateStatusAndPointer
     didSetTrx
-    updateTrxSetShowTrue
-    updateTrxSetShowFalse
+    updateTrxVisibility
     updateTrxTable
     updateFrameTableIncremental
     updateFrameTableComplete
@@ -5856,7 +5855,7 @@ classdef Labeler < handle
     function setShowTrx(obj,tf)
       assert(isscalar(tf) && islogical(tf));
       obj.showTrx = tf;
-      obj.fireUpdateTrxSetShowTrueMaybe_();
+      obj.fireUpdateTrxVisibilityMaybe_();
     end
 
     function setShowOccludedBox(obj,tf)
@@ -5867,7 +5866,7 @@ classdef Labeler < handle
     function setShowTrxCurrTargetOnly(obj,tf)
       assert(isscalar(tf) && islogical(tf));
       obj.showTrxCurrTargetOnly = tf;
-      obj.fireUpdateTrxSetShowTrueMaybe_();
+      obj.fireUpdateTrxVisibilityMaybe_();
     end
     
     % function setShowTrxIDLbl(obj,tf)
@@ -5876,7 +5875,7 @@ classdef Labeler < handle
     %   obj.fireUpdateTrxSetShowTrueMaybe_();
     % end
     
-    function fireUpdateTrxSetShowTrueMaybe_(obj)
+    function fireUpdateTrxVisibilityMaybe_(obj)
       if obj.maIsMA
         % Consdider/todo: update showtrx/traj for MA        
         % tv = obj.labeledpos2trkViz.      
@@ -5887,7 +5886,7 @@ classdef Labeler < handle
         % flag controlling display of trx/traj; tv.tvtrx would only show
         % viz when both tfHideViz==false and tfShowTraj==true.
       elseif obj.hasTrx
-        obj.notify_('updateTrxSetShowTrue') ;
+        obj.notify_('updateTrxVisibility') ;
       end
     end
             
@@ -12109,7 +12108,7 @@ classdef Labeler < handle
       end
       
       if updateTrajs
-        obj.notify_('updateTrxSetShowFalse') ;
+        obj.notify_('updateTrxVisibility') ;
       end
       
       if debugtiming,
@@ -12154,7 +12153,7 @@ classdef Labeler < handle
       end
 %       obj.updateCurrSusp();
       if obj.hasTrx
-        obj.fireUpdateTrxSetShowTrueMaybe_();
+        obj.fireUpdateTrxVisibilityMaybe_();
       end
     end
     
@@ -12199,7 +12198,7 @@ classdef Labeler < handle
       if ~obj.isinit
         obj.labelsSyncToNewFrameAndTarget_(obj.prevFrame,prevTarget);
         obj.notify_('updateTrxTable');
-        obj.fireUpdateTrxSetShowTrueMaybe_();  % All this does is send a notification, and only in some cases
+        obj.fireUpdateTrxVisibilityMaybe_();  % All this does is send a notification, and only in some cases
       end
 
       obj.notify_('updatePrevPanelAfterFrameChange') ;

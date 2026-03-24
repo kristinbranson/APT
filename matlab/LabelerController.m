@@ -398,9 +398,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didSetTrx', @(source,event)(obj.didSetTrx(source, event))) ;      
       obj.listeners_(end+1) = ...
-        addlistener(labeler, 'updateTrxSetShowTrue', @(source,event)(obj.updateTrxSetShowTrue(source, event))) ;      
-      obj.listeners_(end+1) = ...
-        addlistener(labeler, 'updateTrxSetShowFalse', @(source,event)(obj.updateTrxSetShowFalse(source, event))) ;
+        addlistener(labeler, 'updateTrxVisibility', @(source,event)(obj.updateTrxVisibility(source, event))) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxTable', @(s,e)(obj.updateTrxTable())) ;
       obj.listeners_(end+1) = ...
@@ -847,19 +845,7 @@ classdef LabelerController < handle
       end
     end
 
-    function updateTrxSetShowTrue(obj, ~, ~)
-      % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
-      labeler = obj.labeler_ ;
-      if ~labeler.hasTrx,
-        return
-      end           
-      tfShow = labeler.which_trx_are_showing() ;      
-      tv = obj.tvTrx_ ;
-      tv.setShow(tfShow);
-      tv.updateTrx(tfShow);
-    end
-    
-    function updateTrxSetShowFalse(obj, ~, ~)
+    function updateTrxVisibility(obj, ~, ~)
       % Update .hTrx, .hTraj based on .trx, .showTrx*, .currFrame
       labeler = obj.labeler_ ;
       if ~labeler.hasTrx,
