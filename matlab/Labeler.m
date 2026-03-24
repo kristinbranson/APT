@@ -13503,6 +13503,7 @@ classdef Labeler < handle
       tracker = obj.tracker ;
       if ~isempty(tracker)
         tracker.clearTrackingResults() ;
+        obj.notify_('updateTimeline') ;
         obj.setDoesNeedSave(true, 'Cleared tracking results') ;
       end
     end  % function    
