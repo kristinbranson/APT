@@ -1758,8 +1758,7 @@ classdef LabelerController < handle
       obj.updateTimelinePopupMenus() ;
       obj.updateTimelineSelection() ;
 
-      set(obj.pbClear,'Enable',onIff(hasProject));
-      set(obj.tbAccept,'Enable',onIff(hasProject));
+      obj.updateBigButtonBlock() ;
       set(obj.pbRecallZoom,'Enable',onIff(hasProject));
       set(obj.pbSetZoom,'Enable',onIff(hasProject));
       set(obj.pbResetZoom,'Enable',onIff(hasProject));
@@ -1773,9 +1772,19 @@ classdef LabelerController < handle
       set(obj.pushbutton_freezetemplate,'Enable',onIff(hasProject));
       %set(obj.toolbar,'Visible',onIff(hasProject)) ;
       
-      obj.pbTrain.Enable = onIff(hasTracker);
-      obj.pbTrack.Enable = onIff(hasTracker);
       obj.pumTrack.Enable = onIff(hasTracker) ;
+    end  % function
+
+    function updateBigButtonBlock(obj)
+      % Update the Enable property of the four big buttons (Train, Track, Clear, Accept).
+      labeler = obj.labeler_ ;
+      hasMovie = labeler.hasMovie ;
+      hasTracker = ~isempty(labeler.tracker) ;
+      isReady = labeler.isReady ;
+      set(obj.pbClear, 'Enable', onIff(hasMovie)) ;
+      set(obj.tbAccept, 'Enable', onIff(hasMovie)) ;
+      obj.pbTrain.Enable = onIff(hasTracker && isReady) ;
+      obj.pbTrack.Enable = onIff(hasTracker && isReady) ;
     end  % function
 
     function update_text_trackerinfo(obj)
@@ -2883,19 +2892,14 @@ classdef LabelerController < handle
       % Update the controls that need to be updated after the current tracker
       % changes.
 
-      % Get the objects we need to mess with
       labeler = obj.labeler_ ;
       if labeler.isinit ,
         return
-      end 
-      tracker = labeler.tracker ;
+      end
 
       % Enable/disable controls that depend on whether a tracker is available
-      tfTracker = ~isempty(tracker) ;
-      onOrOff = onIff(tfTracker && labeler.isReady) ;
       obj.updateTrackerMenu() ;
-      obj.pbTrain.Enable = onOrOff;
-      obj.pbTrack.Enable = onOrOff;
+      obj.updateBigButtonBlock() ;
       obj.updateViewMenu() ;
 
       % Update the InfoTimelineController
