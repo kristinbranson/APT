@@ -115,12 +115,12 @@ classdef UncertainFramesController < handle
       obj.model_.isVisible = false ;
     end  % function
 
-    function confidenceLackThereofToggled_(obj, src)
+    function uncertain_frames_confidence_lack_thereof_checkbox_actuated_(obj, src)
       % Handle checkbox toggle for confidence-is-lack-thereof.
       obj.model_.isConfidenceLackThereof = logical(src.Value) ;
     end  % function
 
-    function thresholdChanged_(obj, src)
+    function uncertain_frames_threshold_edit_actuated_(obj, src)
       % Handle threshold edit box change.
       newValue = str2double(src.String) ;
       if isfinite(newValue) && newValue >= 0

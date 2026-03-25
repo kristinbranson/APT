@@ -3687,13 +3687,13 @@ classdef LabelerController < handle
     function uncertain_frames_confidence_lack_thereof_checkbox_actuated_(obj, src, evt)  %#ok<INUSD>
       % Toggle whether confidence is treated as lack-of-confidence.
       ufc = obj.uncertainFramesController_ ;
-      ufc.confidenceLackThereofToggled_(src) ;
+      ufc.uncertain_frames_confidence_lack_thereof_checkbox_actuated_(src) ;
     end  % function
 
     function uncertain_frames_threshold_edit_actuated_(obj, src, evt)  %#ok<INUSD>
       % Handle threshold edit box change.
       ufc = obj.uncertainFramesController_ ;
-      ufc.thresholdChanged_(src) ;
+      ufc.uncertain_frames_threshold_edit_actuated_(src) ;
     end  % function
 
     function uncertain_frames_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
