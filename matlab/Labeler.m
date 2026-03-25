@@ -181,6 +181,7 @@ classdef Labeler < handle
     updateTimelineStatThresh
     updateTimelineTraces
     updateTimelineLandmarkColors
+    didSetLandmarkLabelColors
     updateCurrImagesAllViews
     updatePrevPanelAfterFrameChange
     updatePrevAxesLabels
@@ -210,7 +211,7 @@ classdef Labeler < handle
                       % LabelerController should create/destroy the TV
     didSetSelectedTracklet  % fired when trkVizer.currTrklet changes
     updatePredictionCosmetics
-    updatePredictionColors
+    didSetLandmarkPredictionColors
     updatePredictionSkeletonCosmetics
     updateAxesCLim
     downdateViewConfig
@@ -7487,8 +7488,14 @@ classdef Labeler < handle
       for i=1:numel(colorSpecs)
         cs = colorSpecs(i);
         lsetType = cs.landmarkSetType;
-        lObjUpdateMeth = lsetType.updateColorLabelerMethod();
-        obj.(lObjUpdateMeth)(cs.colors,cs.colormapname);
+        switch lsetType
+          case LandmarkSetType.Label
+            obj.setLandmarkLabelColors(cs.colors,cs.colormapname);
+          case LandmarkSetType.Prediction
+            obj.setLandmarkPredictionColors(cs.colors,cs.colormapname);
+          otherwise
+            error('Unhandled LandmarkSetType') ;
+        end
       end
     end
     
@@ -7496,8 +7503,14 @@ classdef Labeler < handle
       for i=1:numel(mrkrSpecs)
         ms = mrkrSpecs(i);
         lsetType = ms.landmarkSetType;
-        lObjUpdateMeth = lsetType.updateCosmeticsLabelerMethod();
-        obj.(lObjUpdateMeth)(ms.MarkerProps,ms.TextProps,ms.TextOffset);
+        switch lsetType
+          case LandmarkSetType.Label
+            obj.setLandmarkLabelCosmetics(ms.MarkerProps,ms.TextProps,ms.TextOffset);
+          case LandmarkSetType.Prediction
+            obj.setLandmarkPredictionCosmetics(ms.MarkerProps,ms.TextProps,ms.TextOffset);
+          otherwise
+            error('Unhandled LandmarkSetType') ;
+        end
       end
     end
     
@@ -7521,32 +7534,27 @@ classdef Labeler < handle
       end          
     end
     
-    % function updateLandmarkLabelColors(obj,colors,colormapname)
-    %   % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
-    %   % colors: "setwise" colors
-    % 
-    %   szassert(colors,[obj.nPhysPoints 3]);
-    %   lc = obj.lblCore;
-    %   % Colors apply to lblCore, lblPrev_*, timeline
-    % 
-    %   obj.labelPointsPlotInfo.ColorMapName = colormapname;
-    %   obj.labelPointsPlotInfo.Colors = colors;
-    %   ptcolors = obj.mapSetColorsToPointColors(colors);
-    %   lc.updateColors(ptcolors);
-    %   LabelCore.setPtsColor(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH,ptcolors);
-    %   obj.notify_('updateTimelineLandmarkColors');
-    % end
+    function setLandmarkLabelColors(obj,colors,colormapname)
+      szassert(colors,[obj.nPhysPoints 3]);
+      lc = obj.lblCore;
+      % Colors apply to lblCore, lblPrev_*, timeline
+
+      obj.labelPointsPlotInfo.ColorMapName = colormapname;
+      obj.labelPointsPlotInfo.Colors = colors;
+      ptcolors = obj.mapSetColorsToPointColors(colors);
+      lc.setColors(ptcolors);
+      % LabelCore.setPtsColor(obj.lblPrev_ptsH, obj.lblPrev_ptsTxtH, ptcolors) ;
+      obj.notify_('didSetLandmarkLabelColors');
+    end
     
     function setLandmarkPredictionColors(obj,colors,colormapname)
-      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
-      
       % colors: "setwise" colors
       szassert(colors,[obj.nPhysPoints 3]);
       
       obj.predPointsPlotInfo.Colors = colors;
       obj.predPointsPlotInfo.ColorMapName = colormapname;
       cellfun(@(t)(t.updateLandmarkColors()), obj.trackerHistory_ ) ;
-      obj.notify_('updatePredictionColors') ;
+      obj.notify_('didSetLandmarkPredictionColors') ;
     end
     
     function setLandmarkLabelCosmetics(obj, pvMarker, pvText, textOffset)
@@ -7558,8 +7566,6 @@ classdef Labeler < handle
     end
 
     function setLandmarkPredictionCosmetics(obj, pvMarker, pvText, textOffset)
-      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
-
       % Set PVs on .predPointsPlotInfo; mild massage
       fns = fieldnames(pvMarker);
       for f=fns(:)',f=f{1}; %#ok<FXSET>

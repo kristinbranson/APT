@@ -270,7 +270,7 @@ cs.setTFManual(true);
 updateColorsPane(handles);
 
 function pushbutton_manual_Callback(hObject, eventdata, handles, landmarki)
-fprintf('Landmark %d\n',landmarki);
+% fprintf('Landmark %d\n',landmarki);
 cs = handles.colorSpecs;
 iCS = handles.pumShowing.Value;
 cs = cs(iCS);

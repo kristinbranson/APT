@@ -542,7 +542,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'updateTimelineTraces',@(s,e)(obj.updateTimelineTraces())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateTimelineLandmarkColors',@(s,e)(obj.updateTimelineLandmarkColors())) ;
-
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'didSetLandmarkLabelColors',@(s,e)(obj.didSetLandmarkLabelColors())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.slider_frame,'ContinuousValueChange',@(s,e)(obj.controlActuated('slider_frame', s, e))) ;
       obj.listeners_(end+1) = ...
@@ -567,7 +568,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updatePredictionCosmetics', @(s,e)(obj.updatePredictionCosmetics())) ;
       obj.listeners_(end+1) = ...
-        addlistener(labeler, 'updatePredictionColors', @(s,e)(obj.updatePredictionColors())) ;
+        addlistener(labeler, 'didSetLandmarkPredictionColors', @(s,e)(obj.didSetLandmarkPredictionColors())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updatePredictionSkeletonCosmetics', @(s,e)(obj.updatePredictionSkeletonCosmetics())) ;
       obj.listeners_(end+1) = ...
@@ -4283,6 +4284,11 @@ classdef LabelerController < handle
       obj.labelTLInfo_.updateTraces();
     end
 
+    function didSetLandmarkLabelColors(obj)
+      % Do the necessary updates after setting of the landmark label colors.
+      obj.labelTLInfo_.updateLandmarkColors();
+    end
+
     function updateTimelineLandmarkColors(obj)
       % Update the timeline landmark colors.
       obj.labelTLInfo_.updateLandmarkColors();
@@ -6578,14 +6584,16 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function updatePredictionColors(obj)
+    function didSetLandmarkPredictionColors(obj)
       % Update the prediction TV landmark colors from model state.
+      % fprintf('Inside didSetLandmarkPredictionColors()\n')
       tv = obj.tvTrkPred_ ;
       if ~isempty(tv)
         labeler = obj.labeler_ ;
         ptsClrs = labeler.mapSetColorsToPointColors(labeler.predPointsPlotInfo.Colors) ;
         tv.updateLandmarkColors(ptsClrs) ;
       end
+      obj.updateTimelineLandmarkColors() ;
     end  % function
 
     function updatePredictionSkeletonCosmetics(obj)

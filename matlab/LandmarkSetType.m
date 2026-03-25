@@ -11,11 +11,11 @@ classdef LandmarkSetType
     function obj = LandmarkSetType(lprop)
       obj.labelerPropPlotInfo = lprop;
     end
-    function meth = updateColorLabelerMethod(obj)
-      meth = sprintf('updateLandmark%sColors',char(obj));
-    end
-    function meth = updateCosmeticsLabelerMethod(obj)
-      meth = sprintf('updateLandmark%sCosmetics',char(obj));
-    end
+    % function meth = updateColorLabelerMethod(obj)
+    %   meth = sprintf('setLandmark%sColors',char(obj));
+    % end
+    % function meth = updateCosmeticsLabelerMethod(obj)
+    %   meth = sprintf('setLandmark%sCosmetics',char(obj));
+    % end
   end
 end
