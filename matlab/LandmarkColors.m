@@ -76,9 +76,12 @@ sPropsMrkr = cellfun(@(x)structrestrictflds(x,FLDS),ppiAll);
 % Color State
 % This state is maintained in handles.colorSpecs. What is shown in the
 % Colors pane is per pumShowing.
-handles.colorSpecs = cellfun(@(x1,x2,x3)LandmarkColorSpec(x1,x2,x3),...
-  lsetTypesCell,...
-  repmat({lObj.nPhysPoints},3,1),ppiAll);
+lsetTypesCellCount = numel(lsetTypesCell) ;
+handles.colorSpecs = ...
+  cellfun(@(x1,x2,x3)LandmarkColorSpec(x1,x2,x3), ...
+          lsetTypesCell, ...
+          repmat({lObj.nPhysPoints},lsetTypesCellCount,1), ...
+          ppiAll) ;
 % Skel State
 FLDS = {'SkeletonProps'};
 sPropsSkel = cellfun(@(x)structrestrictflds(x,FLDS),ppiAll);
@@ -341,7 +344,7 @@ function s = MarkerControlsGet(handles)
 % Els of s labeled by lbl, pred, imp
 
 uitbl = handles.tblProps;
-assert(isequal(uitbl.RowName,{'Label' 'Prediction' 'Imported'}'));
+assert(isequal(uitbl.RowName,{'Label', 'Prediction'}'));
 
 uitblColumnNameSanitized = regexprep(uitbl.ColumnName,' ','_'); % for eg ML19a
 t = cell2table(uitbl.Data,'VariableNames',uitblColumnNameSanitized);
