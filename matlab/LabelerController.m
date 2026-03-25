@@ -3704,7 +3704,7 @@ classdef LabelerController < handle
         return
       end
       selectedIndex = src.Value ;
-      [frm, iTgt] = model.frameAndTragletIndexFromPairIndex(selectedIndex) ;
+      [frm, ~, iTgt] = model.frameTrackletAndTargetIndexFromBoutIndex(selectedIndex) ;
       labeler.setFrameAndTarget(frm, iTgt) ;
     end  % function
 

@@ -1,24 +1,26 @@
 classdef UncertainFramesModel < handle
-  % Holds computed data about frames with low tracker confidence for the
-  % current movie.
+  % Holds computed data about bouts of frames with low tracker confidence
+  % for the current movie.
 
   properties (Access=private)
     isConfidenceLackThereof_ = false
-      % scalar logical, when true the UI finds high-confidence pairs instead of
-      % low-confidence pairs.
+      % scalar logical, when true the UI finds high-confidence bouts instead of
+      % low-confidence bouts.
     confidenceThreshold_ = 1
-      % scalar double, the threshold for filtering frame-target pairs.
+      % scalar double, the threshold for filtering bouts.
   end
-  
+
   properties (Transient, Access=private)
     labeler_  % back-reference to Labeler (Transient in spirit)
-    frameIndexFromPairIndex_  % [N x 1] frame numbers
-    tragletIndexFromPairIndex_  % [N x 1] traglet indices (into TrkFile)
-    targetIndexFromPairIndex_  % [N x 1] target indices (for navigation)
-    extremeConfidenceFromPairIndex_  % [N x 1] min- or max-confidence values
-    overallMinConfidence_ = nan  % scalar double, min of allMinConf across all pairs
-    overallMaxConfidence_ = nan  % scalar double, max of allMaxConf across all pairs
-    isLaden_ = false  % scalar logical, true if there is anything to show
+    startFrameFromBoutIndex_  % [N x 1] first frame of each bout
+    endFrameFromBoutIndex_  % [N x 1] last frame of each bout
+    extremeFrameFromBoutIndex_  % [N x 1] frame with min/max confidence in each bout
+    trackletIndexFromBoutIndex_  % [N x 1] tracklet indices (into TrkFile)
+    targetIndexFromBoutIndex_  % [N x 1] target indices (for navigation)
+    extremeConfidenceFromBoutIndex_  % [N x 1] min- or max-confidence values per bout
+    overallMinConfidence_ = nan  % scalar double, min of allMinConf across all frames
+    overallMaxConfidence_ = nan  % scalar double, max of allMaxConf across all frames
+    % isLaden_ = false  % scalar logical, true if there is anything to show
     isVisible_ = false  % scalar logical, whether the UFC figure is visible
     isFresh_ = false
       % scalar logical, whether the data in this object is up-to-date with the
@@ -43,15 +45,17 @@ classdef UncertainFramesModel < handle
       % Construct an UncertainFramesModel with a back-reference to the
       % given Labeler.
       obj.labeler_ = labeler ;
-      obj.frameIndexFromPairIndex_ = zeros(0, 1) ;
-      obj.tragletIndexFromPairIndex_ = zeros(0, 1) ;
-      obj.targetIndexFromPairIndex_ = zeros(0, 1) ;
-      obj.extremeConfidenceFromPairIndex_ = zeros(0, 1) ;
+      obj.startFrameFromBoutIndex_ = zeros(0, 1) ;
+      obj.endFrameFromBoutIndex_ = zeros(0, 1) ;
+      obj.extremeFrameFromBoutIndex_ = zeros(0, 1) ;
+      obj.trackletIndexFromBoutIndex_ = zeros(0, 1) ;
+      obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
+      obj.extremeConfidenceFromBoutIndex_ = zeros(0, 1) ;
     end  % function
 
     function result = get.isLaden(obj)
       % Return whether there is anything to show.
-      result = obj.isLaden_ ;
+      result = ~isempty(obj.extremeConfidenceFromBoutIndex_) ;
     end  % function
 
     function result = get.isVisible(obj)
@@ -93,60 +97,68 @@ classdef UncertainFramesModel < handle
     end  % function
 
     function result = get.overallMinConfidence(obj)
-      % Return the min of per-frame min-confidence across all pairs.
+      % Return the min of per-frame min-confidence across all frames.
       result = obj.overallMinConfidence_ ;
     end  % function
 
     function result = get.overallMaxConfidence(obj)
-      % Return the max of per-frame max-confidence across all pairs.
+      % Return the max of per-frame max-confidence across all frames.
       result = obj.overallMaxConfidence_ ;
     end  % function
 
     function syncFromPredictions(obj)
+      % Force a resync from the current tracking predictions.
       obj.isFresh_ = false ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
-      obj.labeler_.notify_('updateUncertainFrames') ;            
+      obj.labeler_.notify_('updateUncertainFrames') ;
     end
 
     function result = get.listboxString(obj)
       % Return a cellstr suitable for display in a listbox.
-      if ~obj.isLaden_
+      if ~obj.isLaden
         result = {} ;
         return
       end
-      nPairs = numel(obj.frameIndexFromPairIndex_) ;
-      result = cell(nPairs, 1) ;
+      nBouts = numel(obj.startFrameFromBoutIndex_) ;
+      result = cell(nBouts, 1) ;
       isMultiTarget = obj.labeler_.hasTrx || obj.labeler_.maIsMA ;
-      for iPair = 1 : nPairs
-        frm = obj.frameIndexFromPairIndex_(iPair) ;
-        conf = obj.extremeConfidenceFromPairIndex_(iPair) ;
+      for iBout = 1 : nBouts
+        startFrm = obj.startFrameFromBoutIndex_(iBout) ;
+        endFrm = obj.endFrameFromBoutIndex_(iBout) ;
+        conf = obj.extremeConfidenceFromBoutIndex_(iBout) ;
+        isSingleFrame = (startFrm == endFrm) ;
         if isMultiTarget
-          tgt = obj.targetIndexFromPairIndex_(iPair) ;
-          result{iPair} = sprintf('Frm %d  Tgt %d  Conf %.3f', frm, tgt, conf) ;
+          tgt = obj.targetIndexFromBoutIndex_(iBout) ;
+          if isSingleFrame
+            result{iBout} = sprintf('Frm %d  Tgt %d  Conf %.3f', startFrm, tgt, conf) ;
+          else
+            result{iBout} = sprintf('Frm %d-%d  Tgt %d  Conf %.3f', startFrm, endFrm, tgt, conf) ;
+          end
         else
-          result{iPair} = sprintf('Frm %d  Conf %.3f', frm, conf) ;
+          if isSingleFrame
+            result{iBout} = sprintf('Frm %d  Conf %.3f', startFrm, conf) ;
+          else
+            result{iBout} = sprintf('Frm %d-%d  Conf %.3f', startFrm, endFrm, conf) ;
+          end
         end
       end
     end  % function
 
-    function [frameIndex, tragletIndex] = frameAndTragletIndexFromPairIndex(obj, pairIndex)
-      frameIndex = obj.frameIndexFromPairIndex_(pairIndex) ;
-      tragletIndex = obj.tragletIndexFromPairIndex_(pairIndex) ;
+    function [frameIndex, trackletIndex, targetIndex] = frameTrackletAndTargetIndexFromBoutIndex(obj, boutIndex)
+      % Return the extreme-confidence frame and tracklet index for the given bout.
+      frameIndex = obj.extremeFrameFromBoutIndex_(boutIndex) ;
+      trackletIndex = obj.trackletIndexFromBoutIndex_(boutIndex) ;
+      targetIndex = obj.targetIndexFromBoutIndex_(boutIndex) ;
     end  % function
   end  % methods
 
   methods (Access=private)
     function syncFromPredictionsIfStaleAndVisible_(obj)
-      % Compute the most uncertain frame-traglet pairs from the current
-      % movie's tracking results.
+      % Compute bouts of uncertain frames from the current movie's
+      % tracking results.
       if ~obj.isVisible_ || obj.isFresh_
         return
       end
-
-      % Reset overall extremes.  They will be set to real values below if
-      % tracking data is available.
-      obj.overallMinConfidence_ = nan ;
-      obj.overallMaxConfidence_ = nan ;
 
       labeler = obj.labeler_ ;
 
@@ -172,95 +184,27 @@ classdef UncertainFramesModel < handle
         return
       end
 
-      allFrames = [] ;
-      allTraglets = [] ;
-      allTargets = [] ;
-      allMinConf = [] ;
-      allMaxConf = [] ;
-
-      nTraglets = trkFile.ntracklets ;
-      for iTlt = 1 : nTraglets
-        [xy, ~, fr, aux] = trkFile.getPTrkTgt(iTlt, 'auxflds', {'pTrkConf'}) ;
-        if isempty(xy) || isempty(aux)
-          continue
-        end
-        % aux is [npt x numfrm x 1 x 1]
-        confPerPointAndFrame = squeeze(aux) ;  % [npt x numfrm] or [numfrm] if npt==1
-        if isvector(confPerPointAndFrame)
-          confPerPointAndFrame = confPerPointAndFrame(:)' ;  % ensure [1 x numfrm]
-        end
-        minConfPerFrame = min(confPerPointAndFrame, [], 1) ;  % [1 x numfrm]
-        minConfPerFrame = minConfPerFrame(:) ;  % [numfrm x 1]
-        maxConfPerFrame = max(confPerPointAndFrame, [], 1) ;  % [1 x numfrm]
-        maxConfPerFrame = maxConfPerFrame(:) ;  % [numfrm x 1]
-        fr = fr(:) ;  % [numfrm x 1]
-
-        % Filter out NaN confidence frames
-        isFinite = isfinite(minConfPerFrame) ;
-        fr = fr(isFinite) ;
-        minConfPerFrame = minConfPerFrame(isFinite) ;
-        maxConfPerFrame = maxConfPerFrame(isFinite) ;
-        if isempty(fr)
-          continue
-        end
-
-        targetIndex = trkFile.pTrkiTgt(iTlt) ;
-
-        nFrames = numel(fr) ;
-        allFrames = [allFrames ; fr] ;  %#ok<AGROW>
-        allTraglets = [allTraglets ; repmat(iTlt, nFrames, 1)] ;  %#ok<AGROW>
-        allTargets = [allTargets ; repmat(targetIndex, nFrames, 1)] ;  %#ok<AGROW>
-        allMinConf = [allMinConf ; minConfPerFrame] ;  %#ok<AGROW>
-        allMaxConf = [allMaxConf ; maxConfPerFrame] ;  %#ok<AGROW>
-      end
-
-      if isempty(allFrames)
-        obj.clear_() ;
-        return
-      end
-
-      % Record overall extremes before filtering
-      obj.overallMinConfidence_ = min(allMinConf) ;
-      obj.overallMaxConfidence_ = max(allMaxConf) ;
-
-      % Filter by threshold and sort
-      threshold = obj.confidenceThreshold_ ;
-      if obj.isConfidenceLackThereof_
-        isKept = (allMaxConf >= threshold) ;
-        keepIndices = find(isKept) ;
-        [~, sortOrder] = sort(allMaxConf(keepIndices), 'descend') ;
-        keepIndices = keepIndices(sortOrder) ;
-      else
-        isKept = (allMinConf <= threshold) ;
-        keepIndices = find(isKept) ;
-        [~, sortOrder] = sort(allMinConf(keepIndices), 'ascend') ;
-        keepIndices = keepIndices(sortOrder) ;
-      end
-
-      if isempty(keepIndices)
-        obj.clear_() ;
-        return
-      end
-
-      obj.frameIndexFromPairIndex_ = allFrames(keepIndices) ;
-      obj.tragletIndexFromPairIndex_ = allTraglets(keepIndices) ;
-      obj.targetIndexFromPairIndex_ = allTargets(keepIndices) ;
-      if obj.isConfidenceLackThereof_
-        obj.extremeConfidenceFromPairIndex_ = allMaxConf(keepIndices) ;
-      else
-        obj.extremeConfidenceFromPairIndex_ = allMinConf(keepIndices) ;
-      end
-      obj.isLaden_ = true ;
+      [obj.startFrameFromBoutIndex_, ...
+       obj.endFrameFromBoutIndex_, ...
+       obj.extremeFrameFromBoutIndex_, ...
+       obj.trackletIndexFromBoutIndex_, ...
+       obj.targetIndexFromBoutIndex_, ...
+       obj.extremeConfidenceFromBoutIndex_, ...
+       obj.overallMinConfidence_, ...
+       obj.overallMaxConfidence_] = ...
+        confidenceBoutsFromTrkFile(trkFile, obj.confidenceThreshold_, obj.isConfidenceLackThereof_) ;
       obj.isFresh_ = true ;
     end  % function
 
     function clear_(obj)
       % Reset to empty state.
-      obj.frameIndexFromPairIndex_ = zeros(0, 1) ;
-      obj.tragletIndexFromPairIndex_ = zeros(0, 1) ;
-      obj.targetIndexFromPairIndex_ = zeros(0, 1) ;
-      obj.extremeConfidenceFromPairIndex_ = zeros(0, 1) ;
-      obj.isLaden_ = false ;
+      obj.startFrameFromBoutIndex_ = zeros(0, 1) ;
+      obj.endFrameFromBoutIndex_ = zeros(0, 1) ;
+      obj.extremeFrameFromBoutIndex_ = zeros(0, 1) ;
+      obj.trackletIndexFromBoutIndex_ = zeros(0, 1) ;
+      obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
+      obj.extremeConfidenceFromBoutIndex_ = zeros(0, 1) ;
+      % obj.isLaden_ = false ;
       obj.isFresh_ = true ;
     end  % function
   end  % methods
