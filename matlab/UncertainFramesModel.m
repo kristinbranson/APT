@@ -2,15 +2,21 @@ classdef UncertainFramesModel < handle
   % Holds computed data about frames with low tracker confidence for the
   % current movie.
 
-  properties (Access=private)  % private by convention
+  properties (Access=private)
+    isConfidenceLackThereof_ = false
+      % scalar logical, when true the UI finds high-confidence pairs instead of
+      % low-confidence pairs.
+  end
+  
+  properties (Transient, Access=private)
     labeler_  % back-reference to Labeler (Transient in spirit)
     frameIndexFromPairIndex_  % [N x 1] frame numbers
     tragletIndexFromPairIndex_  % [N x 1] traglet indices (into TrkFile)
     targetIndexFromPairIndex_  % [N x 1] target indices (for navigation)
-    minConfidenceFromPairIndex_  % [N x 1] min-confidence values
+    extremeConfidenceFromPairIndex_  % [N x 1] min- or max-confidence values
     isLaden_ = false  % scalar logical, true if there is anything to show
     isVisible_ = false  % scalar logical, whether the UFC figure is visible
-    isFresh_ = false  
+    isFresh_ = false
       % scalar logical, whether the data in this object is up-to-date with the
       % data in the rest of the Labeler.  (Opposite of stale.)
   end
@@ -18,6 +24,7 @@ classdef UncertainFramesModel < handle
   properties (Dependent)
     isLaden
     isVisible
+    isConfidenceLackThereof
   end
 
   properties (Dependent, Hidden)
@@ -32,7 +39,7 @@ classdef UncertainFramesModel < handle
       obj.frameIndexFromPairIndex_ = zeros(0, 1) ;
       obj.tragletIndexFromPairIndex_ = zeros(0, 1) ;
       obj.targetIndexFromPairIndex_ = zeros(0, 1) ;
-      obj.minConfidenceFromPairIndex_ = zeros(0, 1) ;
+      obj.extremeConfidenceFromPairIndex_ = zeros(0, 1) ;
     end  % function
 
     function result = get.isLaden(obj)
@@ -47,13 +54,27 @@ classdef UncertainFramesModel < handle
 
     function set.isVisible(obj, newValue)
       obj.isVisible_ = newValue ;
-      obj.syncFromPredictions_() ;
-      obj.labeler_.notify_('updateUncertainFrames') ;      
+      obj.syncFromPredictionsIfStaleAndVisible_() ;
+      obj.labeler_.notify_('updateUncertainFrames') ;
+    end  % function
+
+    function result = get.isConfidenceLackThereof(obj)
+      % Return whether confidence values are treated as lack-of-confidence.
+      result = obj.isConfidenceLackThereof_ ;
+    end  % function
+
+    function set.isConfidenceLackThereof(obj, newValue)
+      % Set whether confidence values are treated as lack-of-confidence,
+      % then resync and notify.
+      obj.isConfidenceLackThereof_ = newValue ;
+      obj.isFresh_ = false ;
+      obj.syncFromPredictionsIfStaleAndVisible_() ;
+      obj.labeler_.notify_('updateUncertainFrames') ;
     end  % function
 
     function syncFromPredictions(obj)
       obj.isFresh_ = false ;
-      obj.syncFromPredictions_() ;
+      obj.syncFromPredictionsIfStaleAndVisible_() ;
       obj.labeler_.notify_('updateUncertainFrames') ;            
     end
 
@@ -68,7 +89,7 @@ classdef UncertainFramesModel < handle
       isMultiTarget = obj.labeler_.hasTrx || obj.labeler_.maIsMA ;
       for iPair = 1 : nPairs
         frm = obj.frameIndexFromPairIndex_(iPair) ;
-        conf = obj.minConfidenceFromPairIndex_(iPair) ;
+        conf = obj.extremeConfidenceFromPairIndex_(iPair) ;
         if isMultiTarget
           tgt = obj.targetIndexFromPairIndex_(iPair) ;
           result{iPair} = sprintf('Frm %d  Tgt %d  Conf %.3f', frm, tgt, conf) ;
@@ -85,7 +106,7 @@ classdef UncertainFramesModel < handle
   end  % methods
 
   methods (Access=private)
-    function syncFromPredictions_(obj)
+    function syncFromPredictionsIfStaleAndVisible_(obj)
       % Compute the most uncertain frame-traglet pairs from the current
       % movie's tracking results.
       if ~obj.isVisible_ || obj.isFresh_
@@ -120,6 +141,7 @@ classdef UncertainFramesModel < handle
       allTraglets = [] ;
       allTargets = [] ;
       allMinConf = [] ;
+      allMaxConf = [] ;
 
       nTraglets = trkFile.ntracklets ;
       for iTlt = 1 : nTraglets
@@ -134,12 +156,15 @@ classdef UncertainFramesModel < handle
         end
         minConfPerFrame = min(confPerPointAndFrame, [], 1) ;  % [1 x numfrm]
         minConfPerFrame = minConfPerFrame(:) ;  % [numfrm x 1]
+        maxConfPerFrame = max(confPerPointAndFrame, [], 1) ;  % [1 x numfrm]
+        maxConfPerFrame = maxConfPerFrame(:) ;  % [numfrm x 1]
         fr = fr(:) ;  % [numfrm x 1]
 
         % Filter out NaN confidence frames
         isFinite = isfinite(minConfPerFrame) ;
         fr = fr(isFinite) ;
         minConfPerFrame = minConfPerFrame(isFinite) ;
+        maxConfPerFrame = maxConfPerFrame(isFinite) ;
         if isempty(fr)
           continue
         end
@@ -151,6 +176,7 @@ classdef UncertainFramesModel < handle
         allTraglets = [allTraglets ; repmat(iTlt, nFrames, 1)] ;  %#ok<AGROW>
         allTargets = [allTargets ; repmat(targetIndex, nFrames, 1)] ;  %#ok<AGROW>
         allMinConf = [allMinConf ; minConfPerFrame] ;  %#ok<AGROW>
+        allMaxConf = [allMaxConf ; maxConfPerFrame] ;  %#ok<AGROW>
       end
 
       if isempty(allFrames)
@@ -158,8 +184,12 @@ classdef UncertainFramesModel < handle
         return
       end
 
-      % Sort ascending by min confidence, keep top 100
-      [~, sortOrder] = sort(allMinConf, 'ascend') ;
+      % Sort by confidence, keep top 100
+      if obj.isConfidenceLackThereof_
+        [~, sortOrder] = sort(allMaxConf, 'descend') ;
+      else
+        [~, sortOrder] = sort(allMinConf, 'ascend') ;
+      end
       nKeepMax = 100 ;
       nKeep = min(nKeepMax, numel(sortOrder)) ;
       keepIndices = sortOrder(1:nKeep) ;
@@ -167,7 +197,11 @@ classdef UncertainFramesModel < handle
       obj.frameIndexFromPairIndex_ = allFrames(keepIndices) ;
       obj.tragletIndexFromPairIndex_ = allTraglets(keepIndices) ;
       obj.targetIndexFromPairIndex_ = allTargets(keepIndices) ;
-      obj.minConfidenceFromPairIndex_ = allMinConf(keepIndices) ;
+      if obj.isConfidenceLackThereof_
+        obj.extremeConfidenceFromPairIndex_ = allMaxConf(keepIndices) ;
+      else
+        obj.extremeConfidenceFromPairIndex_ = allMinConf(keepIndices) ;
+      end
       obj.isLaden_ = true ;
       obj.isFresh_ = true ;
     end  % function
@@ -177,7 +211,7 @@ classdef UncertainFramesModel < handle
       obj.frameIndexFromPairIndex_ = zeros(0, 1) ;
       obj.tragletIndexFromPairIndex_ = zeros(0, 1) ;
       obj.targetIndexFromPairIndex_ = zeros(0, 1) ;
-      obj.minConfidenceFromPairIndex_ = zeros(0, 1) ;
+      obj.extremeConfidenceFromPairIndex_ = zeros(0, 1) ;
       obj.isLaden_ = false ;
       obj.isFresh_ = true ;
     end  % function

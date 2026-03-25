@@ -323,7 +323,7 @@ classdef LabelerController < handle
       for i = 1 : numel(tags) 
         tag = tags{i} ;
         if strcmp(tag, 'main_figure') 
-          % We allready have a property for the main figure
+          % We already have a property for the main figure
           continue
         end
         if isprop(obj, tag) ,
@@ -3682,6 +3682,12 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       model = labeler.uncertainFramesModel_ ;
       model.isVisible = true ;
+    end  % function
+
+    function uncertain_frames_confidence_lack_thereof_checkbox_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Toggle whether confidence is treated as lack-of-confidence.
+      ufc = obj.uncertainFramesController_ ;
+      ufc.confidenceLackThereofToggled_(src) ;
     end  % function
 
     function uncertain_frames_listbox_actuated_(obj, src, evt)  %#ok<INUSD>

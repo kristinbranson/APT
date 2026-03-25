@@ -6,6 +6,7 @@ classdef UncertainFramesController < handle
     labeler_  % Labeler
     model_  % UncertainFramesModel
     figure_  % figure handle
+    checkbox_  % uicontrol checkbox for confidence-is-lack-thereof
     listbox_  % uicontrol listbox handle
   end
 
@@ -31,12 +32,21 @@ classdef UncertainFramesController < handle
         'Visible', 'off', ...
         'CloseRequestFcn', @(src, evt)(obj.hideRequested())) ;
 
+      obj.checkbox_ = uicontrol(...
+        'Parent', obj.figure_, ...
+        'Style', 'checkbox', ...
+        'String', 'Confidence is lack thereof', ...
+        'Value', 0, ...
+        'Tag', 'uncertain_frames_confidence_lack_thereof_checkbox') ;
+
       obj.listbox_ = uicontrol(...
         'Parent', obj.figure_, ...
         'Style', 'listbox', ...
         'String', {}, ...
-        'Tag', 'uncertain_frames_listbox', ...
-        'Callback', @(src, evt)(labelerController.controlActuated('uncertain_frames_listbox', src, evt))) ;
+        'Tag', 'uncertain_frames_listbox') ;
+
+      % Set up callbacks using tags to determine the method name
+      visit_children(obj.figure_, @set_standard_callback_if_none_bang, labelerController) ;
 
       % Set up resize behavior
       obj.figure_.SizeChangedFcn = @(src, evt)(obj.resizeFigure()) ;
@@ -59,6 +69,7 @@ classdef UncertainFramesController < handle
         % No need to update if not visible
         return
       end
+      obj.checkbox_.Value = model.isConfidenceLackThereof ;
       if model.isLaden
         strings = model.listboxString ;
         nEntries = numel(strings) ;
@@ -88,6 +99,11 @@ classdef UncertainFramesController < handle
       obj.model_.isVisible = false ;
     end  % function
 
+    function confidenceLackThereofToggled_(obj, src)
+      % Handle checkbox toggle for confidence-is-lack-thereof.
+      obj.model_.isConfidenceLackThereof = logical(src.Value) ;
+    end  % function
+
     function resizeFigure(obj)
       % Adjust child positions when figure is resized.
       if ~obj.hasValidFigure
@@ -96,7 +112,13 @@ classdef UncertainFramesController < handle
       figPos = obj.figure_.Position ;
       figWidth = figPos(3) ;
       figHeight = figPos(4) ;
-      obj.listbox_.Position = [10 10 figWidth-20 figHeight-20] ;
+      pad = 10 ;
+      checkboxHeight = 20 ;
+      gap = 5 ;
+      obj.checkbox_.Position = ...
+        [pad, figHeight - pad - checkboxHeight, figWidth - 2*pad, checkboxHeight] ;
+      listboxTop = figHeight - pad - checkboxHeight - gap ;
+      obj.listbox_.Position = [pad, pad, figWidth - 2*pad, listboxTop - pad] ;
     end  % function
   end  % methods
 end  % classdef
