@@ -52,6 +52,7 @@ classdef UncertainFramesController < handle
         'Parent', obj.figure_, ...
         'Style', 'edit', ...
         'String', '1', ...
+        'HorizontalAlignment', 'right', ...
         'Tag', 'uncertain_frames_threshold_edit') ;
 
       obj.listbox_ = uicontrol(...
@@ -132,27 +133,41 @@ classdef UncertainFramesController < handle
 
     function resizeFigure(obj)
       % Adjust child positions when figure is resized.
+      %
+      % Layout is top-to-bottom:
+      %   1. Checkbox (full width)
+      %   2. Threshold row: label + edit box side by side
+      %   3. Listbox (fills remaining space)
       if ~obj.hasValidFigure
         return
       end
+      % All sizes are in pixels.
       figPos = obj.figure_.Position ;
       figWidth = figPos(3) ;
       figHeight = figPos(4) ;
-      pad = 10 ;
+      pad = 10 ;  % inset from figure edges on all sides
       checkboxHeight = 20 ;
-      thresholdRowHeight = 22 ;
-      gap = 5 ;
-      labelWidth = 70 ;
+      thresholdRowHeight = 22 ;  % height of the threshold label+edit row
+      gap = 5 ;  % vertical space between rows
+      labelWidth = 64 ;
       editWidth = 80 ;
-      editGap = 5 ;
+      editGap = 5 ;  % horizontal space between label and edit box
 
+      % Checkbox spans the full width at the top
       obj.checkbox_.Position = ...
         [pad, figHeight - pad - checkboxHeight, figWidth - 2*pad, checkboxHeight] ;
+
+      % Threshold row sits below the checkbox.  The label is shorter than
+      % the edit box, so we vertically center it within the row height.
       thresholdRowTop = figHeight - pad - checkboxHeight - gap ;
+      labelHeight = 16 ;
+      labelBottom = thresholdRowTop - thresholdRowHeight + (thresholdRowHeight - labelHeight) / 2 - 1 ;  % - 1 is a fudge factor
       obj.thresholdLabel_.Position = ...
-        [pad, thresholdRowTop - thresholdRowHeight, labelWidth, thresholdRowHeight] ;
+        [pad, labelBottom, labelWidth, labelHeight] ;
       obj.thresholdEdit_.Position = ...
         [pad + labelWidth + editGap, thresholdRowTop - thresholdRowHeight, editWidth, thresholdRowHeight] ;
+
+      % Listbox fills everything below the threshold row
       listboxTop = thresholdRowTop - thresholdRowHeight - gap ;
       obj.listbox_.Position = [pad, pad, figWidth - 2*pad, listboxTop - pad] ;
     end  % function
