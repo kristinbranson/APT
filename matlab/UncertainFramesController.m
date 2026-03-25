@@ -9,6 +9,7 @@ classdef UncertainFramesController < handle
     checkbox_  % uicontrol checkbox for confidence-is-lack-thereof
     thresholdLabel_  % uicontrol text label for threshold
     thresholdEdit_  % uicontrol edit box for threshold
+    thresholdHint_  % uicontrol text label showing min/max when listbox is empty
     listbox_  % uicontrol listbox handle
   end
 
@@ -55,6 +56,15 @@ classdef UncertainFramesController < handle
         'HorizontalAlignment', 'right', ...
         'Tag', 'uncertain_frames_threshold_edit') ;
 
+      obj.thresholdHint_ = uicontrol(...
+        'Parent', obj.figure_, ...
+        'Style', 'text', ...
+        'String', '', ...
+        'FontAngle', 'italic', ...
+        'HorizontalAlignment', 'left', ...
+        'Visible', 'off', ...
+        'Tag', 'uncertain_frames_threshold_hint') ;
+
       obj.listbox_ = uicontrol(...
         'Parent', obj.figure_, ...
         'Style', 'listbox', ...
@@ -93,10 +103,24 @@ classdef UncertainFramesController < handle
         obj.listbox_.String = strings ;
         obj.listbox_.Value = max(1, min(obj.listbox_.Value, nEntries)) ;
         obj.listbox_.Enable = 'on' ;
+        obj.thresholdHint_.Visible = 'off' ;
       else
         obj.listbox_.String = {} ;
         obj.listbox_.Value = 1 ;
         obj.listbox_.Enable = 'off' ;
+        if model.isConfidenceLackThereof
+          overallExtreme = model.overallMaxConfidence ;
+          hintString = sprintf('Max is %g', overallExtreme) ;
+        else
+          overallExtreme = model.overallMinConfidence ;
+          hintString = sprintf('Min is %g', overallExtreme) ;
+        end
+        if isfinite(overallExtreme)
+          obj.thresholdHint_.String = hintString ;
+          obj.thresholdHint_.Visible = 'on' ;
+        else
+          obj.thresholdHint_.Visible = 'off' ;
+        end
       end
       % Make visible at end to reduced flickering
       obj.figure_.Visible = 'on' ;
@@ -161,11 +185,19 @@ classdef UncertainFramesController < handle
       % the edit box, so we vertically center it within the row height.
       thresholdRowTop = figHeight - pad - checkboxHeight - gap ;
       labelHeight = 16 ;
-      labelBottom = thresholdRowTop - thresholdRowHeight + (thresholdRowHeight - labelHeight) / 2 - 1 ;  % - 1 is a fudge factor
+      labelBottom = thresholdRowTop - thresholdRowHeight + (thresholdRowHeight - labelHeight) / 2 - 1 ;  
+        % - 1 is a fudge factor to make it look visually centered
       obj.thresholdLabel_.Position = ...
         [pad, labelBottom, labelWidth, labelHeight] ;
+      editLeft = pad + labelWidth + editGap ;
       obj.thresholdEdit_.Position = ...
-        [pad + labelWidth + editGap, thresholdRowTop - thresholdRowHeight, editWidth, thresholdRowHeight] ;
+        [editLeft, thresholdRowTop - thresholdRowHeight, editWidth, thresholdRowHeight] ;
+
+      % Hint label sits to the right of the edit box, vertically centered
+      hintLeft = editLeft + editWidth + editGap ;
+      hintWidth = figWidth - hintLeft - pad ;
+      obj.thresholdHint_.Position = ...
+        [hintLeft, labelBottom, max(hintWidth, 1), labelHeight] ;
 
       % Listbox fills everything below the threshold row
       listboxTop = thresholdRowTop - thresholdRowHeight - gap ;

@@ -16,6 +16,8 @@ classdef UncertainFramesModel < handle
     tragletIndexFromPairIndex_  % [N x 1] traglet indices (into TrkFile)
     targetIndexFromPairIndex_  % [N x 1] target indices (for navigation)
     extremeConfidenceFromPairIndex_  % [N x 1] min- or max-confidence values
+    overallMinConfidence_ = nan  % scalar double, min of allMinConf across all pairs
+    overallMaxConfidence_ = nan  % scalar double, max of allMaxConf across all pairs
     isLaden_ = false  % scalar logical, true if there is anything to show
     isVisible_ = false  % scalar logical, whether the UFC figure is visible
     isFresh_ = false
@@ -28,6 +30,8 @@ classdef UncertainFramesModel < handle
     isVisible
     isConfidenceLackThereof
     confidenceThreshold
+    overallMinConfidence
+    overallMaxConfidence
   end
 
   properties (Dependent, Hidden)
@@ -88,6 +92,16 @@ classdef UncertainFramesModel < handle
       obj.labeler_.notify_('updateUncertainFrames') ;
     end  % function
 
+    function result = get.overallMinConfidence(obj)
+      % Return the min of per-frame min-confidence across all pairs.
+      result = obj.overallMinConfidence_ ;
+    end  % function
+
+    function result = get.overallMaxConfidence(obj)
+      % Return the max of per-frame max-confidence across all pairs.
+      result = obj.overallMaxConfidence_ ;
+    end  % function
+
     function syncFromPredictions(obj)
       obj.isFresh_ = false ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
@@ -128,6 +142,11 @@ classdef UncertainFramesModel < handle
       if ~obj.isVisible_ || obj.isFresh_
         return
       end
+
+      % Reset overall extremes.  They will be set to real values below if
+      % tracking data is available.
+      obj.overallMinConfidence_ = nan ;
+      obj.overallMaxConfidence_ = nan ;
 
       labeler = obj.labeler_ ;
 
@@ -200,6 +219,10 @@ classdef UncertainFramesModel < handle
         return
       end
 
+      % Record overall extremes before filtering
+      obj.overallMinConfidence_ = min(allMinConf) ;
+      obj.overallMaxConfidence_ = max(allMaxConf) ;
+
       % Filter by threshold and sort
       threshold = obj.confidenceThreshold_ ;
       if obj.isConfidenceLackThereof_
@@ -232,7 +255,7 @@ classdef UncertainFramesModel < handle
     end  % function
 
     function clear_(obj)
-      % Reset to empty state and notify listeners.
+      % Reset to empty state.
       obj.frameIndexFromPairIndex_ = zeros(0, 1) ;
       obj.tragletIndexFromPairIndex_ = zeros(0, 1) ;
       obj.targetIndexFromPairIndex_ = zeros(0, 1) ;
