@@ -7,6 +7,8 @@ classdef UncertainFramesController < handle
     model_  % UncertainFramesModel
     figure_  % figure handle
     checkbox_  % uicontrol checkbox for confidence-is-lack-thereof
+    thresholdLabel_  % uicontrol text label for threshold
+    thresholdEdit_  % uicontrol edit box for threshold
     listbox_  % uicontrol listbox handle
   end
 
@@ -39,6 +41,19 @@ classdef UncertainFramesController < handle
         'Value', 0, ...
         'Tag', 'uncertain_frames_confidence_lack_thereof_checkbox') ;
 
+      obj.thresholdLabel_ = uicontrol(...
+        'Parent', obj.figure_, ...
+        'Style', 'text', ...
+        'String', 'Threshold:', ...
+        'HorizontalAlignment', 'right', ...
+        'Tag', 'uncertain_frames_threshold_label') ;
+
+      obj.thresholdEdit_ = uicontrol(...
+        'Parent', obj.figure_, ...
+        'Style', 'edit', ...
+        'String', '1', ...
+        'Tag', 'uncertain_frames_threshold_edit') ;
+
       obj.listbox_ = uicontrol(...
         'Parent', obj.figure_, ...
         'Style', 'listbox', ...
@@ -70,6 +85,7 @@ classdef UncertainFramesController < handle
         return
       end
       obj.checkbox_.Value = model.isConfidenceLackThereof ;
+      obj.thresholdEdit_.String = sprintf('%g', model.confidenceThreshold) ;
       if model.isLaden
         strings = model.listboxString ;
         nEntries = numel(strings) ;
@@ -104,6 +120,16 @@ classdef UncertainFramesController < handle
       obj.model_.isConfidenceLackThereof = logical(src.Value) ;
     end  % function
 
+    function thresholdChanged_(obj, src)
+      % Handle threshold edit box change.
+      newValue = str2double(src.String) ;
+      if isfinite(newValue) && newValue >= 0
+        obj.model_.confidenceThreshold = newValue ;
+      else
+        src.String = sprintf('%g', obj.model_.confidenceThreshold) ;
+      end
+    end  % function
+
     function resizeFigure(obj)
       % Adjust child positions when figure is resized.
       if ~obj.hasValidFigure
@@ -114,10 +140,20 @@ classdef UncertainFramesController < handle
       figHeight = figPos(4) ;
       pad = 10 ;
       checkboxHeight = 20 ;
+      thresholdRowHeight = 22 ;
       gap = 5 ;
+      labelWidth = 70 ;
+      editWidth = 80 ;
+      editGap = 5 ;
+
       obj.checkbox_.Position = ...
         [pad, figHeight - pad - checkboxHeight, figWidth - 2*pad, checkboxHeight] ;
-      listboxTop = figHeight - pad - checkboxHeight - gap ;
+      thresholdRowTop = figHeight - pad - checkboxHeight - gap ;
+      obj.thresholdLabel_.Position = ...
+        [pad, thresholdRowTop - thresholdRowHeight, labelWidth, thresholdRowHeight] ;
+      obj.thresholdEdit_.Position = ...
+        [pad + labelWidth + editGap, thresholdRowTop - thresholdRowHeight, editWidth, thresholdRowHeight] ;
+      listboxTop = thresholdRowTop - thresholdRowHeight - gap ;
       obj.listbox_.Position = [pad, pad, figWidth - 2*pad, listboxTop - pad] ;
     end  % function
   end  % methods

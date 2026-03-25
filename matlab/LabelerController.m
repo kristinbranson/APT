@@ -3690,6 +3690,12 @@ classdef LabelerController < handle
       ufc.confidenceLackThereofToggled_(src) ;
     end  % function
 
+    function uncertain_frames_threshold_edit_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Handle threshold edit box change.
+      ufc = obj.uncertainFramesController_ ;
+      ufc.thresholdChanged_(src) ;
+    end  % function
+
     function uncertain_frames_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
       % Navigate to the selected uncertain frame.
       labeler = obj.labeler_ ;

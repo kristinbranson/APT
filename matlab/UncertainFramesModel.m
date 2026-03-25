@@ -6,6 +6,8 @@ classdef UncertainFramesModel < handle
     isConfidenceLackThereof_ = false
       % scalar logical, when true the UI finds high-confidence pairs instead of
       % low-confidence pairs.
+    confidenceThreshold_ = 1
+      % scalar double, the threshold for filtering frame-target pairs.
   end
   
   properties (Transient, Access=private)
@@ -25,6 +27,7 @@ classdef UncertainFramesModel < handle
     isLaden
     isVisible
     isConfidenceLackThereof
+    confidenceThreshold
   end
 
   properties (Dependent, Hidden)
@@ -67,6 +70,19 @@ classdef UncertainFramesModel < handle
       % Set whether confidence values are treated as lack-of-confidence,
       % then resync and notify.
       obj.isConfidenceLackThereof_ = newValue ;
+      obj.isFresh_ = false ;
+      obj.syncFromPredictionsIfStaleAndVisible_() ;
+      obj.labeler_.notify_('updateUncertainFrames') ;
+    end  % function
+
+    function result = get.confidenceThreshold(obj)
+      % Return the confidence threshold for filtering.
+      result = obj.confidenceThreshold_ ;
+    end  % function
+
+    function set.confidenceThreshold(obj, newValue)
+      % Set the confidence threshold, then resync and notify.
+      obj.confidenceThreshold_ = newValue ;
       obj.isFresh_ = false ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
       obj.labeler_.notify_('updateUncertainFrames') ;
@@ -184,15 +200,24 @@ classdef UncertainFramesModel < handle
         return
       end
 
-      % Sort by confidence, keep top 100
+      % Filter by threshold and sort
+      threshold = obj.confidenceThreshold_ ;
       if obj.isConfidenceLackThereof_
-        [~, sortOrder] = sort(allMaxConf, 'descend') ;
+        isKept = (allMaxConf >= threshold) ;
+        keepIndices = find(isKept) ;
+        [~, sortOrder] = sort(allMaxConf(keepIndices), 'descend') ;
+        keepIndices = keepIndices(sortOrder) ;
       else
-        [~, sortOrder] = sort(allMinConf, 'ascend') ;
+        isKept = (allMinConf <= threshold) ;
+        keepIndices = find(isKept) ;
+        [~, sortOrder] = sort(allMinConf(keepIndices), 'ascend') ;
+        keepIndices = keepIndices(sortOrder) ;
       end
-      nKeepMax = 100 ;
-      nKeep = min(nKeepMax, numel(sortOrder)) ;
-      keepIndices = sortOrder(1:nKeep) ;
+
+      if isempty(keepIndices)
+        obj.clear_() ;
+        return
+      end
 
       obj.frameIndexFromPairIndex_ = allFrames(keepIndices) ;
       obj.tragletIndexFromPairIndex_ = allTraglets(keepIndices) ;
