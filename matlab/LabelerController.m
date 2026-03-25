@@ -5558,7 +5558,7 @@ classdef LabelerController < handle
 
     function navPrefsUI(obj)
       % Open the navigation preferences dialog.
-      NavPrefs(obj.labeler_, obj.mainFigure_) ;
+      NavPrefsNew(obj.labeler_, obj.mainFigure_) ;
     end
 
     function menu_view_fps_actuated_(obj,src,evt)  %#ok<INUSD>
