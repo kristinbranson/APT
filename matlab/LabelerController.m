@@ -5350,8 +5350,6 @@ classdef LabelerController < handle
       obj.labeler_.labelMode = LabelMode.MULTIANIMAL ;
     end
 
-
-
     function menu_label_overlay_montage_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Plotting all labels on one axes to visualize label distribution...');
