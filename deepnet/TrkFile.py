@@ -1055,6 +1055,7 @@ class Tracklet:
     return tidx,fidx
   
   def unique(self):
+    # Finds the unique values in this tracklet, and returns a new tracklet with the same data but with targets corresponding to unique values. This is only implemented for single-dim tracklets.
     axis_rest = self.axis_rest()
     uniquevals = np.zeros(self.size_rest+(0,),dtype=self.dtype)
     count = 0

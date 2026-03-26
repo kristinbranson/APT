@@ -1443,7 +1443,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
   trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale,out_file=data_out_file)
 
   if save_debug_data:
-    debug_out_file = out_files[0].replace('.trk','_link_data.p')
+    debug_out_file = out_files[0].replace('.trk','_link_data.pkl')
     with open(debug_out_file,'wb') as f:
       pickle.dump(debug_data,f)
 
@@ -1508,10 +1508,11 @@ async def get_id_train_images(linked_trks, all_trx, mov_files, conf):
       trk_fr = (ss <= rand_fr) & (ee >= rand_fr)
       sel_trk = np.where( ((ee - ss+1)>min_trx_len)&trk_fr)[0]
       if len(sel_trk)>0:
-        prev_trks = all_sel_trk[cur_trk_ndx]
+        prev_trks_info = all_sel_trk[cur_trk_ndx]
+        prev_trks = [tt[0] for tt in prev_trks_info]
         new_trks = list(set(sel_trk) - set(prev_trks))
         if len(new_trks)>0:
-          sel_trk_info = list(zip(sel_trk, ss[sel_trk], ee[sel_trk]))
+          sel_trk_info = list(zip(new_trks, ss[new_trks], ee[new_trks]))
           all_sel_trk[cur_trk_ndx].extend(sel_trk_info)
           n_sel += len(new_trks)
 
@@ -2181,9 +2182,10 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
   # Create the dataset and dataloaders. worker_init_fn is set conditionally: not needed when using spawn (workers get independent OS-seeded random states), but used with fork to ensure distinct seeds per worker.
   distort = True
   train_dset = id_dset(all_data, mining_dists, trk_data, confd, rescale, valid=False, distort=distort, debug=debug)
-  n_workers = len(os.sched_getaffinity(0))//2 if not debug else 0
+  n_workers = min(3,len(os.sched_getaffinity(0))//2) if not debug else 0
+  # number of threads is now limited by memory that needs to be transferred to workers since we need to spawn the threads instead of forking because of async data loading. Each worker now gets a copy of the data which is around 10GB. Larger number of threads are probably counterproductive
   worker_init_fn = None if mp.get_start_method() == 'spawn' else lambda id: np.random.seed(id)
-  train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers, worker_init_fn=worker_init_fn)
+  train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, num_workers=n_workers, worker_init_fn=worker_init_fn) # , pin_memory=True
   train_iter = iter(train_loader)
 
   # Save example training images for debugging.
@@ -2194,6 +2196,7 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
   logging.info(f'Saved sampled ID training images to {im_save_file}')
 
   load_task = None
+  async_start_epoch = 0
   # for epoch in tqdm_asyncio(range(n_iters)):
   for epoch in range(n_iters):
 
@@ -2203,9 +2206,15 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
     if load_task is None or load_task.done():
       logging.info(f'Starting async loading task at {epoch}')
       load_task = asyncio.create_task(get_id_train_images(*train_data_args))
+      async_start_epoch = epoch
       # load_task = loop.run_in_executor(executor,get_id_train_images,*train_data_args)
 
     await asyncio.sleep(0.1)
+
+    if epoch - async_start_epoch > sampling_period:
+      # if sampling is taking longer than the sampling period, we should probably just wait for it to finish before starting the next epoch to avoid training on stale data
+      await load_task
+
     if load_task.done():
       # logging.info(f'Async loading task done at epoch {epoch}, updating training data ...')
 
@@ -2274,7 +2283,7 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
       torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, save_file+'.int')
 
   # dump the final loss history
-  logging.info(f'Epoch {n_iters}, Loss: {loss_contrastive.item()}')
+  logging.info(f'Epoch {n_iters}, Loss: {loss_contrastive.item():.4f}')
   train_info['train_loss'].append(loss_contrastive.item())
   train_info['step'].append(n_iters)
 
@@ -2326,7 +2335,7 @@ def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_sele
     sel_tgt = np.where((ee-ss+1)>=min_len_select)[0]
     sel_ss = ss[sel_tgt]; sel_ee = ee[sel_tgt]
     trk_info = list(zip(sel_tgt, sel_ss, sel_ee))
-    logging.info(f'Sampling images from {len(sel_ss)} tracklets to assign identity to the tracklets ...')
+    logging.info(f'Sampling images from {len(sel_tgt)} tracklets to assign identity to the tracklets ...')
     start_t = time.time()
 
     preds,tgt_id, debug_data = pred_ims_par(trx,trk_info,mov_file,conf,net, rescale,ndx)
@@ -2336,7 +2345,7 @@ def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_sele
 
     # pred_map keeps track of which sample belongs to which trajectory
     pred_map.extend([[ndx,tt] for tt in tgt_id])
-    cur_d = [debug_data, sel_tgt, tgt_id, ss, ee, sel_ss, sel_ee]
+    cur_d = [debug_data, sel_tgt, tgt_id, ss, ee, ss[tgt_id], ee[tgt_id]]
     all_data.append(cur_d)
 
   pred_map = np.array(pred_map)

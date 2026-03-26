@@ -344,16 +344,20 @@ class mdn_joint(nn.Module):
         x_j = x[f'{self.fpn_joint_layer}']
         x_r = x[f'{self.fpn_ref_layer}']
 
+
         locs_j = self.locs_joint(x_j)
         wts_j = self.wts_joint(x_j) + self.wt_offset
         locs_r = self.locs_ref(x_r)
         wts_r = self.wts_ref(x_r)
+
+        js = locs_j.shape
+
         if self.dist_pred is None:
             dist_pred = None
         else:
             dist_pred = self.dist_pred(x_j)
+            dist_pred = dist_pred.reshape(js[0:1]+(self.npts,self.k_j)+js[2:])
 
-        js = locs_j.shape
         locs_j = locs_j.reshape(js[0:1] + (self.npts,2,self.k_j) + js[2:])
         y_off_j, x_off_j = torch.meshgrid([torch.arange(js[-2],device=self.device),torch.arange(js[-1],device=self.device)])
         # Add the offsets. NOTE: Torch meshgrid behaves differently than numpy meshgrid!!
