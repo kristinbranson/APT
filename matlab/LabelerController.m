@@ -5319,6 +5319,8 @@ classdef LabelerController < handle
     end
 
     function menu_help_about_actuated_(obj, src, evt)  %#ok<INUSD>
+      obj.labeler_.pushBusyStatus('Showing "About APT" window...');
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
       obj.aboutFigure_ = about(obj) ;
     end
     
