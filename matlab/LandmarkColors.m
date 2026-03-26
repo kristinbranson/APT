@@ -62,8 +62,8 @@ lObj = varargin{2};
 handles.nlandmarks = lObj.nPhysPoints;
 handles.applyCbkFcn = varargin{3}; % sig:
 
-[pos, units] = controller.getMainFigurePositionAndUnits() ;
-centerOnOtherFigureGivenPositionBang(hObject, pos, units) ;
+mainFigurePosition = controller.mainFigurePixelPosition() ;
+centerOnOtherFigureGivenPositionBang(hObject, mainFigurePosition) ;
 
 
 % Marker State

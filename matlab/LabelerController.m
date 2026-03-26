@@ -505,6 +505,12 @@ classdef LabelerController < handle
         addlistener(labeler, 'updateUncertainFrames', ...
                     @(s,e)(obj.updateUncertainFrames())) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didSetUncertainFramesThreshold', ...
+                    @(s,e)(obj.didSetUncertainFramesThreshold())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didSetUncertainFramesIsVisible', ...
+                    @(s,e)(obj.didSetUncertainFramesIsVisible())) ;
+      obj.listeners_(end+1) = ...
         addlistener(labeler,'newMovie',@(s,e)(obj.cbkNewMovie(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'dataImported',@(s,e)(obj.cbkDataImported(s,e)));
@@ -3677,6 +3683,22 @@ classdef LabelerController < handle
       ufc.update() ;
     end  % function
 
+    function didSetUncertainFramesThreshold(obj)
+      % Update the uncertain-frames controller and the timeline threshold line.
+      ufc = obj.uncertainFramesController_ ;
+      ufc.update() ;
+      obj.labelTLInfo_.updateTraces() ;
+      obj.labelTLInfo_.updateUncertainThresh() ;
+    end  % function
+
+    function didSetUncertainFramesIsVisible(obj)
+      % Update the uncertain-frames controller and the timeline threshold line.
+      ufc = obj.uncertainFramesController_ ;
+      ufc.update() ;
+      obj.labelTLInfo_.updateTraces() ;
+      obj.labelTLInfo_.updateUncertainThresh() ;
+    end  % function
+
     function menu_evaluate_show_uncertain_frames_actuated_(obj, src, evt)  %#ok<INUSD>
       % Make the "Uncertain Frames" figure visible
       labeler = obj.labeler_ ;
@@ -4294,6 +4316,7 @@ classdef LabelerController < handle
     function updateTimelineTraces(obj)
       % Update the labels/prediction traces shown in the timeline.
       obj.labelTLInfo_.updateTraces();
+      obj.labelTLInfo_.updateUncertainThresh() ;
     end
 
     function didSetLandmarkLabelColors(obj)
@@ -6770,8 +6793,8 @@ classdef LabelerController < handle
         end
       end
       
-      [mainFigurePosition, mainFigureUnits] = obj.getMainFigurePositionAndUnits() ;
-      [tPrm, was_canceled, do_update] = APTParameters.autosetparamsGUI(tPrm, labeler, mainFigurePosition, mainFigureUnits) ;
+      mainFigurePosition = obj.mainFigurePixelPosition() ;
+      [tPrm, was_canceled, do_update] = APTParameters.autosetparamsGUI(tPrm, labeler, mainFigurePosition) ;
       if was_canceled
         did_update = false ;
         return
@@ -8550,28 +8573,7 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function [position, units] = getMainFigurePositionAndUnits(obj, varargin)
-      % Used when clients want to center a figure on the main window figure. The
-      % returned units are the units of the returned position, not necessarily the
-      % current units of the main window figure.
 
-      parentFig = obj.mainFigure_ ;
-      [setParentFigUnitsPx] = myparse(varargin,...
-        'setParentFixUnitsPx',false ... % for dealing with UIFigure/appdesigner
-        );
-
-      if setParentFigUnitsPx
-        parentUnitsOrig = get(parentFig,'Units');
-        set(parentFig,'Units','pixels');
-      end
-
-      units = get(parentFig,'Units') ;
-      position = get(parentFig,'position');
-
-      if setParentFigUnitsPx
-        set(parentFig,'Units',parentUnitsOrig);
-      end
-    end  % function
 
     function setFrameAndTarget(obj, frm, iTgt, tfforce)
       % Set to new frame and target for current movie.

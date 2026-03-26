@@ -196,6 +196,8 @@ classdef Labeler < handle
     requestMessageBox
     requestQuestionDialog
     updateUncertainFrames
+    didSetUncertainFramesThreshold
+    didSetUncertainFramesIsVisible
   end
 
   events  % used to come from labeler.tracker

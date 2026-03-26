@@ -26,6 +26,7 @@ classdef InfoTimelineController < handle
     hCurrFrame  % scalar line handle current frame
     hCurrFrameL  % scalar line handle current frame
     hStatThresh  % scalar line handle, threshold
+    hUncertainThresh  % scalar line handle, uncertain-frames threshold
     hCMenuClearBout  % scalar context menu
     hCMenuSetNumFramesShown
     hCMenuToggleThresholdViz
@@ -57,7 +58,16 @@ classdef InfoTimelineController < handle
              'Color',[1 1 1],...
              'hittest','off', ...
              'visible','off', ...
-             'Tag','InfoTimeline_StatThresh');      
+             'Tag','InfoTimeline_StatThresh');
+      obj.hUncertainThresh = ...
+        line('Parent',mainTimelineAxes, ...
+             'XData',[nan nan], ...
+             'YData',[0 0], ...
+             'LineStyle','--', ...
+             'Color',[1 1 1],...
+             'hittest','off', ...
+             'visible','off', ...
+             'Tag','InfoTimeline_UncertainThresh');
 
       obj.hAxL = isLabeledTimelineAxes;
       
@@ -102,10 +112,11 @@ classdef InfoTimelineController < handle
     end  % function
     
     function delete(obj)
-      deleteValidGraphicsHandles([obj.hCurrFrame,obj.hCurrFrameL,obj.hStatThresh]);
+      deleteValidGraphicsHandles([obj.hCurrFrame,obj.hCurrFrameL,obj.hStatThresh,obj.hUncertainThresh]);
       obj.hCurrFrame = [];
       obj.hCurrFrameL = [];
       obj.hStatThresh = [];
+      obj.hUncertainThresh = [];
       deleteValidGraphicsHandles(obj.hPts);
       deleteValidGraphicsHandles(obj.hPtStat);
       obj.hPts = [];
@@ -146,6 +157,7 @@ classdef InfoTimelineController < handle
         set(obj.hCurrFrame, 'XData', [nan nan]) ;
         set(obj.hCurrFrameL, 'XData', [nan nan]) ;
         set(obj.hStatThresh, 'XData', [nan nan], 'Visible', 'off') ;
+        set(obj.hUncertainThresh, 'XData', [nan nan], 'Visible', 'off') ;
         set(obj.hSegLineGT, 'XData', nan, 'YData', nan, 'Visible', 'off') ;
         set(obj.hSegLineGTLbled, 'XData', nan, 'YData', nan, 'Visible', 'off') ;
         % Disable context menu items
@@ -190,6 +202,9 @@ classdef InfoTimelineController < handle
 
       % Update statistic threshold display
       obj.updateStatThresh() ;
+
+      % Update uncertain-frames threshold display
+      obj.updateUncertainThresh() ;
 
       % Update GT mode related controls (segmented line visibility and
       % data).  Note: updateForMovie_() above also calls this, so it
@@ -277,6 +292,7 @@ classdef InfoTimelineController < handle
       set(obj.hCurrFrame,'XData',[nan nan],'YData',ax.YLim,'ZData',[1 1]);
       set(obj.hCurrFrameL,'XData',[nan nan],'YData',axl.YLim,'ZData',[1 1]);
       set(obj.hStatThresh,'XData',[nan nan],'ZData',[1 1]);
+      set(obj.hUncertainThresh,'XData',[nan nan],'ZData',[1 1]);
     end
     
     function updateForMovie_(obj)
@@ -326,6 +342,7 @@ classdef InfoTimelineController < handle
         set(obj.hPtsL, 'XData', nan, 'YData', nan) ;
         set(obj.hCurrFrame, 'XData', [nan nan]) ;
         set(obj.hStatThresh, 'XData', [nan nan]) ;
+        set(obj.hUncertainThresh, 'XData', [nan nan]) ;
         set(obj.hAx, 'YLim', [0 1]) ;
         return
       end
@@ -356,6 +373,18 @@ classdef InfoTimelineController < handle
           set(obj.hSelIm,'YData',[y1,y2]);
         end
         
+        % Expand the y range to include the uncertain-frames threshold if it
+        % would be visible (UFC is visible and timeline shows confidence)
+        ufm = lObj.uncertainFramesModel_ ;
+        itm = lObj.infoTimelineModel ;
+        [ptype, prop] = itm.getCurPropSmart() ;
+        isShowingConfidence = strcmp(ptype, 'Predictions') && ...
+                              isfield(prop, 'feature') && strcmp(prop.feature, 'confidence') ;
+        if ufm.isVisible && isShowingConfidence && ~isempty(ufm.confidenceThreshold)
+          y1 = min(y1, ufm.confidenceThreshold) ;
+          y2 = max(y2, ufm.confidenceThreshold) ;
+        end
+
         set(obj.hAx,'YLim',[y1,y2]);
         set(obj.hCurrFrame,'YData',[y1,y2]);
         if size(traceData,1) == lObj.nLabelPoints,
@@ -369,6 +398,7 @@ classdef InfoTimelineController < handle
         end
         
         set(obj.hStatThresh,'XData',x([1 end]));
+        set(obj.hUncertainThresh,'XData',x([1 end]));
       end  % if ~isempty(traceData)
       
       if lObj.maIsMA
@@ -473,8 +503,24 @@ classdef InfoTimelineController < handle
       else
         obj.hAx.YColor = [0.15 0.15 0.15];
       end
-    end  % function   
-    
+    end  % function
+
+    function updateUncertainThresh(obj)
+      % Update the uncertain-frames threshold display from the model.
+      % Only visible when the UFC is visible and the timeline is showing a
+      % Predictions confidence feature.
+      ufm = obj.lObj.uncertainFramesModel_ ;
+      threshold = ufm.confidenceThreshold ;
+      itm = obj.lObj.infoTimelineModel ;
+      [ptype, prop] = itm.getCurPropSmart() ;
+      isShowingConfidence = strcmp(ptype, 'Predictions') && ...
+                            isfield(prop, 'feature') && strcmp(prop.feature, 'confidence') ;
+      isVisible = ufm.isVisible && isShowingConfidence ;
+      tidyThreshold = fif(isempty(threshold), nan, threshold) ;
+      obj.hUncertainThresh.YData = [tidyThreshold tidyThreshold] ;
+      obj.hUncertainThresh.Visible = onIff(isVisible) ;
+    end  % function
+
     function updateGTModeRelatedControls(obj)
       lObj = obj.lObj;
       gt = lObj.gtIsGTMode;

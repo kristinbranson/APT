@@ -1,6 +1,11 @@
 function centerOnOtherFigureGivenPositionBang(fig, otherPosition, otherUnits)
 % Center fig on another figure, given the other figure's offset and size, and
-% the units of the other figure's offset and size.
+% the units of the other figure's offset and size.  If otherUnits is not
+% supplied, pixels are assumed.
+
+if ~exist('otherUnits', 'var')
+  otherUnits = 'pixels' ;
+end
 
 unitsOrig = get(fig,'Units');
 set(fig,'Units',otherUnits);

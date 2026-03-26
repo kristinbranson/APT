@@ -67,6 +67,7 @@ classdef UncertainFramesModel < handle
       obj.isVisible_ = newValue ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
       obj.labeler_.notify_('updateUncertainFrames') ;
+      obj.labeler_.notify_('didSetUncertainFramesIsVisible') ;
     end  % function
 
     function result = get.isConfidenceLackThereof(obj)
@@ -93,7 +94,7 @@ classdef UncertainFramesModel < handle
       obj.confidenceThreshold_ = newValue ;
       obj.isFresh_ = false ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
-      obj.labeler_.notify_('updateUncertainFrames') ;
+      obj.labeler_.notify_('didSetUncertainFramesThreshold') ;
     end  % function
 
     function result = get.overallMinConfidence(obj)

@@ -10,8 +10,8 @@ h = uifigure(...
   );
 
 if ~isempty(controller)
-  [pos, units] = controller.getMainFigurePositionAndUnits('setParentFixUnitsPx', true) ;
-  centerOnOtherFigureGivenPositionBang(h, pos, units) ;
+  mainFigurePosition = controller.mainFigurePixelPosition() ;
+  centerOnOtherFigureGivenPositionBang(h, mainFigurePosition) ;
 end
 
 ht = uitextarea(h,...

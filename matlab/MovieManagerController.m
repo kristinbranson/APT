@@ -112,10 +112,8 @@ classdef MovieManagerController < handle
       obj.listeners = lObjs;
       obj.hFig.DeleteFcn = @obj.lclDeleteFig;
       
-      parentPosition = obj.parent_.mainFigurePixelPosition();
-      parentCenter = parentPosition(1:2) + parentPosition(3:4) / 2;
-      childSize = obj.hFig.Position(3:4);
-      obj.hFig.Position(1:2) = parentCenter - childSize / 2;
+      mainFigurePosition = obj.parent_.mainFigurePixelPosition() ;
+      centerOnOtherFigureGivenPositionBang(obj.hFig, mainFigurePosition) ;
     end
 
     function lclDeleteFig(obj,~,~)

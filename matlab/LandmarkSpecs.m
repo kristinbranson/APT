@@ -410,8 +410,8 @@ classdef LandmarkSpecs < handle
         );
 
       if ~isempty(parent)
-        [pos, units] = parent.getMainFigurePositionAndUnits('setParentFixUnitsPx', true) ;
-        centerOnOtherFigureGivenPositionBang(obj.hFig, pos, units) ;
+        mainFigurePosition = parent.mainFigurePixelPosition() ;
+        centerOnOtherFigureGivenPositionBang(obj.hFig, mainFigurePosition) ;
       else
         centerfig(obj.hFig);
       end
