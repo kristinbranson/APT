@@ -59,14 +59,14 @@ handles.pbTrack.Position = [229, 98+dy, 197, 49] ;
 handles.pumTrack.Position = [167, 52+dy, 258, 31] ;
 handles.tbTLSelectMode.Position = [450, 35+dy, 48, 22] ;
 handles.pbClearSelection.Position = [500, 35+dy, 48, 22] ;
-handles.txLblCoreAux.Position = [20, 380+dy, 220, 42] ;
+handles.txLblCoreAux.Position = [20, figH-682+dy, 220, 42] ;
 handles.txUnsavedChanges.Position = [260, 402+dy, 174, 20] ;
 handles.txGTMode.Position = [303, 374+dy, 132, 23] ;
 handles.txCropMode.Position = [304, 350+dy, 132, 23] ;
 handles.uipanel_cropcontrols.Position = [34, 275+dy, 387, 73] ;
 handles.text_framestotrack.Position = [19, 56+dy, 136, 23] ;
 handles.text_framestotrackinfo.Position = [23, 34+dy, 406, 19] ;
-handles.text_trackerinfo.Position = [19, 288+dy, 422, 88] ;
+handles.text_trackerinfo.Position = [19, figH-774+dy, 422, 88] ;
 
 %% --- Children of uipanel_curr ---
 

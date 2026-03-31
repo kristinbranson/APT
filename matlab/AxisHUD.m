@@ -100,10 +100,10 @@ classdef AxisHUD < handle
         'Position',pos,...
         'Interpreter','latex',...
         'LineStyle','none',...
-        'Color',[1 1 1]...
+        'Color',[1 1 1],...
+        'Tag','hud_handedness'...
         );
       hAnn.Units = 'normalized';
-      hAnn.FontUnits = 'normalized';
       
       obj.hHandedAnno = hAnn;
       %ytop = ytop - obj.txtHgt;      
@@ -162,19 +162,19 @@ classdef AxisHUD < handle
       obj.hParent.Units = units0;
       y1 = parentpos(4) - obj.annoHgt; % just below anno
       if obj.hasTgt
-        [obj.hTxtTgt,y1] = obj.addTxt(y1,obj.txtClrTarget);
+        [obj.hTxtTgt,y1] = obj.addTxt(y1, obj.txtClrTarget, 'hud_tgt') ;
         obj.hTxts(end+1,1) = obj.hTxtTgt;
       end
       if obj.hasLblPt
-        [obj.hTxtLblPt,y1] = obj.addTxt(y1,obj.txtClrLblPoint);
+        [obj.hTxtLblPt,y1] = obj.addTxt(y1, obj.txtClrLblPoint, 'hud_lblpt') ;
         obj.hTxts(end+1,1) = obj.hTxtLblPt;
       end
       if obj.hasSusp
-        obj.hTxtSusp = obj.addTxt(y1,obj.txtClrSusp);
+        obj.hTxtSusp = obj.addTxt(y1, obj.txtClrSusp, 'hud_susp') ;
         obj.hTxts(end+1,1) = obj.hTxtSusp;
       end
       if obj.hasTrklet
-        obj.hTxtTrklet = obj.addTxt(y1,obj.txtClrTrklet);
+        obj.hTxtTrklet = obj.addTxt(y1, obj.txtClrTrklet, 'hud_trklet') ;
         obj.hTxts(end+1,1) = obj.hTxtTrklet;
       end
     end
@@ -203,10 +203,10 @@ classdef AxisHUD < handle
       obj.hTxtTrklet.String = str;
     end
  
-    function [hTxt,ytop] = addTxt(obj,ytop,foreColor)
+    function [hTxt,ytop] = addTxt(obj, ytop, foreColor, tag)
       % Add a new textbox
-      % hTxt: text (matlab.ui.control.UIControl) 
-      % ytop (input): top/ceiling of axis. 
+      % hTxt: text (matlab.ui.control.UIControl)
+      % ytop (input): top/ceiling of axis.
       % ytop (output): new top/ceiling after txtbox added.
 
       txtpos = [obj.txtXoff ytop-obj.txtHgt obj.txtWdh obj.txtHgt];
@@ -220,9 +220,9 @@ classdef AxisHUD < handle
         'Units','pixels',...
         'Position',txtpos,...
         'ForegroundColor',foreColor,...
-        'BackgroundColor',[0 0 0]);
+        'BackgroundColor',[0 0 0],...
+        'Tag',tag);
       hTxt.Units = 'normalized';
-      hTxt.FontUnits = 'normalized';
       ytop = ytop - obj.txtHgt;
     end
     
