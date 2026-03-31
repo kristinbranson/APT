@@ -61,8 +61,6 @@ classdef LabelerController < handle
       % block.  Useful for debugging.  "Do, or do not.  There is no try." --Yoda
     doEchoControlActuation_ = false
       % When true, controlActuated() prints the control name to the console.
-    pxTxUnsavedChangesWidth_  
-      % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed when we resize
     isPlaying_ = false  % whether a video is currently playing or not    
   end
 
@@ -3064,7 +3062,7 @@ classdef LabelerController < handle
 
       isMA = labeler.maIsMA ;
       hasTrx = labeler.projectHasTrx;
-      obj.tblFrames.Units = 'normalized';
+      obj.tblFrames.Units = 'pixels';
       obj.tblFrames.RowName = '';
       showtargets = isMA || hasTrx;
       if isMA
@@ -3926,36 +3924,14 @@ classdef LabelerController < handle
     end  % function
     
     function initializeResizeInfo_(obj)
-      % Record the width of txUnsavedChanges, so we can keep it fixed
-      hTx = obj.txUnsavedChanges;
-      hPnlPrev = obj.uipanel_prev;
-      hTxUnits0 = hTx.Units;
-      hPnlPrevUnits0 = hPnlPrev.Units;
-      hTx.Units = 'pixels';
-      hPnlPrev.Units = 'pixels';
-      pxTxUnsavedChangesWidth = hTx.Position(3);
-      hTx.Units = hTxUnits0;
-      hPnlPrev.Units = hPnlPrevUnits0;
-      obj.pxTxUnsavedChangesWidth_ = pxTxUnsavedChangesWidth ;
-    end
-    
+      % Nothing to do -- layoutMainFigureBang() is stateless.
+    end  % function
+
     function resize(obj)
-      % Take steps to keep right edge of unsaved changes text box aligned with right
-      % edge of the previous/reference frame panel
-      pxTxUnsavedChangesWidth = obj.pxTxUnsavedChangesWidth_ ;
-      hTx = obj.txUnsavedChanges;
-      hPnlPrev = obj.uipanel_prev;
-      hTxUnits0 = hTx.Units;
-      hPnlPrevUnits0 = hPnlPrev.Units;
-      hTx.Units = 'pixels';
-      hPnlPrev.Units = 'pixels';
-      uiPnlPrevRightEdge = hPnlPrev.Position(1) + hPnlPrev.Position(3) ;
-      hTx.Position(1) = uiPnlPrevRightEdge - pxTxUnsavedChangesWidth ;
-      hTx.Position(3) = pxTxUnsavedChangesWidth ;
-      hTx.Units = hTxUnits0;
-      hPnlPrev.Units = hPnlPrevUnits0;
-      obj.resizeTblFramesTrx_();
-    end
+      % Reposition and resize controls in response to a figure size change.
+      layoutMainFigureBang(obj.mainFigure_) ;
+      obj.resizeTblFramesTrx_() ;
+    end  % function
     
     function cropReactNewCropMode_(obj)
       labeler = obj.labeler_ ;
