@@ -91,10 +91,17 @@ classdef ViewConfig
         ax = hAx(iView);
         
         fpos = vCfg.FigurePos;
-        tf = structfun(@isscalar,fpos);
+        tf = structfun(@isscalar, fpos) ;
         if all(tf)
-          fpos = [fpos.left fpos.bottom fpos.width fpos.height];
-          hFig(iView).Position = fpos;
+          fposVec = [fpos.left fpos.bottom fpos.width fpos.height] ;
+          if fposVec(3) <= 1 && fposVec(4) <= 1
+            % Position was saved in normalized units by an older version of APT.
+            % Convert to pixels before applying, to avoid triggering
+            % SizeChangedFcn while Units are temporarily normalized.
+            screenSize = get(groot(), 'ScreenSize') ;
+            fposVec = fposVec .* screenSize ;
+          end
+          hFig(iView).Position = fposVec ;
         elseif any(tf)
           warning('LabelerGUI:figPos',...
             'Ignoring invalid configuration setting: position for figure %d.',iView);

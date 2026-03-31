@@ -4,8 +4,8 @@ function layoutMainFigureBang(hFig)
 
 handles = guihandles(hFig) ;
 figPos = hFig.Position ;
-figW = figPos(3) ;
-figH = figPos(4) ;
+figW = max(figPos(3), 800) ;
+figH = max(figPos(4), 600) ;
 
 % -- Derived sizes for the main panel --
 panelW = figW - 460 ;   % left edge at 450, right margin 10
