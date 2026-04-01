@@ -3950,6 +3950,7 @@ classdef LabelerController < handle
       targetsPanelWidth = 194 ;
       targetsTableXMargin = 10 ;
       targetsTableWidth = targetsPanelWidth-2*targetsTableXMargin ;
+      zoomPanelWidth = targetsPanelWidth ;
 
       hFig = obj.mainFigure_ ;
       handles = guihandles(hFig) ;
@@ -3977,14 +3978,14 @@ classdef LabelerController < handle
       handles.uipanel_prev.Position = [sidebarLeftMargin, figH-370+dy, prevPanelWidth, 350] ;
       handles.uipanel_targets.Position = [sidebarLeftMargin, figH-575+dy, targetsPanelWidth, 192] ;
       handles.tblTrx.Position = [targetsTableXMargin, 8, targetsTableWidth, 164] ;
-      handles.uipanel_targetzoom.Position = [16, figH-635+dy, targetsPanelWidth, 60] ;
+      handles.uipanel_targetzoom.Position = [sidebarLeftMargin, figH-635+dy, zoomPanelWidth, 60] ;
       % uipanel_frames x depends on whether targets panel is visible
       if strcmp(handles.uipanel_targets.Visible, 'on')
-        framesX = 16 + 198 ;
+        framesPanelX = sidebarLeftMargin + 198 ;
       else
-        framesX = 16 ;
+        framesPanelX = sidebarLeftMargin ;
       end
-      handles.uipanel_frames.Position = [framesX, figH-635+dy, 220, 252] ;
+      handles.uipanel_frames.Position = [framesPanelX, figH-635+dy, 220, 252] ;
 
       % Bottom-right anchored (x shifts with figure width)
       handles.pumTimelineProp.Position = [figW-171, 27+dy, 157, 30] ;
@@ -4031,6 +4032,35 @@ classdef LabelerController < handle
       handles.pbPlay.Position = [9, 17, 30, 30] ;
       handles.pbPlaySeg.Position = [43, 17, 21, 30] ;
       handles.pbPlaySegRev.Position = [66, 17, 21, 30] ;
+
+      %% --- Children of uipanel_prev ---
+      handles.axes_prev.Position = [13, 12, 389, 308] ;
+      handles.txPrevIm.Position = [8, 326, 194, 18] ;
+      handles.popupmenu_prevmode.Position = [213, 323, 124, 22] ;
+      handles.pushbutton_freezetemplate.Position = [343, 324, 57, 21] ;
+
+      %% --- Children of uipanel_targetzoom ---
+      zoomSliderXMargin = 8 ; 
+      zoomButtonWidth = 60 ;
+      setRecallButtonWidth = 46 ;
+      setRecallButtonSpacerWidth = 2 ;
+      zoomSliderWidth = zoomPanelWidth-2*zoomSliderXMargin ;
+      recallButtonX = zoomSliderXMargin+zoomSliderWidth-setRecallButtonWidth ;
+      setButtonX = recallButtonX-(setRecallButtonWidth+setRecallButtonSpacerWidth) ;
+      handles.sldZoom.Position = [zoomSliderXMargin, 35, zoomSliderWidth, 17] ;
+      handles.pbResetZoom.Position = [zoomSliderXMargin, 8, zoomButtonWidth, 23] ;
+      handles.pbSetZoom.Position = [setButtonX, 8, setRecallButtonWidth, 23] ;
+      handles.pbRecallZoom.Position = [recallButtonX, 8, setRecallButtonWidth, 23] ;
+
+      %% --- Children of uipanel_frames ---
+      handles.tblFrames.Position = [12, 27, 192, 205] ;
+      handles.txTotalFramesLabeledLabel.Position = [11, 8, 61, 15] ;
+      handles.txTotalFramesLabeled.Position = [125, 7, 80, 15] ;
+
+      %% --- Children of uipanel_cropcontrols ---
+      handles.tbAdjustCropSize.Position = [5, 15, 120, 36] ;
+      handles.pbClearAllCrops.Position = [130, 15, 120, 36] ;
+      handles.pushbutton_exitcropmode.Position = [255, 15, 120, 36] ;
 
       %% --- Children of pnlStatus ---
       handles.txStatus.Position = [5, 9, 1107, 19] ;
