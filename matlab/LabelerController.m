@@ -4019,6 +4019,11 @@ classdef LabelerController < handle
       %% --- Children of pnlStatus ---
       handles.txStatus.Position = [5, 9, 1107, 19] ;
       handles.txBGTrain.Position = [figW-135, 4, 132, 23] ;
+
+      %% --- Subcontrollers ---
+      if ~isempty(obj.currImHud) && isvalid(obj.currImHud)
+        obj.currImHud.layout() ;
+      end
     end  % function
 
     function resize(obj)

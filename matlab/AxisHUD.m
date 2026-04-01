@@ -8,7 +8,7 @@ classdef AxisHUD < handle
 % TODO: Refactor for extensibility, just have structs/dicts instead of 
 % hardcoding state/meths for tgt vs lblpoint vs susp etc.
   
-  properties % basically Constant
+  properties  % basically Constant
     txtXoff = 10;
     txtHgt = 17;
     txtWdh = 130;  
@@ -29,28 +29,25 @@ classdef AxisHUD < handle
   end
   
   properties
-    hParent; % scalar handle
-    hTxts; % col vec of handles to text uicontrols
-    hTxtTgt; % scalar handle (for convenience; owned by hTxts)
-    hTxtLblPt; 
-    hTxtSusp;
-    hTxtTrklet;
-    
-    hHandedAnno; % scalar annotation for handedness indicator
-    hHandedListnr; % cell array of listeners to main axis .XDir and .YDir
-%     hAx; % axis for handedness
-    
-    hasTgt; % scalar logical
-    hasLblPt; 
-    hasSusp; 
-    hasTrklet;
+    hPanel  % scalar handle to the uipanel the HUD appears in
+    hTxts  % col vec of handles to text uicontrols
+    hTxtTgt  % scalar handle (for convenience; owned by hTxts)
+    hTxtLblPt 
+    hTxtSusp
+    hTxtTrklet    
+    hHandedAnno  % scalar annotation for handedness indicator
+    hHandedListnr  % cell array of listeners to main axis .XDir and .YDir
+    hasTgt  % scalar logical
+    hasLblPt 
+    hasSusp 
+    hasTrklet
   end
   
   methods
     
-    function obj = AxisHUD(h,hax)
-      assert(ishandle(h));
-      obj.hParent = h;
+    function obj = AxisHUD(hPanel, hAxes)
+      assert(ishandle(hPanel));
+      obj.hPanel = hPanel;
       obj.initHandedAnno();
       obj.initHTxts();
       obj.hasTgt = false;
@@ -58,12 +55,11 @@ classdef AxisHUD < handle
       obj.hasSusp = false;
       obj.hasTrklet = false;
       
-      lx = addlistener(hax,'XDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
-      ly = addlistener(hax,'YDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
+      lx = addlistener(hAxes,'XDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
+      ly = addlistener(hAxes,'YDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
       obj.hHandedListnr = {lx ly};
       
-      obj.cbkHandednessUpdate([],struct('AffectedObject',hax)); % initialize
-%       obj.hAx = hax;
+      obj.cbkHandednessUpdate([],struct('AffectedObject',hAxes)); % initialize
     end
     
     function delete(obj)
@@ -79,10 +75,7 @@ classdef AxisHUD < handle
     end
     
     function initHandedAnno(obj)
-      units0 = obj.hParent.Units;
-      obj.hParent.Units = 'pixels';
-      parentpos = obj.hParent.Position;
-      obj.hParent.Units = units0;
+      parentpos = obj.hPanel.Position;
       y1 = parentpos(4) - obj.annoHgt; % just below top of hParent
             
       % Add a new textbox
@@ -91,7 +84,7 @@ classdef AxisHUD < handle
       % ytop (output): new top/ceiling after txtbox added.
 
       pos = [obj.annoXoff y1 obj.annoWdh obj.annoHgt];
-      hAnn = annotation(obj.hParent,'textbox',...
+      hAnn = annotation(obj.hPanel,'textbox',...
         'String','$\otimes z$',...
         'FontUnits','pixels',...
         'FontSize',26,...
@@ -103,8 +96,6 @@ classdef AxisHUD < handle
         'Color',[1 1 1],...
         'Tag','hud_handedness'...
         );
-      hAnn.Units = 'normalized';
-      
       obj.hHandedAnno = hAnn;
       %ytop = ytop - obj.txtHgt;      
     end
@@ -156,10 +147,10 @@ classdef AxisHUD < handle
         'hasTrklet',obj.hasTrklet ...
         );
 
-      units0 = obj.hParent.Units;
-      obj.hParent.Units = 'pixels';
-      parentpos = obj.hParent.Position;
-      obj.hParent.Units = units0;
+      units0 = obj.hPanel.Units;
+      obj.hPanel.Units = 'pixels';
+      parentpos = obj.hPanel.Position;
+      obj.hPanel.Units = units0;
       y1 = parentpos(4) - obj.annoHgt; % just below anno
       if obj.hasTgt
         [obj.hTxtTgt,y1] = obj.addTxt(y1, obj.txtClrTarget, 'hud_tgt') ;
@@ -213,7 +204,7 @@ classdef AxisHUD < handle
       hTxt = uicontrol(...
         'Style','text',...
         'HorizontalAlignment','left',...
-        'Parent',obj.hParent,...
+        'Parent',obj.hPanel,...
         'FontUnits','pixels',...
         'FontName','Helvetica',...
         'FontSize',14,...
@@ -222,7 +213,6 @@ classdef AxisHUD < handle
         'ForegroundColor',foreColor,...
         'BackgroundColor',[0 0 0],...
         'Tag',tag);
-      hTxt.Units = 'normalized';
       ytop = ytop - obj.txtHgt;
     end
     
@@ -243,7 +233,26 @@ classdef AxisHUD < handle
       tfRightHanded = strcmp(ax.XDir,ax.YDir); % normal/normal or rev/rev
       obj.setHandedness(tfRightHanded);
     end
+
+    function layout(obj)
+      % Position all HUD elements based on the current pixel size of hParent.
+
+      parentPos = getpixelposition(obj.hPanel) ;
+      parentH = parentPos(4) ;
+
+      % Handedness annotation at top-left
+      obj.hHandedAnno.Position = ...
+        [obj.annoXoff, parentH - obj.annoHgt, obj.annoWdh, obj.annoHgt] ;
+
+      % Text labels stack downward from just below the annotation
+      y = parentH - obj.annoHgt ;
+      for i = 1 : numel(obj.hTxts)
+        obj.hTxts(i).Position = ...
+          [obj.txtXoff, y - obj.txtHgt, obj.txtWdh, obj.txtHgt] ;
+        y = y - obj.txtHgt ;
+      end
+    end  % function
   end
-  
-end
+
+end  % classdef
 
