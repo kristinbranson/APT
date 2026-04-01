@@ -223,7 +223,6 @@ classdef LabelerController < handle
     pbSetZoom
     pbTrack
     pbTrain
-    pnlStatus
     popupmenu_prevmode
     pumTimelineProp
     pumTimelinePropType
@@ -264,6 +263,7 @@ classdef LabelerController < handle
     uipanel_cropcontrols
     uipanel_curr
     uipanel_prev
+    uipanel_status
   end
 
   properties
@@ -3953,7 +3953,6 @@ classdef LabelerController < handle
       zoomPanelWidth = targetsPanelWidth ;
 
       hFig = obj.mainFigure_ ;
-      handles = guihandles(hFig) ;
       figPos = hFig.Position ;
       figWActual = figPos(3) ;
       figHActual = figPos(4) ;
@@ -3972,99 +3971,101 @@ classdef LabelerController < handle
       %% --- Direct children of main_figure ---
 
       % Main panel (resizes freely)
-      handles.uipanel_curr.Position = [leftSidebarWidth, timelineAreaHeight+dy, panelW, panelH] ;
+      obj.uipanel_curr.Position = [leftSidebarWidth, timelineAreaHeight+dy, panelW, panelH] ;
 
       % Top-left anchored (y shifts with figure height)
-      handles.uipanel_prev.Position = [sidebarLeftMargin, figH-370+dy, prevPanelWidth, 350] ;
-      handles.uipanel_targets.Position = [sidebarLeftMargin, figH-575+dy, targetsPanelWidth, 192] ;
-      handles.tblTrx.Position = [targetsTableXMargin, 8, targetsTableWidth, 164] ;
-      handles.uipanel_targetzoom.Position = [sidebarLeftMargin, figH-635+dy, zoomPanelWidth, 60] ;
+      obj.uipanel_prev.Position = [sidebarLeftMargin, figH-370+dy, prevPanelWidth, 350] ;
+      obj.uipanel_targets.Position = [sidebarLeftMargin, figH-575+dy, targetsPanelWidth, 192] ;
+      obj.tblTrx.Position = [targetsTableXMargin, 8, targetsTableWidth, 164] ;
+      obj.uipanel_targetzoom.Position = [sidebarLeftMargin, figH-635+dy, zoomPanelWidth, 60] ;
       % uipanel_frames x depends on whether targets panel is visible
-      if strcmp(handles.uipanel_targets.Visible, 'on')
+      if strcmp(obj.uipanel_targets.Visible, 'on')
         framesPanelX = sidebarLeftMargin + 198 ;
       else
         framesPanelX = sidebarLeftMargin ;
       end
-      handles.uipanel_frames.Position = [framesPanelX, figH-635+dy, 220, 252] ;
+      obj.uipanel_frames.Position = [framesPanelX, figH-635+dy, 220, 252] ;
 
       % Bottom-right anchored (x shifts with figure width)
-      handles.pumTimelineProp.Position = [figW-171, 27+dy, 157, 30] ;
-      handles.pumTimelinePropType.Position = [figW-301, 27+dy, 124, 30] ;
-      handles.tx_timeline_islabeled.Position = [figW-84, 154+dy, 72, 21] ;
+      obj.pumTimelineProp.Position = [figW-171, 27+dy, 157, 30] ;
+      obj.pumTimelinePropType.Position = [figW-301, 27+dy, 124, 30] ;
+      obj.tx_timeline_islabeled.Position = [figW-84, 154+dy, 72, 21] ;
 
       % Stretch width (width tracks main panel width)
-      handles.axes_timeline_manual.Position = [timelineAreaXOffset, 62+dy, panelW-40, 87] ;
-      handles.axes_timeline_islabeled.Position = [timelineAreaXOffset, 152+dy, panelW-40, 24] ;
-      handles.pnlStatus.Position = [1, -2+dy, figW, 28] ;
+      obj.axes_timeline_manual.Position = [timelineAreaXOffset, 62+dy, panelW-40, 87] ;
+      obj.axes_timeline_islabeled.Position = [timelineAreaXOffset, 152+dy, panelW-40, 24] ;
+      statusPanelHeight = 28 ;
+      obj.uipanel_status.Position = [1, -2+dy, figW, statusPanelHeight] ;
 
       % Bottom-left anchored (fixed positions)
-      handles.tbAccept.Position = [228, 154+dy, 197, 49] ;
-      handles.pbClear.Position = [22, 154+dy, 197, 49] ;
-      handles.pbTrain.Position = [22, 98+dy, 197, 49] ;
-      handles.pbTrack.Position = [229, 98+dy, 197, 49] ;
-      handles.pumTrack.Position = [167, 52+dy, 258, 31] ;
-      handles.tbTLSelectMode.Position = [timelineAreaXOffset, 35+dy, 48, 22] ;
-      handles.pbClearSelection.Position = [timelineAreaXOffset+50, 35+dy, 48, 22] ;
-      handles.txLblCoreAux.Position = [20, figH-682+dy, 220, 42] ;
-      handles.txUnsavedChanges.Position = [260, 402+dy, 174, 20] ;
-      handles.txGTMode.Position = [303, 374+dy, 132, 23] ;
-      handles.txCropMode.Position = [304, 350+dy, 132, 23] ;
-      handles.uipanel_cropcontrols.Position = [34, 275+dy, 387, 73] ;
-      handles.text_framestotrack.Position = [19, 56+dy, 136, 23] ;
-      handles.text_framestotrackinfo.Position = [23, 34+dy, 406, 19] ;
-      handles.text_trackerinfo.Position = [19, figH-774+dy, 422, 88] ;
+      obj.tbAccept.Position = [228, 154+dy, 197, 49] ;
+      obj.pbClear.Position = [22, 154+dy, 197, 49] ;
+      obj.pbTrain.Position = [22, 98+dy, 197, 49] ;
+      obj.pbTrack.Position = [229, 98+dy, 197, 49] ;
+      obj.pumTrack.Position = [167, 52+dy, 258, 31] ;
+      obj.tbTLSelectMode.Position = [timelineAreaXOffset, 35+dy, 48, 22] ;
+      obj.pbClearSelection.Position = [timelineAreaXOffset+50, 35+dy, 48, 22] ;
+      obj.txLblCoreAux.Position = [20, figH-682+dy, 220, 42] ;
+      obj.txUnsavedChanges.Position = [260, 402+dy, 174, 20] ;
+      obj.txGTMode.Position = [303, 374+dy, 132, 23] ;
+      obj.txCropMode.Position = [304, 350+dy, 132, 23] ;
+      obj.uipanel_cropcontrols.Position = [34, 275+dy, 387, 73] ;
+      obj.text_framestotrack.Position = [19, 56+dy, 136, 23] ;
+      obj.text_framestotrackinfo.Position = [23, 34+dy, 406, 19] ;
+      obj.text_trackerinfo.Position = [19, figH-774+dy, 422, 88] ;
 
       %% --- Children of uipanel_curr ---
 
       % Resize freely
-      handles.axes_curr.Position = [27, 61, panelW-68, panelH-102] ;
+      obj.axes_curr.Position = [27, 61, panelW-68, panelH-102] ;
 
       % Top-right anchored, width fits text
       obj.layoutMoviename_() ;
 
       % Bottom of panel + stretch width
-      handles.slider_frame.Position = [164, 19, panelW-190, 24] ;
+      obj.slider_frame.Position = [164, 19, panelW-190, 24] ;
 
       % Bottom-left of panel (fixed within panel)
-      handles.axes_occ.Position = [14, 62, 196, 54] ;
-      handles.text_occludedpoints.Position = [14, 93, 196, 23] ;
-      handles.edit_frame.Position = [91, 20, 68, 24] ;
-      handles.pbPlay.Position = [9, 17, 30, 30] ;
-      handles.pbPlaySeg.Position = [43, 17, 21, 30] ;
-      handles.pbPlaySegRev.Position = [66, 17, 21, 30] ;
+      obj.axes_occ.Position = [14, 62, 196, 54] ;
+      obj.text_occludedpoints.Position = [14, 93, 196, 23] ;
+      obj.edit_frame.Position = [91, 20, 68, 24] ;
+      obj.pbPlay.Position = [9, 17, 30, 30] ;
+      obj.pbPlaySeg.Position = [43, 17, 21, 30] ;
+      obj.pbPlaySegRev.Position = [66, 17, 21, 30] ;
 
       %% --- Children of uipanel_prev ---
-      handles.axes_prev.Position = [13, 12, 389, 308] ;
-      handles.txPrevIm.Position = [8, 326, 194, 18] ;
-      handles.popupmenu_prevmode.Position = [213, 323, 124, 22] ;
-      handles.pushbutton_freezetemplate.Position = [343, 324, 57, 21] ;
+      obj.axes_prev.Position = [13, 12, 389, 308] ;
+      obj.txPrevIm.Position = [8, 326, 194, 18] ;
+      obj.popupmenu_prevmode.Position = [213, 323, 124, 22] ;
+      obj.pushbutton_freezetemplate.Position = [343, 324, 57, 21] ;
 
       %% --- Children of uipanel_targetzoom ---
-      zoomSliderXMargin = 8 ; 
+      zoomSliderXMargin = 8 ;
       zoomButtonWidth = 60 ;
       setRecallButtonWidth = 46 ;
       setRecallButtonSpacerWidth = 2 ;
       zoomSliderWidth = zoomPanelWidth-2*zoomSliderXMargin ;
       recallButtonX = zoomSliderXMargin+zoomSliderWidth-setRecallButtonWidth ;
       setButtonX = recallButtonX-(setRecallButtonWidth+setRecallButtonSpacerWidth) ;
-      handles.sldZoom.Position = [zoomSliderXMargin, 35, zoomSliderWidth, 17] ;
-      handles.pbResetZoom.Position = [zoomSliderXMargin, 8, zoomButtonWidth, 23] ;
-      handles.pbSetZoom.Position = [setButtonX, 8, setRecallButtonWidth, 23] ;
-      handles.pbRecallZoom.Position = [recallButtonX, 8, setRecallButtonWidth, 23] ;
+      obj.sldZoom.Position = [zoomSliderXMargin, 35, zoomSliderWidth, 17] ;
+      obj.pbResetZoom.Position = [zoomSliderXMargin, 8, zoomButtonWidth, 23] ;
+      obj.pbSetZoom.Position = [setButtonX, 8, setRecallButtonWidth, 23] ;
+      obj.pbRecallZoom.Position = [recallButtonX, 8, setRecallButtonWidth, 23] ;
 
       %% --- Children of uipanel_frames ---
-      handles.tblFrames.Position = [12, 27, 192, 205] ;
-      handles.txTotalFramesLabeledLabel.Position = [11, 8, 61, 15] ;
-      handles.txTotalFramesLabeled.Position = [125, 7, 80, 15] ;
+      obj.tblFrames.Position = [12, 27, 192, 205] ;
+      obj.txTotalFramesLabeledLabel.Position = [11, 8, 61, 15] ;
+      obj.txTotalFramesLabeled.Position = [125, 7, 80, 15] ;
 
       %% --- Children of uipanel_cropcontrols ---
-      handles.tbAdjustCropSize.Position = [5, 15, 120, 36] ;
-      handles.pbClearAllCrops.Position = [130, 15, 120, 36] ;
-      handles.pushbutton_exitcropmode.Position = [255, 15, 120, 36] ;
+      obj.tbAdjustCropSize.Position = [5, 15, 120, 36] ;
+      obj.pbClearAllCrops.Position = [130, 15, 120, 36] ;
+      obj.pushbutton_exitcropmode.Position = [255, 15, 120, 36] ;
 
-      %% --- Children of pnlStatus ---
-      handles.txStatus.Position = [5, 9, 1107, 19] ;
-      handles.txBGTrain.Position = [figW-135, 4, 132, 23] ;
+      %% --- Children of uipanel_status ---
+      statusTextXMargin = 5 ;
+      obj.txStatus.Position = [5, 9, 1107, 19] ;
+      obj.txBGTrain.Position = [figW-135, 4, 132, 23] ;
 
       %% --- Subcontrollers ---
       if ~isempty(obj.currImHud) && isvalid(obj.currImHud)
