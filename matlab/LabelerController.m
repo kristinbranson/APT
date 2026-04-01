@@ -3985,6 +3985,16 @@ classdef LabelerController < handle
         framesPanelX = sidebarLeftMargin ;
       end
       obj.uipanel_frames.Position = [framesPanelX, figH-635+dy, 220, 252] ;
+      txLblCoreAuxHeight = 42 ;
+      txLblCoreAuxBottomY = figH-682+dy ;
+      txLblCoreAuxTopY = txLblCoreAuxBottomY + txLblCoreAuxHeight ;
+      obj.txLblCoreAux.Position = [20, txLblCoreAuxBottomY, 220, txLblCoreAuxHeight] ;
+      obj.text_trackerinfo.Position = [20, figH-774+dy, 422, 88] ;
+      txUnsavedChangesWidth = 150 ;
+      txUnsavedChangesHeight = obj.txUnsavedChanges.Position(4) ;
+      txUnsavedChangesX = leftSidebarWidth - sidebarRightMargin - txUnsavedChangesWidth ;
+      txUnsavedChangesY = txLblCoreAuxTopY-txUnsavedChangesHeight ;
+      obj.txUnsavedChanges.Position = [txUnsavedChangesX, txUnsavedChangesY, txUnsavedChangesWidth, txUnsavedChangesHeight] ;
 
       % Bottom-right anchored (x shifts with figure width)
       obj.pumTimelineProp.Position = [figW-171, 27+dy, 157, 30] ;
@@ -4005,14 +4015,11 @@ classdef LabelerController < handle
       obj.pumTrack.Position = [167, 52+dy, 258, 31] ;
       obj.tbTLSelectMode.Position = [timelineAreaXOffset, 35+dy, 48, 22] ;
       obj.pbClearSelection.Position = [timelineAreaXOffset+50, 35+dy, 48, 22] ;
-      obj.txLblCoreAux.Position = [20, figH-682+dy, 220, 42] ;
-      obj.txUnsavedChanges.Position = [260, 402+dy, 174, 20] ;
       obj.txGTMode.Position = [303, 374+dy, 132, 23] ;
       obj.txCropMode.Position = [304, 350+dy, 132, 23] ;
       obj.uipanel_cropcontrols.Position = [34, 275+dy, 387, 73] ;
       obj.text_framestotrack.Position = [19, 56+dy, 136, 23] ;
       obj.text_framestotrackinfo.Position = [23, 34+dy, 406, 19] ;
-      obj.text_trackerinfo.Position = [19, figH-774+dy, 422, 88] ;
 
       %% --- Children of uipanel_curr ---
 
@@ -4036,8 +4043,8 @@ classdef LabelerController < handle
       %% --- Children of uipanel_prev ---
       obj.axes_prev.Position = [13, 12, 389, 308] ;
       obj.txPrevIm.Position = [8, 326, 194, 18] ;
-      obj.popupmenu_prevmode.Position = [213, 323, 124, 22] ;
-      obj.pushbutton_freezetemplate.Position = [343, 324, 57, 21] ;
+      obj.popupmenu_prevmode.Position = [213, 324, 124, 22] ;
+      obj.pushbutton_freezetemplate.Position = [343, 324, 57, 22] ;
 
       %% --- Children of uipanel_targetzoom ---
       zoomSliderXMargin = 8 ;

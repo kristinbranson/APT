@@ -437,7 +437,7 @@ classdef LabelCoreController < handle
       % Update the auxiliary text label showing hotkey mapping.
       iPt0 = obj.model_.kpfIPtFor1Key ;
       iPt1 = iPt0 + 9 ;
-      str = sprintf('Hotkeys 1-9,0 map to points %d-%d, ` (backquote) toggles', iPt0, iPt1) ;
+      str = sprintf('Hotkeys 1-9,0 map to points %d-%d\n` (backquote) toggles', iPt0, iPt1) ;
       obj.txLblCoreAux_.String = str ;
     end  % function
 
