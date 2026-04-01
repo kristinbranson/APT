@@ -309,7 +309,6 @@ classdef LabelerController < handle
       obj.labeler_ = labeler ;
       mainFigure = createLabelerMainFigure() ;
       obj.mainFigure_ = mainFigure ;
-      obj.layoutMainFigure_() ;
       obj.tvTrx_ = TrackingVisualizerTrx(obj, labeler) ;
       obj.isInYodaMode_ = isInYodaMode ;
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
@@ -330,6 +329,9 @@ classdef LabelerController < handle
         end
       end
       
+      % Position all the controls properly
+      obj.layoutMainFigure_() ;
+
       % Set these things
       obj.axes_all = obj.axes_curr ;
       obj.images_all = obj.image_curr ;
@@ -2258,8 +2260,9 @@ classdef LabelerController < handle
       %   str = [str,' (inverted)'] ;
       % end
       set(obj.txMoviename,'String',str) ;
+      obj.layoutMoviename_() ;
     end  % function
-    
+
     function updateShortcuts(obj)
       labeler = obj.labeler_ ;
       main_figure = obj.mainFigure_ ;
@@ -3868,6 +3871,7 @@ classdef LabelerController < handle
         str = sprintf('%s %d: %s',movstr,labeler.currMovie,mname);
       end
       set(obj.txMoviename,'String',str);
+      obj.layoutMoviename_() ;
     end  % function cbkNewMovie
 
     function cbkDataImported(obj, src, evt)  %#ok<INUSD>
@@ -4002,8 +4006,8 @@ classdef LabelerController < handle
       % Resize freely
       handles.axes_curr.Position = [27, 61, panelW-68, panelH-102] ;
 
-      % Top of panel + stretch width
-      handles.txMoviename.Position = [183, panelH-23, panelW-188, 19] ;
+      % Top-right anchored, width fits text
+      obj.layoutMoviename_() ;
 
       % Bottom of panel + stretch width
       handles.slider_frame.Position = [164, 19, panelW-190, 24] ;
@@ -4024,6 +4028,24 @@ classdef LabelerController < handle
       if ~isempty(obj.currImHud) && isvalid(obj.currImHud)
         obj.currImHud.layout() ;
       end
+    end  % function
+
+    function layoutMoviename_(obj)
+      % Set the position of txMoviename so its width fits its text and its upper-right is
+      % anchored to the upper-right of uipanel_curr.
+      rightMargin = 5 ;
+      topMargin = 4 ;
+      % textHeight = 19 ;
+      panelPosition = obj.uipanel_curr.Position ;
+      panelWidth = panelPosition(3) ;
+      panelHeight = panelPosition(4) ;
+      drawnow() ;  % Need to do this to get correct extent
+      extent = obj.txMoviename.Extent ;
+      textWidth = extent(3) + 4 ;  % small padding
+      textHeight = extent(4) ;
+      x = panelWidth - rightMargin - textWidth ;
+      y = panelHeight - topMargin - textHeight ;
+      obj.txMoviename.Position = [x, y, textWidth, textHeight] ;
     end  % function
 
     function resize(obj)
