@@ -3935,13 +3935,20 @@ classdef LabelerController < handle
       % out at the minimum size but shifted so they stay anchored to the top-left
       % corner of the figure.
 
+      % Constants that define features of the layout.  If not specified, these
+      % are in logical pixels.
+      minLayoutWidth = 1534 ;  % If the fig is narrower than this, we pretend it's this width when doing layout
+      minLayoutHeight = 1062 ;  % If the fig is shorter than this, we pretend it's this height when doing layout
+      leftSidebarWidth = 450 ;
+        % The main figure has a bunch of controls in a fixed-width area on the left
+        % margin of the figure.  This is the width of this area.
+      timelineAreaXOffset = leftSidebarWidth + 30 ;
+
       hFig = obj.mainFigure_ ;
       handles = guihandles(hFig) ;
       figPos = hFig.Position ;
       figWActual = figPos(3) ;
       figHActual = figPos(4) ;
-      minLayoutWidth = 1534 ;
-      minLayoutHeight = 1062 ;
       figW = max(figWActual, minLayoutWidth) ;
       figH = max(figHActual, minLayoutHeight) ;
 
@@ -3951,13 +3958,13 @@ classdef LabelerController < handle
       dy = figHActual - figH ;
 
       % -- Derived sizes for the main panel --
-      panelW = figW - 460 ;   % left edge at 450, right margin 10
+      panelW = figW - (leftSidebarWidth+10) ;   % left edge at leftSidebarWidth, right margin 10
       panelH = figH - 204 ;   % bottom at 184, top margin 20
 
       %% --- Direct children of main_figure ---
 
       % Main panel (resizes freely)
-      handles.uipanel_curr.Position = [450, 184+dy, panelW, panelH] ;
+      handles.uipanel_curr.Position = [leftSidebarWidth, 184+dy, panelW, panelH] ;
 
       % Top-left anchored (y shifts with figure height)
       handles.uipanel_prev.Position = [19, figH-370+dy, 415, 350] ;
@@ -3978,8 +3985,8 @@ classdef LabelerController < handle
       handles.tx_timeline_islabeled.Position = [figW-84, 154+dy, 72, 21] ;
 
       % Stretch width (width tracks main panel width)
-      handles.axes_timeline_manual.Position = [450, 62+dy, panelW, 87] ;
-      handles.axes_timeline_islabeled.Position = [450, 152+dy, panelW, 24] ;
+      handles.axes_timeline_manual.Position = [timelineAreaXOffset, 62+dy, panelW-40, 87] ;
+      handles.axes_timeline_islabeled.Position = [timelineAreaXOffset, 152+dy, panelW-40, 24] ;
       handles.pnlStatus.Position = [1, -2+dy, figW, 28] ;
 
       % Bottom-left anchored (fixed positions)
@@ -3988,8 +3995,8 @@ classdef LabelerController < handle
       handles.pbTrain.Position = [22, 98+dy, 197, 49] ;
       handles.pbTrack.Position = [229, 98+dy, 197, 49] ;
       handles.pumTrack.Position = [167, 52+dy, 258, 31] ;
-      handles.tbTLSelectMode.Position = [450, 35+dy, 48, 22] ;
-      handles.pbClearSelection.Position = [500, 35+dy, 48, 22] ;
+      handles.tbTLSelectMode.Position = [timelineAreaXOffset, 35+dy, 48, 22] ;
+      handles.pbClearSelection.Position = [timelineAreaXOffset+50, 35+dy, 48, 22] ;
       handles.txLblCoreAux.Position = [20, figH-682+dy, 220, 42] ;
       handles.txUnsavedChanges.Position = [260, 402+dy, 174, 20] ;
       handles.txGTMode.Position = [303, 374+dy, 132, 23] ;

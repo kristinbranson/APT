@@ -275,6 +275,7 @@ classdef InfoTimelineController < handle
                          'Tag','InfoTimeline_Stat');
       
       ax.XColor = prefsXColor;
+      ax.YColor = prefsXColor;
       dy = .01;
       ax.YLim = [0-dy 1+dy];
       if ishandle(obj.hSelIm)
@@ -498,11 +499,6 @@ classdef InfoTimelineController < handle
       % Update visibility and axis colors
       onoff = onIff(tfshow);
       obj.hStatThresh.Visible = onoff;
-      if tfshow
-        obj.hAx.YColor = obj.hAx.XColor;
-      else
-        obj.hAx.YColor = [0.15 0.15 0.15];
-      end
     end  % function
 
     function updateUncertainThresh(obj)
