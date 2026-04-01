@@ -3942,7 +3942,14 @@ classdef LabelerController < handle
       leftSidebarWidth = 450 ;
         % The main figure has a bunch of controls in a fixed-width area on the left
         % margin of the figure.  This is the width of this area.
+      timelineAreaHeight = 184 ;
       timelineAreaXOffset = leftSidebarWidth + 30 ;
+      sidebarLeftMargin = 16 ;
+      sidebarRightMargin = 16 ;
+      prevPanelWidth = (leftSidebarWidth-(sidebarLeftMargin+sidebarRightMargin)) ;
+      targetsPanelWidth = 194 ;
+      targetsTableXMargin = 10 ;
+      targetsTableWidth = targetsPanelWidth-2*targetsTableXMargin ;
 
       hFig = obj.mainFigure_ ;
       handles = guihandles(hFig) ;
@@ -3959,18 +3966,18 @@ classdef LabelerController < handle
 
       % -- Derived sizes for the main panel --
       panelW = figW - (leftSidebarWidth+10) ;   % left edge at leftSidebarWidth, right margin 10
-      panelH = figH - 204 ;   % bottom at 184, top margin 20
+      panelH = figH - (timelineAreaHeight+20) ;   % bottom at timelineAreaHeight, top margin 20
 
       %% --- Direct children of main_figure ---
 
       % Main panel (resizes freely)
-      handles.uipanel_curr.Position = [leftSidebarWidth, 184+dy, panelW, panelH] ;
+      handles.uipanel_curr.Position = [leftSidebarWidth, timelineAreaHeight+dy, panelW, panelH] ;
 
       % Top-left anchored (y shifts with figure height)
-      handles.uipanel_prev.Position = [19, figH-370+dy, 415, 350] ;
-      handles.uipanel_targets.Position = [16, figH-575+dy, 194, 192] ;
-      handles.tblTrx.Position = [9, 4, 176, 172] ;
-      handles.uipanel_targetzoom.Position = [16, figH-635+dy, 194, 60] ;
+      handles.uipanel_prev.Position = [sidebarLeftMargin, figH-370+dy, prevPanelWidth, 350] ;
+      handles.uipanel_targets.Position = [sidebarLeftMargin, figH-575+dy, targetsPanelWidth, 192] ;
+      handles.tblTrx.Position = [targetsTableXMargin, 8, targetsTableWidth, 164] ;
+      handles.uipanel_targetzoom.Position = [16, figH-635+dy, targetsPanelWidth, 60] ;
       % uipanel_frames x depends on whether targets panel is visible
       if strcmp(handles.uipanel_targets.Visible, 'on')
         framesX = 16 + 198 ;
