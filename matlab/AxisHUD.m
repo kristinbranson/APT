@@ -11,7 +11,7 @@ classdef AxisHUD < handle
   properties  % basically Constant
     txtXoff = 10;
     txtHgt = 17;
-    txtWdh = 130;  
+    txtWdh = 20;  
     
     annoXoff = 0;
     annoHgt = 34;
@@ -171,27 +171,31 @@ classdef AxisHUD < handle
     end
     
     function updateTarget(obj,tgtID)
-      assert(obj.hasTgt)
-      str = sprintf(obj.tgtFmt,tgtID);
-      set(obj.hTxtTgt,'String',str);
+      % Update the target readout.
+      assert(obj.hasTgt) ;
+      str = sprintf(obj.tgtFmt, tgtID) ;
+      setStringAndFitWidthBang(obj.hTxtTgt, str) ;
     end
-    
+
     function updateLblPoint(obj,iLblPt,nLblPts)
-      assert(obj.hasLblPt);
-      str = sprintf(obj.lblPointFmt,iLblPt,nLblPts);
-      obj.hTxtLblPt.String = str;      
+      % Update the label-point readout.
+      assert(obj.hasLblPt) ;
+      str = sprintf(obj.lblPointFmt, iLblPt, nLblPts) ;
+      setStringAndFitWidthBang(obj.hTxtLblPt, str) ;
     end
-    
+
     function updateSusp(obj,suspscore)
-      assert(obj.hasSusp);
-      str = sprintf(obj.suspFmt,suspscore);
-      obj.hTxtSusp.String = str;
+      % Update the suspiciousness readout.
+      assert(obj.hasSusp) ;
+      str = sprintf(obj.suspFmt, suspscore) ;
+      setStringAndFitWidthBang(obj.hTxtSusp, str) ;
     end
- 
+
     function updateTrklet(obj,trklet,ntrklettot)
-      assert(obj.hasTrklet);
-      str = sprintf(obj.trkletFmt,trklet,ntrklettot);
-      obj.hTxtTrklet.String = str;
+      % Update the tracklet readout.
+      assert(obj.hasTrklet) ;
+      str = sprintf(obj.trkletFmt, trklet, ntrklettot) ;
+      setStringAndFitWidthBang(obj.hTxtTrklet, str) ;
     end
  
     function [hTxt,ytop] = addTxt(obj, ytop, foreColor, tag)
@@ -215,7 +219,7 @@ classdef AxisHUD < handle
         'Tag',tag);
       ytop = ytop - obj.txtHgt;
     end
-    
+
     function setHandednessViz(obj,tfviz)
       obj.hHandedAnno.Visible = onIff(tfviz);
     end
@@ -228,7 +232,7 @@ classdef AxisHUD < handle
       end
     end
     
-    function cbkHandednessUpdate(obj,src,evt)
+    function cbkHandednessUpdate(obj,~,evt)
       ax = evt.AffectedObject;
       tfRightHanded = strcmp(ax.XDir,ax.YDir); % normal/normal or rev/rev
       obj.setHandedness(tfRightHanded);
@@ -247,8 +251,11 @@ classdef AxisHUD < handle
       % Text labels stack downward from just below the annotation
       y = parentH - obj.annoHgt ;
       for i = 1 : numel(obj.hTxts)
-        obj.hTxts(i).Position = ...
-          [obj.txtXoff, y - obj.txtHgt, obj.txtWdh, obj.txtHgt] ;
+        pos = obj.hTxts(i).Position ;
+        pos(1) = obj.txtXoff ;
+        pos(2) = y - obj.txtHgt ;
+        pos(4) = obj.txtHgt ;
+        obj.hTxts(i).Position = pos ;
         y = y - obj.txtHgt ;
       end
     end  % function
