@@ -2259,8 +2259,7 @@ classdef LabelerController < handle
       % if ~isempty(labeler.movieInvert) && labeler.movieInvert(1) ,
       %   str = [str,' (inverted)'] ;
       % end
-      set(obj.txMoviename,'String',str) ;
-      obj.layoutMoviename_() ;
+      setStringAndFitWidthBang(obj.txMoviename, str) ;
     end  % function
 
     function updateShortcuts(obj)
@@ -3870,8 +3869,7 @@ classdef LabelerController < handle
       else
         str = sprintf('%s %d: %s',movstr,labeler.currMovie,mname);
       end
-      set(obj.txMoviename,'String',str);
-      obj.layoutMoviename_() ;
+      setStringAndFitWidthBang(obj.txMoviename, str) ;
     end  % function cbkNewMovie
 
     function cbkDataImported(obj, src, evt)  %#ok<INUSD>
@@ -4031,7 +4029,7 @@ classdef LabelerController < handle
     end  % function
 
     function layoutMoviename_(obj)
-      % Set the position of txMoviename so its width fits its text and its upper-right is
+      % Set the position of txMoviename so its upper-right is
       % anchored to the upper-right of uipanel_curr.
       rightMargin = 5 ;
       topMargin = 4 ;
@@ -4039,10 +4037,9 @@ classdef LabelerController < handle
       panelPosition = obj.uipanel_curr.Position ;
       panelWidth = panelPosition(3) ;
       panelHeight = panelPosition(4) ;
-      drawnow() ;  % Need to do this to get correct extent
-      extent = obj.txMoviename.Extent ;
-      textWidth = extent(3) + 4 ;  % small padding
-      textHeight = extent(4) ;
+      oldTextPosition = obj.txMoviename.Position ;
+      textWidth = oldTextPosition(3);
+      textHeight = oldTextPosition(4) ;
       x = panelWidth - rightMargin - textWidth ;
       y = panelHeight - topMargin - textHeight ;
       obj.txMoviename.Position = [x, y, textWidth, textHeight] ;

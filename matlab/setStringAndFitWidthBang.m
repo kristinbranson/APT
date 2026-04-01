@@ -1,7 +1,5 @@
-function setStringAndFitWidthBang(hTxt, str)
+function setStringAndFitWidthBang(hText, str)
 % Set the String of a text uicontrol and adjust its width to fit.
-hTxt.String = str ;
-drawnow() ;
-extent = hTxt.Extent ;
-hTxt.Position(3) = extent(3) + 2 ;  % the + 2 is a fudge factor
+hText.String = str ;
+shrinkWrapTextControlBang(hText) ;
 end  % function
