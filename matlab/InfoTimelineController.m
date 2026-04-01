@@ -462,11 +462,12 @@ classdef InfoTimelineController < handle
     end  % function
     
     function updateSelectionImageCData_(obj)
+      % Update the selection-highlight image from the model state.
       itm = obj.lObj.infoTimelineModel ;
-      if itm.selectOn && ~isempty(obj.hSelIm) && isvalid(obj.hSelIm)
+      if ~isempty(obj.hSelIm) && isvalid(obj.hSelIm)
         obj.hSelIm.CData = itm.isSelectedFromFrameIndex ;
       end
-    end  % function   
+    end  % function
 
     function updateLandmarkColors(obj)
       tflbl = obj.lObj.infoTimelineModel.getCurPropTypeIsLabel();
