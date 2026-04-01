@@ -795,7 +795,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;      
       isTrainingOrTracking = labeler.bgTrnIsRunning || labeler.bgTrkIsRunning ;
       if isTrainingOrTracking
-        obj.txBGTrain.String = labeler.backgroundProcessingStatusString ;
+        setStringAndFitWidthBang(obj.txBGTrain, labeler.backgroundProcessingStatusString) ;
         % obj.txBGTrain.ForegroundColor = LabelerController.busystatuscolor ;
         obj.txBGTrain.Visible = 'on' ;
       else
@@ -4064,8 +4064,17 @@ classdef LabelerController < handle
 
       %% --- Children of uipanel_status ---
       statusTextXMargin = 5 ;
-      obj.txStatus.Position = [5, 9, 1107, 19] ;
-      obj.txBGTrain.Position = [figW-135, 4, 132, 23] ;
+      statusTextWidth = 1100 ;
+      statusTextPosition = obj.txStatus.Position ;
+      statusTextHeight = statusTextPosition(4) ;
+      statusTextY = (statusPanelHeight - statusTextHeight) / 2 - 2  ;  % -2 is a fudge factor
+      obj.txStatus.Position = replaceAt(statusTextPosition, [1 2 3], [statusTextXMargin statusTextY statusTextWidth]) ;
+      bgTrainPosition = obj.txBGTrain.Position ;
+      bgTrainWidth = bgTrainPosition(3) ;
+      bgTrainHeight = bgTrainPosition(4) ;
+      bgTrainX = figW - statusTextXMargin - bgTrainWidth ;
+      bgTrainY = (statusPanelHeight - bgTrainHeight) / 2 - 2  ;  % -2 is a fudge factor
+      obj.txBGTrain.Position = replaceAt(bgTrainPosition, [1 2], [bgTrainX bgTrainY]) ;
 
       %% --- Subcontrollers ---
       if ~isempty(obj.currImHud) && isvalid(obj.currImHud)
