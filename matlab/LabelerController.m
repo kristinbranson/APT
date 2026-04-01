@@ -3960,6 +3960,7 @@ classdef LabelerController < handle
       % Top-left anchored (y shifts with figure height)
       handles.uipanel_prev.Position = [19, figH-370+dy, 415, 350] ;
       handles.uipanel_targets.Position = [16, figH-575+dy, 194, 192] ;
+      handles.tblTrx.Position = [9, 4, 176, 172] ;
       handles.uipanel_targetzoom.Position = [16, figH-635+dy, 194, 60] ;
       % uipanel_frames x depends on whether targets panel is visible
       if strcmp(handles.uipanel_targets.Visible, 'on')
