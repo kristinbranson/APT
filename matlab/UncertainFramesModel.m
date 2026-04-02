@@ -8,6 +8,12 @@ classdef UncertainFramesModel < handle
       % low-confidence bouts.
     confidenceThreshold_ = 1
       % scalar double, the threshold for filtering bouts.
+    isQuantile_ = false
+      % scalar logical, when true the threshold is interpreted as a quantile
+      % (0-1) rather than an absolute confidence value.
+    quantileConfidenceThreshold_ = nan
+      % scalar double, the confidence threshold corresponding to the current
+      % quantile.  Only meaningful when isQuantile_ is true.
   end
 
   properties (Transient, Access=private)
@@ -32,6 +38,8 @@ classdef UncertainFramesModel < handle
     isVisible
     isConfidenceLackThereof
     confidenceThreshold
+    isQuantile
+    quantileConfidenceThreshold
     overallMinConfidence
     overallMaxConfidence
   end
@@ -95,6 +103,49 @@ classdef UncertainFramesModel < handle
       obj.isFresh_ = false ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
       obj.labeler_.notify_('didSetUncertainFramesThreshold') ;
+    end  % function
+
+    function result = get.isQuantile(obj)
+      % Return whether the threshold is interpreted as a quantile.
+      result = obj.isQuantile_ ;
+    end  % function
+
+    function set.isQuantile(obj, newValue)
+      % Set whether the threshold is interpreted as a quantile, then resync and notify.
+      oldValue = obj.isQuantile_ ;
+      obj.isQuantile_ = newValue ;
+      if ~oldValue && newValue
+        % Switching to quantile mode: compute the quantile of the current threshold.
+        allConf = obj.allConfidenceValues_() ;
+        if isempty(allConf)
+          obj.quantileConfidenceThreshold_ = nan ;
+        else
+          obj.quantileConfidenceThreshold_ = mean(allConf <= obj.confidenceThreshold_) ;
+        end
+      elseif oldValue && ~newValue
+        % Switching out of quantile mode.
+        obj.quantileConfidenceThreshold_ = nan ;
+      end
+      obj.isFresh_ = false ;
+      obj.syncFromPredictionsIfStaleAndVisible_() ;
+      obj.labeler_.notify_('updateUncertainFrames') ;
+    end  % function
+
+    function result = get.quantileConfidenceThreshold(obj)
+      % Return the confidence threshold corresponding to the current quantile.
+      result = obj.quantileConfidenceThreshold_ ;
+    end  % function
+
+    function set.quantileConfidenceThreshold(obj, newValue)
+      % Set the quantile threshold and update the absolute confidence threshold to match.
+      if ~obj.isQuantile_
+        error('Cannot set quantileConfidenceThreshold when isQuantile is false.') ;
+      end
+      obj.quantileConfidenceThreshold_ = newValue ;
+      allConf = obj.allConfidenceValues_() ;
+      if ~isempty(allConf)
+        obj.confidenceThreshold = quantile(allConf, newValue) ;
+      end
     end  % function
 
     function result = get.overallMinConfidence(obj)
@@ -195,6 +246,43 @@ classdef UncertainFramesModel < handle
        obj.overallMaxConfidence_] = ...
         confidenceBoutsFromTrkFile(trkFile, obj.confidenceThreshold_, obj.isConfidenceLackThereof_) ;
       obj.isFresh_ = true ;
+    end  % function
+
+    function result = allConfidenceValues_(obj)
+      % Return a column vector of all per-frame min-confidence values for the current movie.
+      labeler = obj.labeler_ ;
+      if labeler.currMovie == 0
+        result = [] ;
+        return
+      end
+      tracker = labeler.tracker ;
+      if isempty(tracker)
+        result = [] ;
+        return
+      end
+      trkFile = tracker.trkP ;
+      if isempty(trkFile) || ~isa(trkFile, 'TrkFile') || ~trkFile.hasdata()
+        result = [] ;
+        return
+      end
+      if ~isprop(trkFile, 'pTrkConf')
+        result = [] ;
+        return
+      end
+      allConf = [] ;
+      trackletCount = trkFile.ntracklets ;
+      for trackletIndex = 1 : trackletCount
+        [xy, ~, ~, aux] = trkFile.getPTrkTgt(trackletIndex, 'auxflds', {'pTrkConf'}) ;
+        if isempty(xy) || isempty(aux)
+          continue
+        end
+        confPerPointAndFrame = reshape(aux, size(aux, 1), size(aux, 2)) ;
+        minConfPerFrame = min(confPerPointAndFrame, [], 1) ;
+        minConfPerFrame = minConfPerFrame(:) ;
+        isFinite = isfinite(minConfPerFrame) ;
+        allConf = [allConf ; minConfPerFrame(isFinite)] ;  %#ok<AGROW>
+      end
+      result = allConf ;
     end  % function
 
     function clear_(obj)

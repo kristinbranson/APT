@@ -3714,6 +3714,12 @@ classdef LabelerController < handle
       ufc.uncertain_frames_confidence_lack_thereof_checkbox_actuated_(src) ;
     end  % function
 
+    function uncertain_frames_quantile_checkbox_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Toggle whether the threshold is interpreted as a quantile.
+      ufc = obj.uncertainFramesController_ ;
+      ufc.uncertain_frames_quantile_checkbox_actuated_(src) ;
+    end  % function
+
     function uncertain_frames_threshold_edit_actuated_(obj, src, evt)  %#ok<INUSD>
       % Handle threshold edit box change.
       ufc = obj.uncertainFramesController_ ;
