@@ -105,11 +105,7 @@ classdef UncertainFramesController < handle
     function uncertain_frames_threshold_edit_actuated_(obj, src)
       % Handle threshold edit box change.
       newValue = str2double(src.String) ;
-      if isfinite(newValue) && newValue >= 0
-        obj.model_.confidenceThreshold = newValue ;
-      else
-        src.String = sprintf('%g', obj.model_.confidenceThreshold) ;
-      end
+      obj.model_.confidenceThreshold = newValue ;
     end  % function
 
     function resizeFigure(obj)

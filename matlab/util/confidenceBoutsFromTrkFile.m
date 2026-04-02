@@ -81,20 +81,20 @@ extremeConfCell = cell(trackletGroupCount, 1) ;
 for iU = 1 : trackletGroupCount
   thisTrackletIndex = uniqueTracklets(iU) ;
   isThisTrackletFromPairIndex = (trackletIndexFromPairIndex == thisTrackletIndex) ;
-  tltFrames = frameIndexFromPairIndex(isThisTrackletFromPairIndex) ;
-  tltMinConf = minConfFromPairIndex(isThisTrackletFromPairIndex) ;
-  tltMaxConf = maxConfFromPairIndex(isThisTrackletFromPairIndex) ;
-  tltTarget = targetIndexFromPairIndex(find(isThisTrackletFromPairIndex, 1)) ;
+  trackletFrames = frameIndexFromPairIndex(isThisTrackletFromPairIndex) ;
+  trackletMinConf = minConfFromPairIndex(isThisTrackletFromPairIndex) ;
+  trackletMaxConf = maxConfFromPairIndex(isThisTrackletFromPairIndex) ;
+  trackletTarget = targetIndexFromPairIndex(find(isThisTrackletFromPairIndex, 1)) ;
 
   [tltStartFrames, tltEndFrames, tltExtremeFrames, tltExtremeConfs] = ...
-    confidenceBoutsForSingleTracklet(tltFrames, tltMinConf, tltMaxConf, threshold, isConfidenceLackThereof) ;
+    confidenceBoutsForSingleTracklet(trackletFrames, trackletMinConf, trackletMaxConf, threshold, isConfidenceLackThereof) ;
 
   boutCount = numel(tltStartFrames) ;
   startFrameCell{iU} = tltStartFrames ;
   endFrameCell{iU} = tltEndFrames ;
   extremeFrameCell{iU} = tltExtremeFrames ;
   trackletCell{iU} = repmat(thisTrackletIndex, boutCount, 1) ;
-  targetCell{iU} = repmat(tltTarget, boutCount, 1) ;
+  targetCell{iU} = repmat(trackletTarget, boutCount, 1) ;
   extremeConfCell{iU} = tltExtremeConfs ;
 end  % for
 
