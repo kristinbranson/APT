@@ -4030,15 +4030,15 @@ classdef LabelerController < handle
       obj.layoutMoviename_() ;
 
       % Bottom of panel + stretch width
-      obj.slider_frame.Position = [164, 19, panelW-190, 24] ;
+      obj.slider_frame.Position = [164, 20, panelW-190, 24] ;
 
       % Bottom-left of panel (fixed within panel)
       obj.axes_occ.Position = [14, 62, 196, 54] ;
       obj.text_occludedpoints.Position = [14, 93, 196, 23] ;
       obj.edit_frame.Position = [91, 20, 68, 24] ;
-      obj.pbPlay.Position = [9, 17, 30, 30] ;
-      obj.pbPlaySeg.Position = [43, 17, 21, 30] ;
-      obj.pbPlaySegRev.Position = [66, 17, 21, 30] ;
+      obj.pbPlay.Position = [9, 20, 30, 24] ;
+      obj.pbPlaySeg.Position = [43, 20, 21, 24] ;
+      obj.pbPlaySegRev.Position = [66, 20, 21, 24] ;
 
       %% --- Children of uipanel_prev ---
       obj.axes_prev.Position = [13, 12, 389, 308] ;
