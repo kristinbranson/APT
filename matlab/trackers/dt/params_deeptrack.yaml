@@ -31,6 +31,7 @@ ROOT:
       - normalize: ['Brightness normalization',boolean,true,'Normalize images by subtracting the average pixel intensity in the image.',0,'','Beginner','isDeepTrack',true]
       - flipud: ['Flip movie',boolean,true,'Whether to flip images upside down. ',0,'','Developer','isDeepTrack',true]
       - imax: ['Max pixel value',float,true,'Maximum pixel value in the video.',255.,'','Advanced','isDeepTrack',true]
+      - pad_images: ['Pad or resize',boolean,true,'If the video frame sizes are different, then whether to pad the images or resize the image to the common size. If selected then pad the images else resize',true,'','Advanced','isDeepTrack',true]
     - GradientDescent:
       - ['Gradient Descent','',false,'Parameters related to gradient-descent-based optimization of the tracker.','','','','']
       - dl_steps: ['N. iterations of training',unsigned,true,'Number of iterations of gradient descent to train the tracker for. Longer training generally works better, but takes longer. Ignored for DeepLabCut unless explicity overridden.',20000,'','Important','isDeepTrack',true]

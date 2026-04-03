@@ -2,6 +2,7 @@ classdef TrackMonitorViz < handle
   properties
     hfig % scalar fig
     haxs % [1] axis handle, viz wait time
+    haxsIDTraining % scalar axis handle for ID training loss (created when needed)
     %hannlastupdated % [1] textbox/annotation handle
     
     % Three modes. Here nmov=nMovSet*nView
@@ -15,8 +16,8 @@ classdef TrackMonitorViz < handle
     
     nFramesTracked = []; % same numel has hline. unused if bulkAxsIsBulkMode=true
     nFramesToTrack = 0; % same numel as hline. "
-    parttrkfileTimestamps = []; % same numel as hline. basically unused (in general) but init to 0
-    jobDescs = {}; % sae numel as hline. string description for hline. unused if bulkAxsIsBulkMode=true
+    % parttrkfileTimestamps = []; % same numel as hline. basically unused (in general) but init to 0
+    jobDescs = {}; % same numel as hline. string description for hline. unused if bulkAxsIsBulkMode=true
 
     htrackerInfo % scalar text box handle showing information about current tracker
     wasAborted = false;  % scalar, whether tracking has been aborted
@@ -50,15 +51,15 @@ classdef TrackMonitorViz < handle
       'Show error messages'}});
     minFracComplete = .001;
     
-    % twostage mode
-    twoStgMode = false;
+    % % twostage mode
+    % twoStgMode = false;
 
     % list tracking mode
     listMode = false;
     
-    % bulk mode 
+    % bulk mode --- Mode used when there are too many movies being tracked to
+    % comfortably display full info for all of then.
     bulkAxsIsBulkMode = false; % if true, waitbar is in "bulk mode"
-    bulkNmovThreshold = 10; % if you are tracking more than this many movies, you get bulk mode
     bulkIndNrow; % number of rows in bulk indicator grid
     bulkIndNcol; % number of cols in bulk indicator grid
     bulkMovTracked; % [nmov] logical indicator vec
@@ -80,6 +81,7 @@ classdef TrackMonitorViz < handle
     % could have diff colors for diff views done would be fun
     COLOR_AXSWAIT_BULK_TRACKED = [0 0 1];
     COLOR_AXSWAIT_BULK_EDGE = [0.4 0.4 0.4];
+    BULK_NMOV_THRESHOLD = 10; % if you are tracking more than this many movies, you get bulk mode
   end
   
   methods (Static)
@@ -124,9 +126,9 @@ classdef TrackMonitorViz < handle
       %obj.hannlastupdated = handles.text_clusterstatus;
       obj.htrackerInfo = handles.edit_trackerinfo;
 
-      obj.twoStgMode = dtObj.getNumStages() > 1;
+      % obj.twoStgMode = dtObj.getNumStages() > 1;
       obj.listMode = isequal(poller.trackType_,'list');
-      obj.bulkAxsIsBulkMode = nmov > obj.bulkNmovThreshold;
+      obj.bulkAxsIsBulkMode = ( nmov > obj.BULK_NMOV_THRESHOLD ) ;
       % if obj.twoStgMode AND .bulk* are true, twoStg will take precedence
       % for now
       
@@ -144,7 +146,7 @@ classdef TrackMonitorViz < handle
       handles.popupmenu_actions.Value = 1;
       
       axwait = handles.axes_wait;
-      % if tracking movies, output size will be [poller.nMovies,poller.nViews,poller.nStages]
+      % if tracking movies, output size will be [poller.nMovies, poller.nViews, poller.nStages]
       % if tracking list, it will be [poller.njobs,1,1]
       pollingResultSize = obj.poller.resultSize;
       nPollingResults = prod(pollingResultSize);
@@ -176,18 +178,16 @@ classdef TrackMonitorViz < handle
         obj.bulkMovTracked = false(nmov,1);
         obj.nFramesTracked = [];
         obj.nFramesToTrack = [];
-        obj.parttrkfileTimestamps = zeros(nmov,1);
+        % obj.parttrkfileTimestamps = zeros(nmov,1);
         obj.jobDescs = {};
       else
-
-        %nstg = 2*nmov;
         axwait.YLim = [0,nPollingResults];
         axwait.XLim = [0,1+obj.minFracComplete];
         obj.hline = gobjects(nPollingResults,1);
         obj.htext = gobjects(nPollingResults,1);
         obj.nFramesToTrack = double(repmat(nFramesToTrack,nPollingRepeats,1));
         obj.nFramesTracked = zeros(size(obj.nFramesToTrack));
-        obj.parttrkfileTimestamps = zeros(size(obj.nFramesToTrack));
+        % obj.parttrkfileTimestamps = zeros(size(obj.nFramesToTrack));
         obj.jobDescs = TrackMonitorViz.initJobDescs(pollingResultSize(1),pollingResultSize(2),pollingResultSize(3),obj.listMode);        
         % ordering of hline is: movMvw1s1 ... movMvw1s1 ... mov1vw2s1 movMvwNs1 ... mov1vw1s2 ... movMvwNs2
         % for multi-stage, single view: all stage1s, then all stage2s.
@@ -205,16 +205,16 @@ classdef TrackMonitorViz < handle
           obj.bulkIndNrow,obj.bulkIndNcol,axwait,...
           obj.COLOR_AXSWAIT_BULK_UNTRACKED,...
           {'EdgeColor',obj.COLOR_AXSWAIT_BULK_EDGE}); 
+        % obj.hline will be an nmov x 1 array of gobjects
         % obj.htext initted above
       else
-
         clrs = lines(nMovSets);
         for irep = 1:nPollingRepeats,
           for imovset=1:nMovSets
             itot = (irep-1)*nMovSets + imovset;
             clrI = clrs(imovset,:);
             obj.hline(itot) = patch([0,0,1,1,0]*obj.minFracComplete,...
-              irep-[0,1,1,0,0],clrI,...
+              itot-[0,1,1,0,0],clrI,...
               'Parent',handles.axes_wait,...
               'EdgeColor','w');
             obj.htext(itot) = text((1+obj.minFracComplete)/2,itot-.5,...
@@ -223,8 +223,7 @@ classdef TrackMonitorViz < handle
               'VerticalAlignment','middle','Parent',handles.axes_wait);
           end
         end
-
-      end
+      end  % if
       
       obj.resLast = [];
       obj.wasAborted = false;
@@ -284,12 +283,25 @@ classdef TrackMonitorViz < handle
         TrackMonitorViz.debugfprintf('N. frames tracked: ');
       end
       TrackMonitorViz.debugfprintf('tfcomplete: %s\n',formattedDisplayText(pollingResult.tfComplete));
-      nJobs = numel(pollingResult.tfComplete); 
+      nJobs = numel(pollingResult.tfComplete);
+      nMovies = size(pollingResult.tfComplete, 1);
+
+      % Check if this is an ID linking job and handle ID training axis
+      if isfield(pollingResult, 'result_type') && strcmp(pollingResult.result_type, 'id_link')
+        obj.handleIDTrainingUpdate(pollingResult);
+      end
 
       % It is assumed that there is a correspondence between res and .hline
-      if nJobs~=numel(obj.hline)
-        warningNoTrace('Unexpected monitor results size (%d); expected (%d).',...
-                       nJobs,numel(obj.hline));
+      if obj.bulkAxsIsBulkMode
+        if nMovies~=numel(obj.hline)
+          warningNoTrace('Unexpected monitor results size (%d); expected (%d).',...
+                         nMovies,numel(obj.hline));
+        end
+      else
+        if nJobs~=numel(obj.hline)
+          warningNoTrace('Unexpected monitor results size (%d); expected (%d).',...
+                         nJobs,numel(obj.hline));
+        end
       end
 
       % always update info about current tracker, as labels may have changed
@@ -297,28 +309,37 @@ classdef TrackMonitorViz < handle
       obj.htrackerInfo.String = s;
 
       ticId = tic() ;
-      for ijob=1:nJobs,
-        isdone = pollingResult.tfComplete(ijob);
-        if isfield(pollingResult,'parttrkfileTimestamp'),
-          partFileExists = ~isnan(pollingResult.parttrkfileTimestamp(ijob));
-          isupdate = ...
-            (partFileExists && (forceupdate || (pollingResult.parttrkfileTimestamp(ijob)>obj.parttrkfileTimestamps(ijob)))) || ...
-            isdone ;
+      isDoneFromTripleIndex = pollingResult.tfComplete ;
+      if isfield(pollingResult,'parttrkfileTimestamp'),
+        doesPartFileExistFromTripleIndex = ~isnan(pollingResult.parttrkfileTimestamp);
+        if forceupdate
+          doUpdateFromTripleIndex = true(size(isDoneFromTripleIndex)) ;
         else
-          isupdate = false ;
+          doUpdateFromTripleIndex = isDoneFromTripleIndex | doesPartFileExistFromTripleIndex ;
         end
+      else
+        doUpdateFromTripleIndex = false(size(isDoneFromTripleIndex)) ;
+      end
 
-        if isupdate,
-          if obj.bulkAxsIsBulkMode
-            % just update indicator based on isdone; dont try to get
-            % nframes tracked, etc            
-            if isdone
-              set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED);
-              obj.bulkMovTracked(ijob) = true;
-            else
-              % none
-            end            
+      if obj.bulkAxsIsBulkMode
+        for imov = 1 : nMovies
+          % just update indicator based on isdone; dont try to get
+          % nframes tracked, etc
+          isdone = all(all(isDoneFromTripleIndex(imov,:,:), 3), 2) ;
+          if isdone
+            set(obj.hline(imov),'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED);
+            obj.bulkMovTracked(imov) = true;
           else
+            % no nothing
+          end
+        end  % for imov
+      else
+        % if not in bulk mode
+        for ijob=1:nJobs,
+          doupdate = doUpdateFromTripleIndex(ijob) ;
+          if doupdate,
+            isdone = isDoneFromTripleIndex(ijob);
+            % If not in bulk mode
             try
               if isfield(pollingResult,'parttrkfileNfrmtracked')
                 % for AWS and any worker that figures this out on its own
@@ -347,7 +368,7 @@ classdef TrackMonitorViz < handle
                 end
               end
               obj.nFramesTracked(ijob) = double(obj.nFramesTracked(ijob));
-             
+
               if nJobs > 1,
                 sview = obj.jobDescs{ijob};
               else
@@ -357,32 +378,145 @@ classdef TrackMonitorViz < handle
                 obj.nFramesTracked(ijob),obj.nFramesToTrack(ijob),sview));
               fracComplete = obj.minFracComplete + ...
                     (obj.nFramesTracked(ijob)/obj.nFramesToTrack(ijob));
-              set(obj.hline(ijob),'XData',[0,0,1,1,0]*fracComplete);              
+              set(obj.hline(ijob),'XData',[0,0,1,1,0]*fracComplete);
             catch ME,
               fprintf('Could not update nFramesTracked, for whatever reason.\n');
             end
           end
-        end
-        
-        % if res(ijob).killFileExists,
-        %   obj.isKilled = true;
-        %   set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_KILLED);
-        %   obj.hfig.UserData = 'killed';
-        % end
-        if ~obj.bulkAxsIsBulkMode
           TrackMonitorViz.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
-        end
-      end
+        end  % for iJob
+      end  % if obj.bulkAxsIsBulkMode
       TrackMonitorViz.debugfprintf('\n');
       TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
-      
+
       obj.resLast = pollingResult ;
-      
+
       obj.updateErrDisplay(pollingResult);
-      [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);      
+      [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);
       obj.updateStopButton() ;
     end
-    
+
+    function resultsReceivedLoopOverMovies_(obj, pollingResult, forceupdate)
+      % Loop over the movies, updating the figure as needed.  This method should only
+      % be called when in bulk mode.  Non-bulk mode requires a different approach.
+
+      assert(~obj.bulkAxsIsBulkMode) ;
+
+      nmov = size(pollingResult.tfComplete, 1) ;
+      nJobs = numel(pollingResult.tfComplete);
+
+      if nJobs~=numel(obj.hline)
+        warningNoTrace('Unexpected monitor results size (%d); expected (%d).',...
+                       nJobs,numel(obj.hline));
+      end
+
+      ticId = tic() ;
+      for imov=1:nmov,
+        isdone = pollingResult.tfComplete(ijob);
+        if isfield(pollingResult,'parttrkfileTimestamp'),
+          partFileExists = ~isnan(pollingResult.parttrkfileTimestamp(ijob));
+          % isupdate = ...
+          %   (partFileExists && (forceupdate || (pollingResult.parttrkfileTimestamp(ijob)>obj.parttrkfileTimestamps(ijob)))) || ...
+          %   isdone ;
+          isupdate = ( forceupdate || partFileExists || isdone ) ;
+        else
+          isupdate = false ;
+        end
+
+        if isupdate,
+          % just update indicator based on isdone; dont try to get
+          % nframes tracked, etc
+          if isdone
+            set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED);
+            obj.bulkMovTracked(ijob) = true;
+          else
+            % none
+          end
+        end  % if
+      end  % for
+
+      TrackMonitorViz.debugfprintf('\n');
+      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
+    end  % method
+
+    function resultsReceivedLoopOverJobs_(obj, pollingResult, forceupdate)
+      % Loop over the jobs, updating the figure as needed.  This method should only
+      % be called when *not* in bulk mode.  Bulk mode requires a different approach.
+
+      assert(~obj.bulkAxsIsBulkMode) ;
+
+      nJobs = numel(pollingResult.tfComplete);
+
+      if nJobs~=numel(obj.hline)
+        warningNoTrace('Unexpected monitor results size (%d); expected (%d).',...
+                       nJobs,numel(obj.hline));
+      end
+
+      ticId = tic() ;
+      for ijob=1:nJobs,
+        isdone = pollingResult.tfComplete(ijob);
+        if isfield(pollingResult,'parttrkfileTimestamp'),
+          partFileExists = ~isnan(pollingResult.parttrkfileTimestamp(ijob));
+          % isupdate = ...
+          %   (partFileExists && (forceupdate || (pollingResult.parttrkfileTimestamp(ijob)>obj.parttrkfileTimestamps(ijob)))) || ...
+          %   isdone ;
+          isupdate = ( forceupdate || partFileExists || isdone ) ;
+        else
+          isupdate = false ;
+        end
+
+        if isupdate,
+          try
+            if isfield(pollingResult,'parttrkfileNfrmtracked')
+              % for AWS and any worker that figures this out on its own
+              obj.nFramesTracked(ijob) = pollingResult.parttrkfileNfrmtracked(ijob) ;
+              % if isnan(pollingResult.parttrkfileNfrmtracked(ijob)) && isfinite(pollingResult.parttrkfileTimestamp(ijob)) ,
+              %   nop() ;
+              %   %error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
+              %     % This should be caught by the local try-catch
+              % end
+            else
+              if isdone,
+                tfile = pollingResult.trkfile{ijob};
+              else
+                tfile = pollingResult.parttrkfile{ijob};
+              end
+              %fprintf('TrkMonitorViz.resultsReceived: tfile = %s\n',tfile);
+              try
+                [obj.nFramesTracked(ijob),didload] = TrkFile.getNFramesTracked(tfile);
+                if ~didload && isdone,
+                  warning('isdone = true and could not load trk file to count nFramesTracked');
+                end
+              catch ME,
+                if isdone,
+                  warning('Could not compute number of frames tracked:\n%s',getReport(ME));
+                end
+              end
+            end
+            obj.nFramesTracked(ijob) = double(obj.nFramesTracked(ijob));
+
+            if nJobs > 1,
+              sview = obj.jobDescs{ijob};
+            else
+              sview = '';
+            end
+            set(obj.htext(ijob),'String',sprintf('%d/%d frames tracked%s',...
+              obj.nFramesTracked(ijob),obj.nFramesToTrack(ijob),sview));
+            fracComplete = obj.minFracComplete + ...
+                  (obj.nFramesTracked(ijob)/obj.nFramesToTrack(ijob));
+            set(obj.hline(ijob),'XData',[0,0,1,1,0]*fracComplete);
+          catch ME,
+            fprintf('Could not update nFramesTracked, for whatever reason.\n');
+          end
+        end   % if isupdate
+        
+        TrackMonitorViz.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
+      end  % for iJob = 1 : nJobs
+
+      TrackMonitorViz.debugfprintf('\n');
+      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
+    end
+
     function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
@@ -395,12 +529,12 @@ classdef TrackMonitorViz < handle
       isLogFile = false;
       if ~isempty(pollingResult),
         isTrackComplete = all([pollingResult.tfComplete]);
-        isErr = any([pollingResult.errFileExists]) ;
-        isLogFile = any([pollingResult.logFileExists]);
+        isErr = any([pollingResult.errFileExists(:)]) ;
+        isLogFile = any([pollingResult.logFileExists(:)]);
       end
       
       if ~isempty(pollingResult) && isfield(pollingResult,'isRunning')
-        isRunning = any([pollingResult.isRunning]);
+        isRunning = any([pollingResult.isRunning(:)]);
       else
         isRunning = true ;
       end
@@ -424,6 +558,12 @@ classdef TrackMonitorViz < handle
       elseif isErr,
         status = 'Error while tracking.';
         tfSucc = false;
+      elseif isfield(pollingResult,'result_type')&& strcmp(pollingResult.result_type,'id_link')
+        if isLogFile && pollingResult.jsonFileExist && numel(pollingResult.idstep)>0
+            status = sprintf('ID Training in progress. %d iterations completed',pollingResult.idstep(end));
+        else
+          status = 'Initializing Training for ID Linking. ';
+        end
       elseif isLogFile,
         if obj.bulkAxsIsBulkMode
           status = sprintf('Tracking in progress. %d/%d movies tracked.',...
@@ -748,6 +888,112 @@ classdef TrackMonitorViz < handle
       pointer = fif(is_busy, 'watch', 'arrow') ;
       set(obj.hfig, 'Pointer', pointer) ;
     end  % function
-    
-  end  % methods    
+
+    function handleIDTrainingUpdate(obj, pollingResult)
+      % Handle ID training progress updates by creating/updating ID training axis
+      if ~isfield(pollingResult, 'idloss') || ~isfield(pollingResult, 'idstep')
+        return;
+      end
+
+      idloss = pollingResult.idloss;
+      idstep = pollingResult.idstep;
+
+      if isempty(idloss) || isempty(idstep)
+        return;
+      end
+
+      % Create ID training axis if it doesn't exist
+      if isempty(obj.haxsIDTraining) || ~ishandle(obj.haxsIDTraining)
+        obj.createIDTrainingAxis();
+      end
+
+      % Update the plot
+      if ishandle(obj.haxsIDTraining)
+        %axes(obj.haxsIDTraining);
+        plot(obj.haxsIDTraining,idstep, idloss, 'g-', 'LineWidth', 1.5);
+        xlabel(obj.haxsIDTraining,'Training Step');
+        ylabel(obj.haxsIDTraining,'Training Loss');
+        title(obj.haxsIDTraining,'ID Model Training Progress','Color',[1,1,1]);
+        set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1]);
+        yscale(obj.haxsIDTraining,'log');
+        grid on;
+        drawnow('limitrate', 'nocallbacks');
+      end
+    end  % function
+
+    function createIDTrainingAxis(obj)
+      % Create a new axis for ID training loss display
+      handles = guidata(obj.hfig);
+
+      % Get current figure and axes_wait positions
+      figPos = get(obj.hfig, 'Position');
+      pos_wait = get(handles.axes_wait, 'Position');
+
+      % ID axis needs minimum space - use reclaimed space + additional 200px
+      minIDAxisHeightPx = 100; % Minimum 200 pixels
+      oldFigHeight = figPos(4);
+      minIDAxisHeightNorm = max(0.25,minIDAxisHeightPx / (oldFigHeight+minIDAxisHeightPx )); % Convert to normalized units
+      idAxisHeight = minIDAxisHeightNorm;
+
+      % Calculate total additional space needed beyond reclaimed space
+      additionalSpaceNeeded = idAxisHeight;
+      spacing = 0.03;
+      totalSpaceNeeded = additionalSpaceNeeded + 2*spacing;
+
+      % Resize figure height to accommodate the additional space
+      if totalSpaceNeeded > 0
+        newFigHeight = oldFigHeight + (totalSpaceNeeded * oldFigHeight);
+        figPos(4) = newFigHeight;
+        set(obj.hfig, 'Position', figPos);
+
+        % Calculate scaling factor for normalized coordinates
+        heightScalingFactor = oldFigHeight / newFigHeight;
+      end
+
+      % Move all components below axes_wait down and scale their sizes
+      componentsToMoveBefore = {'edit_trackerinfo', 'axes_wait'};
+      componentsToMoveAfter = {'text_trackerinfo', 'text_clusterinfo', ...
+                         'pushbutton_startstop', 'popupmenu_actions',...
+                         'text_clusterstatus','pushbutton_action'};
+
+      for i = 1:length(componentsToMoveBefore)
+        if isfield(handles, componentsToMoveBefore{i}) && ishandle(handles.(componentsToMoveBefore{i}))
+          pos = get(handles.(componentsToMoveBefore{i}), 'Position');
+          % Scale the position and size to maintain proportions in new coordinate system
+          pos(2) = pos(2) * heightScalingFactor + idAxisHeight; % Move down by ID axis height + spacing
+          pos(4) = pos(4) * heightScalingFactor; % Scale height to maintain visual proportion
+          set(handles.(componentsToMoveBefore{i}), 'Position', pos);
+        end
+      end
+
+      for i = 1:length(componentsToMoveAfter)
+        if isfield(handles, componentsToMoveAfter{i}) && ishandle(handles.(componentsToMoveAfter{i}))
+          pos = get(handles.(componentsToMoveAfter{i}), 'Position');
+          % Scale the position and size to maintain proportions in new coordinate system
+          pos(2) = pos(2) * heightScalingFactor; % Move down by ID axis height + spacing
+          pos(4) = pos(4) * heightScalingFactor; % Scale height to maintain visual proportion
+          set(handles.(componentsToMoveAfter{i}), 'Position', pos);
+        end
+      end
+
+      % Create ID training axis using the calculated space
+      pos_wait_scaled = get(handles.axes_wait,'Position');
+      pos_new = pos_wait_scaled;
+      pos_new(1) = pos_new(1) + 0.04;
+      pos_new(3) = pos_new(3) - 0.04;
+      pos_new(2) = pos_wait_scaled(2) - idAxisHeight  + 1.5*spacing;  % Position below scaled axes_wait
+      pos_new(4) = idAxisHeight-2.5*spacing;  % spacing for axis label and title
+
+      obj.haxsIDTraining = axes('Parent', obj.hfig, ...
+                                'Position', pos_new, ...
+                                'Box', 'on');
+      xlabel(obj.haxsIDTraining, 'ID Training Step');
+      ylabel(obj.haxsIDTraining, 'ID Training Loss');
+      title(obj.haxsIDTraining, 'ID Model Training Progress');
+      grid(obj.haxsIDTraining, 'on');
+      set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1])
+      yscale(obj.haxsIDTraining,'log');
+    end  % function
+
+  end  % methods
 end  % classdef

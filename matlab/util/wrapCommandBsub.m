@@ -1,5 +1,12 @@
-function cmdout = wrapCommandBsub(cmdin,varargin)
+function result = wrapCommandBsub(inputCommand, varargin)
+% Wrap a command for bsub job submission.  inputCommand should be a
+% ShellCommand with remote locale.
 
+% Validate inputCommand
+assert(isa(inputCommand, 'apt.ShellCommand'), 'inputCommand must be an apt.ShellCommand object');
+assert(inputCommand.tfDoesMatchLocale(apt.PathLocale.wsl), 'inputCommand must have wsl locale');
+
+% Deal with optional arguments
 [nslots,gpuqueue,logfile,jobname,additionalArgs,jobDuration] = ...
   myparse(varargin,...
           'nslots',DLBackEndClass.default_jrcnslots_train,...
@@ -7,14 +14,33 @@ function cmdout = wrapCommandBsub(cmdin,varargin)
           'logfile','/dev/null',...
           'jobname','', ...
           'additionalArgs','',...
-		  'jobDuration',2880);
-esccmd = escape_string_for_bash(cmdin) ;
-if isempty(jobname),
-  jobnamestr = '';
+		      'jobDuration',2880);
+
+% Convert log file path to MetaPath object
+logFilePathRemote = apt.MetaPath(logfile, 'wsl', 'cache');
+
+% Build the bsub command using sequential ShellCommand objects
+command0 = ...
+  apt.ShellCommand({'bsub', '-n', num2str(nslots), '-gpu', 'num=1', '-W', jobDuration, '-q', gpuqueue, '-o', logFilePathRemote, ...
+                    '-R', escape_string_for_bash('affinity[core(1)]')}, ...
+                   apt.PathLocale.wsl, ...
+                   apt.Platform.posix);
+
+% Append job name, if given
+if ~isempty(jobname)
+  command1 = command0.append('-J', jobname);
 else
-  jobnamestr = sprintf('-J %s', jobname) ;
+  command1 = command0;
 end
-% NB: Line below sends *both* stdout and stderr to the file named by logfile
-quotedlogfile = escape_string_for_bash(logfile) ;
-cmdout = sprintf('bsub -n %d -gpu "num=1" -W %d -q %s -o %s -R"affinity[core(1)]" %s %s %s',...
-                 nslots,jobDuration,gpuqueue,quotedlogfile,jobnamestr,additionalArgs,esccmd);
+
+% Append additional args, if given
+if ~isempty(additionalArgs)
+  command2 = command1.append(additionalArgs);
+else
+  command2 = command1;
+end
+
+% Bring it all together
+result = command2.append(inputCommand);  % Note that inputCommand will be a subcommand, and so will be quoted appropriately
+
+end  % function

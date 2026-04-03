@@ -117,7 +117,10 @@ classdef LabelCoreHT < LabelCore
   
   methods
     
-    function newFrame(obj,~,iFrm1,iTgt)
+    function newFrame(obj,~,iFrm1,iTgt,tfForceUpdate)
+      if nargin < 5
+        tfForceUpdate = false;
+      end
       s = obj.labeler.labelsCurrMovie;
       [tf,p] = Labels.isLabeledFT(s,iFrm1,iTgt);
       xy = reshape(p,[],2);
@@ -187,8 +190,11 @@ classdef LabelCoreHT < LabelCore
       % for HT mode
     end
     
-    function newFrameAndTarget(obj,~,iFrm1,~,iTgt1)
-      obj.newFrame([],iFrm1,iTgt1);
+    function newFrameAndTarget(obj,~,iFrm1,~,iTgt1,tfForceUpdate)
+      if nargin < 6
+        tfForceUpdate = false;
+      end
+      obj.newFrame([],iFrm1,iTgt1,tfForceUpdate);
     end
     
     function clearLabels(obj)

@@ -1,4 +1,4 @@
-classdef DLNetType < handle
+classdef DLNetType < handle 
   % Deep Learning Network
   %
   % A DLNetType represents a particular deep net. It has a particular
@@ -25,7 +25,7 @@ classdef DLNetType < handle
     trkAuxFields % [naux]
     trkAuxLabels % [naux]          
     timelinePropList % [naux] struct array of tracker-specific properties 
-                     % in format used by InfoTimeline
+                     % in format used by InfoTimelineController
                      
     doesOccPred % in practice, if this is true, totally-occluded landmarks 
                 % will be included in the stripped lbl as p=nan and tfocc=true.
@@ -58,6 +58,8 @@ classdef DLNetType < handle
   
   methods 
     function obj = DLNetType(key)
+      % Use information in .NETS to populate all the properties for the given member
+      % of the enumeration.
       q = DLNetType.NETS;
       s = q.(key);
       fns = fieldnames(s);

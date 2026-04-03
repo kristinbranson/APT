@@ -36,8 +36,8 @@ classdef RC
       if isempty(file)
         % none
       else
-        tmp = struct(name,v); %#ok<NASGU>
-        if exist(file,'file')==2
+        tmp = struct(name,v);
+        if logical(exist(file,'file'))
           save(file,'-append','-struct','tmp');
         else
           save(file,'-struct','tmp');
@@ -48,7 +48,7 @@ classdef RC
     function reset()
       % Clear entire RC contents
       file = RC.FILE;
-      if exist(file,'file')>0
+      if logical(exist(file,'file'))
         delete(file);
       end
     end
@@ -57,8 +57,8 @@ classdef RC
   
   methods (Static,Hidden)
     
-    function rc = load
-      if exist(RC.FILE,'file')==2      
+    function rc = load()
+      if logical(exist(RC.FILE,'file'))
         rc = load(RC.FILE);
       else
         rc = struct();
@@ -74,7 +74,9 @@ classdef RC
   methods
     function obj = RC()
       if ~exist(RC.FILE,'file'),
-        tmp = struct;
+        rc_file_parent_folder_path = fileparts(RC.FILE);
+        ensureNativeFolderExists(rc_file_parent_folder_path);
+        tmp = struct();
         save(RC.FILE,'-struct','tmp');
         assert(exist(RC.FILE,'file'));
       end
@@ -84,6 +86,8 @@ classdef RC
       v = [];
       try
         v = obj.rcmatfile.(name);
+      catch me
+        % just ignore
       end
     end
     function set(obj,name,v)
@@ -95,9 +99,5 @@ classdef RC
 end
 
 function f = lclInitFile()
-if isdeployed
-  f = [];
-else
-  f = fullfile(APT.Root,'.apt.mat'); 
-end
+  f = fullfile(APT.getdotaptdirpath(),'.apt.mat'); 
 end

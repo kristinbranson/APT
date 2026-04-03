@@ -36,11 +36,11 @@ classdef BgTrainPoller < BgPoller
       % - Check for completion 
       result = obj.initialPollResults_() ;
       try
-        result.jsonPresent = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.jsonPath);
+        result.jsonPresent = cellfun(@(fileName)(obj.backend_.tfDoesCacheFileExist(fileName)), result.jsonPath);
         nModels = obj.dmcs_.n;
         doesOutputFileExist = false(1,nModels);
         for i=1:nModels,
-          doesOutputFileExist(i) = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.trainCompletePath{i});
+          doesOutputFileExist(i) = cellfun(@(fileName)(obj.backend_.tfDoesCacheFileExist(fileName)), result.trainCompletePath{i});
         end
         [unique_jobs,idx1,jobidx] = unique(result.identifiers.jobidx);
         unique_job_count = numel(unique_jobs) ;
@@ -48,8 +48,8 @@ classdef BgTrainPoller < BgPoller
         errFilePaths = result.errFile(idx1);  % cell array of paths
         logFilePaths = result.logFile(idx1);  % cell array of paths
         for ijob = 1:unique_job_count ,
-          result.errFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(errFilePaths{ijob});
-          result.logFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(logFilePaths{ijob}); % ahem good meth name
+          result.errFileExists(jobidx==ijob) = obj.backend_.tfCacheFileExistsAndIsNonempty(errFilePaths{ijob});
+          result.logFileExists(jobidx==ijob) = obj.backend_.tfCacheFileExistsAndIsNonempty(logFilePaths{ijob}); % ahem good meth name
         end
           
         result.isRunning = row(obj.backend_.isAliveFromRegisteredJobIndex('train')) ;
@@ -58,7 +58,7 @@ classdef BgTrainPoller < BgPoller
         % loop through all models trained in this job
         for i = 1:nModels,
           if result.jsonPresent(i),
-            jsoncurr = obj.backend_.fileContents(result.jsonPath{i});
+            jsoncurr = obj.backend_.cacheFileContents(result.jsonPath{i});
             result = obj.readTrainLoss_(result,i,jsoncurr);
           end
         end
@@ -81,22 +81,22 @@ classdef BgTrainPoller < BgPoller
       [unique_jobs,idx1,jobidx] = unique(result.identifiers.jobidx);
       unique_job_count = numel(unique_jobs) ;
       % one error, log, and kill file per job
-      errFilePaths = result.errFile(idx1);  % cell array of paths
-      logFilePaths = result.logFile(idx1);  % cell array of paths
+      errFilePaths = result.errFile(idx1);  % cell array of native paths
+      logFilePaths = result.logFile(idx1);  % cell array of native paths
       %killFile = sRes.killFile(idx1);
       for i = 1:unique_job_count,
         % fspollargs = [fspollargs,{'existsNE',errFile{i},'existsNE',logFile{i},...
         %   'existsNEerr',logFile{i},'exists',killFile{i}}]; %#ok<AGROW> 
-        fspollargsForThisJob = {'existsNE',errFilePaths{i}, ...
-                                'existsNE',logFilePaths{i}} ;
+        fspollargsForThisJob = {'existsNE',apt.MetaPath(errFilePaths{i}, apt.PathLocale.native, apt.FileRole.cache), ...
+                                'existsNE',apt.MetaPath(logFilePaths{i}, apt.PathLocale.native, apt.FileRole.cache)} ;
         fspollargs = horzcat(fspollargs, fspollargsForThisJob) ;  %#ok<AGROW>
       end
       nlinesperjob = 2 ;  % needs to match the number of things done per job above
       nModels = obj.dmcs_.n ; 
       for i = 1:nModels,
-        fspollargsForThisModel = {'exists',result.jsonPath{i}, ...
-                                  'exists',result.trainFinalModel{i}, ...
-                                  'contents',result.jsonPath{i}} ;
+        fspollargsForThisModel = {'exists',apt.MetaPath(result.jsonPath{i}, apt.PathLocale.native, apt.FileRole.cache), ...
+                                  'exists',apt.MetaPath(result.trainFinalModel{i}, apt.PathLocale.native, apt.FileRole.cache), ...
+                                  'contents',apt.MetaPath(result.jsonPath{i}, apt.PathLocale.native, apt.FileRole.cache) } ;
         fspollargs = horzcat(fspollargs, fspollargsForThisModel) ; %#ok<AGROW> 
       end
       nlinespermodel = 3 ;  % needs to match the number of things done per model above

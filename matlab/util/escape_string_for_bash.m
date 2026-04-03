@@ -5,7 +5,7 @@ function result = escape_string_for_bash(str)
 
 % Test for known-safe characters.  If all characters are known-safe, return
 % as-is.
-assert(ischar(str)) ;
+assert(ischar(str) && (isempty(str) || isrow(str))) ;
 digits = char(48:57) ;
 capitals = char(65:90) ;
 lowercases = char(97:122) ;

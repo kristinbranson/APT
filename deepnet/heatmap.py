@@ -8,7 +8,6 @@ import h5py
 import scipy.io as sio
 import skimage.measure
 import numpy as np
-import matplotlib.pyplot as plt
 import PoseTools
 
 # prefer packaging module in future
@@ -224,6 +223,9 @@ def create_label_hmap(locs, imsz, sigma, clip=0.05):
     return out
 
 def hmap_cmp_viz(hm1, hm2, figsz=(1400,1800), figfaceclr=(0.5,0.5,0.5)):
+    
+    import matplotlib.pyplot as plt
+
     f, ax = plt.subplots(1, 2)
     m = plt.get_current_fig_manager()
     m.resize(*figsz)

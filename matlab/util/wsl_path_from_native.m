@@ -27,23 +27,9 @@ function result = wsl_path_from_native_core(input_path)
 % handle Windows UNC paths (like '\\server\folder\file') in input.
 
 if ispc() ,
-  letter_drive_parent = '/mnt' ;
-  if length(input_path)>=2 && isstrprop(input_path(1),'alpha') && isequal(input_path(2),':') ,
-    drive_letter = input_path(1) ;
-    rest = input_path(3:end) ;
-    if isempty(rest) 
-      % Don't add trailing slash if nothing follows the drive letter
-      protoresult_1 = horzcat(letter_drive_parent, '/', lower(drive_letter)) ;
-    else      
-      protoresult_1 = horzcat(letter_drive_parent, '/', lower(drive_letter), '/', rest) ;
-    end
-  else
-    protoresult_1 = input_path ;
-  end
-  
-  protoresult_2 = regexprep(protoresult_1,'\','/');
-  
-  result = remove_repeated_slashes(protoresult_2) ;
+  inputPath = apt.Path(input_path, apt.Platform.windows) ;
+  outputPath = inputPath.toPosix() ;
+  result = outputPath.char() ;
 else
   result = input_path ;
 end

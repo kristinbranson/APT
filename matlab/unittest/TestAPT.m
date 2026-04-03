@@ -601,25 +601,19 @@ classdef TestAPT < handle
 %       labeller.projLoad(ref_lbl);
 %     end
 
-    function setup_alg_for_training_(obj,alg)
+    function setup_alg_for_training_(obj, algoNames)
       % Set the algorithm.
 
-      if isempty(alg) ,
+      if isempty(algoNames) ,
         % Just leave the algorithm alone
         return
       end
 
       labeler = obj.labeler;
 
-      if isnumeric(alg)
-        trackerIndex = alg;
-        assert(trackerIndex > 0, sprintf('No algorithm named %s', alg)) ;
-        labeler.trackMakeNewTrackerGivenIndex(trackerIndex);
-      else
-        algName = alg ;
-        labeler.trackMakeNewTrackerGivenAlgoName(algName) ;
-          % Make a virgin tracker for training
-      end
+      netTypes = cellfun(@(algoName)(DLNetType.(algoName)), algoNames);
+      labeler.trackMakeNewTrackerGivenNetTypes(netTypes) ;
+        % Make a de novo tracker for training
     end  % function
     
     function setup_alg_for_tracking_(obj,alg)

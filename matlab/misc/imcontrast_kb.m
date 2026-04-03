@@ -1496,8 +1496,8 @@ end % initCursorChangeOverDraggableObjs
 %==========================================================================
 function deleteCursorChangeOverDraggableObjs(cbk_id)
 
-rows = size(cbk_id);
-for n = 1 : rows
+row_count = size(cbk_id, 1);
+for n = 1 : row_count
     id_length = length(cbk_id{n,1});
     for m = 1 : id_length
         iptremovecallback(cbk_id{n,1}(m), cbk_id{n,2}, cbk_id{n,3}(m));

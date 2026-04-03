@@ -16,7 +16,7 @@ function [st,res,warningstr] = syscmd(cmd0, varargin)
 % Prepend the LD_LIBRARY_PATH bit if on Linux or WSL  
 % precommand is to prevent Matlab's very matlab-specific
 % LD_LIBRARY_PATH from messing up normal commands.
-% See prepend_stuff_to_clear_matlab_environment() if we need this to be
+% See prependStuffToClearMatlabEnvironment() if we need this to be
 % fancier at some point.
 doprecommand = isunix() || usewslonwindows ;
 if doprecommand ,

@@ -1,0 +1,14 @@
+name: APT_raytracing
+channels:
+  - conda-forge
+  - pytorch3d
+  - mkl-service
+dependencies:
+  - python=3.11.3
+  - pytorch3d
+  - pip:
+    - matplotlib
+    - pillow
+    - scipy
+    - mpmath
+    - sympy

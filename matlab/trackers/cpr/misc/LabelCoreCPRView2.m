@@ -56,10 +56,16 @@ classdef LabelCoreCPRView2 < LabelCore
       end
       uistack(obj.hPtsRepRed,'top');
     end
-    function newFrame(obj,iFrm0,iFrm1,iTgt)
-      obj.newFrameAndTarget(iFrm0,iFrm1,iTgt,iTgt);
+    function newFrame(obj,iFrm0,iFrm1,iTgt,tfForceUpdate)
+      if nargin < 5
+        tfForceUpdate = false;
+      end
+      obj.newFrameAndTarget(iFrm0,iFrm1,iTgt,iTgt,tfForceUpdate);
     end
-    function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
+    function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1,tfForceUpdate)
+      if nargin < 6
+        tfForceUpdate = false;
+      end
       assert(iTgt1==1);
       [tf,lpos] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
       if tf

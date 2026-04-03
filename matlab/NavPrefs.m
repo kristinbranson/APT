@@ -65,8 +65,8 @@ pum = handles.pumShiftArrowTimelineThreshCmp;
 idx = find(strcmp(pum.String,lObj.movieShiftArrowNavModeThreshCmp));
 assert(isscalar(idx));
 pum.Value = idx;
-tl = lObj.gdata.labelTLInfo;
-[~,tlprop] = tl.getCurPropSmart();
+itm = lObj.infoTimelineModel;
+[~,tlprop] = itm.getCurPropSmart();
 handles.txTimelineProp.String = tlprop.name;
 
 guidata(hObject, handles);

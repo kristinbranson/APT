@@ -28,7 +28,8 @@ function test_crop_mask_on_off_helper(doCrop, doMask)
   cleaner2 = onCleanup(@()(delete(labeler))) ;  % but just to be sure
 
   % Set the algo
-  labeler.trackMakeNewTrackerGivenAlgoName('magrone') ;
+  % labeler.trackMakeNewTrackerGivenAlgoName('magrone') ;
+  labeler.trackMakeNewTrackerGivenNetTypes(DLNetType.multi_mdn_joint_torch) ;
 
   % Set the backend type
   labeler.set_backend_property('type', backend);

@@ -33,8 +33,8 @@ function result = encode_for_persistence(thing, do_wrap_in_container)
         encoding = char(thing) ;
         result = maybe_wrap_in_encoding_container(encoding, thing, do_wrap_in_container) ;        
     elseif has_encoding_methods(thing) ,
-        if ismethod(thing, 'encode_for_persistence') ,
-            result = thing.encode_for_persistence(do_wrap_in_container) ;
+        if ismethod(thing, 'encode_for_persistence_') ,
+            result = thing.encode_for_persistence_(do_wrap_in_container) ;
         else
             result = encode_object_for_persistence(thing, do_wrap_in_container) ;
         end
