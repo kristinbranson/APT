@@ -25,7 +25,7 @@ if isempty(memoized_result) ,
         % Remove the tilde part and combine with the home directory
         location = fullfile(homeDir, pathWithTildeMaybe(2:end));
       else
-        location = pathWithTilde; % No tilde to replace
+        location = pathWithTildeMaybe ; % No tilde to replace
       end
       memoized_result = strtrim(location) ;
     else
