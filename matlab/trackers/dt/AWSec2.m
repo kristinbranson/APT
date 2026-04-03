@@ -195,7 +195,9 @@ classdef AWSec2 < handle
       obj.instanceID = instanceID ;  % This calls a setter function, which e.g. configures the alarms on the new instance
       tfsucc = obj.waitForInstanceStart();
       if tfsucc
-        msgbox('Connected succesfully to the AWS EC2 instance');
+        fprintf('Connected succesfully to the AWS EC2 instance');
+          % This used to be a msgbox() but model classes should not be doing GUI
+          % stuff.  --ALT, 2026-04-03
       end
     end
     
