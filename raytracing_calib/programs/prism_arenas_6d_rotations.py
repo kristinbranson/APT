@@ -867,14 +867,21 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
             v2_stacked_error = torch.vstack([repr_error_2v_virtual, repr_error_2v_real, repr_error_2v_1, repr_error_2v_2, repr_error_2v_12, repr_error_2v_21])
             r2_stacked_error = torch.vstack([repr_error_2r_virtual, repr_error_2r_real, repr_error_2r_1, repr_error_2r_2, repr_error_2r_12, repr_error_2r_21])
             """
-            T = 0.005 # Temperature
+            # Use simple nanmean to match calibration training code
+            recon_3D = torch.nanmean(
+                torch.stack([recon_3D_real, recon_3D_virtual, recon_3D_1, recon_3D_2, recon_3D_12, recon_3D_21],
+                            dim=0),
+                dim=0,
+            )
+
+            """T = 0.005 # Temperature
             combined_closest_distance = torch.stack([closest_distance_real, closest_distance_virtual, closest_distance_1, closest_distance_2, closest_distance_12, closest_distance_21], dim=0)
             closest_distance_weight = torch.exp(-combined_closest_distance / T) / torch.sum(torch.exp(-combined_closest_distance / T), dim=0, keepdim=True)
-            
+
             combined_recon_3D = torch.stack([recon_3D_real, recon_3D_virtual, recon_3D_1, recon_3D_2, recon_3D_12, recon_3D_21], dim=1) # (3, 6, N_keypoints)
             # Weighted average of 3D points based on closest distance weights
             combined_recon_3D = closest_distance_weight.unsqueeze(0) * combined_recon_3D
-            recon_3D = torch.sum(combined_recon_3D, dim=1)  # (3, N_keypoints)
+            recon_3D = torch.sum(combined_recon_3D, dim=1)  # (3, N_keypoints)"""
 
             """_, results_mask = self.find_inlier_3D_points(combined_recon_3D, outlier_threshold)      
             kpt_not_assigned = torch.argwhere(~results_mask.any(axis=0))[..., 0]
@@ -1008,7 +1015,13 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
 
         # Compute averaged reconstruction (same logic as triangulate method)
         if discard_outliers:
-            T = 0.005  # Temperature
+            # Use simple nanmean to match calibration training code
+            recon_3D = torch.nanmean(torch.stack([
+                recon_3D_real, recon_3D_virtual, recon_3D_1,
+                recon_3D_2, recon_3D_12, recon_3D_21
+            ], dim=0), dim=0)
+
+            """T = 0.005  # Temperature
             combined_closest_distance = torch.stack([
                 closest_distance_real, closest_distance_virtual, closest_distance_1,
                 closest_distance_2, closest_distance_12, closest_distance_21
@@ -1023,7 +1036,7 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
 
             # Weighted average
             combined_recon_3D = closest_distance_weight.unsqueeze(0) * combined_recon_3D
-            recon_3D = torch.sum(combined_recon_3D, dim=1)  # (3, N_keypoints)
+            recon_3D = torch.sum(combined_recon_3D, dim=1)  # (3, N_keypoints)"""
         else:
             recon_3D = torch.nanmean(torch.stack([
                 recon_3D_real, recon_3D_virtual, recon_3D_1,
