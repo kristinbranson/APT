@@ -1,7 +1,8 @@
 function test_ratcity_MA_magrone_nocrop_training()
   [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
   project_file_path = fullfile(unittest_dir_path, 'ratCity_round12_movie_size.lbl') ;
-  backend = docker_unless_janelia_cluster_then_conda() ;
+  % backend = docker_unless_janelia_cluster_then_conda() ;
+  backend = 'bsub' ;  % Need a lot of VRAM
   backend_params = synthesize_backend_params(backend) ;
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
   oc = onCleanup(@()(delete(tester))) ;
