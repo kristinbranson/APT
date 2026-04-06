@@ -195,6 +195,7 @@ s = rootnode.structize();
 %hObj.data = s;
 handles.output = s;
 guidata(handles.figParameterSetup,handles);
+pause(0.1);
 close(handles.figParameterSetup);
 
 function pbCancel_Callback(hObject, eventdata, handles)
