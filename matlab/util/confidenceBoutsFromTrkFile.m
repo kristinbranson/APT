@@ -12,46 +12,26 @@ function [startFrameFromSortedBoutIndex, endFrameFromSortedBoutIndex, extremeFra
 % Returns empty column vectors and NaN extremes when there are no bouts.
 
 % Gather per-frame confidence data from all tracklets.
-% A "pair" is a (frame, tracklet) pair.
-frameIndexFromPairIndex = [] ;
-trackletIndexFromPairIndex = [] ;
-targetIndexFromPairIndex = [] ;
-minConfFromPairIndex = [] ;
-maxConfFromPairIndex = [] ;
-
 trackletCount = trkFile.ntracklets ;
-for trackletIndex = 1 : trackletCount
-  [~, ~, frameIndexFromTrackletFrameIndexAsRow, aux] = trkFile.getPTrkTgt(trackletIndex, 'auxflds', {'pTrkConf'}) ;
-  if isempty(frameIndexFromTrackletFrameIndexAsRow) || isempty(aux)
-    continue
-  end
-  frameIndexFromTrackletFrameIndex = frameIndexFromTrackletFrameIndexAsRow(:) ;  % [frameCount x 1]
-  confidenceFromPointIndexFromFrameIndex = reshape(aux, size(aux, 1), size(aux, 2)) ;  % [labelPointCount x frameCount]
-    % aux is [labelPointCount x frameCount x 1 x 1]
-  minConfFromFrameIndexAsRow = min(confidenceFromPointIndexFromFrameIndex, [], 1) ;  % [1 x frameCount]
-  minConfFromValidFrameIndex = minConfFromFrameIndexAsRow(:) ;  % [frameCount x 1]
-  maxConfFromFrameIndexAsRow = max(confidenceFromPointIndexFromFrameIndex, [], 1) ;  % [1 x frameCount]
-  maxConfFromValidFrameIndex = maxConfFromFrameIndexAsRow(:) ;  % [frameCount x 1]
+trackletIndexFromTrackletIndex = (1 : trackletCount)' ;
+[frameIndexFromTrackletFrameIndexFromTrackletIndex, ...
+ trackletIndexFromTrackletFrameIndexFromTrackletIndex, ...
+ targetIndexFromTrackletFrameIndexFromTrackletIndex, ...
+ minConfFromTrackletFrameIndexFromTrackletIndex, ...
+ maxConfFromTrackletFrameIndexFromTrackletIndex] = ...
+  arrayfun(@(trackletIndex) collectConfidenceDataForSingleTracklet(trkFile, trackletIndex), ...
+           trackletIndexFromTrackletIndex, ...
+           'UniformOutput', false) ;
 
-  % Filter out NaN confidence frames
-  isValidFromTrackletFrameIndex = isfinite(minConfFromValidFrameIndex) ;
-  validFrameCount = sum(isValidFromTrackletFrameIndex) ;
-  if validFrameCount == 0
-    continue
-  end
-  frameIndexFromValidFrameIndex = frameIndexFromTrackletFrameIndex(isValidFromTrackletFrameIndex) ;
-  minConfFromValidFrameIndex = minConfFromValidFrameIndex(isValidFromTrackletFrameIndex) ;
-  maxConfFromValidFrameIndex = maxConfFromValidFrameIndex(isValidFromTrackletFrameIndex) ;
+% Concatenate all the *FromTrackletIndex cell arrays together, thus
+% collecting all valid (frame, tracklet) pairs into flattened vectors.
+frameIndexFromPairIndex = vertcat(frameIndexFromTrackletFrameIndexFromTrackletIndex{:}) ;
+trackletIndexFromPairIndex = vertcat(trackletIndexFromTrackletFrameIndexFromTrackletIndex{:}) ;
+targetIndexFromPairIndex = vertcat(targetIndexFromTrackletFrameIndexFromTrackletIndex{:}) ;
+minConfFromPairIndex = vertcat(minConfFromTrackletFrameIndexFromTrackletIndex{:}) ;
+maxConfFromPairIndex = vertcat(maxConfFromTrackletFrameIndexFromTrackletIndex{:}) ;
 
-  targetIndex = trkFile.pTrkiTgt(trackletIndex) ;
-
-  frameIndexFromPairIndex = [frameIndexFromPairIndex ; frameIndexFromValidFrameIndex] ;  %#ok<AGROW>
-  trackletIndexFromPairIndex = [trackletIndexFromPairIndex ; repmat(trackletIndex, validFrameCount, 1)] ;  %#ok<AGROW>
-  targetIndexFromPairIndex = [targetIndexFromPairIndex ; repmat(targetIndex, validFrameCount, 1)] ;  %#ok<AGROW>
-  minConfFromPairIndex = [minConfFromPairIndex ; minConfFromValidFrameIndex] ;  %#ok<AGROW>
-  maxConfFromPairIndex = [maxConfFromPairIndex ; maxConfFromValidFrameIndex] ;  %#ok<AGROW>
-end
-
+% Do an early return if there are no pairs
 if isempty(frameIndexFromPairIndex)
   startFrameFromSortedBoutIndex = zeros(0, 1) ;
   endFrameFromSortedBoutIndex = zeros(0, 1) ;
