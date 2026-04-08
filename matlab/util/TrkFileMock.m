@@ -9,13 +9,13 @@ classdef TrkFileMock
     phaseOffsetFromTrackletIndex
     amplitudeFromTrackletIndex
     offsetFromTrackletIndex
-    pointCount
+    lamdmarkCount
   end
 
   methods
-    function obj = TrkFileMock(trackletSpecs, pointCount)
+    function obj = TrkFileMock(trackletSpecs, landmarkCount)
       if nargin < 2
-        pointCount = 3 ;
+        landmarkCount = 3 ;
       end
 
       obj.ntracklets = numel(trackletSpecs) ;
@@ -25,7 +25,7 @@ classdef TrkFileMock
       obj.phaseOffsetFromTrackletIndex = reshape([trackletSpecs.phaseOffset], [], 1) ;
       obj.amplitudeFromTrackletIndex = reshape([trackletSpecs.amplitude], [], 1) ;
       obj.offsetFromTrackletIndex = reshape([trackletSpecs.offset], [], 1) ;
-      obj.pointCount = pointCount ;
+      obj.lamdmarkCount = landmarkCount ;
     end
 
     function [xy, occ, fr, aux] = getPTrkTgt(obj, trackletIndex, varargin)
@@ -38,14 +38,14 @@ classdef TrkFileMock
 
       fr = obj.frameIndicesFromTrackletIndex{trackletIndex} ;
       frameCount = numel(fr) ;
-      xy = nan(obj.pointCount, 2, frameCount, 1) ;
-      occ = false(obj.pointCount, frameCount, 1) ;
+      xy = nan(obj.lamdmarkCount, 2, frameCount, 1) ;
+      occ = false(obj.lamdmarkCount, frameCount, 1) ;
 
       if isempty(auxflds)
         aux = [] ;
       elseif isequal(auxflds, {'pTrkConf'})
-        conf = obj.confidenceFromTrackletIndex(trackletIndex) ;
-        aux = reshape(repmat(conf, obj.pointCount, 1), obj.pointCount, frameCount, 1, 1) ;
+        conf = obj.confidenceFromTrackletIndex_(trackletIndex) ;
+        aux = reshape(repmat(conf, obj.lamdmarkCount, 1), obj.lamdmarkCount, frameCount, 1, 1) ;
       else
         error('TrkFileMock:UnsupportedAuxField', ...
               'Unsupported aux field request in TrkFileMock.') ;
@@ -54,7 +54,7 @@ classdef TrkFileMock
   end
 
   methods (Access = private)
-    function conf = confidenceFromTrackletIndex(obj, trackletIndex)
+    function conf = confidenceFromTrackletIndex_(obj, trackletIndex)
       frameCount = numel(obj.frameIndicesFromTrackletIndex{trackletIndex}) ;
       period = obj.periodFromTrackletIndex(trackletIndex) ;
       halfPeriod = period / 2 ;

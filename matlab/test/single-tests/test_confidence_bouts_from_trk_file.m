@@ -17,6 +17,7 @@ trackletSpecs(2) = struct( ...
   'offset', 0.1) ;
 
 trkFile = TrkFileMock(trackletSpecs) ;
+allMinConfidence = [0; 0.25; 0.5; 0.75; 1; 0.75; 0.1; 0.3; 0.5; 0.7; 0.9; 0.7] ;
 
 [firstFrameIndex, lastFrameIndex, extremalFrameIndex, trackletIndex, targetIndex, extremalConf, minConf, maxConf] = ...
   confidenceBoutsFromTrkFile(trkFile, 0.35, false, false) ;
@@ -41,6 +42,42 @@ assertVectorsEqual(targetIndex, [101; 202], 'high-confidence targetIndex') ;
 assertVectorsAlmostEqual(extremalConf, [1; 0.9], 'high-confidence extremalConf') ;
 assertScalarsAlmostEqual(minConf, 0, 'high-confidence minConf') ;
 assertScalarsAlmostEqual(maxConf, 1, 'high-confidence maxConf') ;
+
+quantileThreshold = 0.3 ;
+absoluteThreshold = quantile(allMinConfidence, quantileThreshold) ;
+[firstFrameIndexFromQuantile, lastFrameIndexFromQuantile, extremalFrameIndexFromQuantile, ...
+ trackletIndexFromQuantile, targetIndexFromQuantile, extremalConfFromQuantile, minConfFromQuantile, maxConfFromQuantile] = ...
+  confidenceBoutsFromTrkFile(trkFile, quantileThreshold, false, true) ;
+[firstFrameIndexFromAbsolute, lastFrameIndexFromAbsolute, extremalFrameIndexFromAbsolute, ...
+ trackletIndexFromAbsolute, targetIndexFromAbsolute, extremalConfFromAbsolute, minConfFromAbsolute, maxConfFromAbsolute] = ...
+  confidenceBoutsFromTrkFile(trkFile, absoluteThreshold, false, false) ;
+
+assertVectorsEqual(firstFrameIndexFromQuantile, firstFrameIndexFromAbsolute, 'quantile low-confidence firstFrameIndex') ;
+assertVectorsEqual(lastFrameIndexFromQuantile, lastFrameIndexFromAbsolute, 'quantile low-confidence lastFrameIndex') ;
+assertVectorsEqual(extremalFrameIndexFromQuantile, extremalFrameIndexFromAbsolute, 'quantile low-confidence extremalFrameIndex') ;
+assertVectorsEqual(trackletIndexFromQuantile, trackletIndexFromAbsolute, 'quantile low-confidence trackletIndex') ;
+assertVectorsEqual(targetIndexFromQuantile, targetIndexFromAbsolute, 'quantile low-confidence targetIndex') ;
+assertVectorsAlmostEqual(extremalConfFromQuantile, extremalConfFromAbsolute, 'quantile low-confidence extremalConf') ;
+assertScalarsAlmostEqual(minConfFromQuantile, minConfFromAbsolute, 'quantile low-confidence minConf') ;
+assertScalarsAlmostEqual(maxConfFromQuantile, maxConfFromAbsolute, 'quantile low-confidence maxConf') ;
+
+quantileThreshold = 0.25 ;
+absoluteThreshold = quantile(allMinConfidence, 1 - quantileThreshold) ;
+[firstFrameIndexFromQuantile, lastFrameIndexFromQuantile, extremalFrameIndexFromQuantile, ...
+ trackletIndexFromQuantile, targetIndexFromQuantile, extremalConfFromQuantile, minConfFromQuantile, maxConfFromQuantile] = ...
+  confidenceBoutsFromTrkFile(trkFile, quantileThreshold, true, true) ;
+[firstFrameIndexFromAbsolute, lastFrameIndexFromAbsolute, extremalFrameIndexFromAbsolute, ...
+ trackletIndexFromAbsolute, targetIndexFromAbsolute, extremalConfFromAbsolute, minConfFromAbsolute, maxConfFromAbsolute] = ...
+  confidenceBoutsFromTrkFile(trkFile, absoluteThreshold, true, false) ;
+
+assertVectorsEqual(firstFrameIndexFromQuantile, firstFrameIndexFromAbsolute, 'quantile high-confidence firstFrameIndex') ;
+assertVectorsEqual(lastFrameIndexFromQuantile, lastFrameIndexFromAbsolute, 'quantile high-confidence lastFrameIndex') ;
+assertVectorsEqual(extremalFrameIndexFromQuantile, extremalFrameIndexFromAbsolute, 'quantile high-confidence extremalFrameIndex') ;
+assertVectorsEqual(trackletIndexFromQuantile, trackletIndexFromAbsolute, 'quantile high-confidence trackletIndex') ;
+assertVectorsEqual(targetIndexFromQuantile, targetIndexFromAbsolute, 'quantile high-confidence targetIndex') ;
+assertVectorsAlmostEqual(extremalConfFromQuantile, extremalConfFromAbsolute, 'quantile high-confidence extremalConf') ;
+assertScalarsAlmostEqual(minConfFromQuantile, minConfFromAbsolute, 'quantile high-confidence minConf') ;
+assertScalarsAlmostEqual(maxConfFromQuantile, maxConfFromAbsolute, 'quantile high-confidence maxConf') ;
 end  % function
 
 

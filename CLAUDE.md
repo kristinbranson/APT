@@ -213,8 +213,9 @@ away.
 
 ## Miscellaneous Notes
 - When running Matlab batch commands, do it like this: 
-  `matlab -batch <command>`.  There's no need to also use the
-  `-nodisplay` and `-nosplash` options.
+  `matlab -batch "modpath(); <command>"`.  There's no need to also use the
+  `-nodisplay` and `-nosplash` options.  The `modpath()` bit sets up
+  the path properly.
 - Running commands that span multiple lines using `matlab -batch`
   doesn't seem to work.  Write such commands to a .m file and run that
   instead.
