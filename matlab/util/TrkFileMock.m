@@ -9,7 +9,7 @@ classdef TrkFileMock
     phaseOffsetFromTrackletIndex
     amplitudeFromTrackletIndex
     offsetFromTrackletIndex
-    lamdmarkCount
+    landmarkCount
   end
 
   methods
@@ -25,7 +25,7 @@ classdef TrkFileMock
       obj.phaseOffsetFromTrackletIndex = reshape([trackletSpecs.phaseOffset], [], 1) ;
       obj.amplitudeFromTrackletIndex = reshape([trackletSpecs.amplitude], [], 1) ;
       obj.offsetFromTrackletIndex = reshape([trackletSpecs.offset], [], 1) ;
-      obj.lamdmarkCount = landmarkCount ;
+      obj.landmarkCount = landmarkCount ;
     end
 
     function [xy, occ, fr, aux] = getPTrkTgt(obj, trackletIndex, varargin)
@@ -38,14 +38,14 @@ classdef TrkFileMock
 
       fr = obj.frameIndicesFromTrackletIndex{trackletIndex} ;
       frameCount = numel(fr) ;
-      xy = nan(obj.lamdmarkCount, 2, frameCount, 1) ;
-      occ = false(obj.lamdmarkCount, frameCount, 1) ;
+      xy = nan(obj.landmarkCount, 2, frameCount, 1) ;
+      occ = false(obj.landmarkCount, frameCount, 1) ;
 
       if isempty(auxflds)
         aux = [] ;
       elseif isequal(auxflds, {'pTrkConf'})
         conf = obj.confidenceFromTrackletIndex_(trackletIndex) ;
-        aux = reshape(repmat(conf, obj.lamdmarkCount, 1), obj.lamdmarkCount, frameCount, 1, 1) ;
+        aux = reshape(conf, obj.landmarkCount, frameCount, 1, 1) ;
       else
         error('TrkFileMock:UnsupportedAuxField', ...
               'Unsupported aux field request in TrkFileMock.') ;
@@ -64,13 +64,14 @@ classdef TrkFileMock
       end
 
       phaseOffset = obj.phaseOffsetFromTrackletIndex(trackletIndex) ;
-      phase = mod((0 : frameCount - 1)' + phaseOffset, period) ;
+      framePhaseOffsetFromFrameIndex = (0 : frameCount - 1)' + phaseOffset ;
+      landmarkPhaseOffsetFromLandmarkIndex = 0 : obj.landmarkCount - 1 ;
+      phase = mod(framePhaseOffsetFromFrameIndex + landmarkPhaseOffsetFromLandmarkIndex, period) ;
       triangle = 1 - abs(phase / halfPeriod - 1) ;
 
       amplitude = obj.amplitudeFromTrackletIndex(trackletIndex) ;
       offset = obj.offsetFromTrackletIndex(trackletIndex) ;
-      conf = offset + amplitude * triangle ;
-      conf = conf' ;
+      conf = offset + amplitude * triangle' ;
     end
   end
 end
