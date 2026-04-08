@@ -10,12 +10,16 @@ classdef TrkFileMock
     amplitudeFromTrackletIndex
     offsetFromTrackletIndex
     landmarkCount
+    isConfidenceLackThereof
   end
 
   methods
-    function obj = TrkFileMock(trackletSpecs, landmarkCount)
-      if nargin < 2
+    function obj = TrkFileMock(trackletSpecs, landmarkCount, isConfidenceLackThereof)
+      if nargin < 2 || isempty(landmarkCount)
         landmarkCount = 3 ;
+      end
+      if nargin < 3 || isempty(isConfidenceLackThereof)
+        isConfidenceLackThereof = false ;
       end
 
       obj.ntracklets = numel(trackletSpecs) ;
@@ -26,6 +30,7 @@ classdef TrkFileMock
       obj.amplitudeFromTrackletIndex = reshape([trackletSpecs.amplitude], [], 1) ;
       obj.offsetFromTrackletIndex = reshape([trackletSpecs.offset], [], 1) ;
       obj.landmarkCount = landmarkCount ;
+      obj.isConfidenceLackThereof = isConfidenceLackThereof ;
     end
 
     function [xy, occ, fr, aux] = getPTrkTgt(obj, trackletIndex, varargin)
@@ -72,6 +77,9 @@ classdef TrkFileMock
       amplitude = obj.amplitudeFromTrackletIndex(trackletIndex) ;
       offset = obj.offsetFromTrackletIndex(trackletIndex) ;
       conf = offset + amplitude * triangle' ;
+      if obj.isConfidenceLackThereof
+        conf = -conf ;
+      end
     end
   end
 end

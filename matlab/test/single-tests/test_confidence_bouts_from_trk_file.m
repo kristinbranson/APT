@@ -1,6 +1,7 @@
 function test_confidence_bouts_from_trk_file()
 % Test confidenceBoutsFromTrkFile() with synthetic triangle-wave confidence.
 
+% Define two synthetic tracklets with different confidence ranges.
 trackletSpecs(1) = struct( ...
   'frameIndices', 1:6, ...
   'targetIndex', 101, ...
@@ -16,14 +17,68 @@ trackletSpecs(2) = struct( ...
   'amplitude', 0.8, ...
   'offset', 0.1) ;
 
-trkFile = TrkFileMock(trackletSpecs) ;
+% Verify that the default mock returns different confidences by landmark.
+trkFile = TrkFileMock(trackletSpecs, [], false) ;
 [~, ~, ~, rawConfidence] = trkFile.getPTrkTgt(1, 'auxflds', {'pTrkConf'}) ;
 confidenceFromLandmarkIndex = rawConfidence(:, 1, 1, 1) ;
 assertVectorsAlmostEqual(confidenceFromLandmarkIndex, [0; 0.25; 0.5], ...
                          'per-landmark confidence at first frame') ;
 
-allMinConfidence = [0; 0.25; 0.5; 0.75; 0.5; 0.25; 0.1; 0.3; 0.5; 0.7; 0.5; 0.3] ;
+% Verify that the lack-thereof mode negates the generated confidence.
+trkFileLackThereof = TrkFileMock(trackletSpecs, [], true) ;
+[~, ~, ~, rawConfidence] = trkFileLackThereof.getPTrkTgt(1, 'auxflds', {'pTrkConf'}) ;
+confidenceFromLandmarkIndex = rawConfidence(:, 1, 1, 1) ;
+assertVectorsAlmostEqual(confidenceFromLandmarkIndex, [0; -0.25; -0.5], ...
+                         'lack-thereof confidence at first frame') ;
 
+% Verify invariance when negating both the confidence and the threshold.
+invariantThreshold = 0.35 ;
+[firstFrameIndex, lastFrameIndex, extremalFrameIndex] = ...
+  confidenceBoutsFromTrkFile(trkFile, invariantThreshold, false, false) ;
+[firstFrameIndexFromLackThereof, lastFrameIndexFromLackThereof, extremalFrameIndexFromLackThereof] = ...
+  confidenceBoutsFromTrkFile(trkFileLackThereof, -invariantThreshold, true, false) ;
+assertVectorsEqual(firstFrameIndexFromLackThereof, firstFrameIndex, ...
+                   'negated-threshold invariance firstFrameIndex') ;
+assertVectorsEqual(lastFrameIndexFromLackThereof, lastFrameIndex, ...
+                   'negated-threshold invariance lastFrameIndex') ;
+assertVectorsEqual(extremalFrameIndexFromLackThereof, extremalFrameIndex, ...
+                   'negated-threshold invariance extremalFrameIndex') ;
+
+% Record the per-frame minimum confidence values used by quantile tests.
+allMinConfidence = [0; 0.25; 0.5; 0.75; 0.5; 0.25; 0.1; 0.3; 0.5; 0.7; 0.5; 0.3] ;
+allMaxConfidence = [0.5; 0.75; 1; 1; 1; 0.75; 0.5; 0.7; 0.9; 0.9; 0.9; 0.7] ;
+
+% Verify invariance systematically across threshold style and quantile mode.
+caseInfo = struct( ...
+  'label', {'absolute low', 'absolute high', 'quantile low', 'quantile high'}, ...
+  'thresholdArg', {0.35, 0.65, 0.3, 0.7}, ...
+  'isQuantile', {false, false, true, true}) ;
+for caseIndex = 1 : numel(caseInfo)
+  thisCase = caseInfo(caseIndex) ;
+  thresholdArg = thisCase.thresholdArg ;
+  if thisCase.isQuantile
+    thresholdArgFromLackThereof = thresholdArg ;
+  else
+    thresholdArgFromLackThereof = -thresholdArg ;
+  end
+
+  [firstFrameIndex, lastFrameIndex, extremalFrameIndex] = ...
+    confidenceBoutsFromTrkFile(trkFile, thresholdArg, false, thisCase.isQuantile) ;
+  [firstFrameIndexFromLackThereof, lastFrameIndexFromLackThereof, extremalFrameIndexFromLackThereof] = ...
+    confidenceBoutsFromTrkFile(trkFileLackThereof, ...
+                               thresholdArgFromLackThereof, ...
+                               true, ...
+                               thisCase.isQuantile) ;
+
+  assertVectorsEqual(firstFrameIndexFromLackThereof, firstFrameIndex, ...
+                     [thisCase.label ' invariance firstFrameIndex']) ;
+  assertVectorsEqual(lastFrameIndexFromLackThereof, lastFrameIndex, ...
+                     [thisCase.label ' invariance lastFrameIndex']) ;
+  assertVectorsEqual(extremalFrameIndexFromLackThereof, extremalFrameIndex, ...
+                     [thisCase.label ' invariance extremalFrameIndex']) ;
+end
+
+% Check bout extraction for absolute low-confidence thresholding.
 [firstFrameIndex, lastFrameIndex, extremalFrameIndex, trackletIndex, targetIndex, extremalConf, minConf, maxConf] = ...
   confidenceBoutsFromTrkFile(trkFile, 0.35, false, false) ;
 
@@ -36,6 +91,7 @@ assertVectorsAlmostEqual(extremalConf, [0; 0.1; 0.25; 0.3], 'low-confidence extr
 assertScalarsAlmostEqual(minConf, 0, 'low-confidence minConf') ;
 assertScalarsAlmostEqual(maxConf, 1, 'low-confidence maxConf') ;
 
+% Check bout extraction for absolute high-confidence thresholding.
 [firstFrameIndex, lastFrameIndex, extremalFrameIndex, trackletIndex, targetIndex, extremalConf, minConf, maxConf] = ...
   confidenceBoutsFromTrkFile(trkFile, 0.75, true, false) ;
 
@@ -48,6 +104,7 @@ assertVectorsAlmostEqual(extremalConf, [1; 0.9], 'high-confidence extremalConf')
 assertScalarsAlmostEqual(minConf, 0, 'high-confidence minConf') ;
 assertScalarsAlmostEqual(maxConf, 1, 'high-confidence maxConf') ;
 
+% Check that quantile low-confidence mode matches the equivalent absolute threshold.
 quantileThreshold = 0.3 ;
 absoluteThreshold = quantile(allMinConfidence, quantileThreshold) ;
 [firstFrameIndexFromQuantile, lastFrameIndexFromQuantile, extremalFrameIndexFromQuantile, ...
@@ -66,8 +123,9 @@ assertVectorsAlmostEqual(extremalConfFromQuantile, extremalConfFromAbsolute, 'qu
 assertScalarsAlmostEqual(minConfFromQuantile, minConfFromAbsolute, 'quantile low-confidence minConf') ;
 assertScalarsAlmostEqual(maxConfFromQuantile, maxConfFromAbsolute, 'quantile low-confidence maxConf') ;
 
+% Check that quantile high-confidence mode matches the equivalent absolute threshold.
 quantileThreshold = 0.25 ;
-absoluteThreshold = quantile(allMinConfidence, 1 - quantileThreshold) ;
+absoluteThreshold = quantile(allMaxConfidence, 1 - quantileThreshold) ;
 [firstFrameIndexFromQuantile, lastFrameIndexFromQuantile, extremalFrameIndexFromQuantile, ...
  trackletIndexFromQuantile, targetIndexFromQuantile, extremalConfFromQuantile, minConfFromQuantile, maxConfFromQuantile] = ...
   confidenceBoutsFromTrkFile(trkFile, quantileThreshold, true, true) ;
