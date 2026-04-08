@@ -1,4 +1,4 @@
-function [startFrameFromSortedBoutIndex, endFrameFromSortedBoutIndex, extremalConfFrameIndexFromSortedBoutIndex, ...
+function [firstFrameIndexFromSortedBoutIndex, lastFrameIndexFromSortedBoutIndex, extremalConfFrameIndexFromSortedBoutIndex, ...
          trackletIndexFromSortedBoutIndex, targetIndexFromSortedBoutIndex, extremalConfFromSortedBoutIndex, ...
          minConf, maxConf] = ...
   confidenceBoutsFromTrkFile(trkFile, absoluteOrQuantileThreshold, isConfidenceLackThereof, isQuantile)
@@ -30,8 +30,8 @@ maxConfFromPairIndex = vertcat(maxConfFromTrackletFrameIndexFromTrackletIndex{:}
 
 % Do an early return if there are no pairs
 if isempty(minConfFromPairIndex)
-  startFrameFromSortedBoutIndex = zeros(0, 1) ;
-  endFrameFromSortedBoutIndex = zeros(0, 1) ;
+  firstFrameIndexFromSortedBoutIndex = zeros(0, 1) ;
+  lastFrameIndexFromSortedBoutIndex = zeros(0, 1) ;
   extremalConfFrameIndexFromSortedBoutIndex = zeros(0, 1) ;
   trackletIndexFromSortedBoutIndex = zeros(0, 1) ;
   targetIndexFromSortedBoutIndex = zeros(0, 1) ;
@@ -56,8 +56,8 @@ end
 
 % Build bouts: contiguous runs of consecutive frames (within a single
 % tracklet) that pass the confidence threshold.
-[startFrameFromTrackletBoutIndexFromTrackletIndex, ...
- endFrameFromTrackletBoutIndexFromTrackletIndex, ...
+[firstFrameIndexFromTrackletBoutIndexFromTrackletIndex, ...
+ lastFrameIndexFromTrackletBoutIndexFromTrackletIndex, ...
  extremalFrameIndexFromTrackletBoutIndexFromTrackletIndex, ...
  trackletIndexFromTrackletBoutIndexFromTrackletIndex, ...
  targetIndexFromTrackletBoutIndexFromTrackletIndex, ...
@@ -83,8 +83,8 @@ end
 
 % Concatenate all the *FromTrackletIndex cell arrays together, thus
 % collecting all the bouts from all the tracklets.
-startFrameFromBoutIndex = vertcat(startFrameFromTrackletBoutIndexFromTrackletIndex{:}) ;
-endFrameFromBoutIndex = vertcat(endFrameFromTrackletBoutIndexFromTrackletIndex{:}) ;
+firstFrameIndexFromBoutIndex = vertcat(firstFrameIndexFromTrackletBoutIndexFromTrackletIndex{:}) ;
+lastFrameIndexFromBoutIndex = vertcat(lastFrameIndexFromTrackletBoutIndexFromTrackletIndex{:}) ;
 trackletIndexFromBoutIndex = vertcat(trackletIndexFromTrackletBoutIndexFromTrackletIndex{:}) ;
 targetIndexFromBoutIndex = vertcat(targetIndexFromTrackletBoutIndexFromTrackletIndex{:}) ;
 extremalConfFromBoutIndex = vertcat(extremalConfFromTrackletBoutIndexFromTrackletIndex{:}) ;
@@ -95,8 +95,8 @@ sortOrder = fif(isConfidenceLackThereof, 'descend', 'ascend') ;
 [~, boutIndexFromSortedBoutIndex] = sort(extremalConfFromBoutIndex, sortOrder) ;
 
 % Sort everything else according to the sort order
-startFrameFromSortedBoutIndex = startFrameFromBoutIndex(boutIndexFromSortedBoutIndex) ;
-endFrameFromSortedBoutIndex = endFrameFromBoutIndex(boutIndexFromSortedBoutIndex) ;
+firstFrameIndexFromSortedBoutIndex = firstFrameIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;
+lastFrameIndexFromSortedBoutIndex = lastFrameIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;
 extremalConfFrameIndexFromSortedBoutIndex = extremeConfFrameIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;
 trackletIndexFromSortedBoutIndex = trackletIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;
 targetIndexFromSortedBoutIndex = targetIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;
