@@ -1,6 +1,6 @@
 function [frameIndexFromValidFrameIndex, ...
-          trackletIndexFromValidFrameIndex, ...
-          targetIndexFromValidFrameIndex, ...
+          trackletIndex, ...
+          targetIndex, ...
           minConfFromValidFrameIndex, ...
           maxConfFromValidFrameIndex] = ...
     collectConfidenceDataForSingleTracklet(trkFile, trackletIndex)
@@ -13,8 +13,6 @@ function [frameIndexFromValidFrameIndex, ...
 % Do an early return if no data
 if isempty(frameIndexFromFrameIndexAsRow) || isempty(aux)
   frameIndexFromValidFrameIndex = zeros(0, 1) ;
-  trackletIndexFromValidFrameIndex = zeros(0, 1) ;
-  targetIndexFromValidFrameIndex = zeros(0, 1) ;
   minConfFromValidFrameIndex = zeros(0, 1) ;
   maxConfFromValidFrameIndex = zeros(0, 1) ;
   return
@@ -36,8 +34,6 @@ isValidFromFrameIndex = isfinite(minConfFromFrameIndex) ;
 validFrameCount = sum(isValidFromFrameIndex) ;
 if validFrameCount == 0
   frameIndexFromValidFrameIndex = zeros(0, 1) ;
-  trackletIndexFromValidFrameIndex = zeros(0, 1) ;
-  targetIndexFromValidFrameIndex = zeros(0, 1) ;
   minConfFromValidFrameIndex = zeros(0, 1) ;
   maxConfFromValidFrameIndex = zeros(0, 1) ;
   return
@@ -48,9 +44,7 @@ frameIndexFromValidFrameIndex = frameIndexFromFrameIndex(isValidFromFrameIndex) 
 minConfFromValidFrameIndex = minConfFromFrameIndex(isValidFromFrameIndex) ;
 maxConfFromValidFrameIndex = maxConfFromFrameIndex(isValidFromFrameIndex) ;
 
-% Make arrays with the tracketIndex and 
+% Get the target index for this tracklet.
 targetIndex = trkFile.pTrkiTgt(trackletIndex) ;
-trackletIndexFromValidFrameIndex = repmat(trackletIndex, validFrameCount, 1) ;
-targetIndexFromValidFrameIndex = repmat(targetIndex, validFrameCount, 1) ;
 
 end  % function
