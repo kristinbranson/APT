@@ -1,8 +1,8 @@
-function [startFrameFromBoutIndex, endFrameFromBoutIndex, extremeFrameFromBoutIndex, ...
-         trackletIndexFromBoutIndex, targetIndexFromBoutIndex, extremeConfidenceFromBoutIndex, ...
-         overallMinConfidence, overallMaxConfidence] = ...
-  confidenceBoutsFromTrkFile(trkFile, threshold, isConfidenceLackThereof)
-% Find bouts of consecutive frames whose confidence passes a threshold.
+function [startFrameFromSortedBoutIndex, endFrameFromSortedBoutIndex, extremeFrameFromSortedBoutIndex, ...
+         trackletIndexFromSortedBoutIndex, targetIndexFromSortedBoutIndex, extremeConfidenceFromSortedBoutIndex, ...
+         minConf, maxConf] = ...
+  confidenceBoutsFromTrkFile(trkFile, threshold, isConfidenceLackThereof, isQuantile)
+% Find bouts of consecutive frames whose confidence is above a threshold.
 %
 % A bout is a maximal contiguous run of consecutive frames (within a single
 % tracklet) where confidence stays below (or above, in lack-thereof mode)
@@ -12,6 +12,7 @@ function [startFrameFromBoutIndex, endFrameFromBoutIndex, extremeFrameFromBoutIn
 % Returns empty column vectors and NaN extremes when there are no bouts.
 
 % Gather per-frame confidence data from all tracklets.
+% A "pair" is a (frame, tracklet) pair.
 frameIndexFromPairIndex = [] ;
 trackletIndexFromPairIndex = [] ;
 targetIndexFromPairIndex = [] ;
@@ -20,113 +21,131 @@ maxConfFromPairIndex = [] ;
 
 trackletCount = trkFile.ntracklets ;
 for trackletIndex = 1 : trackletCount
-  [xy, ~, fr, aux] = trkFile.getPTrkTgt(trackletIndex, 'auxflds', {'pTrkConf'}) ;
-  if isempty(xy) || isempty(aux)
+  [~, ~, frameIndexFromTrackletFrameIndexAsRow, aux] = trkFile.getPTrkTgt(trackletIndex, 'auxflds', {'pTrkConf'}) ;
+  if isempty(frameIndexFromTrackletFrameIndexAsRow) || isempty(aux)
     continue
   end
-  % aux is [npt x numfrm x 1 x 1]
-  confPerPointAndFrame = reshape(aux, size(aux, 1), size(aux, 2)) ;  % [npt x numfrm]
-  minConfPerFrame = min(confPerPointAndFrame, [], 1) ;  % [1 x numfrm]
-  minConfPerFrame = minConfPerFrame(:) ;  % [numfrm x 1]
-  maxConfPerFrame = max(confPerPointAndFrame, [], 1) ;  % [1 x numfrm]
-  maxConfPerFrame = maxConfPerFrame(:) ;  % [numfrm x 1]
-  fr = fr(:) ;  % [numfrm x 1]
+  frameIndexFromTrackletFrameIndex = frameIndexFromTrackletFrameIndexAsRow(:) ;  % [frameCount x 1]
+  confidenceFromPointIndexFromFrameIndex = reshape(aux, size(aux, 1), size(aux, 2)) ;  % [labelPointCount x frameCount]
+    % aux is [labelPointCount x frameCount x 1 x 1]
+  minConfFromFrameIndexAsRow = min(confidenceFromPointIndexFromFrameIndex, [], 1) ;  % [1 x frameCount]
+  minConfFromValidFrameIndex = minConfFromFrameIndexAsRow(:) ;  % [frameCount x 1]
+  maxConfFromFrameIndexAsRow = max(confidenceFromPointIndexFromFrameIndex, [], 1) ;  % [1 x frameCount]
+  maxConfFromValidFrameIndex = maxConfFromFrameIndexAsRow(:) ;  % [frameCount x 1]
 
   % Filter out NaN confidence frames
-  isFinite = isfinite(minConfPerFrame) ;
-  fr = fr(isFinite) ;
-  minConfPerFrame = minConfPerFrame(isFinite) ;
-  maxConfPerFrame = maxConfPerFrame(isFinite) ;
-  if isempty(fr)
+  isValidFromTrackletFrameIndex = isfinite(minConfFromValidFrameIndex) ;
+  validFrameCount = sum(isValidFromTrackletFrameIndex) ;
+  if validFrameCount == 0
     continue
   end
+  frameIndexFromValidFrameIndex = frameIndexFromTrackletFrameIndex(isValidFromTrackletFrameIndex) ;
+  minConfFromValidFrameIndex = minConfFromValidFrameIndex(isValidFromTrackletFrameIndex) ;
+  maxConfFromValidFrameIndex = maxConfFromValidFrameIndex(isValidFromTrackletFrameIndex) ;
 
   targetIndex = trkFile.pTrkiTgt(trackletIndex) ;
 
-  frameCount = numel(fr) ;
-  frameIndexFromPairIndex = [frameIndexFromPairIndex ; fr] ;  %#ok<AGROW>
-  trackletIndexFromPairIndex = [trackletIndexFromPairIndex ; repmat(trackletIndex, frameCount, 1)] ;  %#ok<AGROW>
-  targetIndexFromPairIndex = [targetIndexFromPairIndex ; repmat(targetIndex, frameCount, 1)] ;  %#ok<AGROW>
-  minConfFromPairIndex = [minConfFromPairIndex ; minConfPerFrame] ;  %#ok<AGROW>
-  maxConfFromPairIndex = [maxConfFromPairIndex ; maxConfPerFrame] ;  %#ok<AGROW>
+  frameIndexFromPairIndex = [frameIndexFromPairIndex ; frameIndexFromValidFrameIndex] ;  %#ok<AGROW>
+  trackletIndexFromPairIndex = [trackletIndexFromPairIndex ; repmat(trackletIndex, validFrameCount, 1)] ;  %#ok<AGROW>
+  targetIndexFromPairIndex = [targetIndexFromPairIndex ; repmat(targetIndex, validFrameCount, 1)] ;  %#ok<AGROW>
+  minConfFromPairIndex = [minConfFromPairIndex ; minConfFromValidFrameIndex] ;  %#ok<AGROW>
+  maxConfFromPairIndex = [maxConfFromPairIndex ; maxConfFromValidFrameIndex] ;  %#ok<AGROW>
 end
 
 if isempty(frameIndexFromPairIndex)
-  startFrameFromBoutIndex = zeros(0, 1) ;
-  endFrameFromBoutIndex = zeros(0, 1) ;
-  extremeFrameFromBoutIndex = zeros(0, 1) ;
-  trackletIndexFromBoutIndex = zeros(0, 1) ;
-  targetIndexFromBoutIndex = zeros(0, 1) ;
-  extremeConfidenceFromBoutIndex = zeros(0, 1) ;
-  overallMinConfidence = nan ;
-  overallMaxConfidence = nan ;
+  startFrameFromSortedBoutIndex = zeros(0, 1) ;
+  endFrameFromSortedBoutIndex = zeros(0, 1) ;
+  extremeFrameFromSortedBoutIndex = zeros(0, 1) ;
+  trackletIndexFromSortedBoutIndex = zeros(0, 1) ;
+  targetIndexFromSortedBoutIndex = zeros(0, 1) ;
+  extremeConfidenceFromSortedBoutIndex = zeros(0, 1) ;
+  minConf = nan ;
+  maxConf = nan ;
   return
 end
 
 % Record overall extremes before filtering.
-overallMinConfidence = min(minConfFromPairIndex) ;
-overallMaxConfidence = max(maxConfFromPairIndex) ;
+minConf = min(minConfFromPairIndex) ;
+maxConf = max(maxConfFromPairIndex) ;
+
+% If in quantile mode, convert the quantile threshold to an absolute one.
+if isQuantile
+  if isConfidenceLackThereof
+    threshold = quantile(maxConfFromPairIndex, 1 - threshold) ;
+  else
+    threshold = quantile(minConfFromPairIndex, threshold) ;
+  end
+end
 
 % Build bouts: contiguous runs of consecutive frames (within a single
 % tracklet) that pass the confidence threshold.
-uniqueTracklets = unique(trackletIndexFromPairIndex) ;
-trackletGroupCount = numel(uniqueTracklets) ;
-startFrameCell = cell(trackletGroupCount, 1) ;
-endFrameCell = cell(trackletGroupCount, 1) ;
-extremeFrameCell = cell(trackletGroupCount, 1) ;
-trackletCell = cell(trackletGroupCount, 1) ;
-targetCell = cell(trackletGroupCount, 1) ;
-extremeConfCell = cell(trackletGroupCount, 1) ;
+trackletIndexFromFoundTrackletIndex = unique(trackletIndexFromPairIndex) ;
+foundTrackletCount = numel(trackletIndexFromFoundTrackletIndex) ;
+startFrameFromTrackletBoutIndexFromFoundTrackletIndex = cell(foundTrackletCount, 1) ;
+endFrameFromTrackletBoutIndexFromFoundTrackletIndex = cell(foundTrackletCount, 1) ;
+extremalFrameIndexFromTrackletBoutIndexFromFoundTrackletIndex = cell(foundTrackletCount, 1) ;
+trackletIndexFromTrackletBoutIndexFromFoundTrackletIndex = cell(foundTrackletCount, 1) ;
+targetIndexFromTrackletBoutIndexFromFoundTrackletIndex = cell(foundTrackletCount, 1) ;
+extremalConfFromTrackletBoutIndexFromFoundTrackletIndex = cell(foundTrackletCount, 1) ;
 
-for iU = 1 : trackletGroupCount
-  thisTrackletIndex = uniqueTracklets(iU) ;
-  isThisTrackletFromPairIndex = (trackletIndexFromPairIndex == thisTrackletIndex) ;
-  trackletFrames = frameIndexFromPairIndex(isThisTrackletFromPairIndex) ;
-  trackletMinConf = minConfFromPairIndex(isThisTrackletFromPairIndex) ;
-  trackletMaxConf = maxConfFromPairIndex(isThisTrackletFromPairIndex) ;
-  trackletTarget = targetIndexFromPairIndex(find(isThisTrackletFromPairIndex, 1)) ;
+for foundTrackletIndex = 1 : foundTrackletCount
+  trackletIndex = trackletIndexFromFoundTrackletIndex(foundTrackletIndex) ;  % scalar
+  isThisTrackletFromPairIndex = (trackletIndexFromPairIndex == trackletIndex) ;
+  frameIndexFromTrackletFrameIndex = frameIndexFromPairIndex(isThisTrackletFromPairIndex) ;
+  minConfFromTrackletFrameIndex = minConfFromPairIndex(isThisTrackletFromPairIndex) ;
+  maxConfFromTrackletFrameIndex = maxConfFromPairIndex(isThisTrackletFromPairIndex) ;
+  targetIndex = targetIndexFromPairIndex(find(isThisTrackletFromPairIndex, 1)) ;  % scalar
 
-  [tltStartFrames, tltEndFrames, tltExtremeFrames, tltExtremeConfs] = ...
-    confidenceBoutsForSingleTracklet(trackletFrames, trackletMinConf, trackletMaxConf, threshold, isConfidenceLackThereof) ;
+  % For this tracklet, collect into bouts
+  [startFrameFromTrackletBoutIndex, ...
+   endFrameFromTrackletBoutIndex, ...
+   extremalConfTrackletFrameIndexFromTrackletBoutIndex, ...
+   extremalConfFromTrackletBoutIndex] = ...
+    confidenceBoutsForSingleTracklet(frameIndexFromTrackletFrameIndex, ...
+                                     minConfFromTrackletFrameIndex, ...
+                                     maxConfFromTrackletFrameIndex, ...
+                                     threshold, ...
+                                     isConfidenceLackThereof) ;
 
-  boutCount = numel(tltStartFrames) ;
-  startFrameCell{iU} = tltStartFrames ;
-  endFrameCell{iU} = tltEndFrames ;
-  extremeFrameCell{iU} = tltExtremeFrames ;
-  trackletCell{iU} = repmat(thisTrackletIndex, boutCount, 1) ;
-  targetCell{iU} = repmat(trackletTarget, boutCount, 1) ;
-  extremeConfCell{iU} = tltExtremeConfs ;
+  trackletBoutCount = numel(startFrameFromTrackletBoutIndex) ;
+  startFrameFromTrackletBoutIndexFromFoundTrackletIndex{foundTrackletIndex} = startFrameFromTrackletBoutIndex ;
+  endFrameFromTrackletBoutIndexFromFoundTrackletIndex{foundTrackletIndex} = endFrameFromTrackletBoutIndex ;
+  extremalFrameIndexFromTrackletBoutIndexFromFoundTrackletIndex{foundTrackletIndex} = ...
+    extremalConfTrackletFrameIndexFromTrackletBoutIndex ;
+  trackletIndexFromTrackletBoutIndexFromFoundTrackletIndex{foundTrackletIndex} = repmat(trackletIndex, trackletBoutCount, 1) ;
+  targetIndexFromTrackletBoutIndexFromFoundTrackletIndex{foundTrackletIndex} = repmat(targetIndex, trackletBoutCount, 1) ;
+  extremalConfFromTrackletBoutIndexFromFoundTrackletIndex{foundTrackletIndex} = extremalConfFromTrackletBoutIndex ;
 end  % for
 
-boutStartFrames = vertcat(startFrameCell{:}) ;
-boutExtremeConfs = vertcat(extremeConfCell{:}) ;
-
-if isempty(boutStartFrames)
-  startFrameFromBoutIndex = zeros(0, 1) ;
-  endFrameFromBoutIndex = zeros(0, 1) ;
-  extremeFrameFromBoutIndex = zeros(0, 1) ;
-  trackletIndexFromBoutIndex = zeros(0, 1) ;
-  targetIndexFromBoutIndex = zeros(0, 1) ;
-  extremeConfidenceFromBoutIndex = zeros(0, 1) ;
+startFrameFromBoutIndex = vertcat(startFrameFromTrackletBoutIndexFromFoundTrackletIndex{:}) ;
+if isempty(startFrameFromBoutIndex)
+  startFrameFromSortedBoutIndex = zeros(0, 1) ;
+  endFrameFromSortedBoutIndex = zeros(0, 1) ;
+  extremeFrameFromSortedBoutIndex = zeros(0, 1) ;
+  trackletIndexFromSortedBoutIndex = zeros(0, 1) ;
+  targetIndexFromSortedBoutIndex = zeros(0, 1) ;
+  extremeConfidenceFromSortedBoutIndex = zeros(0, 1) ;
   return
 end
+endFrameFromBoutIndex = vertcat(endFrameFromTrackletBoutIndexFromFoundTrackletIndex{:}) ;
+trackletIndexFromBoutIndex = vertcat(trackletIndexFromTrackletBoutIndexFromFoundTrackletIndex{:}) ;
+targetIndexFromBoutIndex = vertcat(targetIndexFromTrackletBoutIndexFromFoundTrackletIndex{:}) ;
+extremalConfFromBoutIndex = vertcat(extremalConfFromTrackletBoutIndexFromFoundTrackletIndex{:}) ;
+extremeConfFrameIndexFromBoutIndex = vertcat(extremalFrameIndexFromTrackletBoutIndexFromFoundTrackletIndex{:}) ;
 
 % Sort bouts by extreme confidence.
 if isConfidenceLackThereof
-  [~, sortOrder] = sort(boutExtremeConfs, 'descend') ;
+  [~, sortOrder] = sort(extremalConfFromBoutIndex, 'descend') ;
 else
-  [~, sortOrder] = sort(boutExtremeConfs, 'ascend') ;
+  [~, sortOrder] = sort(extremalConfFromBoutIndex, 'ascend') ;
 end
 
-startFrameFromBoutIndex = boutStartFrames(sortOrder) ;
-endFrameFromBoutIndex = vertcat(endFrameCell{:}) ;
-endFrameFromBoutIndex = endFrameFromBoutIndex(sortOrder) ;
-extremeFrameFromBoutIndex = vertcat(extremeFrameCell{:}) ;
-extremeFrameFromBoutIndex = extremeFrameFromBoutIndex(sortOrder) ;
-trackletIndexFromBoutIndex = vertcat(trackletCell{:}) ;
-trackletIndexFromBoutIndex = trackletIndexFromBoutIndex(sortOrder) ;
-targetIndexFromBoutIndex = vertcat(targetCell{:}) ;
-targetIndexFromBoutIndex = targetIndexFromBoutIndex(sortOrder) ;
-extremeConfidenceFromBoutIndex = boutExtremeConfs(sortOrder) ;
+% Sort everything else according to the sort order
+startFrameFromSortedBoutIndex = startFrameFromBoutIndex(sortOrder) ;
+endFrameFromSortedBoutIndex = endFrameFromBoutIndex(sortOrder) ;
+extremeFrameFromSortedBoutIndex = extremeConfFrameIndexFromBoutIndex(sortOrder) ;
+trackletIndexFromSortedBoutIndex = trackletIndexFromBoutIndex(sortOrder) ;
+targetIndexFromSortedBoutIndex = targetIndexFromBoutIndex(sortOrder) ;
+extremeConfidenceFromSortedBoutIndex = extremalConfFromBoutIndex(sortOrder) ;
 
 end  % function

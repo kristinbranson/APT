@@ -11,9 +11,9 @@ classdef UncertainFramesModel < handle
     isQuantile_ = false
       % scalar logical, when true the threshold is interpreted as a quantile
       % (0-1) rather than an absolute confidence value.
-    quantileConfidenceThreshold_ = nan
-      % scalar double, the confidence threshold corresponding to the current
-      % quantile.  Only meaningful when isQuantile_ is true.
+    quantileConfidenceThreshold_ = 0.95
+      % scalar double, the quantile threshold (0-1).  Only meaningful when
+      % isQuantile_ is true.
   end
 
   properties (Transient, Access=private)
@@ -119,9 +119,6 @@ classdef UncertainFramesModel < handle
     
     function set.absoluteConfidenceThreshold(obj, newValue)
       % Set the absolute confidence threshold, then resync and notify.
-      if obj.isQuantile_
-        error('Can''t set absolute confidence threshold when isQuantile is true') ;
-      end
       obj.absoluteConfidenceThreshold_ = newValue ;
       obj.isFresh_ = false ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
@@ -135,24 +132,7 @@ classdef UncertainFramesModel < handle
 
     function set.isQuantile(obj, newValue)
       % Set whether the threshold is interpreted as a quantile, then resync and notify.
-      oldValue = obj.isQuantile_ ;
       obj.isQuantile_ = newValue ;
-      if ~oldValue && newValue
-        % Switching to quantile mode: compute the quantile of the current threshold.
-        allConf = obj.allConfidenceValues_() ;
-        if isempty(allConf)
-          obj.quantileConfidenceThreshold_ = nan ;
-        else
-          if obj.isConfidenceLackThereof_
-            obj.quantileConfidenceThreshold_ = mean(allConf >= obj.absoluteConfidenceThreshold_) ;
-          else
-            obj.quantileConfidenceThreshold_ = mean(allConf <= obj.absoluteConfidenceThreshold_) ;
-          end
-        end
-      elseif oldValue && ~newValue
-        % Switching out of quantile mode.
-        obj.quantileConfidenceThreshold_ = nan ;
-      end
       obj.isFresh_ = false ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
       obj.labeler_.notify_('updateUncertainFrames') ;
@@ -164,19 +144,11 @@ classdef UncertainFramesModel < handle
     end  % function
 
     function set.quantileConfidenceThreshold(obj, newValue)
-      % Set the quantile threshold and update the absolute confidence threshold to match.
-      if ~obj.isQuantile_
-        error('Cannot set quantileConfidenceThreshold when isQuantile is false.') ;
-      end
+      % Set the quantile threshold, then resync and notify.
       obj.quantileConfidenceThreshold_ = newValue ;
-      allConf = obj.allConfidenceValues_() ;
-      if ~isempty(allConf)
-        if obj.isConfidenceLackThereof_
-          obj.confidenceThreshold = quantile(allConf, 1 - newValue) ;
-        else
-          obj.confidenceThreshold = quantile(allConf, newValue) ;
-        end
-      end
+      obj.isFresh_ = false ;
+      obj.syncFromPredictionsIfStaleAndVisible_() ;
+      obj.labeler_.notify_('didSetUncertainFramesThreshold') ;
     end  % function
 
     function result = get.overallMinConfidence(obj)
@@ -275,45 +247,8 @@ classdef UncertainFramesModel < handle
        obj.extremeConfidenceFromBoutIndex_, ...
        obj.overallMinConfidence_, ...
        obj.overallMaxConfidence_] = ...
-        confidenceBoutsFromTrkFile(trkFile, obj.absoluteConfidenceThreshold_, obj.isConfidenceLackThereof_) ;
+        confidenceBoutsFromTrkFile(trkFile, obj.confidenceThreshold, obj.isConfidenceLackThereof_, obj.isQuantile_) ;
       obj.isFresh_ = true ;
-    end  % function
-
-    function result = allConfidenceValues_(obj)
-      % Return a column vector of all per-frame min-confidence values for the current movie.
-      labeler = obj.labeler_ ;
-      if labeler.currMovie == 0
-        result = [] ;
-        return
-      end
-      tracker = labeler.tracker ;
-      if isempty(tracker)
-        result = [] ;
-        return
-      end
-      trkFile = tracker.trkP ;
-      if isempty(trkFile) || ~isa(trkFile, 'TrkFile') || ~trkFile.hasdata()
-        result = [] ;
-        return
-      end
-      if ~isprop(trkFile, 'pTrkConf')
-        result = [] ;
-        return
-      end
-      allConf = [] ;
-      trackletCount = trkFile.ntracklets ;
-      for trackletIndex = 1 : trackletCount
-        [xy, ~, ~, aux] = trkFile.getPTrkTgt(trackletIndex, 'auxflds', {'pTrkConf'}) ;
-        if isempty(xy) || isempty(aux)
-          continue
-        end
-        confPerPointAndFrame = reshape(aux, size(aux, 1), size(aux, 2)) ;
-        minConfPerFrame = min(confPerPointAndFrame, [], 1) ;
-        minConfPerFrame = minConfPerFrame(:) ;
-        isFinite = isfinite(minConfPerFrame) ;
-        allConf = [allConf ; minConfPerFrame(isFinite)] ;  %#ok<AGROW>
-      end
-      result = allConf ;
     end  % function
 
     function clear_(obj)
