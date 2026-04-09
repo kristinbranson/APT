@@ -6,14 +6,8 @@ classdef UncertainFramesModel < handle
     isConfidenceLackThereof_ = false
       % scalar logical, when true the UI finds high-confidence bouts instead of
       % low-confidence bouts.
-    absoluteConfidenceThreshold_ = 1
-      % scalar double, the threshold for filtering bouts.
-    isQuantile_ = false
-      % scalar logical, when true the threshold is interpreted as a quantile
-      % (0-1) rather than an absolute confidence value.
     quantileConfidenceThreshold_ = 0.95
-      % scalar double, the quantile threshold (0-1).  Only meaningful when
-      % isQuantile_ is true.
+      % scalar double, the quantile threshold (0-1) for filtering bouts.
   end
 
   properties (Transient, Access=private)
@@ -38,9 +32,7 @@ classdef UncertainFramesModel < handle
     isVisible
     isConfidenceLackThereof
     confidenceThreshold
-    isQuantile
     quantileConfidenceThreshold
-    absoluteConfidenceThreshold
     overallMinConfidence
     overallMaxConfidence
   end
@@ -93,49 +85,14 @@ classdef UncertainFramesModel < handle
       obj.labeler_.notify_('updateUncertainFrames') ;
     end  % function
 
-    function result = get.absoluteConfidenceThreshold(obj)
-      % Return the absolute confidence threshold for filtering.
-      result = obj.absoluteConfidenceThreshold_ ;
-    end  % function
-    
     function result = get.confidenceThreshold(obj)
       % Return the confidence threshold for filtering.
-      if obj.isQuantile_
-        result = obj.quantileConfidenceThreshold_ ;
-      else
-        result = obj.absoluteConfidenceThreshold_ ;
-      end
+      result = obj.quantileConfidenceThreshold_ ;
     end  % function
 
     function set.confidenceThreshold(obj, newValue)
-      % Set whichever confidence threshold is current
-      % We set the public method so that those setters can handle updates, etc.
-      if obj.isQuantile_
-        obj.quantileConfidenceThreshold = newValue ;
-      else
-        obj.absoluteConfidenceThreshold = newValue ;
-      end
-    end  % function 
-    
-    function set.absoluteConfidenceThreshold(obj, newValue)
-      % Set the absolute confidence threshold, then resync and notify.
-      obj.absoluteConfidenceThreshold_ = newValue ;
-      obj.isFresh_ = false ;
-      obj.syncFromPredictionsIfStaleAndVisible_() ;
-      obj.labeler_.notify_('didSetUncertainFramesThreshold') ;
-    end  % function
-
-    function result = get.isQuantile(obj)
-      % Return whether the threshold is interpreted as a quantile.
-      result = obj.isQuantile_ ;
-    end  % function
-
-    function set.isQuantile(obj, newValue)
-      % Set whether the threshold is interpreted as a quantile, then resync and notify.
-      obj.isQuantile_ = newValue ;
-      obj.isFresh_ = false ;
-      obj.syncFromPredictionsIfStaleAndVisible_() ;
-      obj.labeler_.notify_('updateUncertainFrames') ;
+      % Set the quantile confidence threshold.
+      obj.quantileConfidenceThreshold = newValue ;
     end  % function
 
     function result = get.quantileConfidenceThreshold(obj)
@@ -247,7 +204,7 @@ classdef UncertainFramesModel < handle
        obj.extremeConfidenceFromBoutIndex_, ...
        obj.overallMinConfidence_, ...
        obj.overallMaxConfidence_] = ...
-        confidenceBoutsFromTrkFile(trkFile, obj.confidenceThreshold, obj.isConfidenceLackThereof_, obj.isQuantile_) ;
+        confidenceBoutsFromTrkFile(trkFile, obj.quantileConfidenceThreshold_, obj.isConfidenceLackThereof_) ;
       obj.isFresh_ = true ;
     end  % function
 

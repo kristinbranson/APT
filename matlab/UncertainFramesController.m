@@ -9,7 +9,6 @@ classdef UncertainFramesController < handle
     checkbox_  % uicontrol checkbox for confidence-is-lack-thereof
     thresholdLabel_  % uicontrol text label for threshold
     thresholdEdit_  % uicontrol edit box for threshold
-    quantileCheckbox_  % uicontrol checkbox for quantile mode
     thresholdHint_  % uicontrol text label showing min/max when listbox is empty
     listbox_  % uicontrol listbox handle
   end
@@ -47,7 +46,6 @@ classdef UncertainFramesController < handle
         obj.createFigure_() ;
       end
       obj.checkbox_.Value = model.isConfidenceLackThereof ;
-      obj.quantileCheckbox_.Value = model.isQuantile ;
       obj.thresholdEdit_.String = sprintf('%g', model.confidenceThreshold) ;
       if model.isLaden
         strings = model.listboxString ;
@@ -97,15 +95,10 @@ classdef UncertainFramesController < handle
       obj.model_.isConfidenceLackThereof = logical(src.Value) ;
     end  % function
 
-    function uncertain_frames_quantile_checkbox_actuated_(obj, src)
-      % Handle quantile checkbox toggle.
-      obj.model_.isQuantile = logical(src.Value) ;
-    end  % function
-
     function uncertain_frames_threshold_edit_actuated_(obj, src)
       % Handle threshold edit box change.
       newValue = str2double(src.String) ;
-      obj.model_.confidenceThreshold = newValue ;
+      obj.model_.quantileConfidenceThreshold = newValue ;
     end  % function
 
     function resizeFigure(obj)
@@ -146,14 +139,8 @@ classdef UncertainFramesController < handle
       obj.thresholdEdit_.Position = ...
         [editLeft, thresholdRowTop - thresholdRowHeight, editWidth, thresholdRowHeight] ;
 
-      % Quantile checkbox sits to the right of the edit box
-      quantileCheckboxWidth = 80 ;
-      quantileCheckboxLeft = editLeft + editWidth + editGap ;
-      obj.quantileCheckbox_.Position = ...
-        [quantileCheckboxLeft, thresholdRowTop - thresholdRowHeight, quantileCheckboxWidth, thresholdRowHeight] ;
-
-      % Hint label sits to the right of the quantile checkbox, vertically centered
-      hintLeft = quantileCheckboxLeft + quantileCheckboxWidth + editGap ;
+      % Hint label sits to the right of the threshold edit box, vertically centered
+      hintLeft = editLeft + editWidth + editGap ;
       hintWidth = figWidth - hintLeft - pad ;
       obj.thresholdHint_.Position = ...
         [hintLeft, labelBottom, max(hintWidth, 1), labelHeight] ;
@@ -198,13 +185,6 @@ classdef UncertainFramesController < handle
         'String', '1', ...
         'HorizontalAlignment', 'right', ...
         'Tag', 'uncertain_frames_threshold_edit') ;
-
-      obj.quantileCheckbox_ = uicontrol(...
-        'Parent', obj.figure_, ...
-        'Style', 'checkbox', ...
-        'String', 'Quantile', ...
-        'Value', 0, ...
-        'Tag', 'uncertain_frames_quantile_checkbox') ;
 
       obj.thresholdHint_ = uicontrol(...
         'Parent', obj.figure_, ...

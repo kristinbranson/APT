@@ -1,13 +1,17 @@
 function [firstFrameIndexFromSortedBoutIndex, lastFrameIndexFromSortedBoutIndex, extremalConfFrameIndexFromSortedBoutIndex, ...
-         trackletIndexFromSortedBoutIndex, targetIndexFromSortedBoutIndex, extremalConfFromSortedBoutIndex, ...
-         minConf, maxConf] = ...
-  confidenceBoutsFromTrkFile(trkFile, absoluteOrQuantileThreshold, isConfidenceLackThereof, isQuantile)
+          trackletIndexFromSortedBoutIndex, targetIndexFromSortedBoutIndex, extremalConfFromSortedBoutIndex, ...
+          minConf, maxConf, ...
+          absoluteThreshold] = ...
+  confidenceBoutsFromTrkFile(trkFile, quantileThreshold, isConfidenceLackThereof)
 % Find bouts of consecutive frames whose confidence is above a threshold.
 %
 % A bout is a maximal contiguous run of consecutive frames (within a single
 % tracklet) where confidence stays below (or above, in lack-thereof mode)
-% the threshold.  Each bout is represented by the frame achieving the
-% extreme confidence within the run.
+% the quantile-derived threshold.  Each bout is represented by the frame
+% achieving the extreme confidence within the run.
+%
+% The quantile threshold is interpreted on per-frame minima in the normal
+% mode and on per-frame maxima in lack-thereof mode.
 %
 % Returns empty column vectors and NaN extremes when there are no bouts.
 
@@ -45,15 +49,10 @@ end
 minConf = min(minConfFromPairIndex) ;
 maxConf = max(maxConfFromPairIndex) ;
 
-% If in quantile mode, convert the quantile threshold to an absolute one.
-if isQuantile
-  naiveQuintileThreshold = absoluteOrQuantileThreshold ;
-  quantileThreshold = fif(isConfidenceLackThereof, 1 - naiveQuintileThreshold, naiveQuintileThreshold) ;
-  confFromPairIndex = fif(isConfidenceLackThereof, maxConfFromPairIndex, minConfFromPairIndex) ;
-  threshold = quantile(confFromPairIndex, quantileThreshold) ;
-else
-  threshold = absoluteOrQuantileThreshold ;
-end
+naiveQuantileThreshold = quantileThreshold ;
+quantileThreshold = fif(isConfidenceLackThereof, 1 - naiveQuantileThreshold, naiveQuantileThreshold) ;
+confFromPairIndex = fif(isConfidenceLackThereof, maxConfFromPairIndex, minConfFromPairIndex) ;
+absoluteThreshold = quantile(confFromPairIndex, quantileThreshold) ;
 
 % Build bouts: contiguous runs of consecutive frames (within a single
 % tracklet) that pass the confidence threshold.
@@ -73,7 +72,7 @@ end
                                           targetIndex, ...
                                           minConfFromTrackletFrameIndex, ...
                                           maxConfFromTrackletFrameIndex, ...
-                                          threshold, ...
+                                          absoluteThreshold, ...
                                           isConfidenceLackThereof), ...
           frameIndexFromTrackletFrameIndexFromTrackletIndex, ...
           trackletIndexFromTrackletIndex, ...
