@@ -3,10 +3,14 @@
 This file provides guidance to Claude Code (claude.ai/code) when
 working with code in this repository.
 
+
+
 ## Project Overview
 APT (Animal Part Tracker) is a machine-learning based software package
 for tracking animal pose/posture in video. It's a hybrid Matlab/Python
 codebase with a GUI frontend and deep learning backends.
+
+
 
 ## Architecture
 - **Frontend**: Matlab GUI launched via `StartAPT()` in Matlab root
@@ -30,6 +34,8 @@ APT supports 4 different backends for deep learning:
 modpath();  % Sets up Matlab path for APT
 StartAPT();  % Launches APT
 ```
+
+
 
 ### Python Setup
 Python components are primarily in `deepnet/` directory. The main
@@ -140,57 +146,77 @@ changes to APT should ideally move it closer to the goal of having it
 follow the architecture, and in all cases should move it no further
 away.
 
+
+
 ## Matlab coding conventions
-- Indents should all be two spaces.  Top-level functions should not be
-  indented.  Never use tabs.
-- Most identifiers should be lower camelcase.  Exceptions include:
-  Class names, which should be upper camelcase.  The tags of UI
-  controls should be snake case.  Methods of LabelerController that
-  end in actuate_ should be snake case.
-- Don't use private properties or methods in classes.  If a property
-  or method would logically be private, add an underscore ("_") to the
-  end of its name.  This signals to developers it is private "in
-  spirit", but doesn't put in place annoying arbitrary restrictions
-  when debugging.
-- Public properties of classes should generally be Dependent.  If
-  you're tempted to make a non-Dependent public-in-spirit property,
-  make a private-in-spirit property that ends in an underscore, then
-  make a Dependent property without the underscore.  Write get. and
-  set. methods for the Dependent property as needed.
-- Boolean variables should start with some conjugation of "to be".
-  For instance: isDone, didExplode, areYouSure.
-- Local variables in functions/methods should only be overwritten if
-  necessary for performance.  Prefer to create new variables holding
-  evolving versions of some value.
-- Prefer explicit variable names, even if they are long; and avoid
-  abbreviations.  Use a shorter English word that means the same thing
-  instead of an abbreviation.
-- Use spaces liberally in long expressions to add clarity.  E.g. add a
-  space after each comma in the argument list for functions.
-- This includes inserting a space before the final semicolon in a line
-  of code.
-- Make properties that are not persisted to disk Transient.
-- When checking for optional arguments, don't use nargin.  Use
-  exist(<variable name>, 'var').  This is less likely to break when
-  you add/remove arguments.
-- The "end" keyword at the end of a function should be followed by the
-  comment "% function".  Same for end of a methods block and a
-  classdef block.
-- Individual lines should not be longer than 160 characters.
-- switch statements that check for multiple enumerated cases should
-  enumerate all the handled cases explicitly, and throw an error in
-  the "otherwise:" clause.  This makes it easier to find
-  inappropriately-handled cases when testing.
-- I sometimes use the term "charray" for "char array".  OK to use this
-  in comments, but just use "char" in variable names.
-- When converting a custom class to a char array, write it as
-  "char(thing)", not thing.char()
-- When calling `notify()` on an object, write it as
-  `obj.notify(<args>)`, not `notify(obj, <args>)`.
-- All functions and methods should have a comment after the line with
-  `function` in it that says what the function does.
-- If a line is to long, and it's of the form `w = f(x, y, z) ;`, break
-  it across lines like this:
+Indents should all be two spaces.  Top-level functions should not be
+indented.  Never use tabs.
+
+Most identifiers should be lower camelcase.  Exceptions include:
+Class names, which should be upper camelcase.  The tags of UI
+controls should be snake case.  Methods of LabelerController that
+end in actuate_ should be snake case.
+
+Don't use private properties or methods in classes.  If a property
+or method would logically be private, add an underscore ("_") to the
+end of its name.  This signals to developers it is private "in
+spirit", but doesn't put in place annoying arbitrary restrictions
+when debugging.
+
+Public properties of classes should generally be Dependent.  If
+you're tempted to make a non-Dependent public-in-spirit property,
+make a private-in-spirit property that ends in an underscore, then
+make a Dependent property without the underscore.  Write get. and
+set. methods for the Dependent property as needed.
+
+Boolean variables should start with some conjugation of "to be".
+For instance: isDone, didExplode, areYouSure.
+
+Local variables in functions/methods should only be overwritten if
+necessary for performance.  Prefer to create new variables holding
+evolving versions of some value.
+
+Prefer explicit variable names, even if they are long; and avoid
+abbreviations.  Use a shorter English word that means the same thing
+instead of an abbreviation.
+
+Use spaces liberally in long expressions to add clarity.  E.g. add a
+space after each comma in the argument list for functions.
+
+This includes inserting a space before the final semicolon in a line
+of code.
+
+Make properties that are not persisted to disk Transient.
+
+When checking for optional arguments, don't use nargin.  Use
+exist(<variable name>, 'var').  This is less likely to break when
+you add/remove arguments.
+
+The "end" keyword at the end of a function should be followed by the
+comment "% function".  Same for end of a methods block and a
+classdef block.
+
+Individual lines should not be longer than 160 characters.
+
+switch statements that check for multiple enumerated cases should
+enumerate all the handled cases explicitly, and throw an error in
+the "otherwise:" clause.  This makes it easier to find
+inappropriately-handled cases when testing.
+
+I sometimes use the term "charray" for "char array".  OK to use this
+in comments, but just use "char" in variable names.
+
+When converting a custom class to a char array, write it as
+"char(thing)", not thing.char()
+
+When calling `notify()` on an object, write it as
+`obj.notify(<args>)`, not `notify(obj, <args>)`.
+
+All functions and methods should have a comment after the line with
+`function` in it that says what the function does.
+
+If a line is to long, and it's of the form `w = f(x, y, z) ;`, break
+it across lines like this:
   ```
   w = f(x, ...
         y, ...
@@ -202,24 +228,50 @@ away.
     f(x, ...
       y, ...
       z) ;
-  ```  
+  ```
+  
+The canonical set.*() method looks like this:
+```
+function set.whatever(obj, newValue)
+  % Setter method for whatever.
+  isValid = checkWhateverValidity(newValue) ;
+  if isValid
+    obj.whatever_ = newValue ;
+    % Other stuff that may need doing
+  end
+  obj.notify_('update') ;  
+    % Can be a more-specific update* event for
+    % perf if appropriate
+  if ~isValid
+    error('APT:invalidPropertyValue', ...
+          'Whatever must be blah blah blah') ;
+  end
+end  % function
+```
+
+Validation should almost always happen in the model, never in the
+controller.
+
 
 
 ## Git conventions
-- Always prepend the commit message with "<branch name>: ".  This
-  makes it much easier to understand complicated git histories.
-- Use the 50/72 rule for git messages.  The "body" should be empty
-  only for very simple commits.
-- Don't add "Co-Authored-By: Claude" line to commit messages.
+Always prepend the commit message with "<branch name>: ".  This
+makes it much easier to understand complicated git histories.
+
+Use the 50/72 rule for git messages.  The "body" should be empty
+only for very simple commits.
+
+Don't add "Co-Authored-By: Claude" line to commit messages.
 
 
 
 ## Miscellaneous Notes
-- When running Matlab batch commands, do it like this: 
-  `matlab -batch "modpath(); <command>"`.  There's no need to also use the
-  `-nodisplay` and `-nosplash` options.  The `modpath()` bit sets up
-  the path properly.
-- Running commands that span multiple lines using `matlab -batch`
-  doesn't seem to work.  Write such commands to a .m file and run that
-  instead.
+When running Matlab batch commands, do it like this:
+`matlab -batch "modpath(); <command>"`.  There's no need to also use the
+`-nodisplay` and `-nosplash` options.  The `modpath()` bit sets up
+the path properly.
+
+Running commands that span multiple lines using `matlab -batch`
+doesn't seem to work.  Write such commands to a .m file and run that
+instead.
   
