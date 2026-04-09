@@ -51,7 +51,7 @@ minConf = min(minConfFromPairIndex) ;
 maxConf = max(maxConfFromPairIndex) ;
 
 naiveQuantileThreshold = quantileThreshold ;
-quantileThreshold = fif(isConfidenceLackThereof, 1 - naiveQuantileThreshold, naiveQuantileThreshold) ;
+quantileThreshold = fif(isConfidenceLackThereof, naiveQuantileThreshold, 1-naiveQuantileThreshold) ;
 confFromPairIndex = fif(isConfidenceLackThereof, maxConfFromPairIndex, minConfFromPairIndex) ;
 absoluteThreshold = quantile(confFromPairIndex, quantileThreshold) ;
 
