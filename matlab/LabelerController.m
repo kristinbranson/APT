@@ -343,17 +343,8 @@ classdef LabelerController < handle
       % Add some controls to the UI that we can set up before there is a project
       obj.initialize_menu_track_backend_config_() ;
       
-      % Create the InfoTimelineController object to help manage the timeline axes, and
-      % populate the two popup menus that determine what is shown in the timeline
-      % axes.
-      itm = labeler.infoTimelineModel ;
+      % Create the InfoTimelineController object to help manage the timeline axes
       obj.labelTLInfo_ = InfoTimelineController(labeler, obj.axes_timeline_manual , obj.axes_timeline_islabeled) ;
-      set(obj.pumTimelineProp,...
-          'String',itm.getPropsDisp(),...
-          'Value',itm.curprop);
-      set(obj.pumTimelinePropType,...
-          'String',itm.getPropTypesDisp(),...
-          'Value',itm.curproptype);
 
       % Create the UncertainFramesController to manage that
       obj.uncertainFramesController_ = UncertainFramesController(labeler.uncertainFramesModel_, obj, labeler) ;
