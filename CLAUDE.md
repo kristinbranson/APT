@@ -208,7 +208,10 @@ away.
 ## Git conventions
 - Always prepend the commit message with "<branch name>: ".  This
   makes it much easier to understand complicated git histories.
+- Use the 50/72 rule for git messages.  The "body" should be empty
+  only for very simple commits.
 - Don't add "Co-Authored-By: Claude" line to commit messages.
+
 
 
 ## Miscellaneous Notes

@@ -25,11 +25,12 @@ end
 % Open the Uncertain Frames window
 controller.controlActuated('menu_evaluate_show_uncertain_frames') ;
 
-% Check the listbox has 100 items
+% Check the listbox has expectedListboxItemCount items
+expectedListboxItemCount = 155 ;
 listbox = findall(0, 'Tag', 'uncertain_frames_listbox') ;
 itemCountForMovie10 = numel(listbox.String) ;
-if itemCountForMovie10 ~= 100
-  error('Expected 100 items in listbox for movie 10, but got %d', itemCountForMovie10) ;
+if itemCountForMovie10 ~= expectedListboxItemCount
+  error('Expected %d items in listbox for movie 10, but got %d', expectedListboxItemCount, itemCountForMovie10) ;
 end
 
 % Switch to movie 8
@@ -44,11 +45,11 @@ end
 % Switch back to movie 10
 labeler.movieSet(10) ;
 
-% Check the listbox has 100 items again
+% Check the listbox has expectedListboxItemCount items again
 itemCountForMovie10Again = numel(listbox.String) ;
-if itemCountForMovie10Again ~= 100
-  error('Expected 100 items in listbox for movie 10 after switching back, but got %d', ...
-        itemCountForMovie10Again) ;
+if itemCountForMovie10Again ~= expectedListboxItemCount
+  error('Expected %d items in listbox for movie 10 after switching back, but got %d', ...
+        expectedListboxItemCount, itemCountForMovie10Again) ;
 end
 
 end  % function

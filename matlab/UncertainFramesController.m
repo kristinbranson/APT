@@ -46,7 +46,7 @@ classdef UncertainFramesController < handle
         obj.createFigure_() ;
       end
       obj.checkbox_.Value = model.isConfidenceLackThereof ;
-      obj.thresholdEdit_.String = sprintf('%g', model.confidenceThreshold) ;
+      obj.thresholdEdit_.String = sprintf('%g', model.quantileConfidenceThreshold) ;
       if model.isLaden
         strings = model.listboxString ;
         nEntries = numel(strings) ;

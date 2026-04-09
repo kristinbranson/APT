@@ -381,9 +381,9 @@ classdef InfoTimelineController < handle
         [ptype, prop] = itm.getCurPropSmart() ;
         isShowingConfidence = strcmp(ptype, 'Predictions') && ...
                               isfield(prop, 'feature') && strcmp(prop.feature, 'confidence') ;
-        if ufm.isVisible && isShowingConfidence && ~isempty(ufm.confidenceThreshold)
-          y1 = min(y1, ufm.confidenceThreshold) ;
-          y2 = max(y2, ufm.confidenceThreshold) ;
+        if ufm.isVisible && isfinite(ufm.absoluteConfidenceThreshold) && isShowingConfidence
+          y1 = min(y1, ufm.absoluteConfidenceThreshold) ;
+          y2 = max(y2, ufm.absoluteConfidenceThreshold) ;
         end
 
         set(obj.hAx,'YLim',[y1,y2]);
@@ -507,7 +507,7 @@ classdef InfoTimelineController < handle
       % Only visible when the UFC is visible and the timeline is showing a
       % Predictions confidence feature.
       ufm = obj.lObj.uncertainFramesModel_ ;
-      threshold = ufm.confidenceThreshold ;
+      threshold = ufm.absoluteConfidenceThreshold ;
       itm = obj.lObj.infoTimelineModel ;
       [ptype, prop] = itm.getCurPropSmart() ;
       isShowingConfidence = strcmp(ptype, 'Predictions') && ...

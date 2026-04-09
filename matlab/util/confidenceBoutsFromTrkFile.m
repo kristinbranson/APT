@@ -42,6 +42,7 @@ if isempty(minConfFromPairIndex)
   extremalConfFromSortedBoutIndex = zeros(0, 1) ;
   minConf = nan ;
   maxConf = nan ;
+  absoluteThreshold = nan ;
   return
 end
 

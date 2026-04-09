@@ -18,6 +18,7 @@ classdef UncertainFramesModel < handle
     trackletIndexFromBoutIndex_  % [N x 1] tracklet indices (into TrkFile)
     targetIndexFromBoutIndex_  % [N x 1] target indices (for navigation)
     extremeConfidenceFromBoutIndex_  % [N x 1] min- or max-confidence values per bout
+    absoluteConfidenceThreshold_ = nan  % scalar double, quantile-derived absolute threshold
     overallMinConfidence_ = nan  % scalar double, min of allMinConf across all frames
     overallMaxConfidence_ = nan  % scalar double, max of allMaxConf across all frames
     % isLaden_ = false  % scalar logical, true if there is anything to show
@@ -31,7 +32,7 @@ classdef UncertainFramesModel < handle
     isLaden
     isVisible
     isConfidenceLackThereof
-    confidenceThreshold
+    absoluteConfidenceThreshold
     quantileConfidenceThreshold
     overallMinConfidence
     overallMaxConfidence
@@ -85,14 +86,9 @@ classdef UncertainFramesModel < handle
       obj.labeler_.notify_('updateUncertainFrames') ;
     end  % function
 
-    function result = get.confidenceThreshold(obj)
-      % Return the confidence threshold for filtering.
-      result = obj.quantileConfidenceThreshold_ ;
-    end  % function
-
-    function set.confidenceThreshold(obj, newValue)
-      % Set the quantile confidence threshold.
-      obj.quantileConfidenceThreshold = newValue ;
+    function result = get.absoluteConfidenceThreshold(obj)
+      % Return the absolute confidence threshold used for filtering.
+      result = obj.absoluteConfidenceThreshold_ ;
     end  % function
 
     function result = get.quantileConfidenceThreshold(obj)
@@ -203,7 +199,8 @@ classdef UncertainFramesModel < handle
        obj.targetIndexFromBoutIndex_, ...
        obj.extremeConfidenceFromBoutIndex_, ...
        obj.overallMinConfidence_, ...
-       obj.overallMaxConfidence_] = ...
+       obj.overallMaxConfidence_, ...
+       obj.absoluteConfidenceThreshold_] = ...
         confidenceBoutsFromTrkFile(trkFile, obj.quantileConfidenceThreshold_, obj.isConfidenceLackThereof_) ;
       obj.isFresh_ = true ;
     end  % function
@@ -216,6 +213,7 @@ classdef UncertainFramesModel < handle
       obj.trackletIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.extremeConfidenceFromBoutIndex_ = zeros(0, 1) ;
+      obj.absoluteConfidenceThreshold_ = nan ;
       % obj.isLaden_ = false ;
       obj.isFresh_ = true ;
     end  % function
