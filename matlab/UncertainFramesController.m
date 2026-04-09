@@ -47,30 +47,23 @@ classdef UncertainFramesController < handle
       end
       obj.checkbox_.Value = model.isConfidenceLackThereof ;
       obj.thresholdEdit_.String = sprintf('%g', model.quantileConfidenceThreshold) ;
+      absoluteThreshold = model.absoluteConfidenceThreshold ;
+      if isfinite(absoluteThreshold)
+        obj.thresholdHint_.String = sprintf('(%g)', absoluteThreshold) ;
+        obj.thresholdHint_.Visible = 'on' ;
+      else
+        obj.thresholdHint_.Visible = 'off' ;
+      end
       if model.isLaden
         strings = model.listboxString ;
         nEntries = numel(strings) ;
         obj.listbox_.String = strings ;
         obj.listbox_.Value = max(1, min(obj.listbox_.Value, nEntries)) ;
         obj.listbox_.Enable = 'on' ;
-        obj.thresholdHint_.Visible = 'off' ;
       else
         obj.listbox_.String = {} ;
         obj.listbox_.Value = 1 ;
         obj.listbox_.Enable = 'off' ;
-        if model.isConfidenceLackThereof
-          overallExtreme = model.overallMaxConfidence ;
-          hintString = sprintf('Max is %g', overallExtreme) ;
-        else
-          overallExtreme = model.overallMinConfidence ;
-          hintString = sprintf('Min is %g', overallExtreme) ;
-        end
-        if isfinite(overallExtreme)
-          obj.thresholdHint_.String = hintString ;
-          obj.thresholdHint_.Visible = 'on' ;
-        else
-          obj.thresholdHint_.Visible = 'off' ;
-        end
       end
       % Make visible at end to reduced flickering
       obj.figure_.Visible = 'on' ;
