@@ -98,10 +98,22 @@ classdef UncertainFramesModel < handle
 
     function set.quantileConfidenceThreshold(obj, newValue)
       % Set the quantile threshold, then resync and notify.
-      obj.quantileConfidenceThreshold_ = newValue ;
-      obj.isFresh_ = false ;
-      obj.syncFromPredictionsIfStaleAndVisible_() ;
+      isValid = isscalar(newValue) && ...
+                isnumeric(newValue) && ...
+                isreal(newValue) && ...
+                isfinite(newValue) && ...
+                0 <= newValue && ...
+                newValue <= 1 ;
+      if isValid
+        obj.quantileConfidenceThreshold_ = newValue ;
+        obj.isFresh_ = false ;
+        obj.syncFromPredictionsIfStaleAndVisible_() ;
+      end
       obj.labeler_.notify_('didSetUncertainFramesThreshold') ;
+      if ~isValid
+        error('APT:invalidPropertyValue', ...
+              'Threshold must be a finite scalar between 0 and 1') ;
+      end
     end  % function
 
     function result = get.overallMinConfidence(obj)
