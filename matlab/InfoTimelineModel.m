@@ -137,17 +137,20 @@ classdef InfoTimelineModel < handle
       obj.isStatThreshVisible_ = ~obj.isStatThreshVisible_;
     end
 
-    function result = getTimelineDataForCurrentMovieAndTarget(obj, labeler)
-      if isempty(obj.tldata_) 
-        doRecompute = true ;
-      else
-        [ptype,pcode] = obj.getCurPropSmart();
-        iMov = labeler.currMovie;
-        iTgt = labeler.currTarget;
-        doRecompute = ~isequal(ptype, obj.tldata_ptype_) || ...
-                      ~isequal(pcode, obj.tldata_pcode_) || ...
-                      ~isequal(iMov, obj.tldata_iMov) || ...
-                      ~isequal(iTgt, obj.tldata_iTgt);
+    function result = getTimelineDataForCurrentMovieAndTarget(obj, labeler,varargin)
+      [doRecompute] = myparse(varargin,'doRecompute',false);
+      if ~doRecompute
+        if isempty(obj.tldata_) 
+          doRecompute = true ;
+        else
+          [ptype,pcode] = obj.getCurPropSmart();
+          iMov = labeler.currMovie;
+          iTgt = labeler.currTarget;
+          doRecompute = ~isequal(ptype, obj.tldata_ptype_) || ...
+                        ~isequal(pcode, obj.tldata_pcode_) || ...
+                        ~isequal(iMov, obj.tldata_iMov) || ...
+                        ~isequal(iTgt, obj.tldata_iTgt);
+        end
       end
       if doRecompute
         obj.recomputeDataForCurrentMovieAndTarget_(labeler) ;

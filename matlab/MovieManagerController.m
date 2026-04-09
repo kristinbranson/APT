@@ -8,10 +8,18 @@ classdef MovieManagerController < handle
     tblMovies
     tblMovieSet
     tabHandles % [2] "handles" struct array
+    
+    % Store original (untruncated) data for dynamic resizing
+    originalMovNames
+    originalTrxNames
+    originalMovsHaveLbls
+    
+    % User preference for path truncation (true = show ends, false = show starts)
+    showPathEnds = true
   end
   properties (Constant)
     JTABLEPROPS_NOTRX = {'ColumnName',{'Movie' 'Num Labels'},...
-                         'ColumnWidth',{'1x',250}};
+                         'ColumnWidth',{'1x',100}};
     JTABLEPROPS_TRX = {'ColumnName',{'Movie' 'Trx' 'Num Labels'},...
                        'ColumnWidth',{'2x','1x',100}};
   end
@@ -34,7 +42,9 @@ classdef MovieManagerController < handle
       obj.labeler = lObj;
       
       obj.hFig = uifigure('Units','pixels','Position',[951,1400,733,436],...
-        'Name','Manage Movies');
+        'Name','Manage Movies',...
+        'AutoResizeChildren','off',...
+        'SizeChangedFcn',@(src,evt) obj.figureResizeCallback(src,evt));
       handles.figure1 = obj.hFig;
       %obj.hFig.CloseRequestFcn = @(hObject,eventdata) obj.CloseRequestFcn(hObject,eventdata);
 
@@ -42,10 +52,11 @@ classdef MovieManagerController < handle
 
       handles.tblMovies = uitable(handles.gl,...
         'ColumnName',{'Movie','Has Lbls'},...
-        'ColumnWidth',{'1x',70},...
+        'ColumnWidth',{'1x',100},...
         'tag','tblMovies',...
         'CellSelectionCallback',@(src,evt) obj.cellSelectionCallbackTblMovies(src,evt),...
         'DoubleClickedFcn',@(src,evt) obj.doubleClickFcnCallbackTblMovies(src,evt));
+      
       obj.tblMovies = handles.tblMovies;
       handles.labelSet = uilabel('Parent',handles.gl,'Text','',...
         'Visible',onIff(lObj.nview > 1),'HorizontalAlignment','center');
@@ -57,7 +68,43 @@ classdef MovieManagerController < handle
 
       obj.tblMovieSet = handles.tblMovieSet;
 
-      handles.gl_buttons = uigridlayout(handles.gl,[1,4],'Padding',[0,0,0,0],'tag','gl_buttons');
+      handles.gl_buttons = uigridlayout(handles.gl,[1,5],'Padding',[0,0,0,0],'tag','gl_buttons');
+
+      % Create button group for path display toggle buttons
+      handles.bg_path = uibuttongroup(handles.gl_buttons,...
+        'BackgroundColor',[0.94 0.94 0.94],...
+        'BorderType','none',...
+        'SelectionChangedFcn',@(src,evt) obj.pathToggleChanged(src,evt));
+
+      % Load icon images
+      leftAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_left.png'));
+      rightAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_right.png'));
+      if ndims(leftAlignIcon)==2
+        leftAlignIcon = repmat(leftAlignIcon,[1 1 3]);
+      end
+      if ndims(rightAlignIcon)==2
+        rightAlignIcon = repmat(rightAlignIcon,[1 1 3]);
+      end
+
+      % "Starts" toggle button (left side)
+      handles.tb_path_starts = uitogglebutton(handles.bg_path,...
+        'Text','',...
+        'Icon',leftAlignIcon,...
+        'Tooltip','Show path starts',...
+        'FontColor','k','BackgroundColor',[1,1,1],...
+        'FontWeight','bold',...
+        'Value',~obj.showPathEnds,...
+        'Tag','togglebutton_path_starts');
+
+      % "Ends" toggle button (right side)
+      handles.tb_path_ends = uitogglebutton(handles.bg_path,...
+        'Text','',...
+        'Icon',rightAlignIcon,...
+        'Tooltip','Show path ends',...
+        'FontColor','k','BackgroundColor',[1,1,1],...
+        'FontWeight','bold',...
+        'Value',obj.showPathEnds,...
+        'Tag','togglebutton_path_ends');
 
       if lObj.gtIsGTMode,
         handles.pbSwitch = uibutton(handles.gl_buttons,'Text','GT Frames','tag','pbGTFrames',...
@@ -112,6 +159,11 @@ classdef MovieManagerController < handle
       obj.hFig.DeleteFcn = @obj.lclDeleteFig;
       
       centerfig(obj.hFig,obj.labeler.gdata.mainFigure_);
+      getframe(obj.hFig);
+
+      % Initialize button positions and update data
+      obj.updateToggleButtonPositions();
+      obj.figureResizeCallback(obj.hFig,[]);
     end
 
     function lclDeleteFig(obj,src,evt)
@@ -142,7 +194,9 @@ classdef MovieManagerController < handle
           gdata.labelSet.Text = '';
           return;
         end
-        obj.tblMovieSet.Data = obj.labeler.movieFilesAllGTaware(rows,:)';
+        % Get movie set data and apply path truncation
+        movieSetData = obj.labeler.movieFilesAllGTaware(rows,:)';
+        obj.tblMovieSet.Data = obj.truncateMovieSetPaths(movieSetData);
         gdata.labelSet.Text = sprintf('Selected set %d',rows);
       end      
       obj.notify('tableClicked');
@@ -372,17 +426,13 @@ classdef MovieManagerController < handle
       obj.tblMovieSet.Visible = onIff(lObj.nview > 1);
       gdata.labelSet.Visible = onIff(lObj.nview > 1);
 
-      movSetNames = movNames(:,1);
-      trxSetNames = trxNames(:,1);
-      tfTrx = any(cellfun(@(x)~isempty(x),trxNames(:)));
-      if tfTrx
-        dat = [movSetNames trxSetNames num2cell(int64(movsHaveLbls))];
-        args = MovieManagerController.JTABLEPROPS_TRX;
-      else
-        dat = [movSetNames num2cell(int64(movsHaveLbls))];
-        args = MovieManagerController.JTABLEPROPS_NOTRX;
-      end
-      set(obj.tblMovies,args{:},'Data',dat);
+      % Store original data for dynamic truncation
+      obj.originalMovNames = movNames;
+      obj.originalTrxNames = trxNames;
+      obj.originalMovsHaveLbls = movsHaveLbls;
+      
+      % Update table with truncated data
+      obj.updateTruncatedTableData();
 
     end
 
@@ -464,6 +514,190 @@ classdef MovieManagerController < handle
       end
     end
     
+    function figureResizeCallback(obj, src, evt)
+      % Called when the figure is resized - re-truncate table data and update button positions
+      if ~isempty(obj.originalMovNames)
+        obj.updateTruncatedTableData();
+      end
+
+      % Update toggle button positions within the button group
+      obj.updateToggleButtonPositions();
+
+      % Update movieset table if it has data
+      obj.updateMovieSetTable();
+    end
+
+    function updateToggleButtonPositions(obj)
+      % Update the positions of toggle buttons within the button group
+      try
+        handles = guidata(obj.hFig);
+
+        % Get button group position
+        bgPos = handles.bg_path.Position;
+        buttonWidth = (bgPos(3) - 4) / 2; % Two buttons with 2px spacing each
+        buttonHeight = bgPos(4) - 4; % Leave 2px padding top/bottom
+
+        % Position "Starts" button (left side)
+        if isfield(handles, 'tb_path_starts') && isvalid(handles.tb_path_starts)
+          handles.tb_path_starts.Position = [2, 2, buttonWidth, buttonHeight];
+        end
+
+        % Position "Ends" button (right side)
+        if isfield(handles, 'tb_path_ends') && isvalid(handles.tb_path_ends)
+          handles.tb_path_ends.Position = [buttonWidth + 4, 2, buttonWidth, buttonHeight];
+        end
+
+      catch
+        % Silently handle any positioning errors
+      end
+    end
+
+    function truncatedData = truncateMovieSetPaths(obj, movieSetData)
+      % Apply path truncation to movie set table data based on showPathEnds setting
+      if isempty(movieSetData)
+        truncatedData = movieSetData;
+        return;
+      end
+
+      try
+        % Calculate appropriate column width for movieset table
+        tablePos = obj.tblMovieSet.Position;
+        tableWidthPixels = tablePos(3) - 20; % Account for margins
+
+        % Get font size from the table component
+        try
+          origFontUnits = get(obj.tblMovieSet, 'FontUnits');
+          set(obj.tblMovieSet, 'FontUnits', 'pixels');
+          fontSize = get(obj.tblMovieSet, 'FontSize');
+          set(obj.tblMovieSet, 'FontUnits', origFontUnits);
+        catch
+          fontSize = 14; % Default if getting font size fails
+        end
+
+        if obj.showPathEnds
+          % Truncate showing path ends
+          truncatedData = cellfun(@(x) PathTruncationUtils.truncateFilePath(x, ...
+            'maxLength', PathTruncationUtils.calculateMaxCharsForFieldWidth(tableWidthPixels, fontSize), 'startFraction', 0), ...
+            movieSetData, 'UniformOutput', false);
+        else
+          % Show full paths when showing starts
+          truncatedData = movieSetData;
+        end
+      catch
+        % If truncation fails, return original data
+        truncatedData = movieSetData;
+      end
+    end
+
+    function columnWidth = calculateMovieColumnWidth(obj)
+      % Calculate the actual pixel width of the movie name column
+      try
+        % Get table position in pixels
+        tablePos = obj.tblMovies.Position;
+        tableWidthPixels = tablePos(3);
+        
+        % Get current column widths from table properties
+        lObj = obj.labeler;
+        tfTrx = lObj.hasTrx && any(cellfun(@(x)~isempty(x), obj.originalTrxNames(:)));
+        
+        if tfTrx
+          % For TRX table: Movie=2x, Trx=1x, NumLabels=100px
+          % Total flexible units = 2x + 1x = 3x
+          % Available width = tableWidth - 100px (for NumLabels)
+          availableWidth = tableWidthPixels - 100-20;
+          flexibleUnitWidth = availableWidth / 3;
+          columnWidth = 2 * flexibleUnitWidth; % Movie column gets 2x
+        else
+          % For NOTRX table: Movie=1x, NumLabels=100px
+          % Available width = tableWidth - 100px (for NumLabels)
+          availableWidth = tableWidthPixels - 100-20;
+          columnWidth = availableWidth; % Movie column gets all remaining space
+        end
+        
+        % Ensure minimum width
+        %columnWidth = max(columnWidth, 100);
+        
+      catch
+        % Fallback to default if calculation fails
+        columnWidth = 300;
+      end
+    end
+    
+    function updateTruncatedTableData(obj)
+      % Re-calculate truncated data and update table
+      if isempty(obj.originalMovNames)
+        return;
+      end
+      
+      lObj = obj.labeler;
+      tfTrx = lObj.hasTrx && any(cellfun(@(x)~isempty(x), obj.originalTrxNames(:)));
+      
+      if obj.showPathEnds
+        % Calculate current column width and truncate
+        columnWidthPixels = obj.calculateMovieColumnWidth();
+        
+        % Truncate movie names based on current column width
+        movSetNames = cellfun(@(x) PathTruncationUtils.truncateFilePath(x, ...
+          'maxLength', PathTruncationUtils.calculateMaxCharsForFieldWidth(columnWidthPixels, 12),'startFraction',0), ...
+          obj.originalMovNames(:,1), 'UniformOutput', false);
+        
+        % Truncate trx names based on current column width (if applicable)
+        if tfTrx
+          % TRX column gets 1x width (1/3 of flexible space)
+          trxColumnWidth = obj.calculateMovieColumnWidth() / 2; % Half of movie column width
+          trxSetNames = cellfun(@(x) PathTruncationUtils.truncateFilePath(x, ...
+            'maxLength', PathTruncationUtils.calculateMaxCharsForFieldWidth(trxColumnWidth, 12),'startFraction',0), ...
+            obj.originalTrxNames(:,1), 'UniformOutput', false);
+        else
+          trxSetNames = obj.originalTrxNames(:,1);
+        end
+      else
+        % Show full paths - no truncation
+        movSetNames = obj.originalMovNames(:,1);
+        trxSetNames = obj.originalTrxNames(:,1);
+      end
+      
+      % Update table data
+      if tfTrx
+        dat = [movSetNames trxSetNames num2cell(int64(obj.originalMovsHaveLbls))];
+        args = MovieManagerController.JTABLEPROPS_TRX;
+      else
+        dat = [movSetNames num2cell(int64(obj.originalMovsHaveLbls))];
+        args = MovieManagerController.JTABLEPROPS_NOTRX;
+      end
+      set(obj.tblMovies,args{:},'Data',dat);
+      
+      % Right-align the movie column(s)
+    end
+    
+    function pathToggleChanged(obj, src, evt)
+      % Handle toggle button group selection change for path display
+      if strcmp(evt.NewValue.Tag, 'togglebutton_path_ends')
+        obj.showPathEnds = true;
+      else
+        obj.showPathEnds = false;
+      end
+
+      % Update the main table display
+      obj.updateTruncatedTableData();
+
+      % Update movieset table if it has data
+      obj.updateMovieSetTable();
+    end
+
+    function updateMovieSetTable(obj)
+      % Update movieset table with current path truncation setting
+      if obj.labeler.nview > 1 && ~isempty(obj.tblMovieSet) && ~isempty(obj.tblMovieSet.Data)
+        % Get currently selected row from main table
+        selectedRows = obj.getSelectedMovies();
+        if ~isempty(selectedRows)
+          rows = selectedRows(1);
+          movieSetData = obj.labeler.movieFilesAllGTaware(rows,:)';
+          obj.tblMovieSet.Data = obj.truncateMovieSetPaths(movieSetData);
+        end
+      end
+    end
+
   end  % methods (Hidden)
   
 end  % classdef

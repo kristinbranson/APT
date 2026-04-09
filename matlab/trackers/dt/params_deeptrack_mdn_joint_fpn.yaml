@@ -16,9 +16,10 @@ ROOT:
     - ['','',false,Mixture Density Network (MDN) parameters,'','']
     - mdn_base_lr: ['Base Learning Rate',float,true,'Base learning rate for training. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 0.0001',0.0001,'','Developer','',true]
     - mdn_pred_dist: ['Predict confidence',boolean,true,'Predict confidence for MDN predictions.',0,'','Developer','',true]
+    - mdn_backbone: ['Backbone',string,true,'Backbone network to use for GRONe. Available options are resnet50, hrnet, vit',resnet50,'','Beginner','',true]
     - ignore_occluded: ['Ignore occluded landmarks',boolean,true,'Do not train on landmarks labeled as occluded.',0,'','Advanced','',true]
     - predict_occluded: ['Predict occluded',boolean,true,'Predict whether landmarks are occluded or not.',1,'','Beginner','',true]
     - pretrain_freeze_bnorm: ['Freeze batch norm',boolean,true,'Freeze batch norm weights of the backbone to the pretrained weights',1,'','Developer','',true]
     - mdn_resnet_source: ['Resnet source',string,true,'Resnet model to use for backbone. Choices are "official_tf" and "slim"','official_tf','','Developer','',true]
-    - db_format: ['Database Format',string,false,'Db format','coco','','Developer','',true]
+    - db_format: ['Database Format',string,false,'Db format','coco','','Developer','',false]
 

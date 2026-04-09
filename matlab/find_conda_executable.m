@@ -11,9 +11,22 @@ if isempty(memoized_result) ,
     memoized_result = apt_conda_path ;
   else
     % First check if conda *is* on the path
-    [retval, location] = system('which conda') ;
-    is_conda_on_path = (retval==0) && ~isempty(location) ;
+    [retval, pathWithTildeMaybe] = system('which conda') ;
+    is_conda_on_path = (retval==0) && ~isempty(pathWithTildeMaybe) ;
     if is_conda_on_path ,
+      % Replace the tilde with the actual home directory path
+      % Check if the path starts with '~/' or '~\' (for robust handling)
+      if startsWith(pathWithTildeMaybe, '~')
+        if ispc % Windows
+          homeDir = getenv('USERPROFILE');
+        else % Mac or Linux
+          homeDir = getenv('HOME');
+        end
+        % Remove the tilde part and combine with the home directory
+        location = fullfile(homeDir, pathWithTildeMaybe(2:end));
+      else
+        location = pathWithTildeMaybe ; % No tilde to replace
+      end
       memoized_result = strtrim(location) ;
     else
       % conda is not on the path

@@ -27,7 +27,7 @@ classdef BgClient < handle
   
   methods 
     function v = get.isRunning(obj)
-      v = ~isempty(obj.fevalFuture) && strcmp(obj.fevalFuture.State,'running');
+      v = isvalid(obj)&&~isempty(obj.fevalFuture) && isvalid(obj.fevalFuture) && strcmp(obj.fevalFuture.State,'running');
       %fprintf('In BgClient::get.isRunning(), isRunning is %d\n', v) ;
     end
   end
@@ -84,21 +84,24 @@ classdef BgClient < handle
       % We pack a suitcase so we can restore Transient properties on the other side.
       poller = obj.poller ;
       parfevalSuitcase = poller.packParfevalSuitcase() ;
-
+       
+      % if isprop(poller,'link_type')&& ~strcmp(poller.link_type,'id_link') %'track') %
       % Start production code
-      obj.fevalFuture = ...
-        parfeval(@runPollingLoop, 0, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;
+        obj.fevalFuture = ...
+          parfeval(@runPollingLoop, 0, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;
       % End production code
-
-      % % Start debug code
-      % tempfilename = tempname() ;
-      % saveAnonymous(tempfilename, poller) ;  % simulate poller as it will be on the other side of the parfeval boundary
-      % cleaner = onCleanup(@()(delete(tempfilename))) ;
-      % poller = loadAnonymous(tempfilename) ;
-      % feval(@runPollingLoop, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;  %#ok<FVAL>
-      %   % The feval() (not parfeval) line above is sometimes useful when debugging.
+      % else
+      % % Start debug code. Note the Stop button won't be active when using
+      % % this for debugging
+      %   tempfilename = tempname() ;
+      %   saveAnonymous(tempfilename, poller) ;  % simulate poller as it will be on the other side of the parfeval boundary
+      %   cleaner = onCleanup(@()(delete(tempfilename))) ;
+      %   poller = loadAnonymous(tempfilename) ;
+      %   feval(@runPollingLoop, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;  %#ok<FVAL>
+      % %   The feval() (not parfeval) line above is sometimes useful when debugging.
       % % End debug code
-
+      % end
+      
       obj.idPool = uint32(1);
       obj.idTics = uint64(0);
       obj.idTocs = nan;

@@ -61,7 +61,8 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     skel_linestyle = '-';
     hPch  % [1 x ntgt] handle vec
     hPchTxt % [1 x ntgt] text/lbl for pch
-    doPch % if false, don't draw pches at all
+    doPch % if false, don't draw pches at all. %This doesn't get set, so it 
+    % probably gets set to false. MK 20250810
     pchColor = [0.3 0.3 0.3];
     pchFaceAlpha = 0.15;
     

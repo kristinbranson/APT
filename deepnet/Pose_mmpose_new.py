@@ -511,7 +511,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
         total_epochs = sched.end
         sched.by_epoch = False
         sched.end = conf.dl_steps
-        sched.begin = t_steps
+        sched.begin = min(conf.dl_steps-1,t_steps)
         sched.milestones = [int(dd * conf.dl_steps / total_epochs) for dd in sched.milestones]
 
 
@@ -573,9 +573,13 @@ class TraindataHook(Hook):
         self.td_data['step'].append(runner.iter + 1)
         rout = runner.log_processor.get_log_after_iter(runner,batch_idx,'train')[0]
         if 'loss' in rout.keys():
-            self.td_data['train_loss'].append(rout['loss'].copy())
+            cur_loss = rout['loss'].copy()
         else:
-            self.td_data['train_loss'].append(rout['all_loss'].copy())
+            cur_loss = rout['all_loss'].copy()
+        self.td_data['train_loss'].append(cur_loss)
+        if np.isnan(cur_loss):
+            raise RuntimeError(f"Training loss is NaN at step {runner.iter + 1}. Please restart training")
+
         self.td_data['train_dist'].append(np.nan)
         self.td_data['val_dist'].append(np.nan)
         self.td_data['val_loss'].append(np.nan)

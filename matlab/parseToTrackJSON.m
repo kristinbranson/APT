@@ -1,8 +1,9 @@
 function toTrackOut = parseToTrackJSON(jsonfile,lObj)
 
-res = jsondecode(fileread(jsonfile));
-assert(isfield(res,'toTrack'));
-res = res.toTrack;
+jsonData = jsondecode(fileread(jsonfile));
+assert(isfield(jsonData,'toTrack'));
+
+res = jsonData.toTrack;
 if iscell(res),
   toTrack = res{1};
   for i = 2:numel(res),
@@ -28,9 +29,9 @@ if needTrx,
   assert(isfield(toTrack,'trx_files'),'trx_files must be specified');
 end
 hasCrop = isfield(toTrack,'crop_rois');
-if isma
-  assert(isfield(toTrack,'detect_files'),'Detect files must be specified');
-end
+% if isma
+%   assert(isfield(toTrack,'detect_files'),'Detect files must be specified');
+% end
 
 % 
 % movfiles:  nmovies x nviews
@@ -94,9 +95,9 @@ for i = 1:nmovies,
     f1s{i} = toTrack(i).frame1;
   end
 
-  if isma
-    detectfiles(i,:) = parseViews(toTrack(i).detect_files,nviews,true);
-  end
+  % if isma
+  %   detectfiles(i,:) = parseViews(toTrack(i).detect_files,nviews,true);
+  % end
   
   % AL: looks like should be moved outside loop
   toTrackOut = struct;
@@ -108,7 +109,15 @@ for i = 1:nmovies,
   toTrackOut.targets = targets;
   toTrackOut.f0s = f0s;
   toTrackOut.f1s = f1s;
-  toTrackOut.detectfiles = detectfiles;
+  % toTrackOut.detectfiles = detectfiles;
+
+  % Add linking configuration fields only if they were present in JSON
+  if isfield(jsonData, 'link_type')
+    toTrackOut.link_type = jsonData.link_type;
+  end
+  if isfield(jsonData, 'id_maintain_identity')
+    toTrackOut.id_maintain_identity = jsonData.id_maintain_identity;
+  end
   
 end
 

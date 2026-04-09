@@ -50,13 +50,38 @@ function autoparams = compute_auto_params(lobj)
   % animals are along the last dimension.
   % second dim has the coordinates
 
+  % Compute head-tail aligned labels: center at body midpoint and rotate
+  % so the head points along the +y axis.
+  has_ht = ~isempty(lobj.skelHead) && ~isempty(lobj.skelTail);
+  if has_ht
+    hd = all_labels(lobj.skelHead,:,:);   % [1, 2, nAnimals]
+    tl = all_labels(lobj.skelTail,:,:);   % [1, 2, nAnimals]
+    body_ctr = (hd + tl) / 2;            % [1, 2, nAnimals]
+
+    % Angle of the head->tail vector for each animal
+    ht_angle = atan2(tl(:,2,:) - hd(:,2,:), ...
+                     tl(:,1,:) - hd(:,1,:));  % [1, 1, nAnimals]
+
+    % Translate so body center is at origin
+    aligned_labels = all_labels - body_ctr;   % [npts, 2, nAnimals]
+
+    % Rotate by -(pi/2 + ht_angle) so the head points along the +y axis
+    rot_angle = -pi/2 - ht_angle;
+    cos_a = cos(rot_angle);  % [1, 1, nAnimals]
+    sin_a = sin(rot_angle);  % [1, 1, nAnimals]
+    x = aligned_labels(:,1,:);
+    y = aligned_labels(:,2,:);
+    aligned_labels(:,1,:) = x .* cos_a - y .* sin_a;
+    aligned_labels(:,2,:) = x .* sin_a + y .* cos_a;
+  else
+    aligned_labels = all_labels;
+  end
+
   %%
 
   l_min = permute(nanmin(all_labels,[],1),[2,3,1]);
   l_max = permute(nanmax(all_labels,[],1),[2,3,1]);
   l_span = l_max-l_min;
-
-
   l_span_pc = prctile(l_span,[5,50,95],2);
 
   auto_multi_bbox_scale = nanmax(l_span_pc(:,3))/nanmax(l_span_pc(:,2))>2;
@@ -111,6 +136,32 @@ function autoparams = compute_auto_params(lobj)
   if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
     autoparams('MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
   end
+
+  if has_ht
+    a_min = permute(nanmin(aligned_labels,[],1),[2,3,1]);
+    a_max = permute(nanmax(aligned_labels,[],1),[2,3,1]);
+    a_span = a_max-a_min;
+    a_span_pc = prctile(a_span,98,2);
+    a_ratio_pc = prctile(a_span(2,:)./a_span(1,:),[5,50,95]);
+    if a_span_pc(1) > a_span_pc(2)
+      maj_dim = 1;
+      min_dim = 2;
+    else
+      maj_dim = 2;
+      min_dim = 1;
+    end
+    a_max_sz = a_span_pc(maj_dim);
+    a_min_sz = a_span_pc(min_dim);
+    a_min_sz = max(a_min_sz,a_max_sz*0.5);
+    a_max_sz = ceil(a_max_sz*1.2/32)*32;
+    a_min_sz = ceil(a_min_sz*1.2/32)*32;
+    id_crop_sz = [a_max_sz,a_max_sz];
+    id_crop_sz(maj_dim) = a_min_sz; % to account for going from x,y to height,width
+  else
+    id_crop_sz = [crop_radius,crop_radius];
+  end
+  autoparams('MultiAnimal.Track.TrackletStitch.link_id_cropsz_height') = id_crop_sz(1);
+  autoparams('MultiAnimal.Track.TrackletStitch.link_id_cropsz_width') = id_crop_sz(2);
 
   % Look at distances between labeled pairs to find what to set for
   % tranlation range for data augmentation

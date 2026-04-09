@@ -246,7 +246,7 @@ If initpath is a directory and not in interactive mode, it's an error."""
                         logging.error( msgtxt )
                     raise
                 else:
-                    print("reading compressed AVI")
+                    logging.debug("reading compressed AVI")
 
             if self.interactive and self.h_mov.bits_per_pixel == 24 and not DEBUG_MOVIES and False:
                 wx.MessageBox( "Currently, RGB movies are immediately converted to grayscale. All color information is ignored.", "Warning", wx.ICON_WARNING|wx.OK )
@@ -1265,6 +1265,8 @@ class CompressedAvi:
         # frame buffered
         self.bufferoff0 = 0
         (frame,ts) = self._get_next_frame_helper()
+        if frame.ndim == 2:
+            frame = frame[:,:,None]
         self.buffer[:,:,:,0] = frame.copy()
         self.bufferts[0] = ts
         # bufferoff is the location in the buffer where we should
@@ -1310,6 +1312,8 @@ class CompressedAvi:
     def get_next_frame(self):
 
         (frame,ts) = self._get_next_frame_helper()
+        if frame.ndim == 2:
+            frame = frame[:,:,None]
 
         # store
 

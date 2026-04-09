@@ -1392,8 +1392,8 @@ classdef LabelerController < handle
 
       obj.updateTimeline() ;
 
-      set(obj.pbClear,'Enable',onIff(hasProject));
-      set(obj.tbAccept,'Enable',onIff(hasProject));
+      set(obj.pbClear,'Enable',onIff(hasProject),'Visible',onIff(~isMA));
+      set(obj.tbAccept,'Enable',onIff(hasProject),'Visible',onIff(~isMA));
       set(obj.pbRecallZoom,'Enable',onIff(hasProject));
       set(obj.pbSetZoom,'Enable',onIff(hasProject));
       set(obj.pbResetZoom,'Enable',onIff(hasProject));
@@ -3525,6 +3525,8 @@ classdef LabelerController < handle
       set(obj.text_trackerinfo,'Visible',offIfIsInCropMode);
 
       cellfun(@(x)set(obj.(x),'Visible',offIfIsInCropMode),REGCONTROLS);
+      cellfun(@(x)set(obj.(x),'Visible',onIff(~labeler.maIsMA)),{'pbClear','tbAccept'});
+      
       obj.menu_file_crop_mode.Checked = onIfIsInCropMode;
 
       obj.cropUpdateCropHRects_() ;

@@ -35,6 +35,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     jobid = ''; % for a particular job
     isma = false;
 
+    % linking options (for multi-animal projects)
+    link_type = 'simple'; % 'simple', 'motion', or 'identity'
+    id_maintain_identity = false;
+
     % outputs
     % this will correspond to one job if these are set
     errfile = ''; % char
@@ -42,11 +46,15 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     cmdfile = ''; % char
     killfile = ''; % char
     trackconfigfile = ''; % char
+    idmodelfile = ''; % char
+    idjsonfile = ''; %char
     trkfiles = {}; % nmovies x nviews x nstages
+    detecttrks = {}; % nmovies x nviews
 
     listoutfiles = {}; % nviews . Output of list classifications
     islistjob = false; % whether we are tracking list or not
     isgtjob = false; % whether we should call gt reporting stuff at the end
+    docontinue = false; % whether to continue tracking from previously abandoned job
     
   end
 
@@ -266,6 +274,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         obj.calibrationdata = obj.calibrationdata(:);
         szassert(obj.calibrationdata,[obj.nmovies,1]);
       end
+      sz = [obj.nmovies,nviews];
+      if isempty(obj.detecttrks),
+        obj.detecttrks = repmat({''},sz);
+      else
+        szassert(obj.detecttrks,sz);
+      end
+
       if obj.tblMFTIsSet,
         obj.tblMFT = MFTable.sortCanonical(obj.tblMFT);
       end
@@ -474,6 +489,12 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if reset || isempty(obj.trackconfigfile),
         obj.setDefaultTrackConfigFile();
       end
+      if reset || isempty(obj.idmodelfile),
+        obj.setDefaultIDModelFile();
+      end
+      if reset || isempty(obj.idjsonfile),
+        obj.setDefaultIDJsonFile();
+      end
 
       % rest of files require jobid to be set
       if isempty(obj.jobid),
@@ -544,6 +565,23 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       obj.trackconfigfile = fullfile(p,['trkconfig_',n,'.json']);
     end
 
+    function setDefaultIDModelFile(obj)
+      if isempty(obj.trkfiles) || isempty(obj.trkfiles{1}),
+        warning('trkfiles must be set to set default track config file');
+      end
+      [p,n] = fileparts(obj.trkfiles{1});
+      obj.idmodelfile = fullfile(p,['id_wts_',n,'.p']);
+    end
+
+    function setDefaultIDJsonFile(obj)
+      % File containing the ID linking training data
+      if isempty(obj.trkfiles) || isempty(obj.trkfiles{1}),
+        warning('trkfiles must be set to set default track config file');
+      end
+      [p,n] = fileparts(obj.trkfiles{1});
+      obj.idjsonfile = fullfile(p,['id_wts_',n,'.json']);
+    end
+
     function setDefaultTrkfiles(obj,reset)
       if nargin < 2,
         reset = false;
@@ -581,6 +619,32 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
     end
 
+    function setTrkFilesWithDetectSuffix(obj)
+      % Convert all trkfiles to corresponding _detect.trk files
+      % This function modifies obj.trkfiles in place
+
+      if isempty(obj.trkfiles)
+        return;
+      end
+
+      for i = 1:numel(obj.trkfiles)
+        if isempty(obj.trkfiles{i})
+          continue;
+        end
+
+        [pathpart, namepart, ext] = fileparts(obj.trkfiles{i});
+
+        % Add _detect suffix to the filename
+        newName = [namepart '_detect' ext];
+
+        if isempty(pathpart)
+          obj.trkfiles{i} = newName;
+        else
+          obj.trkfiles{i} = fullfile(pathpart, newName);
+        end
+      end
+    end
+
     function id = getId(obj)
       % i don't understand why this is so complicated -- i think we could
       % just use jobid if it is unique
@@ -591,10 +655,22 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       id = obj.trackjobid;
     end
 
-    function f = getDefaultOutfile(obj)      
+    function f = getDefaultOutfile(obj)
       trkoutdir1 = DeepModelChainOnDisk.getCheckSingle(obj.trainDMC.dirTrkOutLnx(1));
       id = obj.getId();
       f = [ trkoutdir1 '/' id ] ;
+    end
+
+    function setDoContinue(obj, value)
+      % Set the docontinue flag
+      % Input: value - logical, true to continue with existing files, false for new tracking
+      obj.docontinue = logical(value);
+    end
+
+    function value = getDoContinue(obj)
+      % Get the docontinue flag
+      % Output: value - logical, true if continuing with existing files
+      value = obj.docontinue;
     end
 
 
@@ -868,6 +944,48 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       obj.calibrationdata(idx) = v;
     end
+    function v = getLinktype(obj)
+      v = obj.link_type;
+    end
+    function setLinktype(obj,link_type)
+      obj.link_type = link_type;
+    end
+    function v = getIDMaintainIdentity(obj)
+      v = obj.id_maintain_identity;
+    end
+    function setIDMaintainIdentity(obj,maintain_identity)
+      obj.id_maintain_identity = maintain_identity;
+    end
+    function setDetectTrk(obj,v,varargin)
+      if isempty(varargin),
+        obj.detecttrks= v;
+        return;
+      end
+      if isempty(obj.detect_trk),
+        obj.detecttrks = repmat({''},[obj.nmovies,obj.nviews]);
+      end
+      idx = obj.select('detecttrks',varargin{:});
+      if isempty(v),
+        return;
+      end
+
+      n = nnz(idx);
+      if ~iscell(v),
+        v = repmat({v},[n,1]);
+      end
+      obj.detecttrks(idx) = v;
+      
+    end
+    function v = getDetectTrk(obj,varargin)
+      if isempty(obj.detecttrks) || isempty(varargin),
+        v = obj.detecttrks;
+        return;
+      end
+      idx = obj.select('detecttrks',varargin{:});
+      v = obj.detecttrks(idx);
+
+    end
+
     function addTblMFT(obj,tblMFTadd,movfilesnew,movidxnew)
 
       nmoviesnew = ToTrackInfo.getNMoviesTblMFT(tblMFTadd);
@@ -1138,7 +1256,11 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       tti.setCroprois(obj.getCroprois(getargs{:}),setargs{:});
       tti.setCalibrationfiles(obj.getCalibrationfiles(getargs{:}),setargs{:});
       tti.setCalibrationdata(obj.getCalibrationdata(getargs{:}),setargs{:});
+      tti.setLinktype(obj.getLinktype());
+      tti.setIDMaintainIdentity(obj.getIDMaintainIdentity());
       tti.setTrackid(obj.getTrackid());
+      tti.setDoContinue(obj.getDoContinue());
+
       if obj.tblMFTIsSet(),
         [ism,idx] = ismember(obj.tblMFT.mov,movieidx1);
         newtbl = obj.tblMFT(ism,:);
@@ -1282,6 +1404,14 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function [v,idx] = getPartTrkFiles(obj,varargin)
       [trkfs,idx] = obj.getTrkFiles(varargin{:});
       v = cellfun(@(x) [x,'.part'],trkfs,'Uni',0);
+    end
+
+    function v = getIDModelFile(obj)
+      v = obj.idmodelfile;
+    end
+
+    function v = getIDJsonFile(obj)
+      v = obj.idjsonfile;
     end
 
     function v = getListOutfiles(obj,varargin)

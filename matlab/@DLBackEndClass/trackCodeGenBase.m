@@ -145,14 +145,20 @@ command10 = command9.append('track');
 command11 = command10.append('-config_file', configFileWslPath);
 
 switch track_type
-  case 'link'
-    command12 = command11.append('-track_type', 'only_link'); 
+  % case 'link'
+    % command12 = command11.append('-track_type', 'only_link'); 
   case 'detect'
     command12 = command11.append('-track_type', 'only_predict'); 
+  case 'id_link'
+    command12 = command11.append('-track_type','link_id').append('-id_wts_file',totrackinfo.idmodelfile);
   case 'track'
-    command12 = command11;
+    if strcmp(totrackinfo(1).link_type,'simple')
+      command12 = command11.append('-track_type', 'only_predict'); 
+    else
+      command12 = command11;
+    end
   otherwise
-    error('track_type must be either ''track'', ''link'', or ''detect''') ;
+    error('track_type must be either ''track'', ''id_link'', or ''detect''') ;
 end
 
 [movidx,frm0,frm1,trxids,nextra] = totrackinfo.getIntervals();
@@ -210,6 +216,15 @@ else
 end  % if
 % command17 should be the result of everything before here.
 
+nativeDetectFiles = totrackinfo.getDetectTrk;
+if ~isempty(nativeDetectFiles{1})
+  detectFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), nativeDetectFiles, 'UniformOutput', false);
+  detectFilesWslPath = cellfun(@(x) x.asWsl(), detectFilesNativePath, 'UniformOutput', false);
+  command17b = command17.append('-predict_trk_files').cat(detectFilesWslPath{:});
+else
+  command17b = command17;
+end
+
 if totrackinfo.hasCroprois && ~totrackinfo.islistjob,
   croproi = totrackinfo.getCroprois('movie',movidx);
   if iscell(croproi)
@@ -219,15 +234,21 @@ if totrackinfo.hasCroprois && ~totrackinfo.islistjob,
   if ~isempty(croproi) && ~all(any(isnan(croproi),2),1),
     croproirowvec = croproi';
     croproirowvec = croproirowvec(:)'; % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...] OR [xlomov1 xhimov1 ylomov1 yhimov1 xlomov2 ...] in serialmode
-    command18 = command17.append('-crop_loc', num2str(croproirowvec));
+    command18 = command17b.append('-crop_loc', num2str(croproirowvec));
   else
-    command18 = command17;
+    command18 = command17b;
   end
 else
-  command18 = command17;
+  command18 = command17b;
+end
+
+if totrackinfo.getDoContinue
+  command18b = command18.append('-continue');
+else
+  command18b = command18;
 end
 
 % At last, the command!
-command = command18;
+command = command18b;
 
 end  % function

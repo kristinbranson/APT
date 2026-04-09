@@ -58,7 +58,7 @@ class config(object):
         # otherwise, if scale_range is read in, use that
         self.use_scale_factor_range = True
         self.imax = 255.
-        self.check_bounds_distort = True
+        self.check_bounds_distort = False
         self.adjust_contrast = False
         self.clahe_grid_size = 20
         self.normalize_img_mean = False
@@ -70,7 +70,8 @@ class config(object):
         self.nan_as_occluded = False
         self.use_openvino = False
         self.flip_test = False
-        self.imresize_expand = False
+        self.imresize_expand = False # if True, rescale the images to fit the conf.imsz. Mainly used for testing on public datasets.
+        self.pad_images = False # If the images don't match conf.imsz, whether to pad them or resize them. True is pad images, False is resize images. Default value is False here, because all the crowdpose and other experiments are done with False. This should be set to true for projects created in front-end from here on. Doesn't affect older projects because they all had same sized images.
 
         # ----- Data parameters
         # l1_cropsz = 0
@@ -222,15 +223,17 @@ class config(object):
 
         # ============== MULTIANIMAL ==========
         self.is_multi = False
-        self.max_n_animals = 1
+        self.max_n_animals_user = 1 # this is the maximum number of animals that the user enters in the front-end.
+        self.max_n_animals = 1 # this is the actual number of detections to do while doing inference. this is set to 1.25 times the max_n_animals_user
         self.min_n_animals = 0
+        self.max_n_animals_user = 1.
         self.multi_bb_ex = 10 # extra margin to keep around annotations while generating masks
         self.multi_n_grid = 1 # Number of cells to split the image into for multianimal
         self.multi_link_cost = 5 # cost for linking trajectory. 5 is roughly the max movement in pixels per landmark that will not lead to death and birth of new trajectories.
         # actual frame size
         self.multi_frame_sz = []
         self.multi_animal_crop_sz = None
-        # multi_use_mask is whether to mask the image or not
+        # multi_use_mask is whether to mask the image or not. Shouldn't be used anymore
         self.multi_use_mask = False
         # whether to mask the loss or not
         self.multi_loss_mask = True
@@ -240,6 +243,8 @@ class config(object):
         self.multi_match_dist_factor = .2
         self.multi_scale_by_bbox = False
         self.multi_pad = 1.25 # if scaling by bbox, pad the bbox by this factor
+        self.multi_background_sample_ratio = 2 # when using multi_loss_mask, this is the number of times we add samples from each background patch roi.
+        self.multi_background_coverage_ratio = 0.5 # when using multi_loss_mask, this is the minimum fraction of the background patch roi that should be covered by the background mask to be included as a background sample.
 
         # ============= TOP-DOWN =================
 
@@ -268,7 +273,9 @@ class config(object):
         self.link_strict_match_thres = 2.
 
         self.link_id = False
-        self.link_id_cropsz = -1
+        # self.link_id_cropsz = None
+        self.link_id_cropsz_width = None
+        self.link_id_cropsz_height = None
         self.link_id_training_iters = 100000
         self.link_id_tracklet_samples = 25
         self.link_id_rescale = 1
@@ -279,6 +286,7 @@ class config(object):
         self.link_id_batch_size = 16
         self.link_id_ignore_far = False
         self.link_id_motion_link = False
+        self.link_id_save_int_wts = False
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'
@@ -336,11 +344,13 @@ class config(object):
     def getexplist(self, L):
         return L['movieFilesAll'][self.view,:]
 
-    def get(self,name,default):
+    def get(self,name,default,silent=False):
         if hasattr(self,name):
-            logging.info('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
+            if not silent:
+                logging.info('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
         else:
-            logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
+            if not silent:
+                logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
             setattr(self,name,default)
         return getattr(self,name,default)
 
