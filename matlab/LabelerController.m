@@ -4422,13 +4422,9 @@ classdef LabelerController < handle
       hasProject = labeler.hasProject ;
       hasMovie = labeler.hasMovie ;        
       itm = labeler.infoTimelineModel ;
-      %props = itm.getPropsDisp(itm.curproptype);
-      %propTypes = itm.getPropTypesDisp();
       obj.labelTLInfo_.updateSelection() ;
       set(obj.tbTLSelectMode, 'Value', itm.selectOn, 'Enable',onIff(hasProject)) ;  % a togglebutton
       set(obj.pbClearSelection,'Enable',onIff(hasProject && hasMovie && labeler.areAnyFramesSelected())) ;
-      %set(obj.pumTimelinePropType,'String',propTypes,'Value',itm.curproptype,'Enable',onIff(hasProject));
-      %set(obj.pumTimelineProp,'String',props,'Value',itm.curprop,'Enable',onIff(hasProject));
     end
 
     function updateTimelinePopupMenus(obj)

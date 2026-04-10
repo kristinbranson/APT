@@ -7,8 +7,8 @@ classdef InfoTimelineModel < handle
   % changes are reflected in the APT UI.
 
   properties (Constant)
-    TLPROPFILESTR = 'landmark_features.yaml';
-    TLPROPTYPES = {'Labels', 'Predictions', 'All Frames'} ;
+    TLPROPFILESTR = 'landmark_features.yaml'
+    TLPROPTYPES = {'Labels', 'Predictions', 'All Frames'}'
   end
 
   properties  % Private by convention
@@ -17,12 +17,11 @@ classdef InfoTimelineModel < handle
     props_ % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
     props_tracker_ % [ntrkprop]. ". Applicable when proptype is 'Predictions'
     props_allframes_ % [nallprop]. ". Applicable when proptype is All Frames
-    proptypes_ % property types, eg 'Labels' or 'Predictions'
     curprop_ % row index into props, or props_tracker, depending on curproptype
     curproptype_ % row index into proptypes
     isdefault_ % whether this has been changed
-    TLPROPS_  % struct array, features we can compute. Initted from yaml at construction-time
-    TLPROPS_TRACKER_  % struct array, features for current tracker. Initted at setTracker time
+    % TLPROPS_  % struct array, features we can compute. Initted from yaml at construction-time
+    trackerAuxiliaryProps_  % struct array, auxiliary features for current tracker
     isSelectedFromFrameIndex_ = false(1,0)  % Internal record of what frames are shown as selected on the timeline
     custom_data_  % [1 x nframes] custom data to plot
     tldata_  % [npts x nfrm] most recent data set/shown. NOT y-normalized
@@ -37,26 +36,25 @@ classdef InfoTimelineModel < handle
   end
   
   properties (Dependent)
-    selectOn % scalar logical, if true, select "Pen" is down
-    selectOnStartFrm % frame where selection started
-    props % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
-    props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
-    props_allframes % [nallprop]. ". Applicable when proptype is All Frames
-    proptypes % property types, eg 'Labels' or 'Predictions'
-    curprop % row index into props, or props_tracker, depending on curproptype
-    curproptype % row index into proptypes
-    isdefault % whether this has been changed
+    selectOn  % scalar logical, if true, select "Pen" is down
+    selectOnStartFrm  % frame where selection started
+    props  % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
+    props_tracker  % [ntrkprop]. ". Applicable when proptype is 'Predictions'
+    props_allframes  % [nallprop]. ". Applicable when proptype is All Frames
+    proptypes  % property types, eg 'Labels' or 'Predictions'
+    curprop  % row index into props, or props_tracker, depending on curproptype
+    curproptype  % row index into proptypes
+    isdefault  % whether this has been changed
     isSelectedFromFrameIndex
-    custom_data % [1 x nframes] custom data to plot
-    statThresh % scalar, threshold value for timeline statistics
-    isStatThreshVisible % scalar logical, whether to show threshold visualization
+    custom_data  % [1 x nframes] custom data to plot
+    statThresh  % scalar, threshold value for timeline statistics
+    isStatThreshVisible  % scalar logical, whether to show threshold visualization
   end
 
   methods
     function obj = InfoTimelineModel(hasTrx)
       obj.selectOn_ = false;
       obj.selectOnStartFrm_ = [];
-      obj.proptypes_ = InfoTimelineModel.TLPROPTYPES(:);
       obj.curprop_ = 1;
       obj.curproptype_ = 1;
       obj.isdefault_ = true;
@@ -64,8 +62,7 @@ classdef InfoTimelineModel < handle
       obj.tldata_ = [];
       obj.statThresh_ = [];
       obj.isStatThreshVisible_ = false;
-      obj.readTimelinePropsNew();
-      obj.TLPROPS_TRACKER_ = EmptyLandmarkFeatureArray();
+      obj.trackerAuxiliaryProps_ = EmptyLandmarkFeatureArray();
       obj.initializePropsEtc_(hasTrx);  % fires no events
     end
     
@@ -99,7 +96,7 @@ classdef InfoTimelineModel < handle
     end
 
     function v = get.proptypes(obj)
-      v = obj.proptypes_;
+      v = InfoTimelineModel.TLPROPTYPES ;
     end
 
     function v = get.curprop(obj)
@@ -166,24 +163,22 @@ classdef InfoTimelineModel < handle
       result = obj.tldata_;
     end
     
-    function readTimelinePropsNew(obj)
+    function initializePropsEtc_(obj, hasTrx)
+      % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
+
+      % Read the TL props from the .yaml file
       path = fullfile(APT.Root, 'matlab') ;
       tlpropfile = fullfile(path,InfoTimelineModel.TLPROPFILESTR);
       assert(logical(exist(tlpropfile,'file')), 'File %s is missing', tlpropfile);      
-      obj.TLPROPS_ = ReadLandmarkFeatureFile(tlpropfile);      
-    end
+      props = ReadLandmarkFeatureFile(tlpropfile);      
 
-    function initializePropsEtc_(obj, hasTrx)
-      % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
-      
       % remove body features if no body tracking
-      props = obj.TLPROPS_;
       if ~isempty(hasTrx) && ~hasTrx ,
         idxremove = strcmpi({props.coordsystem},'Body');
         props(idxremove) = [];
       end
       obj.props_ = props;      
-      obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);      
+      obj.props_tracker_ = cat(1,obj.trackerAuxiliaryProps_,obj.props);
       obj.props_allframes_ = ...
         struct('name','Add custom...',...
                'code','add_custom',...
@@ -191,29 +186,24 @@ classdef InfoTimelineModel < handle
     end
 
     function didChangeCurrentTracker(obj, newAuxPropList)
-      % Handle tracker change - update proptypes and props_tracker.
+      % Handle tracker change - update tracker-specific display props.
       % Called by the parent Labeler.
       %
       % newAuxPropList: auxiliary tracker-specific properties (e.g.
       %   confidence).  May be empty for net types with no aux labels
-      %   (like GRONe).  Even so, we keep 'Predictions' in proptypes_
-      %   and populate props_tracker_ with the base label features,
-      %   since label features can be computed on predicted positions.
-
-      % Ensure 'Predictions' is in proptypes_
-      if ~ismember('Predictions', obj.proptypes_)
-        obj.proptypes_{end+1} = 'Predictions' ;
-      end
+      %   (like GRONe).  Even so, props_tracker_ still includes the base
+      %   label features, since label features can be computed on
+      %   predicted positions.
 
       % Update tracker-specific props and rebuild props_tracker_
-      obj.TLPROPS_TRACKER_ = newAuxPropList ;  %#ok<*PROPLC>
-      obj.props_tracker_ = cat(1, obj.props, obj.TLPROPS_TRACKER_) ;
+      obj.trackerAuxiliaryProps_ = newAuxPropList ;  %#ok<*PROPLC>
+      obj.props_tracker_ = cat(1, obj.trackerAuxiliaryProps_, obj.props) ;
 
       % Check that .curprop is in-range for current .props,
       % .props_tracker, .curproptype. 
-      ptype = obj.proptypes_{obj.curproptype_};
+      ptype = obj.proptypes{obj.curproptype_};
       switch ptype
-        case {'Predictions', 'Imported'}
+        case {'Predictions'}
           tfOOB = (obj.curprop_ > numel(obj.props_tracker_));
         otherwise
           tfOOB = (obj.curprop_ > numel(obj.props_)) ;
@@ -224,16 +214,18 @@ classdef InfoTimelineModel < handle
     end  % function
 
     function tf = hasPredictionConfidence(obj)
-      tf = ~isempty(obj.TLPROPS_TRACKER_);
+      tf = ~isempty(obj.trackerAuxiliaryProps_);
     end
     
     function props = getPropsDisp(obj, ipropType)
-      % Get available properties for given propType (idx)
+      % Get available properties for given propType (idx).
+      % These are options for things to display in the timeline, like confidence,
+      % velmag, etc.
       if nargin < 2,
         ipropType = obj.curproptype;
       end
       propType = obj.proptypes{ipropType} ;
-      if strcmpi(propType, 'Predictions') || strcmpi(propType, 'Imported')
+      if strcmpi(propType, 'Predictions')
         props = {obj.props_tracker.name};
       elseif strcmpi(propType, 'All Frames'),
         props = {obj.props_allframes.name};
@@ -351,7 +343,7 @@ classdef InfoTimelineModel < handle
       
       ptype = obj.proptypes{obj.curproptype};
       switch ptype
-        case {'Predictions', 'Imported'}
+        case {'Predictions'}
           prop = obj.props_tracker(obj.curprop);
         otherwise
           prop = obj.props(obj.curprop);
