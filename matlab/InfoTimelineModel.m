@@ -7,8 +7,8 @@ classdef InfoTimelineModel < handle
   % changes are reflected in the APT UI.
 
   properties (Constant)
-    TLPROPFILESTR = 'landmark_features.yaml'
-    TLPROPTYPES = {'Labels', 'Predictions', 'All Frames'}'
+    PROPS_FILE_NAME = 'landmark_features.yaml'
+    PROP_TYPES = {'Labels', 'Predictions', 'All Frames'}'
   end
 
   properties  % Private by convention
@@ -95,8 +95,8 @@ classdef InfoTimelineModel < handle
       v = obj.props_allframes_;
     end
 
-    function v = get.proptypes(obj)
-      v = InfoTimelineModel.TLPROPTYPES ;
+    function v = get.proptypes(obj)  %#ok<MANU>
+      v = InfoTimelineModel.PROP_TYPES ;
     end
 
     function v = get.curprop(obj)
@@ -168,7 +168,7 @@ classdef InfoTimelineModel < handle
 
       % Read the TL props from the .yaml file
       path = fullfile(APT.Root, 'matlab') ;
-      tlpropfile = fullfile(path,InfoTimelineModel.TLPROPFILESTR);
+      tlpropfile = fullfile(path,InfoTimelineModel.PROPS_FILE_NAME);
       assert(logical(exist(tlpropfile,'file')), 'File %s is missing', tlpropfile);      
       props = ReadLandmarkFeatureFile(tlpropfile);      
 

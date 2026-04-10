@@ -13705,14 +13705,14 @@ classdef Labeler < handle
       data = obj.infoTimelineModel.getTimelineDataForCurrentMovieAndTarget(obj) ;
     end
 
-    function tf = hasTimelinePrediction(obj)
+    function result = hasTimelinePrediction(obj)
       % Check if timeline has prediction data available
       itm = obj.infoTimelineModel ;
-      tf = ismember('Predictions',itm.proptypes) && isvalid(obj.tracker);
-      if tf,
+      result = isvalid(obj.tracker);
+      if result
         pcode = itm.props_tracker(1);
         data = obj.tracker.getPropValues(pcode);
-        tf = ~isempty(data) && any(~isnan(data(:)));
+        result = ~isempty(data) && any(~isnan(data(:)));
       end
     end
 
