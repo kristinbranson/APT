@@ -190,8 +190,8 @@ classdef InfoTimelineModel < handle
       % Called by the parent Labeler.
       %
       % newAuxPropList: auxiliary tracker-specific properties (e.g.
-      %   confidence).  May be empty for net types with no aux labels
-      %   (like GRONe).  Even so, props_tracker_ still includes the base
+      %   confidence).  May be empty for net types with no aux labels.
+      %   Even so, props_tracker_ still includes the base
       %   label features, since label features can be computed on
       %   predicted positions.
 
