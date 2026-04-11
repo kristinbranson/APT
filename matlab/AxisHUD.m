@@ -56,10 +56,6 @@ classdef AxisHUD < handle
       obj.hPanel = hPanel;
       obj.initHandedAnno_();
       obj.clearHTxts_();
-      % obj.hasTgt = false;
-      % obj.hasLblPt = false;
-      % obj.hasSusp = false;
-      % obj.hasTrklet = false;
       
       lx = addlistener(hAxes,'XDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
       ly = addlistener(hAxes,'YDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
