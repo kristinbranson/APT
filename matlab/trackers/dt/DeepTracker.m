@@ -3516,6 +3516,11 @@ classdef DeepTracker < LabelTracker
 
       tvm.trkInit(obj.trkP) ;
 
+      if isa(tvm, 'TrackingVisualizerTrackletsModel')
+        lObj.currImHudModel.hasTrklet = true ;
+        lObj.notify_('updateHudReadoutFields') ;
+      end
+
       % Notify controller to create/update TV
       lObj.notify_('updateTrkPredViz') ;
     end  % function

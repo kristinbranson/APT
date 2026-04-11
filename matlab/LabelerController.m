@@ -1693,15 +1693,11 @@ classdef LabelerController < handle
     function updateHudReadoutFields(obj)
       % Sync the AxisHUD readout fields from the AxisHUDModel.
       labeler = obj.labeler_ ;
-      mdl = labeler.currImHudModel ;
+      model = labeler.currImHudModel ;
       if isempty(obj.currImHud) || ~isvalid(obj.currImHud)
-        obj.currImHud = AxisHUD(obj.axes_curr.Parent, obj.axes_curr) ;
+        obj.currImHud = AxisHUD(obj, labeler, model, obj.axes_curr.Parent, obj.axes_curr) ;
       end
-      obj.currImHud.updateReadoutFields( ...
-        'hasTgt', mdl.hasTgt, ...
-        'hasLblPt', mdl.hasLblPt, ...
-        'hasSusp', mdl.hasSusp, ...
-        'hasTrklet', mdl.hasTrklet) ;
+      obj.currImHud.updateReadoutFields() ;
     end  % function
 
     function updateEnablementOfManyControls(obj)
@@ -6720,6 +6716,7 @@ classdef LabelerController < handle
       else
         tv.vizInit() ;
       end
+      obj.currImHud.updateReadoutFields() ;
 
       % Apply current show/hide state
       tv.setHideViz(tracker.hideViz) ;
@@ -6738,6 +6735,8 @@ classdef LabelerController < handle
 
     function didSetSelectedTracklet(obj)
       % Update the prediction TV after the model's selected tracklet changed.
+      obj.updateTimelineTraces() ;
+      obj.currImHud.updateReadoutFields() ;
       tv = obj.tvTrkPred_ ;
       if ~isempty(tv)
         tv.updateSelectedTrxID() ;

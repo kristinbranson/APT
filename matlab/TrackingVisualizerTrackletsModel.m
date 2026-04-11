@@ -20,8 +20,6 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
     iTrxViz2iTrx % [ntrxmax] mapping from trx in tvtrx -> ptrx
 
     tfShowTrxTraj = true
-
-    hudModel % AxisHUDModel
   end
 
   methods
@@ -40,7 +38,6 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
 
       obj.currTrklet = nan ;
       obj.iTrxViz2iTrx = zeros(obj.ntrxmax, 1) ;
-      obj.hudModel = AxisHUDModel() ;
       obj.lObj = lObj ;
     end  % function
 
@@ -51,7 +48,6 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
       end
       obj.ntrxmax = ntgtmax * 2 ;
       obj.iTrxViz2iTrx = zeros(obj.ntrxmax, 1) ;
-      obj.hudModel.hasTrklet = true ;
     end  % function
 
     function trkInit(obj, trk)

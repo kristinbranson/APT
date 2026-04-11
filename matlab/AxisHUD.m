@@ -25,35 +25,45 @@ classdef AxisHUD < handle
     tgtFmt = 'tgt: %d';
     lblPointFmt = 'Lbl pt: %d/%d';
     suspFmt = 'susp: %.10g';
-    trkletFmt = 'trklet: %d (%d tot)';
   end
   
   properties
+    labelerController_
+    labeler_
+    axisHUDModel_
     hPanel  % scalar handle to the uipanel the HUD appears in
-    hTxts  % col vec of handles to text uicontrols
-    hTxtTgt  % scalar handle (for convenience; owned by hTxts)
-    hTxtLblPt 
-    hTxtSusp
-    hTxtTrklet    
+    hTxtTgt  % scalar handle to target text uicontrol
+    hTxtLblPt  % scalar handle to some kind of text uicontrol
+    hTxtSusp  % scalar handle to suspiciousness text uicontrol
+    hTxtTrklet  % scalar handle to tracklet text uicontrol    
     hHandedAnno  % scalar annotation for handedness indicator
     hHandedListnr  % cell array of listeners to main axis .XDir and .YDir
+  end
+  
+  properties (Dependent)
+    hTxts  
+      % col vec of handles to text uicontrols.  Contains all of hTxtTgt,
+      % hTxtLblPt, hTxtSusp, hTxtTrklet, that are not empty.
     hasTgt  % scalar logical
     hasLblPt 
     hasSusp 
     hasTrklet
   end
-  
+
   methods
     
-    function obj = AxisHUD(hPanel, hAxes)
+    function obj = AxisHUD(labelerController, labeler, axisHUDModel, hPanel, hAxes)
       assert(ishandle(hPanel));
+      obj.labelerController_ = labelerController ;
+      obj.labeler_ = labeler ;
+      obj.axisHUDModel_ = axisHUDModel ;
       obj.hPanel = hPanel;
       obj.initHandedAnno();
-      obj.initHTxts();
-      obj.hasTgt = false;
-      obj.hasLblPt = false;
-      obj.hasSusp = false;
-      obj.hasTrklet = false;
+      obj.clearHTxts_();
+      % obj.hasTgt = false;
+      % obj.hasLblPt = false;
+      % obj.hasSusp = false;
+      % obj.hasTrklet = false;
       
       lx = addlistener(hAxes,'XDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
       ly = addlistener(hAxes,'YDir','PostSet',@(s,e)obj.cbkHandednessUpdate(s,e));
@@ -61,9 +71,25 @@ classdef AxisHUD < handle
       
       obj.cbkHandednessUpdate([],struct('AffectedObject',hAxes)); % initialize
     end
+
+    function result = get.hasTgt(obj)
+      result = obj.axisHUDModel_.hasTgt ;
+    end  % function
+
+    function result = get.hasLblPt(obj)
+      result = obj.axisHUDModel_.hasLblPt ;
+    end  % function
+
+    function result = get.hasSusp(obj)
+      result = obj.axisHUDModel_.hasSusp ;
+    end  % function
+
+    function result = get.hasTrklet(obj)
+      result = obj.axisHUDModel_.hasTrklet ;
+    end  % function
     
     function delete(obj)
-      obj.initHTxts();
+      obj.clearHTxts_();
 
       deleteValidGraphicsHandles(obj.hHandedAnno);
       obj.hHandedAnno = [];
@@ -73,7 +99,7 @@ classdef AxisHUD < handle
       end
       obj.hHandedListnr = [];      
     end
-    
+        
     function initHandedAnno(obj)
       parentpos = obj.hPanel.Position;
       y1 = parentpos(4) - obj.annoHgt; % just below top of hParent
@@ -100,75 +126,48 @@ classdef AxisHUD < handle
       %ytop = ytop - obj.txtHgt;      
     end
     
-    function initHTxts(obj)
+    function clearHTxts_(obj)
       delete(obj.hTxts);
-      obj.hTxts = matlab.ui.control.UIControl.empty(0,1);
+      % obj.hTxts = matlab.ui.control.UIControl.empty(0,1);
       obj.hTxtTgt = [];
       obj.hTxtLblPt = [];
       obj.hTxtSusp = [];
       obj.hTxtTrklet = [];
     end
     
-    function updateReadoutFields(obj,varargin)
-      % Like setReadoutFields(), but preserves existing readout/strings
-      % as applicable
-      
-      if obj.hasTgt, tgtStr = obj.hTxtTgt.String; end
-      if obj.hasLblPt, lblPtStr = obj.hTxtLblPt.String; end
-      if obj.hasSusp, suspStr = obj.hTxtSusp.String; end
-      if obj.hasTrklet, trkletStr = obj.hTxtTrklet.String; end
-      obj.setReadoutFields(varargin{:});
-      if obj.hasTgt && exist('tgtStr','var')>0
-        obj.hTxtTgt.String = tgtStr;
-      end
-      if obj.hasLblPt && exist('lblPtStr','var')>0
-        obj.hTxtLblPt.String = lblPtStr;
-      end
-      if obj.hasSusp && exist('suspStr','var')>0
-        obj.hTxtSusp.String = suspStr;
-      end
-      if obj.hasTrklet && exist('trkletStr','var')>0
-        obj.hTxtTrklet.String = trkletStr;
-      end
+    function result = get.hTxts(obj)
+      result = vertcat(obj.hTxtTgt, obj.hTxtLblPt, obj.hTxtSusp, obj.hTxtTrklet) ;
     end
-    
-    function setReadoutFields(obj,varargin)
-      % obj.setReadoutFields('hasTgt',val,'hasLblPt',val,'hasSusp',val)
-      %
-      % Clears any existing HUD readouts/strings
 
-      obj.initHTxts();
+    function updateReadoutFields(obj)
+      % Update the readout fields.
       
-      [obj.hasTgt,obj.hasLblPt,obj.hasSusp,obj.hasTrklet] = ...
-        myparse(varargin,...
-        'hasTgt',obj.hasTgt,...
-        'hasLblPt',obj.hasLblPt,...
-        'hasSusp',obj.hasSusp,...
-        'hasTrklet',obj.hasTrklet ...
-        );
+      % if obj.hasTgt, tgtStr = obj.hTxtTgt.String; end
+      % if obj.hasLblPt, lblPtStr = obj.hTxtLblPt.String; end
+      % if obj.hasSusp, suspStr = obj.hTxtSusp.String; end
+      % if obj.hasTrklet, trkletStr = obj.hTxtTrklet.String; end
 
-      units0 = obj.hPanel.Units;
-      obj.hPanel.Units = 'pixels';
+      obj.clearHTxts_();
+            
+      %units0 = obj.hPanel.Units;
+      %obj.hPanel.Units = 'pixels';
       parentpos = obj.hPanel.Position;
-      obj.hPanel.Units = units0;
-      y1 = parentpos(4) - obj.annoHgt; % just below anno
+      %obj.hPanel.Units = units0;
+      yOffset = parentpos(4) - obj.annoHgt; % just below anno
       if obj.hasTgt
-        [obj.hTxtTgt,y1] = obj.addTxt(y1, obj.txtClrTarget, 'hud_tgt') ;
-        obj.hTxts(end+1,1) = obj.hTxtTgt;
+        [obj.hTxtTgt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrTarget, 'hud_tgt') ;
       end
       if obj.hasLblPt
-        [obj.hTxtLblPt,y1] = obj.addTxt(y1, obj.txtClrLblPoint, 'hud_lblpt') ;
-        obj.hTxts(end+1,1) = obj.hTxtLblPt;
+        [obj.hTxtLblPt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrLblPoint, 'hud_lblpt') ;
       end
       if obj.hasSusp
-        obj.hTxtSusp = obj.addTxt(y1, obj.txtClrSusp, 'hud_susp') ;
-        obj.hTxts(end+1,1) = obj.hTxtSusp;
+        obj.hTxtSusp = obj.createTextUIControl_(yOffset, obj.txtClrSusp, 'hud_susp') ;
       end
       if obj.hasTrklet
-        obj.hTxtTrklet = obj.addTxt(y1, obj.txtClrTrklet, 'hud_trklet') ;
-        obj.hTxts(end+1,1) = obj.hTxtTrklet;
+        obj.hTxtTrklet = obj.createTextUIControl_(yOffset, obj.txtClrTrklet, 'hud_trklet') ;
+        obj.updateTrklet_() ;
       end
-    end
+    end  % function
     
     function updateTarget(obj,tgtID)
       % Update the target readout.
@@ -191,15 +190,32 @@ classdef AxisHUD < handle
       setStringAndFitWidthBang(obj.hTxtSusp, str) ;
     end
 
-    function updateTrklet(obj,trklet,ntrklettot)
+    function updateTrklet_(obj)
       % Update the tracklet readout.
       assert(obj.hasTrklet) ;
-      str = sprintf(obj.trkletFmt, trklet, ntrklettot) ;
+      tracker = obj.labeler_.tracker ;
+      if isempty(tracker) || isempty(tracker.trkVizer)
+        str = '' ;
+      else
+        tvm = tracker.trkVizer ;
+        if ~isa(tvm, 'TrackingVisualizerTrackletsModel')
+          str = '' ;
+        else
+          iTrklet = tvm.currTrklet ;
+          if ~(isscalar(iTrklet) && isfinite(iTrklet) && iTrklet>=1 && iTrklet<=numel(tvm.ptrx))
+            str = '' ;            
+          else
+            trklet = tvm.ptrx(iTrklet).id ;
+            ntrklettot = numel(tvm.ptrx) ;
+            str = sprintf('trklet: %d (%d tot)', trklet, ntrklettot) ;
+          end
+        end
+      end
       setStringAndFitWidthBang(obj.hTxtTrklet, str) ;
     end
  
-    function [hTxt,ytop] = addTxt(obj, ytop, foreColor, tag)
-      % Add a new textbox
+    function [hTxt, ytop] = createTextUIControl_(obj, ytop, foreColor, tag)
+      % Create a new textbox
       % hTxt: text (matlab.ui.control.UIControl)
       % ytop (input): top/ceiling of axis.
       % ytop (output): new top/ceiling after txtbox added.
@@ -250,16 +266,16 @@ classdef AxisHUD < handle
 
       % Text labels stack downward from just below the annotation
       y = parentH - obj.annoHgt ;
-      for i = 1 : numel(obj.hTxts)
-        pos = obj.hTxts(i).Position ;
+      hTxts = obj.hTxts ;
+      for i = 1 : numel(hTxts)
+        pos = hTxts(i).Position ;
         pos(1) = obj.txtXoff ;
         pos(2) = y - obj.txtHgt ;
         pos(4) = obj.txtHgt ;
-        obj.hTxts(i).Position = pos ;
+        hTxts(i).Position = pos ;
         y = y - obj.txtHgt ;
       end
     end  % function
   end
 
 end  % classdef
-

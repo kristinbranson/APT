@@ -1,26 +1,21 @@
 classdef TrackingVisualizerTrxMA < handle
-  % shows a trx/centroid marker, text label, trajectory traces
+  % Shows a trx/centroid marker, text label, trajectory traces
   %
   % Non-gobject model state lives on the associated
   % TrackingVisualizerTrxMAModel (accessed via obj.tvm_).
 
   properties
-    parent_ % LabelerController reference
-    tvm_ % TrackingVisualizerTrxMAModel reference, set by creator
-    trxSelectCbk % function handle
+    parent_  % LabelerController reference
+    tvm_  % TrackingVisualizerTrxMAModel reference, set in constructor
+    trxSelectCbk  % function handle
 
-    hTraj;                    % nTrx x 1 vector of line handles
-    hTrx;                     % nTrx x 1 vector of line handles
-    hTrxTxt;                  % nTrx x 1 vector of text handles
+    hTraj                    % nTrx x 1 vector of line handles
+    hTrx                     % nTrx x 1 vector of line handles
+    hTrxTxt                  % nTrx x 1 vector of text handles
   end
+
   properties (Dependent)
     nTrx
-  end
-
-  methods
-    function v = get.nTrx(obj)
-      v = numel(obj.hTrx);
-    end
   end
 
   methods
@@ -37,10 +32,12 @@ classdef TrackingVisualizerTrxMA < handle
       obj.parent_ = parent ;
       obj.tvm_ = tvm ;
     end
+
     function delete(obj)
-      obj.deleteGfxHandles();
+      obj.deleteGfxHandles_();
     end
-    function deleteGfxHandles(obj)
+
+    function deleteGfxHandles_(obj)
       deleteValidGraphicsHandles(obj.hTraj);
       obj.hTraj = [];
       deleteValidGraphicsHandles(obj.hTrx);
@@ -52,7 +49,7 @@ classdef TrackingVisualizerTrxMA < handle
     function init(obj, trxSelCbk, nTrx)
       % Create gfx handles.
 
-      obj.deleteGfxHandles();
+      obj.deleteGfxHandles_();
 
       tvm = obj.tvm_ ;
       lObj = obj.parent_.labeler_ ; %#ok<*PROPLC>
@@ -216,7 +213,7 @@ classdef TrackingVisualizerTrxMA < handle
           end
         end
       end
-    end
+    end  % function
 
     function setShowTrx(obj, tfShowTrx)
       lObj = obj.parent_.labeler_ ;
@@ -289,10 +286,15 @@ classdef TrackingVisualizerTrxMA < handle
     function hittest_off_all(obj)
       obj.set_hittest('off');
     end
+
     function hittest_on_all(obj)
       obj.set_hittest('on');
     end
 
-  end
+    function v = get.nTrx(obj)
+      v = numel(obj.hTrx);
+    end  % function
 
-end
+  end  % methods
+
+end  % classdef

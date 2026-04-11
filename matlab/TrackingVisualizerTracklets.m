@@ -7,17 +7,14 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
   % TrackingVisualizerTrackletsModel (accessed via obj.tvm_).
 
   properties
-    parent_ % LabelerController reference
-    tvm_ % TrackingVisualizerTrackletsModel reference, set by creator
-
-    tvmt % scalar TrackingVisualizerMT (view)
-    tvtrx % scalar TrackingVisualizerTrxMA (view)
-
-    hud % AxisHUD (view)
+    parent_  % LabelerController reference
+    tvtm_  % TrackingVisualizerTrackletsModel reference
+    tvmt  % scalar TrackingVisualizerMT (controller)
+    tvtrx  % scalar TrackingVisualizerTrxMA (controller)
   end
 
   methods
-    function obj = TrackingVisualizerTracklets(parent, tvm)
+    function obj = TrackingVisualizerTracklets(parent, tvtm)
       % Construct a TrackingVisualizerTracklets.
       %
       % parent: LabelerController
@@ -28,11 +25,10 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       end
 
       obj.parent_ = parent ;
-      obj.tvm_ = tvm ;
+      obj.tvtm_ = tvtm ;
 
-      obj.tvmt = TrackingVisualizerMT(parent, tvm.tvmt) ;
-      obj.tvtrx = TrackingVisualizerTrxMA(parent, tvm.tvtrx) ;
-      obj.hud = parent.currImHud ;
+      obj.tvmt = TrackingVisualizerMT(parent, tvtm.tvmt) ;
+      obj.tvtrx = TrackingVisualizerTrxMA(parent, tvtm.tvtrx) ;
     end
 
     function vizInit(obj, varargin)
@@ -41,18 +37,17 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         'ntgtmax',20 ...
         );
 
-      tvm = obj.tvm_ ;
+      tvm = obj.tvtm_ ;
       tvm.init(ntgtmax) ;
 
       obj.tvmt.vizInit('ntgts', ntgtmax) ;
       obj.tvtrx.init(@(iTrx)(obj.didSelectTrx(iTrx)), tvm.ntrxmax) ;
-      obj.hud.updateReadoutFields('hasTrklet', true) ;
     end
 
     function newFrame(obj, frm)
       % Display tracking results for given/new frame.
 
-      tvm = obj.tvm_ ;
+      tvm = obj.tvtm_ ;
       ptrx = tvm.ptrx ;
       if isempty(ptrx)
         return;
@@ -77,28 +72,23 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       tvtrx.updatePrimaryTrx(tvtrx_primary) ;
       tvtrx.updateLiveTrx(ptrx(iTrx), frm, trxMappingChanged) ;
     end
+    
     function iTrxViz = iTrx2iTrxViz(obj, iTrx)
-       [~, iTrxViz] = ismember(iTrx, obj.tvm_.iTrxViz2iTrx) ;
+       [~, iTrxViz] = ismember(iTrx, obj.tvtm_.iTrxViz2iTrx) ;
     end
 
     function didSelectTrx(obj, iTrxViz)
       % Callback when a trx marker is clicked.
-      tvm = obj.tvm_ ;      
+      tvm = obj.tvtm_ ;      
       tvm.setSelectedTrackletFromITrxViz(iTrxViz) ;
     end
 
     function updateSelectedTrxID(obj)
       % Update the view to reflect the current tracklet selection in the model.
-      tvm = obj.tvm_ ;
-      iTrklet = tvm.currTrklet ;
-      trkletID = tvm.ptrx(iTrklet).id ;
-      nTrkletTot = numel(tvm.ptrx) ;
-      obj.hud.updateTrklet(trkletID, nTrkletTot) ;
-      obj.parent_.updateTimelineTraces() ;
-      iviz = find(tvm.iTrxViz2iTrx == iTrklet) ;
-      if isempty(iviz)
-        warning('This should not happen. Not setting primary trx') ;
-      else
+      tvtm = obj.tvtm_ ;
+      iTrklet = tvtm.currTrklet ;
+      iviz = find(tvtm.iTrxViz2iTrx == iTrklet) ;
+      if ~isempty(iviz)
         obj.tvtrx.updatePrimaryTrx(iviz) ;
         obj.tvmt.updatePrimary(iviz) ;
       end
@@ -107,7 +97,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     function centerPrimary(obj)
       % Center the view on the primary target.
       lObj = obj.parent_.labeler_ ;
-      tvm = obj.tvm_ ;
+      tvm = obj.tvtm_ ;
       currframe = lObj.currFrame ;
       trx_curr = tvm.ptrx(tvm.currTrklet) ;
       if (currframe < trx_curr.firstframe) || (currframe > trx_curr.endframe)

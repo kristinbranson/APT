@@ -9,11 +9,11 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
   % rendering methods.
 
   properties
-    parent_ % LabelerController reference
-    tvm_ % TrackingVisualizerMTModel reference, set by creator
+    parent_  % LabelerController reference
+    tvm_  % TrackingVisualizerMTModel reference
 
-    hIms % [nview] image handles. Owned by Labeler
-    hAxs % [nview] axes handles. Owned by Labeler
+    hIms  % [nview] image handles. Owned by Labeler
+    hAxs  % [nview] axes handles. Owned by Labeler
 
     % Targets (ntgt)
     % TrackingVisualizerMT contains gfx handles for a fixed number of
