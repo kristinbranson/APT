@@ -295,7 +295,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function updateWorkingSet(obj)
       % Working set changed. Update point boldness/dimness and xlabels.
       mdl = obj.model_ ;
-      iWS = mdl.iSetWorking_ ;
+      iWS = mdl.iSetWorking ;
 
       if isnan(iWS)
         % Working set cleared
@@ -329,7 +329,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         return ;
       end
 
-      iWS = mdl.iSetWorking_ ;
+      iWS = mdl.iSetWorking ;
       if ~isnan(iWS)
         iPt = mdl.iSet2iPt_(iWS, iAx) ;
         ax = obj.hAx_(iAx) ;
@@ -372,7 +372,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       end
 
       assert(isscalar(iAx)) ;
-      iWS = mdl.iSetWorking_ ;
+      iWS = mdl.iSetWorking ;
       if ~isnan(iWS)
         iPt = mdl.iSet2iPt_(iWS, iAx) ;
         obj.setPtFullOcc_(iPt) ;
@@ -481,7 +481,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         end
       elseif strcmp(key, 'u') && ~tfCtrl
         iAx = find(gcf == obj.hFig_) ;
-        iWS = mdl.iSetWorking_ ;
+        iWS = mdl.iSetWorking ;
         if isscalar(iAx) && ~isnan(iWS) && obj.labeler_.showOccludedBox
           iPt = mdl.iSet2iPt_(iWS, iAx) ;
           obj.setPtFullOcc_(iPt) ;
@@ -559,7 +559,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         if iSet > mdl.nPointSet
           % none
         else
-          tfIsClearOnly = iSet == mdl.iSetWorking_ ;
+          tfIsClearOnly = (iSet == mdl.iSetWorking) ;
           mdl.projectionWorkingSetClear_() ;
           obj.projectionClear_() ;
           if ~tfIsClearOnly
@@ -850,7 +850,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         set(h(i), 'Color', hClrs(i, :), 'FontWeight', 'normal', 'EdgeColor', 'none') ;
       end
       set(obj.hPts_, 'HitTest', 'on') ;
-      obj.labelerController_.currImHud.updateLblPoint(nan, mdl.nPointSet) ;
+      obj.labelerController_.currImHud.updateReadoutFields() ;
     end  % function
 
     function projectionWorkingSetSet_(obj, iSet)
@@ -874,7 +874,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       if isscalar(iAx)
         set(obj.hFig_(iAx), 'CurrentObject', get(hPT(iAx), 'Parent')) ;
       end
-      obj.labelerController_.currImHud.updateLblPoint(iSet, mdl.nPointSet) ;
+      obj.labelerController_.currImHud.updateReadoutFields() ;
       obj.projectionRefresh_() ;
     end  % function
 

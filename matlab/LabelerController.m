@@ -1678,8 +1678,7 @@ classdef LabelerController < handle
       
       lObj = obj.labeler_ ;
       if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit ,
-        iTgt = lObj.currTarget;
-        obj.currImHud.updateTarget(iTgt) ;
+        obj.currImHud.updateReadoutFields() ;
         obj.labelTLInfo_.updateTraces();
         if lObj.gtIsGTMode
           tfHilite = lObj.gtCurrMovFrmTgtIsInGTSuggestions();
@@ -3223,7 +3222,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       if (labeler.hasTrx || labeler.maIsMA) && ~labeler.isinit ,
         iTgt = labeler.currTarget;
-        obj.currImHud.updateTarget(iTgt) ;
+        obj.currImHud.updateReadoutFields() ;
         obj.labelTLInfo_.updateTraces();
         obj.updateHighlightingOfAxes();
 

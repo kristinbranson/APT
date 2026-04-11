@@ -56,6 +56,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
     isCalRig                  % scalar logical
     showCalibration           % scalar logical
     showEpiLines              % scalar logical
+    iSetWorking               % scalar. Set index of working set. Can be nan for no working set.
   end
 
   methods  % dep prop getters
@@ -463,6 +464,10 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
       end
       fprintf('3D coordinates are %s\n', mat2str(X, 5)) ;
     end  % function
+
+    function result = get.iSetWorking(obj)
+      result = obj.iSetWorking_ ;
+    end
 
   end  % methods
 

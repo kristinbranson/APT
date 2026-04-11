@@ -8,23 +8,19 @@ classdef AxisHUD < handle
 % TODO: Refactor for extensibility, just have structs/dicts instead of 
 % hardcoding state/meths for tgt vs lblpoint vs susp etc.
   
-  properties  % basically Constant
-    txtXoff = 10;
-    txtHgt = 17;
-    txtWdh = 20;  
+  properties (Constant)
+    txtXoff = 10
+    txtHgt = 17
+    txtWdh = 20  
     
-    annoXoff = 0;
-    annoHgt = 34;
-    annoWdh = 50;
+    annoXoff = 0
+    annoHgt = 34
+    annoWdh = 50
     
-    txtClrTarget = [1 0.6 0.784];
-    txtClrLblPoint = [1 1 0];
-    txtClrSusp = [1 1 1];
-    txtClrTrklet = [1 1 1];
-    
-    tgtFmt = 'tgt: %d';
-    lblPointFmt = 'Lbl pt: %d/%d';
-    suspFmt = 'susp: %.10g';
+    txtClrTarget = [1 0.6 0.784]
+    txtClrLblPoint = [1 1 0]
+    txtClrSusp = [1 1 1]
+    txtClrTrklet = [1 1 1]
   end
   
   properties
@@ -58,7 +54,7 @@ classdef AxisHUD < handle
       obj.labeler_ = labeler ;
       obj.axisHUDModel_ = axisHUDModel ;
       obj.hPanel = hPanel;
-      obj.initHandedAnno();
+      obj.initHandedAnno_();
       obj.clearHTxts_();
       % obj.hasTgt = false;
       % obj.hasLblPt = false;
@@ -100,7 +96,7 @@ classdef AxisHUD < handle
       obj.hHandedListnr = [];      
     end
         
-    function initHandedAnno(obj)
+    function initHandedAnno_(obj)
       parentpos = obj.hPanel.Position;
       y1 = parentpos(4) - obj.annoHgt; % just below top of hParent
             
@@ -156,12 +152,15 @@ classdef AxisHUD < handle
       yOffset = parentpos(4) - obj.annoHgt; % just below anno
       if obj.hasTgt
         [obj.hTxtTgt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrTarget, 'hud_tgt') ;
+        obj.updateTarget_() ;
       end
       if obj.hasLblPt
         [obj.hTxtLblPt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrLblPoint, 'hud_lblpt') ;
+        obj.updateLblPoint_() ;
       end
       if obj.hasSusp
         obj.hTxtSusp = obj.createTextUIControl_(yOffset, obj.txtClrSusp, 'hud_susp') ;
+        obj.updateSusp_() ;
       end
       if obj.hasTrklet
         obj.hTxtTrklet = obj.createTextUIControl_(yOffset, obj.txtClrTrklet, 'hud_trklet') ;
@@ -169,24 +168,28 @@ classdef AxisHUD < handle
       end
     end  % function
     
-    function updateTarget(obj,tgtID)
+    function updateTarget_(obj)
       % Update the target readout.
       assert(obj.hasTgt) ;
-      str = sprintf(obj.tgtFmt, tgtID) ;
+      targetIndex = obj.labeler_.currTarget ;
+      str = sprintf('tgt: %d', targetIndex) ;
       setStringAndFitWidthBang(obj.hTxtTgt, str) ;
     end
 
-    function updateLblPoint(obj,iLblPt,nLblPts)
+    function updateLblPoint_(obj)
       % Update the label-point readout.
       assert(obj.hasLblPt) ;
-      str = sprintf(obj.lblPointFmt, iLblPt, nLblPts) ;
+      nLblPts = obj.labeler_.lblCore.nPointSet ;
+      iLblPt = obj.labeler_.lblCore.iSetWorking ;
+      str = sprintf('Lbl pt: %d/%d', iLblPt, nLblPts) ;
       setStringAndFitWidthBang(obj.hTxtLblPt, str) ;
     end
 
-    function updateSusp(obj,suspscore)
+    function updateSusp_(obj)
       % Update the suspiciousness readout.
       assert(obj.hasSusp) ;
-      str = sprintf(obj.suspFmt, suspscore) ;
+      suspscore = obj.labeler_.currSusp ;
+      str = sprintf('susp: %.10g', suspscore) ;
       setStringAndFitWidthBang(obj.hTxtSusp, str) ;
     end
 
@@ -236,11 +239,11 @@ classdef AxisHUD < handle
       ytop = ytop - obj.txtHgt;
     end
 
-    function setHandednessViz(obj,tfviz)
-      obj.hHandedAnno.Visible = onIff(tfviz);
-    end
+    % function setHandednessViz(obj, tfviz)
+    %   obj.hHandedAnno.Visible = onIff(tfviz) ;
+    % end
     
-    function setHandedness(obj,trueForOut)
+    function setHandedness_(obj,trueForOut)
       if trueForOut
         obj.hHandedAnno.String = '$\odot z$';
       else
@@ -251,7 +254,7 @@ classdef AxisHUD < handle
     function cbkHandednessUpdate(obj,~,evt)
       ax = evt.AffectedObject;
       tfRightHanded = strcmp(ax.XDir,ax.YDir); % normal/normal or rev/rev
-      obj.setHandedness(tfRightHanded);
+      obj.setHandedness_(tfRightHanded);
     end
 
     function layout(obj)
