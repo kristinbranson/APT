@@ -972,8 +972,14 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
     def get_joint_pred(self,preds):
         n_max = self.conf.max_n_animals
         n_min = self.conf.min_n_animals
+        # all outputs are tensors on self.device. 
+        # locs_joint: (bsz, n_classes, 2, k_joint, n_y_j, n_x_j), Joint location predictions per grid cell
+        # logits_joint: (bsz, k_joint, n_y_j, n_x_j), Joint detection confidence scores
+        # locs_ref: (bsz, n_classes, 2, k_ref, n_y_r, n_x_r), Refined location predictions
+        # logits_ref: (bsz, n_classes, k_ref, n_y_r, n_x_r), Refined detection confidence scores
+        # occ_out: (bsz, n_classes, k_joint, n_y_j, n_x_j), Occlusion predictions
+        # dist_pred: (bsz, n_classes, k_joint, n_y_j, n_x_j) or None, Distance uncertainty predictions
         locs_joint, logits_joint, locs_ref, logits_ref, occ_out,dist_pred = preds
-        locs_joint = locs_joint
         bsz = locs_joint.shape[0]
         n_classes = locs_joint.shape[1]
         n_x_j = locs_joint.shape[-1]; n_y_j = locs_joint.shape[-2]
@@ -990,36 +996,39 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         else:
             joint_thres = -3. # sigmoid thresh of 0.05
 
-        preds_ref = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
-        conf_ref = torch.ones([bsz,n_max,n_classes],device=self.device)*-100
-        preds_joint = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
-        pred_occ = torch.ones([bsz,n_max, n_classes],device=self.device) * np.nan
-        conf_joint = torch.ones([bsz,n_max],device=self.device)*-100
+        preds_ref = torch.full([bsz,n_max, n_classes,2], torch.nan, device=self.device)
+        conf_ref = torch.full([bsz,n_max,n_classes], -100., device=self.device)
+        preds_joint = torch.full([bsz,n_max, n_classes,2], torch.nan, device=self.device)
+        pred_occ = torch.full([bsz,n_max, n_classes], torch.nan, device=self.device)
+        conf_joint = torch.full([bsz,n_max], -100., device=self.device)
         if dist_pred is not None:
-            dist_joint = torch.ones([bsz,n_max,n_classes],device=self.device)*np.nan
+            dist_joint = torch.full([bsz,n_max,n_classes], torch.nan, device=self.device)
         else:
             dist_joint = None
         match_dist_factor = self.conf.multi_match_dist_factor
         assert ll_joint_flat.shape[1] >= n_min, f'The max number of animals with image size {self.conf.imsz} is {ll_joint_flat.shape[1]} while the minimum animals set is {n_min}'
         top_k_factor = self.top_k_factor
+
+        k_sz = 9 if self.conf.mdn_use_hrnet else 3
+        p_sz = (k_sz-1)//2
+        k = np.clip(n_max * 5, n_min, ll_joint_flat.shape[1])
+        # cur_wt_batch was only using max_pool for k_joint_i = 0, so only compute that one. 
+        # possibly k_joint is always 1
+        max_pool_batch = F.max_pool2d(logits_joint[:,:1,...], kernel_size=k_sz, stride=1, padding=p_sz) # (bsz, 1, n_y_j, n_x_j)
+        cur_wt_batch = torch.where(max_pool_batch[:,0] == logits_joint[:,0], logits_joint[:,0], -100) # (bsz, n_y_j, n_x_j)
+        ids_batch = cur_wt_batch.reshape(bsz, -1).topk(k, dim=1)[1]  # (bsz, k)
+
+        cur_ref = torch.full([n_classes,2], torch.nan, device=self.device)
+        cur_ref_conf = torch.full([n_classes], -100., device=self.device)
+        inidx = torch.arange(n_classes, device=self.device)
+        patch_offset_y, patch_offset_x = torch.meshgrid(torch.arange(-1, 2, device=self.device),                                                                                                      
+                                        torch.arange(-1, 2, device=self.device))
+        patch_offset_y = patch_offset_y.flatten()
+        patch_offset_x = patch_offset_x.flatten()
         for ndx in range(bsz):
-            # n_preds = np.count_nonzero(ll_joint_flat[ndx,:]>0)
-            # n_preds = np.clip(n_preds,n_min,np.inf)
-            # if self.use_base_loss:
-
-            k_sz = 9 if self.conf.mdn_use_hrnet else 3
-            p_sz = (k_sz-1)//2
-            max_pool = F.max_pool2d(logits_joint[ndx:ndx+1,...],kernel_size=k_sz,stride=1,padding=p_sz)
-            cur_wt = torch.where(max_pool[0,0]==logits_joint[ndx,0],logits_joint[ndx,0],-100)
-
-            k = np.clip(n_max * 5, n_min, ll_joint_flat.shape[1])
-            ids = cur_wt.flatten().topk(k)[1]
-
-            # else:
-            #     k = np.clip(n_max * top_k_factor, n_min, ll_joint_flat.shape[1])
-            #     ids = ll_joint_flat[ndx,:].topk(k)[1]
             done_count = 0
             cur_n = 0
+            ids = ids_batch[ndx]
             while (done_count < n_max) and (cur_n<len(ids)):
                 sel_ex = ids[cur_n]
                 cur_n += 1
@@ -1040,23 +1049,25 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
                 # if ( not torch.all(torch.isnan(dprev))) and (nanmin(dprev) < nms_dist):
                 #     continue
-                cur_ref = torch.ones([n_classes,2],device=self.device) * np.nan
-                cur_ref_conf = torch.ones([n_classes],device=self.device) * -100
-                for cls in range(n_classes):
-                    if not self.hmap_loss:
-                        rpred = locs_joint[ndx, cls, :, idx[0], idx[1], idx[2]] * self.offset/self.ref_scale
-                        mm = torch.round(rpred).int()
-                        if (mm[0] >= n_x_r) or (mm[1] >= n_y_r) or (mm[0] < 0) or (mm[1] < 0):
-                            cur_ref[cls,:] = locs_joint[ndx,cls,...,idx[0],idx[1],idx[2]] * locs_offset
-                            cur_ref_conf[cls] = logits_joint[ndx,idx[0],idx[1],idx[2]]
-                        else:
-                            mm_y = torch.clamp(mm[1],1,n_y_r-2)
-                            mm_x = torch.clamp(mm[0],1,n_x_r-2)
-                            pt_selex = logits_ref[ndx,cls,:,mm_y,mm_x].argmax()
-                            cur_pred = locs_ref[ndx,cls,:,pt_selex,mm_y-1:mm_y+2,mm_x-1:mm_x+2].mean(-1).mean(-1)
-
-                            cur_ref[cls,:] = cur_pred
-                            cur_ref_conf[cls] = logits_ref[ndx,cls,pt_selex,mm_y,mm_x]
+                cur_ref[:] = torch.nan
+                cur_ref_conf[:] = -100
+                if not self.hmap_loss:
+                    rpred_all = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * self.offset/self.ref_scale # (n_classes,2)
+                    mm_all = torch.round(rpred_all).int() # (n_classes,2)
+                    isout = (mm_all[...,0] >= n_x_r) | (mm_all[...,1] >= n_y_r) | (mm_all[...,0] < 0) | (mm_all[...,1] < 0) # (n_classes,)
+                    isin = ~isout
+                    if torch.any(isout):
+                        cur_ref[isout] = locs_joint[ndx,isout,...,idx[0],idx[1],idx[2]] * locs_offset
+                        cur_ref_conf[isout] = logits_joint[ndx,idx[0],idx[1],idx[2]]
+                    if torch.any(isin):
+                        inidx = torch.nonzero(isin).flatten()
+                        mm_x_in = torch.clamp(mm_all[isin,0],1,n_x_r-2) # (n_classes,)
+                        mm_y_in = torch.clamp(mm_all[isin,1],1,n_y_r-2) # (n_classes,)
+                        mm_y_patch = mm_y_in[:, None] + patch_offset_y[None, :]  # (n_classes, 9)
+                        mm_x_patch = mm_x_in[:, None] + patch_offset_x[None, :]  # (n_classes, 9)
+                        pt_selex_in = logits_ref[ndx, inidx, :, mm_y_in, mm_x_in].argmax(dim=1)  # (n_classes,)
+                        cur_ref[isin] = locs_ref[ndx, inidx[:, None], :, pt_selex_in[:, None], mm_y_patch, mm_x_patch].mean(dim=1)  # (n_classes, 2)
+                        cur_ref_conf[isin] = logits_ref[ndx, inidx, pt_selex_in, mm_y_in, mm_x_in]
 
                 #NMS on refined predictions
                 cur_sz =  torch.mean(cur_ref.max(axis=-2)[0]-cur_ref.min(axis=-2)[0])
@@ -1607,12 +1618,12 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 ret_dict['preds'] = []
                 ret_dict['raw_locs'] = []
 
-            for ndx in range(len(ims_in)):
-                # Convert to tensor
-                ims = torch.tensor(ims_in[ndx:ndx+1]).to(self.device).permute([0,3,1,2])/255.
-                with torch.no_grad():
+            with torch.no_grad():
+                for ndx in range(len(ims_in)):
+                    # Convert to tensor
+                    ims = torch.tensor(ims_in[ndx:ndx+1]).to(self.device).permute([0,3,1,2])/255.
                     preds = self.run_model(ims)
-                    preds = self.convert_output(preds)
+                    preds = self.convert_output(preds) # only does something if using openvino
                     locs = self.get_joint_pred(preds)
                     if self.conf.flip_test:
                         ims_flip = torch.flip(ims,[3])
@@ -1639,48 +1650,48 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                             if locs['conf_dist'] is not None:
                                 locs['conf_dist'][ndx] = new_dpred
 
-                if locs['conf_dist'] is not None:
-                    pp = locs['ref'][0]
-                    cur_joint_conf = locs['conf_dist'][0]
-                    ss = np.max(pp, axis=-2) - np.min(pp, axis=-2)
-                    sz = np.sqrt(np.prod(ss, axis=-1))[..., None]
-                    pred_out = np.count_nonzero(cur_joint_conf > sz,axis=1)
-                    sel = pred_out>(conf.n_classes/3)
-                    locs['ref'][0][sel] = np.nan
-                    locs['joint'][0][sel] = np.nan
-                    locs['conf_joint'][0][sel] = -100
-                    locs['conf_ref'][0][sel] = -100
-                    locs['conf_dist'][0][sel] = np.nan
-                    locs['pred_occ'][0][sel]  = np.nan
+                    if locs['conf_dist'] is not None:
+                        pp = locs['ref'][0]
+                        cur_joint_conf = locs['conf_dist'][0]
+                        ss = np.max(pp, axis=-2) - np.min(pp, axis=-2)
+                        sz = np.sqrt(np.prod(ss, axis=-1))[..., None]
+                        pred_out = np.count_nonzero(cur_joint_conf > sz,axis=1)
+                        sel = pred_out>(conf.n_classes/3)
+                        locs['ref'][0][sel] = np.nan
+                        locs['joint'][0][sel] = np.nan
+                        locs['conf_joint'][0][sel] = -100
+                        locs['conf_ref'][0][sel] = -100
+                        locs['conf_dist'][0][sel] = np.nan
+                        locs['pred_occ'][0][sel]  = np.nan
 
-                ret_dict['locs'].append(locs['ref'][0] * conf.rescale)
-                ret_dict['locs_joint'].append(locs['joint'][0] * conf.rescale)
-                conf_joint = 1/(1+np.exp(-locs['conf_joint']))
-                conf_ref = 1/(1+np.exp(-locs['conf_ref']))
-                # pred_conf = conf_joint[...,None]*np.ones_like(conf_ref)
-                # ret_dict['conf'].append(pred_conf)
-                ret_dict['conf_joint'].append(locs['conf_joint'][0])
+                    ret_dict['locs'].append(locs['ref'][0] * conf.rescale)
+                    ret_dict['locs_joint'].append(locs['joint'][0] * conf.rescale)
+                    conf_joint = 1/(1+np.exp(-locs['conf_joint']))
+                    conf_ref = 1/(1+np.exp(-locs['conf_ref']))
+                    # pred_conf = conf_joint[...,None]*np.ones_like(conf_ref)
+                    # ret_dict['conf'].append(pred_conf)
+                    ret_dict['conf_joint'].append(locs['conf_joint'][0])
 
-                if locs['conf_dist'] is None:
-                    conf_ref = locs['conf_ref']
-                    pred_conf = conf_ref
-                    ret_dict['conf'].append(pred_conf[0])
-                else:
-                    # confidence is computed as the ratio of distance uncertainty to the bounding box size
-                    cur_joint_conf = locs['conf_dist'][0]
-                    ss = np.max(locs['ref'][0],axis=-2) - np.min(locs['ref'][0],axis=-2)
-                    sz = np.sqrt(np.prod(ss,axis=-1))[...,None]
-                    cur_joint_conf = 1-np.clip(cur_joint_conf/sz/2,0,1)
-                    ret_dict['conf'].append(cur_joint_conf) #np.clip(cur_joint_conf, 0, 25))
-                #
-                if self.conf.predict_occluded:
-                    ret_dict['occ'].append(locs['pred_occ'][0])
-                else:
-                    ret_dict['occ'].append(np.ones_like(locs['ref'][0][..., 0]) * np.nan)
+                    if locs['conf_dist'] is None:
+                        conf_ref = locs['conf_ref']
+                        pred_conf = conf_ref
+                        ret_dict['conf'].append(pred_conf[0])
+                    else:
+                        # confidence is computed as the ratio of distance uncertainty to the bounding box size
+                        cur_joint_conf = locs['conf_dist'][0]
+                        ss = np.max(locs['ref'][0],axis=-2) - np.min(locs['ref'][0],axis=-2)
+                        sz = np.sqrt(np.prod(ss,axis=-1))[...,None]
+                        cur_joint_conf = 1-np.clip(cur_joint_conf/sz/2,0,1)
+                        ret_dict['conf'].append(cur_joint_conf) #np.clip(cur_joint_conf, 0, 25))
+                    #
+                    if self.conf.predict_occluded:
+                        ret_dict['occ'].append(locs['pred_occ'][0])
+                    else:
+                        ret_dict['occ'].append(np.ones_like(locs['ref'][0][..., 0]) * np.nan)
 
-                if retrawpred:
-                    ret_dict['preds'].append(preds)
-                    ret_dict['raw_locs'].append(locs)
+                    if retrawpred:
+                        ret_dict['preds'].append(preds)
+                        ret_dict['raw_locs'].append(locs)
             ret_dict['locs'] = np.array(ret_dict['locs'])
             ret_dict['locs_joint'] = np.array(ret_dict['locs_joint'])
             ret_dict['conf'] = np.array(ret_dict['conf'])
