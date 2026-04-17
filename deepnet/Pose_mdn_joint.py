@@ -507,7 +507,7 @@ class Pose_mdn_joint_torch(Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch
         return target_dict
 
 
-    def get_pred_fn(self, model_file=None,max_n=None,imsz=None):
+    def get_pred_fn(self, model_file=None,max_n=None,imsz=None,do_split_preproc=False):
         assert not self.conf.is_multi, 'This is for single animal'
         if imsz is not None:
             self.conf.imsz = imsz
@@ -530,11 +530,13 @@ class Pose_mdn_joint_torch(Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch
         conf = self.conf
         match_dist_factor = conf.get('multi_match_dist_factor',0.2)
 
-        def pred_fn(ims, retrawpred=False):
+        def preproc_fn(ims):
             locs_sz = (conf.batch_size, conf.n_classes, 2)
             locs_dummy = np.zeros(locs_sz)
+            ims, _ = PoseTools.preprocess_ims(ims, locs_dummy, conf, False, conf.rescale)
+            return ims
 
-            ims, _ = PoseTools.preprocess_ims(ims,locs_dummy,conf,False,conf.rescale)
+        def infer_fn(ims, retrawpred=False):
             with torch.no_grad():
                 preds = model({'images':torch.tensor(ims).permute([0,3,1,2])/255.})
 
@@ -559,11 +561,17 @@ class Pose_mdn_joint_torch(Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch
                 ret_dict['raw_locs'] = locs
             return ret_dict
 
+        def pred_fn(ims, retrawpred=False):
+            return infer_fn(preproc_fn(ims), retrawpred=retrawpred)
+
         def close_fn():
             del self.model
             torch.cuda.empty_cache()
 
-        return pred_fn, close_fn, latest_model_file
+        if do_split_preproc:
+            return preproc_fn, infer_fn, close_fn, latest_model_file
+        else:
+            return pred_fn, close_fn, latest_model_file
 
 class Pose_mdn_joint(Pose_mdn_joint_torch):
     def __init__(self,conf,**kwargs):
