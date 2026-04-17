@@ -1,6 +1,10 @@
 #from __future__ import division
 #from __future__ import print_function
 
+PREFETCH_BATCHES = True
+if PREFETCH_BATCHES:
+    from concurrent.futures import ThreadPoolExecutor
+
 import logging
 from operator import truediv
 #logging.basicConfig(
@@ -2810,9 +2814,11 @@ def write_n_tracked_part_file(n_done, part_file):
         fh.write("{}".format(n_done))
 
 
-def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False, **kwargs):
+def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False, do_split_preproc=False, **kwargs):
     ''' Returns prediction functions and close functions for different network types
-
+    If do_split_preproc is True and the model supports it (can_split_preproc),
+    returns (preproc_fn, infer_fn, close_fn, model_file).
+    Otherwise returns (pred_fn, close_fn, model_file).
     '''
     if model_type == 'dpk':
         raise RuntimeError('dpk network not implemented')
@@ -2857,7 +2863,11 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
             poser = getattr(pose_module, module_name)(conf, name=name)
         except ImportError:
             raise ImportError(f'Undefined type of network:{model_type}')
-        pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
+        if do_split_preproc and getattr(poser, 'can_split_preproc', False):
+            preproc_fn, pred_fn, close_fn, model_file = poser.get_pred_fn(model_file, do_split_preproc=True)
+            pred_fn = (preproc_fn, pred_fn)
+        else:
+            pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
 
     return pred_fn, close_fn, model_file
 
@@ -3875,7 +3885,8 @@ def classify_movie(conf, pred_fn, model_type,
                    save_hmaps=False,
                    predict_trk_file=None,
                    crop_loc=[None],
-                   continue_tracking=False):
+                   continue_tracking=False,
+                   preproc_fn=None):
     ''' Classifies frames in a movie. All animals in a frame are classified before moving to the next frame.'''
 
     if type(crop_loc) == list and crop_loc[0] is None:
@@ -3967,11 +3978,31 @@ def classify_movie(conf, pred_fn, model_type,
     n_list = len(to_do_list)
     n_batches = int(math.ceil(float(n_list) / bsize))
     logging.info('Tracking...')
+
+    if PREFETCH_BATCHES:
+        _prefetch_exec = ThreadPoolExecutor(max_workers=1)
+
+        def _load_batch(b):
+            s = b * bsize
+            p = min(n_list - s, bsize)
+            ims = create_batch_ims(to_do_list[s:(s + p)], conf, cap, flipud, T, crop_loc)
+            if preproc_fn is not None:
+                ims = preproc_fn(ims)
+            return ims, p
+
+        _prefetch_future = _prefetch_exec.submit(_load_batch, 0)
+
     for cur_b in tqdm(range(n_batches),**TQDM_PARAMS,unit='batch'):
         cur_start = cur_b * bsize
-        ppe = min(n_list - cur_start, bsize)
-        all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
-
+        if PREFETCH_BATCHES:
+            all_f, ppe = _prefetch_future.result()
+            if cur_b + 1 < n_batches:
+                _prefetch_future = _prefetch_exec.submit(_load_batch, cur_b + 1)
+        else:
+            ppe = min(n_list - cur_start, bsize)
+            all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
+            if preproc_fn is not None:
+                all_f = preproc_fn(all_f)
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict.pop('locs')
         # hmaps = ret_dict.pop('hmaps')
@@ -4163,15 +4194,19 @@ def classify_movie_all(model_type, **kwargs):
     if conf.stage == 'first':
         conf.n_classes = 2
         conf.op_affinity_graph = [[0, 1]]
-    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=train_name)
+    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=train_name, do_split_preproc=True)
+    if isinstance(pred_fn, tuple):
+        preproc_fn, pred_fn = pred_fn
+    else:
+        preproc_fn = None
     no_except = kwargs['no_except']
     del kwargs['no_except']
     with cleaner(close_fn):
         if no_except:
-            trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+            trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, preproc_fn=preproc_fn, **kwargs)
         else:
             try:
-                trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+                trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, preproc_fn=preproc_fn, **kwargs)
             except (IOError, ValueError) as e:
                 trk = None
                 logging.exception('Could not track movie')

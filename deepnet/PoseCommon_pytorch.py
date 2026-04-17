@@ -292,6 +292,7 @@ class coco_loader(torch.utils.data.Dataset):
 
 
 class PoseCommon_pytorch(object):
+    can_split_preproc = False
 
     def __init__(self,conf,name='deepnet',usegpu=True,zero_seeds=False,img_prefix_override=None,debug=False):
         self.conf = conf

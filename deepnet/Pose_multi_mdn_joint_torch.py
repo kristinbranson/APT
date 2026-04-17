@@ -396,6 +396,7 @@ def unravel_index(index, shape):
     return tuple(reversed(out))
 
 class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
+    can_split_preproc = True
 
     def __init__(self,conf,**kwargs):
         super(Pose_multi_mdn_joint_torch, self).__init__(conf, **kwargs)
@@ -1558,7 +1559,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         return out_locs,dpred_out
 
 
-    def get_pred_fn_fast(self, model_file=None,max_n=None,imsz=None):
+    def get_pred_fn_fast(self, model_file=None,max_n=None,imsz=None,do_split_preproc=False):
         if max_n is not None:
             self.conf.max_n_animals = max_n
         if imsz is not None:
@@ -1584,10 +1585,18 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         # conf.batch_size = 1
         match_dist_factor = self.conf.get('multi_match_dist_factor',0.2)
 
-        def pred_fn(ims_in, retrawpred=False):
+        def preproc_fn(ims_in):
             locs_sz = (conf.batch_size, conf.n_classes, 2)
             locs_dummy = np.zeros(locs_sz)
             ims_in, _ = PoseTools.preprocess_ims(ims_in,locs_dummy,conf,False,conf.rescale)
+            # Pad to multiple of 32
+            pad1 = int(np.ceil(ims_in.shape[1]/32)*32 - ims_in.shape[1])
+            pad2 = int(np.ceil(ims_in.shape[2]/32)*32 - ims_in.shape[2])
+            if pad1 > 0 or pad2 > 0:
+                ims_in = np.pad(ims_in, [[0,0],[0,pad1],[0,pad2],[0,0]], mode='constant', constant_values=0)
+            return ims_in
+
+        def infer_fn(ims_in, retrawpred=False):
             ret_dict = {}
             ret_dict['locs'] = []
             ret_dict['locs_joint'] = []
@@ -1598,13 +1607,9 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 ret_dict['preds'] = []
                 ret_dict['raw_locs'] = []
 
-            for ndx, ims in enumerate(ims_in):
-                # do prediction on half grid cell size offset images. o is for offset
-                pad1 = np.ceil(ims.shape[0]/32)*32 - ims.shape[0]
-                pad2 = np.ceil(ims.shape[1]/32)*32 - ims.shape[1]
-                ims = np.pad(ims,[[0,int(pad1)],[0,int(pad2)],[0,0]],mode='constant',constant_values=0)
-                ims = torch.tensor(ims[None]).to(self.device).permute([0,3,1,2])/255.
-                # oims = torch.nn.functional.pad(ims, [0, hsz,0, hsz])[:,:, hsz:, hsz:]
+            for ndx in range(len(ims_in)):
+                # Convert to tensor
+                ims = torch.tensor(ims_in[ndx:ndx+1]).to(self.device).permute([0,3,1,2])/255.
                 with torch.no_grad():
                     preds = self.run_model(ims)
                     preds = self.convert_output(preds)
@@ -1683,11 +1688,17 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             ret_dict['conf_joint'] = np.array(ret_dict['conf_joint'])
             return ret_dict
 
+        def pred_fn(ims_in, retrawpred=False):
+            return infer_fn(preproc_fn(ims_in), retrawpred=retrawpred)
+
         def close_fn():
             del self.model
             torch.cuda.empty_cache()
 
-        return pred_fn, close_fn, latest_model_file
+        if do_split_preproc:
+            return preproc_fn, infer_fn, close_fn, latest_model_file
+        else:
+            return pred_fn, close_fn, latest_model_file
 
 
     def get_pred_fn(self,model_file,**kwargs):
