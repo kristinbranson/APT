@@ -26,6 +26,7 @@ classdef UncertainFramesModel < handle
     isFresh_ = false
       % scalar logical, whether the data in this object is up-to-date with the
       % data in the rest of the Labeler.  (Opposite of stale.)
+    currentBoutIndexMaybe_ = []  % the curently selected bout index, or empty
   end
 
   properties (Dependent)
@@ -36,10 +37,11 @@ classdef UncertainFramesModel < handle
     quantileConfidenceThreshold
     overallMinConfidence
     overallMaxConfidence
+    currentBoutIndexMaybe
   end
 
   properties (Dependent, Hidden)
-    listboxString  % cellstr for listbox display
+    displayStringFromBoutIndex  % cellstr showing the uncertain frame-target pairs (used for listbox display)
   end
 
   methods
@@ -133,8 +135,9 @@ classdef UncertainFramesModel < handle
       obj.labeler_.notify_('updateUncertainFrames') ;
     end
 
-    function result = get.listboxString(obj)
-      % Return a cellstr suitable for display in a listbox.
+    function result = get.displayStringFromBoutIndex(obj)
+      % Return a cellstr showing the frame-target pairs (suitable for use in a
+      % listbox).
       if ~obj.isLaden
         result = {} ;
         return
@@ -164,11 +167,48 @@ classdef UncertainFramesModel < handle
       end
     end  % function
 
-    function [frameIndex, trackletIndex, targetIndex] = frameTrackletAndTargetIndexFromBoutIndex(obj, boutIndex)
+    function [frameIndex, trackletIndex, targetIndex] = frameTrackletAndTargetIndexFromCurrentBoutIndex(obj)
+      % Return the extreme-confidence frame, tracklet index, and target index
+      % for the currently selected bout.  Errors if no bout is currently selected.
+      boutIndex = obj.currentBoutIndexMaybe_ ;
+      if isempty(boutIndex)
+        error('APT:invalidPropertyValue', ...
+              'No current bout index is set') ;
+      end
+      [frameIndex, trackletIndex, targetIndex] = obj.frameTrackletAndTargetIndexFromBoutIndex_(boutIndex) ;
+    end  % function
+
+    function [frameIndex, trackletIndex, targetIndex] = frameTrackletAndTargetIndexFromBoutIndex_(obj, boutIndex)
       % Return the extreme-confidence frame and tracklet index for the given bout.
       frameIndex = obj.extremeFrameFromBoutIndex_(boutIndex) ;
       trackletIndex = obj.trackletIndexFromBoutIndex_(boutIndex) ;
       targetIndex = obj.targetIndexFromBoutIndex_(boutIndex) ;
+    end  % function
+
+    function result = get.currentBoutIndexMaybe(obj)
+      % Return the currently selected bout index, or [] if none is selected.
+      result = obj.currentBoutIndexMaybe_ ;
+    end  % function
+
+    function set.currentBoutIndexMaybe(obj, newValue)
+      % Setter method for currentBoutIndexMaybe.  A valid value is a positive-integer scalar in 1:nBouts.
+      nBouts = numel(obj.startFrameFromBoutIndex_) ;
+      isValid = ...
+        isscalar(newValue) && ...
+        isnumeric(newValue) && ...
+        isreal(newValue) && ...
+        isfinite(newValue) && ...
+        newValue == round(newValue) && ...
+        1 <= newValue && ...
+        newValue <= nBouts ;
+      if isValid
+        obj.currentBoutIndexMaybe_ = newValue ;
+      end
+      obj.labeler_.notify_('updateUncertainFrames') ;
+      if ~isValid
+        error('APT:invalidPropertyValue', ...
+              'Current bout index must be a positive integer in 1:%d', nBouts) ;
+      end
     end  % function
   end  % methods
 

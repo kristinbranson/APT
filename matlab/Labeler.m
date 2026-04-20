@@ -314,6 +314,7 @@ classdef Labeler < handle
 
   properties (Dependent, Hidden)
     backend
+    uncertainFramesCurrentBoutIndexMaybe
   end
 
   %% Movie/Video
@@ -12169,7 +12170,17 @@ classdef Labeler < handle
       % "raw". maybe shldnt be a sep meth
       obj.currTarget = iTgt;
     end
-        
+
+    function setFrameAndTracklet(obj, frameIndex, trackletIndex)
+      % Set the current frame and tracklet for an MA project.
+      % TODO: This is a stub that currently forwards trackletIndex as though it
+      % were a target index.  In MA mode, tracklet indices and target indices
+      % are not in general the same, so this may cause navigation to the wrong
+      % row until a proper implementation lands.  (Previous code in the
+      % uncertain-frames listbox actuation passed targetIndex here instead.)
+      obj.setFrameAndTarget(frameIndex, trackletIndex) ;
+    end  % function
+
     function setFrameAndTarget(obj,frm,iTgt,tfforce)
       % Set to new frame and target for current movie.
       % Prefer setFrame() or setTarget() if possible to
@@ -13955,11 +13966,30 @@ classdef Labeler < handle
 
     function result = get.isLabelingStreamlined(obj)
       result = obj.isLabelingStreamlined_ ;
-    end
+    end  % function
 
     function set.isLabelingStreamlined(obj, newValue)
       obj.isLabelingStreamlined_ = newValue ;
       obj.notify_('updateLabelMenu') ;
-    end
+    end  % function
+
+    function result = get.uncertainFramesCurrentBoutIndexMaybe(obj)
+      % Return the currently selected uncertain-frames bout index, or [] if none.
+      result = obj.uncertainFramesModel_.currentBoutIndexMaybe ;
+    end  % function
+
+    function set.uncertainFramesCurrentBoutIndexMaybe(obj, newValue)
+      % Setter method for uncertainFramesCurrentBoutIndexMaybe.  Stores the
+      % selected bout index on the model and then navigates the Labeler to the
+      % corresponding frame and tracklet/target.
+      ufm = obj.uncertainFramesModel_ ;
+      ufm.currentBoutIndexMaybe = newValue ;  % will error if newValue is invalid
+      [frameIndex, trackletIndex, targetIndex] = ufm.frameTrackletAndTargetIndexFromCurrentBoutIndex() ;
+      if obj.maIsMA
+        obj.setFrameAndTracklet(frameIndex, trackletIndex) ;
+      else
+        obj.setFrameAndTarget(frameIndex, targetIndex) ;
+      end
+    end  % function
   end  % methods
 end  % classdef

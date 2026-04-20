@@ -55,7 +55,7 @@ classdef UncertainFramesController < handle
         obj.thresholdHint_.Visible = 'off' ;
       end
       if model.isLaden
-        strings = model.listboxString ;
+        strings = model.displayStringFromBoutIndex ;
         nEntries = numel(strings) ;
         obj.listbox_.String = strings ;
         obj.listbox_.Value = max(1, min(obj.listbox_.Value, nEntries)) ;

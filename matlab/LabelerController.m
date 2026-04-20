@@ -3708,14 +3708,9 @@ classdef LabelerController < handle
 
     function uncertain_frames_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
       % Navigate to the selected uncertain frame.
-      labeler = obj.labeler_ ;
-      model = labeler.uncertainFramesModel_ ;
-      if ~model.isLaden
-        return
-      end
       selectedIndex = src.Value ;
-      [frm, ~, iTgt] = model.frameTrackletAndTargetIndexFromBoutIndex(selectedIndex) ;
-      labeler.setFrameAndTarget(frm, iTgt) ;
+      labeler = obj.labeler_ ;
+      labeler.uncertainFramesCurrentBoutIndexMaybe = selectedIndex ;
     end  % function
 
     function cbkCropIsCropModeChanged(obj, src, evt)  %#ok<INUSD>
