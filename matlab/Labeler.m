@@ -647,6 +647,7 @@ classdef Labeler < handle
 
   properties (Dependent, Hidden)
     hasTarget  % true iff the current mode has a notion of per-frame target selection (trx loaded, or multi-animal)
+    hasTracklets  % true iff the current tracker has been run and produced tracklet output
   end
   
   %% GT mode
@@ -1292,6 +1293,12 @@ classdef Labeler < handle
     function v = get.hasTarget(obj)
       % Getter for hasTarget.
       v = obj.hasTrx || obj.maIsMA ;
+    end  % function
+
+    function v = get.hasTracklets(obj)
+      % Getter for hasTracklets. False when there is no current tracker.
+      tracker = obj.tracker ;
+      v = ~isempty(tracker) && tracker.hasTracklets ;
     end  % function
 
     function v = get.currTrx(obj)

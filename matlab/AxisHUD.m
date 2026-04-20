@@ -38,7 +38,6 @@ classdef AxisHUD < handle
     hTxts
       % col vec of handles to text uicontrols.  Contains all of hTxtTgt,
       % hTxtLblPt, hTxtTrklet, that are not empty.
-    hasTrklet
   end
 
   methods
@@ -59,10 +58,6 @@ classdef AxisHUD < handle
       obj.cbkHandednessUpdate([],struct('AffectedObject',hAxes)); % initialize
     end
 
-    function result = get.hasTrklet(obj)
-      result = obj.axisHUDModel_.hasTrklet ;
-    end  % function
-    
     function delete(obj)
       obj.clearHTxts_();
 
@@ -118,7 +113,7 @@ classdef AxisHUD < handle
       
       % if obj.labeler_.hasTarget, tgtStr = obj.hTxtTgt.String; end
       % if obj.labeler_.isMultiView, lblPtStr = obj.hTxtLblPt.String; end
-      % if obj.hasTrklet, trkletStr = obj.hTxtTrklet.String; end
+      % if obj.labeler_.hasTracklets, trkletStr = obj.hTxtTrklet.String; end
 
       obj.clearHTxts_();
             
@@ -135,7 +130,7 @@ classdef AxisHUD < handle
         [obj.hTxtLblPt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrLblPoint, 'hud_lblpt') ;
         obj.updateLblPoint_() ;
       end
-      if obj.hasTrklet
+      if obj.labeler_.hasTracklets
         obj.hTxtTrklet = obj.createTextUIControl_(yOffset, obj.txtClrTrklet, 'hud_trklet') ;
         obj.updateTrklet_() ;
       end
@@ -160,7 +155,7 @@ classdef AxisHUD < handle
 
     function updateTrklet_(obj)
       % Update the tracklet readout.
-      assert(obj.hasTrklet) ;
+      assert(obj.labeler_.hasTracklets) ;
       tracker = obj.labeler_.tracker ;
       if isempty(tracker) || isempty(tracker.trkVizer)
         str = '' ;

@@ -38,6 +38,7 @@ classdef DeepTracker < LabelTracker
     isTrainingSplits
     trnName
     trnNameLbl
+    hasTracklets  % true iff this tracker has been run and produced tracklet output
   end
       
     %% train
@@ -286,6 +287,10 @@ classdef DeepTracker < LabelTracker
     function v = get.nview(obj)
       v = obj.lObj.nview;
     end
+    function v = get.hasTracklets(obj)
+      % True iff this tracker has been run and produced tracklet output.
+      v = obj.lObj.maIsMA && ~isempty(obj.trkP) ;
+    end  % function
     function v = get.bgTrnIsRunning(obj)
       % Whether training is running.  Technically, only checks whether the
       % background process that polls for training progress is running.
@@ -3479,7 +3484,6 @@ classdef DeepTracker < LabelTracker
           % Clear the tracklet display from the HUD since there are no
           % predictions to show tracklets for
           if obj.lObj.maIsMA
-            obj.lObj.currImHudModel.hasTrklet = false ;
             obj.lObj.notifyRetrograde('updateHudReadoutFields') ;
           end
           obj.lObj.notifyRetrograde('updateTrkPredViz') ;
@@ -3517,7 +3521,6 @@ classdef DeepTracker < LabelTracker
       tvm.trkInit(obj.trkP) ;
 
       if isa(tvm, 'TrackingVisualizerTrackletsModel')
-        lObj.currImHudModel.hasTrklet = true ;
         lObj.notifyRetrograde('updateHudReadoutFields') ;
       end
 

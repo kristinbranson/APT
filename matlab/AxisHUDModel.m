@@ -6,7 +6,6 @@ classdef AxisHUDModel < handle
 % fields are active, layout constants, colors, and format strings.
 
   properties
-    hasTrklet = false  % scalar logical
 
     % % Layout constants
     % txtXoff = 10
