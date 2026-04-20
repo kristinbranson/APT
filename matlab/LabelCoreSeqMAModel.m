@@ -1,3 +1,4 @@
+
 classdef LabelCoreSeqMAModel < LabelCoreModel
 % Multi-animal sequential labeling model
 %
@@ -92,6 +93,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       lObj = obj.labeler_ ;
       obj.tvm_ = TrackingVisualizerMTModel(lObj, 'labelPointsPlotInfo', 'lblCoreSeqMA') ;
       obj.tvm_.doPch = true ;
+      lObj.notifyRetrograde('updateHudReadoutFields') ;
     end  % function
 
   end  % methods

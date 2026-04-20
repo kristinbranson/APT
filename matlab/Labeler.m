@@ -644,6 +644,10 @@ classdef Labeler < handle
   properties
     maIsMA
   end
+
+  properties (Dependent, Hidden)
+    hasTarget  % true iff the current mode has a notion of per-frame target selection (trx loaded, or multi-animal)
+  end
   
   %% GT mode
   properties (SetAccess=private)
@@ -1284,6 +1288,11 @@ classdef Labeler < handle
     function v = get.hasTrx(obj)
       v = ~isempty(obj.trx);
     end
+
+    function v = get.hasTarget(obj)
+      % Getter for hasTarget.
+      v = obj.hasTrx || obj.maIsMA ;
+    end  % function
 
     function v = get.currTrx(obj)
       if obj.hasTrx
@@ -5648,9 +5657,7 @@ classdef Labeler < handle
         obj.frm2trx = Labeler.trxHlpComputeF2t(obj.nframes,trx);
       end
       
-      obj.currImHudModel.hasTgt = obj.hasTrx || obj.maIsMA ;
-
-      obj.notify_('updateHudReadoutFields') ;      
+      obj.notify_('updateHudReadoutFields') ;
       obj.notify_('didSetTrx') ;
     end
        

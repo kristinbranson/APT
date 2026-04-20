@@ -40,9 +40,8 @@ classdef AxisHUD < handle
     hTxts  
       % col vec of handles to text uicontrols.  Contains all of hTxtTgt,
       % hTxtLblPt, hTxtSusp, hTxtTrklet, that are not empty.
-    hasTgt  % scalar logical
-    hasLblPt 
-    hasSusp 
+    hasLblPt
+    hasSusp
     hasTrklet
   end
 
@@ -63,10 +62,6 @@ classdef AxisHUD < handle
       
       obj.cbkHandednessUpdate([],struct('AffectedObject',hAxes)); % initialize
     end
-
-    function result = get.hasTgt(obj)
-      result = obj.axisHUDModel_.hasTgt ;
-    end  % function
 
     function result = get.hasLblPt(obj)
       result = obj.axisHUDModel_.hasLblPt ;
@@ -134,7 +129,7 @@ classdef AxisHUD < handle
     function updateReadoutFields(obj)
       % Update the readout fields.
       
-      % if obj.hasTgt, tgtStr = obj.hTxtTgt.String; end
+      % if obj.labeler_.hasTarget, tgtStr = obj.hTxtTgt.String; end
       % if obj.hasLblPt, lblPtStr = obj.hTxtLblPt.String; end
       % if obj.hasSusp, suspStr = obj.hTxtSusp.String; end
       % if obj.hasTrklet, trkletStr = obj.hTxtTrklet.String; end
@@ -146,7 +141,7 @@ classdef AxisHUD < handle
       parentpos = obj.hPanel.Position;
       %obj.hPanel.Units = units0;
       yOffset = parentpos(4) - obj.annoHgt; % just below anno
-      if obj.hasTgt
+      if obj.labeler_.hasTarget
         [obj.hTxtTgt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrTarget, 'hud_tgt') ;
         obj.updateTarget_() ;
       end
@@ -166,7 +161,7 @@ classdef AxisHUD < handle
     
     function updateTarget_(obj)
       % Update the target readout.
-      assert(obj.hasTgt) ;
+      assert(obj.labeler_.hasTarget) ;
       targetIndex = obj.labeler_.currTarget ;
       str = sprintf('tgt: %d', targetIndex) ;
       setStringAndFitWidthBang(obj.hTxtTgt, str) ;

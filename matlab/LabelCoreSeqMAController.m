@@ -60,8 +60,6 @@ classdef LabelCoreSeqMAController < LabelCoreController
       
       obj.roiInit() ;
 
-      lObj.currImHudModel.hasTgt = true ;
-      lObj.notify_('updateHudReadoutFields') ;
       mdl.tcOn_ = lObj.isTwoClickAlign ;
 
       obj.tcInitGraphics() ;
