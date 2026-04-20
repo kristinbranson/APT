@@ -349,7 +349,7 @@ classdef DeepTracker < LabelTracker
       deactivate@LabelTracker(obj) ;
       delete(obj.trkVizer) ;
       obj.trkVizer = [] ;
-      obj.lObj.notify_('updateTrkPredViz') ;
+      obj.lObj.notifyRetrograde('updateTrkPredViz') ;
     end  % function
 
     function activate(obj)
@@ -3480,9 +3480,9 @@ classdef DeepTracker < LabelTracker
           % predictions to show tracklets for
           if obj.lObj.maIsMA
             obj.lObj.currImHudModel.hasTrklet = false ;
-            obj.lObj.notify_('updateHudReadoutFields') ;
+            obj.lObj.notifyRetrograde('updateHudReadoutFields') ;
           end
-          obj.lObj.notify_('updateTrkPredViz') ;
+          obj.lObj.notifyRetrograde('updateTrkPredViz') ;
         end
         return
       end
@@ -3518,11 +3518,11 @@ classdef DeepTracker < LabelTracker
 
       if isa(tvm, 'TrackingVisualizerTrackletsModel')
         lObj.currImHudModel.hasTrklet = true ;
-        lObj.notify_('updateHudReadoutFields') ;
+        lObj.notifyRetrograde('updateHudReadoutFields') ;
       end
 
       % Notify controller to create/update TV
-      lObj.notify_('updateTrkPredViz') ;
+      lObj.notifyRetrograde('updateTrkPredViz') ;
     end  % function
     function setHideViz(obj, tf)
       % Set hideViz on model state.  TVM stores the flag; controller

@@ -494,7 +494,6 @@ classdef TestAPT < handle
       %labeller = Labeler() ;
       labeller.initFromConfig(cfg);
       labeller.projNew(cfg.ProjectName);
-      labeller.notify_('projLoaded');
     end
     
     function add_movies_(obj)
@@ -531,7 +530,6 @@ classdef TestAPT < handle
                   labeller.(PROPS.MFACI){ndx}(iview).roi = roi;
                 end
               end
-              labeller.notify_('cropCropsChanged'); 
           end
       end
     end  % function
@@ -936,124 +934,5 @@ classdef TestAPT < handle
       lbl_file = fullfile(data_dir,strcatg(lbl_name,ext));
     end  % function
     
-%     function create_lbl_sh()
-%       % For Stephen's projects, we select 5 movies from the label file, add
-%       % and create a new project based on them. The labels are selected
-%       % from trk files. This project then becomes the old_lbl. As usual
-%       % the naming old_lbl becomes non-sensical, but we will continue to
-%       % use it to expose the limitations of our foresight. I say "ours"
-%       % because I refuse to believe I'm alone in this.
-%       A = loadLbl('/groups/branson/bransonlab/apt/experiments/data/sh_trn5017_20200121.lbl');
-% 
-%       info = struct();
-%       info.npts = 5;
-%       info.nviews = 2;
-%       info.has_trx = false;
-%       info.proj_name = 'sh_test';
-%       cfg = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
-%       cfg.NumViews = info.nviews;
-%       cfg.NumLabelPoints = info.npts;
-%       cfg.Trx.HasTrx = info.has_trx;
-%       cfg.ViewNames = {};
-%       cfg.LabelPointNames = {};
-%       cfg.Track.Enable = true;
-%       cfg.ProjectName = info.proj_name;
-%       FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim' 'InvertMovie' 'AxFontSize' 'ShowAxTicks' 'ShowGrid'};
-%       cfg.View = repmat(cfg.View,cfg.NumViews,1); 
-%       for i=1:numel(cfg.View)
-%         cfg.View(i) = ProjectSetup('structLeavesStr2Double',cfg.View(i),FIELDS2DOUBLIFY);
-%       end
-% 
-%       labeller = Labeler();
-%       labeller.initFromConfig(cfg);
-%       labeller.projNew(cfg.ProjectName);
-%       labeller.notify_('projLoaded');
-% 
-%       PROPS = labeller.gtGetSharedProps();
-%       % select 7 movie sets from > 512, because movies < 512 don't have ortho
-%       % cal calibrations
-%       mov_lbl = [571 653 609 634 729]; 
-%       lbl_space = 20;
-%       for ndx = 1:numel(mov_lbl)
-%         cur_ndx = mov_lbl(ndx);
-%         cur_movs = {};
-%         trk_files = {};
-%         for mndx = 1:info.nviews
-%           in_mov = A.movieFilesAll{cur_ndx,mndx};
-%           cur_movs{mndx} = FSPath.macroReplace(in_mov,A.projMacros);
-%           trk_files{mndx} = strrep(cur_movs{mndx},'.avi','.trk');
-%         end
-%         labeller.movieSetAdd(cur_movs);  
-%         if ndx == 1
-%             labeller.movieSet(1,'isFirstMovie',true);
-%         else
-%             labeller.movieSet(ndx);    
-%         end
-%         crObj = A.viewCalibrationData{cur_ndx};
-%         labeller.viewCalSetCurrMovie(crObj);
-%         for iview = 1:info.nviews
-%           roi = A.movieFilesAllCropInfo{cur_ndx}(iview).roi;
-%           % Set the crops
-%           labeller.(PROPS.MFACI){ndx}(iview).roi = roi;
-%         end
-%         labeller.notify_('cropCropsChanged'); 
-% 
-%         % Add the labels from trk file.
-%         cur_l = labeller.labeledpos{ndx};
-%         ss = size(cur_l);
-%         all_trk = {};
-%         for mndx = 1:info.nviews
-%           trk_in = load(trk_files{mndx},'-mat');
-%           cc = trk_in.pTrk;
-%           cur_idx = 1:lbl_space:size(cc,3);
-%           all_trk{end+1} = cc(:,:,cur_idx);
-%         end
-%         p = cat(1,all_trk{:});
-%         p = reshape(p,[], size(p,3))';
-%         npts = numel(cur_idx);
-%         tgt = ones(npts,1);
-%         frm = cur_idx';
-%         occ = false(npts,ss(1));
-%         tbl = table(frm,tgt,p,occ,'VariableNames',{'frm','iTgt','p','tfocc'});
-%         labeller.labelPosBulkImportTblMov(tbl,ndx);
-% 
-%       end
-% 
-%       % Two movies without labels.
-%       mov_nlbl = [545 694]; 
-%       for ndx = 1:numel(mov_nlbl)
-%         cur_ndx = mov_nlbl(ndx);
-%         cur_movs = {};
-%         trk_files = {};
-%         for mndx = 1:info.nviews
-%           in_mov = A.movieFilesAll{cur_ndx,mndx};
-%           cur_movs{mndx} = FSPath.macroReplace(in_mov,A.projMacros);
-%           trk_files{mndx} = strrep(cur_movs{mndx},'.avi','.trk');
-%         end
-%         labeller.movieSetAdd(cur_movs);  
-%         labeller.movieSet(ndx+numel(mov_lbl));    
-%         crObj = A.viewCalibrationData{cur_ndx};
-%         labeller.viewCalSetCurrMovie(crObj);
-%         for iview = 1:info.nviews
-%           roi = A.movieFilesAllCropInfo{cur_ndx}(iview).roi;
-%           % Set the crops
-%           labeller.(PROPS.MFACI){ndx+numel(mov_lbl)}(iview).roi = roi;
-%         end
-%         labeller.notify_('cropCropsChanged'); 
-% 
-%       end
-% 
-%       uc_fn = LabelerGUI('get_local_fn','set_use_calibration');
-%       uc_fn(labeller.gdata,true);
-%       dstr = datestr(now,'YYYYmmDD');
-%       out_file = fullfile('/groups/branson/bransonlab/mayank/APT_projects/',...
-%         sprintf('sh_test_lbl_%s.lbl',dstr));
-%       labeller.projSaveRaw(out_file);
-%     end    
-    
-%     function cdir = get_cache_dir()
-%       cdir = APT.getdotaptdirpath() ;
-%     end
-        
   end  % methods (Static)
 end  % classdef

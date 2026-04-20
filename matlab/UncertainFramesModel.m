@@ -70,8 +70,8 @@ classdef UncertainFramesModel < handle
     function set.isVisible(obj, newValue)
       obj.isVisible_ = newValue ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
-      obj.labeler_.notify_('updateUncertainFrames') ;
-      obj.labeler_.notify_('didSetUncertainFramesIsVisible') ;
+      obj.labeler_.notifyRetrograde('updateUncertainFrames') ;
+      obj.labeler_.notifyRetrograde('didSetUncertainFramesIsVisible') ;
     end  % function
 
     function result = get.isConfidenceLackThereof(obj)
@@ -85,7 +85,7 @@ classdef UncertainFramesModel < handle
       obj.isConfidenceLackThereof_ = newValue ;
       obj.isFresh_ = false ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
-      obj.labeler_.notify_('updateUncertainFrames') ;
+      obj.labeler_.notifyRetrograde('updateUncertainFrames') ;
     end  % function
 
     function result = get.absoluteConfidenceThreshold(obj)
@@ -111,7 +111,7 @@ classdef UncertainFramesModel < handle
         obj.isFresh_ = false ;
         obj.syncFromPredictionsIfStaleAndVisible_() ;
       end
-      obj.labeler_.notify_('didSetUncertainFramesThreshold') ;
+      obj.labeler_.notifyRetrograde('didSetUncertainFramesThreshold') ;
       if ~isValid
         error('APT:invalidPropertyValue', ...
               'Threshold must be a finite scalar between 0 and 1') ;
@@ -132,7 +132,7 @@ classdef UncertainFramesModel < handle
       % Force a resync from the current tracking predictions.
       obj.isFresh_ = false ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
-      obj.labeler_.notify_('updateUncertainFrames') ;
+      obj.labeler_.notifyRetrograde('updateUncertainFrames') ;
     end
 
     function result = get.displayStringFromBoutIndex(obj)
@@ -204,7 +204,7 @@ classdef UncertainFramesModel < handle
       if isValid
         obj.currentBoutIndexMaybe_ = newValue ;
       end
-      obj.labeler_.notify_('updateUncertainFrames') ;
+      obj.labeler_.notifyRetrograde('updateUncertainFrames') ;
       if ~isValid
         error('APT:invalidPropertyValue', ...
               'Current bout index must be a positive integer in 1:%d', nBouts) ;

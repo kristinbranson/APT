@@ -187,7 +187,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
     function acceptLabels(obj)
       % Accept labels for the current target.
       obj.storeLabels() ;
-      obj.labeler_.notify_('updateTrxTable') ;
+      obj.labeler_.notifyRetrograde('updateTrxTable') ;
       obj.labeler_.restorePrevAxesMode() ;
       obj.beginAccepted() ;
       obj.notify_('updateAccepted') ;
@@ -356,7 +356,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
         % add a new label
         ntgts = lObj.labelNumLabeledTgts() ;
         lObj.setTargetMA(ntgts + 1) ;
-        lObj.notify_('updateTrxTable') ;
+        lObj.notifyRetrograde('updateTrxTable') ;
         obj.beginLabel() ;
       end
     end  % function

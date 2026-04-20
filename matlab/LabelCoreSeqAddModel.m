@@ -161,7 +161,7 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
           labeler = obj.labeler_ ;
           labeler.dialogLaunchPad_ = struct('text', 'No partially labeled frames found within the table! You might be done!', ...
                                             'title', 'Done adding landmarks') ;
-          labeler.notify_('requestMessageBox') ;
+          labeler.notifyRetrograde('requestMessageBox') ;
           return ;
         else
           obj.nexti_ = nextj ;
@@ -197,7 +197,7 @@ classdef LabelCoreSeqAddModel < LabelCoreSeqModel
         labeler = obj.labeler_ ;
         labeler.dialogLaunchPad_ = struct('text', 'No partially labeled frames found! You might be done!', ...
                                           'title', 'Done adding landmarks') ;
-        labeler.notify_('requestMessageBox') ;
+        labeler.notifyRetrograde('requestMessageBox') ;
         return ;
       end
       if obj.labeler_.currMovie ~= mov

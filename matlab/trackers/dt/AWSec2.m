@@ -995,74 +995,74 @@ classdef AWSec2 < handle
       % Test the AWS backend
       
       backend.testText_ = {sprintf('%s: Testing AWS backend...',datestr(now()))};  %#ok<TNOW1,DATST>
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
 
       % test that ssh exists
       backend.testText_{end+1,1} = sprintf('** Testing that ssh is available...'); 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
       backend.testText_{end+1,1} = ''; 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
       if ispc,
         isssh = exist(APT.WINSSHCMD,'file') && exist(APT.WINSCPCMD,'file');
         if isssh,
           backend.testText_{end+1,1} = sprintf('Found ssh at %s',APT.WINSSHCMD); 
-          labeler.notify_('updateBackendTestText');
+          labeler.notifyRetrograde('updateBackendTestText');
         else
           backend.testText_{end+1,1} = sprintf('FAILURE. Did not find ssh in the expected location: %s.',APT.WINSSHCMD); 
-          labeler.notify_('updateBackendTestText');
+          labeler.notifyRetrograde('updateBackendTestText');
           return;
         end
       else
         command0 = apt.ShellCommand({'which', 'ssh'}, apt.PathLocale.wsl, apt.Platform.posix);
         backend.testText_{end+1,1} = command0.char(); 
-        labeler.notify_('updateBackendTestText');
+        labeler.notifyRetrograde('updateBackendTestText');
         [status,result] = command0.run();
         backend.testText_{end+1,1} = result; 
-        labeler.notify_('updateBackendTestText');
+        labeler.notifyRetrograde('updateBackendTestText');
         if status ~= 0,
           backend.testText_{end+1,1} = 'FAILURE. Did not find ssh.'; 
-          labeler.notify_('updateBackendTestText');
+          labeler.notifyRetrograde('updateBackendTestText');
           return;
         end
       end
 
       % Test that md5sum is installed
       backend.testText_{end+1,1} = sprintf('\n** Testing that md5sum is installed...\n'); 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
       command1 = apt.ShellCommand({'which', 'md5sum'}, apt.PathLocale.wsl, apt.Platform.posix);
       backend.testText_{end+1,1} = command1.char(); 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
       [status,result] = command1.run();
       backend.testText_{end+1,1} = result; 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
       if status ~= 0,
         backend.testText_{end+1,1} = 'FAILURE. Did not find md5sum.'; 
-        labeler.notify_('updateBackendTestText');
+        labeler.notifyRetrograde('updateBackendTestText');
         return;
       end
 
       % test that AWS CLI is installed
       backend.testText_{end+1,1} = sprintf('\n** Testing that AWS CLI is installed...\n'); 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
       command2 = apt.ShellCommand({'aws', 'ec2', 'describe-regions', '--output', 'table'}, apt.PathLocale.wsl, apt.Platform.posix);
       backend.testText_{end+1,1} = command2.char(); 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
       [status,result] = AWSec2.syscmd(command2);
       tfsucc = (status==0);      
       backend.testText_{end+1,1} = result; 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
       if ~tfsucc % status ~= 0,
         backend.testText_{end+1,1} = 'FAILURE. Error using the AWS CLI.'; 
-        labeler.notify_('updateBackendTestText');
+        labeler.notifyRetrograde('updateBackendTestText');
         return
       end
 
       % test that apt_dl security group has been created
       backend.testText_{end+1,1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
       command3 = apt.ShellCommand({'aws', 'ec2', 'describe-security-groups'}, apt.PathLocale.wsl, apt.Platform.posix);
       backend.testText_{end+1,1} = command3.char(); 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
       [status,result] = AWSec2.syscmd(command3, 'isjsonout', true);
       tfsucc = (status==0);
       if status == 0,
@@ -1070,7 +1070,7 @@ classdef AWSec2 < handle
           result = jsondecode(result);
           if ismember('apt_dl',{result.SecurityGroups.GroupName}),
             backend.testText_{end+1,1} = 'Found apt_dl security group.'; 
-            labeler.notify_('updateBackendTestText');
+            labeler.notifyRetrograde('updateBackendTestText');
           else
             status = 1;
           end
@@ -1079,20 +1079,20 @@ classdef AWSec2 < handle
         end
         if status == 1,
           backend.testText_{end+1,1} = 'FAILURE. Could not find the apt_dl security group.'; 
-          labeler.notify_('updateBackendTestText');
+          labeler.notifyRetrograde('updateBackendTestText');
         end
       else
         backend.testText_{end+1,1} = result; 
-        labeler.notify_('updateBackendTestText');
+        labeler.notifyRetrograde('updateBackendTestText');
         backend.testText_{end+1,1} = 'FAILURE. Error checking for apt_dl security group.'; 
-        labeler.notify_('updateBackendTestText');
+        labeler.notifyRetrograde('updateBackendTestText');
         return
       end
 
       backend.testText_{end+1,1} = 'SUCCESS!'; 
       backend.testText_{end+1,1} = ''; 
       backend.testText_{end+1,1} = 'All tests passed. AWS Backend should work for you.'; 
-      labeler.notify_('updateBackendTestText');
+      labeler.notifyRetrograde('updateBackendTestText');
     end  % function
   end  % methods
   
