@@ -19,7 +19,6 @@ classdef AxisHUD < handle
     
     txtClrTarget = [1 0.6 0.784]
     txtClrLblPoint = [1 1 0]
-    txtClrSusp = [1 1 1]
     txtClrTrklet = [1 1 1]
   end
   
@@ -30,17 +29,15 @@ classdef AxisHUD < handle
     hPanel  % scalar handle to the uipanel the HUD appears in
     hTxtTgt  % scalar handle to target text uicontrol
     hTxtLblPt  % scalar handle to some kind of text uicontrol
-    hTxtSusp  % scalar handle to suspiciousness text uicontrol
-    hTxtTrklet  % scalar handle to tracklet text uicontrol    
+    hTxtTrklet  % scalar handle to tracklet text uicontrol
     hHandedAnno  % scalar annotation for handedness indicator
     hHandedListnr  % cell array of listeners to main axis .XDir and .YDir
   end
   
   properties (Dependent)
-    hTxts  
+    hTxts
       % col vec of handles to text uicontrols.  Contains all of hTxtTgt,
-      % hTxtLblPt, hTxtSusp, hTxtTrklet, that are not empty.
-    hasSusp
+      % hTxtLblPt, hTxtTrklet, that are not empty.
     hasTrklet
   end
 
@@ -61,10 +58,6 @@ classdef AxisHUD < handle
       
       obj.cbkHandednessUpdate([],struct('AffectedObject',hAxes)); % initialize
     end
-
-    function result = get.hasSusp(obj)
-      result = obj.axisHUDModel_.hasSusp ;
-    end  % function
 
     function result = get.hasTrklet(obj)
       result = obj.axisHUDModel_.hasTrklet ;
@@ -113,12 +106,11 @@ classdef AxisHUD < handle
       % obj.hTxts = matlab.ui.control.UIControl.empty(0,1);
       obj.hTxtTgt = [];
       obj.hTxtLblPt = [];
-      obj.hTxtSusp = [];
       obj.hTxtTrklet = [];
     end
     
     function result = get.hTxts(obj)
-      result = vertcat(obj.hTxtTgt, obj.hTxtLblPt, obj.hTxtSusp, obj.hTxtTrklet) ;
+      result = vertcat(obj.hTxtTgt, obj.hTxtLblPt, obj.hTxtTrklet) ;
     end
 
     function updateReadoutFields(obj)
@@ -126,7 +118,6 @@ classdef AxisHUD < handle
       
       % if obj.labeler_.hasTarget, tgtStr = obj.hTxtTgt.String; end
       % if obj.labeler_.isMultiView, lblPtStr = obj.hTxtLblPt.String; end
-      % if obj.hasSusp, suspStr = obj.hTxtSusp.String; end
       % if obj.hasTrklet, trkletStr = obj.hTxtTrklet.String; end
 
       obj.clearHTxts_();
@@ -143,10 +134,6 @@ classdef AxisHUD < handle
       if obj.labeler_.isMultiView
         [obj.hTxtLblPt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrLblPoint, 'hud_lblpt') ;
         obj.updateLblPoint_() ;
-      end
-      if obj.hasSusp
-        obj.hTxtSusp = obj.createTextUIControl_(yOffset, obj.txtClrSusp, 'hud_susp') ;
-        obj.updateSusp_() ;
       end
       if obj.hasTrklet
         obj.hTxtTrklet = obj.createTextUIControl_(yOffset, obj.txtClrTrklet, 'hud_trklet') ;
@@ -169,14 +156,6 @@ classdef AxisHUD < handle
       iLblPt = obj.labeler_.lblCore.iSetWorking ;
       str = sprintf('Lbl pt: %d/%d', iLblPt, nLblPts) ;
       setStringAndFitWidthBang(obj.hTxtLblPt, str) ;
-    end
-
-    function updateSusp_(obj)
-      % Update the suspiciousness readout.
-      assert(obj.hasSusp) ;
-      suspscore = obj.labeler_.currSusp ;
-      str = sprintf('susp: %.10g', suspscore) ;
-      setStringAndFitWidthBang(obj.hTxtSusp, str) ;
     end
 
     function updateTrklet_(obj)
