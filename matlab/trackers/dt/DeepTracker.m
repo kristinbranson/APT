@@ -1020,7 +1020,7 @@ classdef DeepTracker < LabelTracker
     %   info.algorithm = obj.algorithmNamePretty;
     %   info.isTraining = obj.bgTrnIsRunning;      
     %   obj.trackerInfo = info;
-    %   %obj.lObj.doNotify('update_text_trackerinfo') ;
+    %   %obj.lObj.notifyRetrograde('update_text_trackerinfo') ;
     % end  % function
     
     function info = get.trackerInfo(obj)      
@@ -1029,7 +1029,7 @@ classdef DeepTracker < LabelTracker
       info.algorithm = obj.algorithmNamePretty;
       info.isTraining = obj.bgTrnIsRunning;      
       % obj.trackerInfo = info;
-      % obj.lObj.doNotify('update_text_trackerinfo') ;
+      % obj.lObj.notifyRetrograde('update_text_trackerinfo') ;
     end  % function
     
     
@@ -2787,7 +2787,7 @@ classdef DeepTracker < LabelTracker
     %     obj.lObj.xvResultsTS = now;
     %     fprintf(1,'Set XV results on lObj.xvResults.*\n');
     % 
-    %     obj.lObj.doNotify('trainEnd');
+    %     obj.lObj.notifyRetrograde('trainEnd');
     % 
     %     splitProjDirs = fileparts(fileparts(valresfiles));
     %     imreadfn = @(x)MAGT.readCoco(x,splitProjDirs);
@@ -3409,7 +3409,7 @@ classdef DeepTracker < LabelTracker
         obj.trackCurrResInit();
         obj.vizModelInit_();
       end
-      %obj.lObj.doNotify('newTrackingResults');
+      %obj.lObj.notifyRetrograde('newTrackingResults');
       obj.lObj.setCurPropTypePredictionDefault();
     end  % function
     

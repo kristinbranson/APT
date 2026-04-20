@@ -555,12 +555,12 @@ classdef (Abstract) LabelTracker < handle
   methods
     function set.hideViz(obj, value)
       obj.hideViz = value ;
-      obj.lObj.doNotify('didSetTrackerHideViz') ;
+      obj.lObj.notifyRetrograde('didSetTrackerHideViz') ;
     end    
 
     function set.showPredsCurrTargetOnly(obj, value)
       obj.showPredsCurrTargetOnly = value ;
-      obj.lObj.doNotify('didSetTrackerShowPredsCurrTargetOnly') ;
+      obj.lObj.notifyRetrograde('didSetTrackerShowPredsCurrTargetOnly') ;
     end    
     
     % function copyProperties_(obj, other)

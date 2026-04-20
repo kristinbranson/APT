@@ -13396,10 +13396,10 @@ classdef Labeler < handle
       sendMaybe(obj.tracker, 'abortTracking') ;
     end
     
-    function doNotify(obj, eventName)
+    function notifyRetrograde(obj, eventName)
       % Used by child objects to fire events from the Labeler
       % dbstack
-      % fprintf('About to call tracker.doNotify(''%s'')\n', eventName) ;
+      % fprintf('About to call tracker.notifyRetrograde(''%s'')\n', eventName) ;
       obj.notify_(eventName) ;
     end
 

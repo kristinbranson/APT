@@ -130,7 +130,7 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
     function setSelectedTracklet(obj, iTrklet)
       % Set the selected tracklet index and notify the controller.
       obj.currTrklet = iTrklet ;
-      obj.lObj.doNotify('didSetSelectedTracklet') ;
+      obj.lObj.notifyRetrograde('didSetSelectedTracklet') ;
     end  % function
 
     function setSelectedTrackletFromITrxViz(obj, iTrxViz)
