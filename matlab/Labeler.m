@@ -120,8 +120,7 @@ classdef Labeler < handle
     didSetMovieRotateTargetUp
     didSetMovieForceGrayscale
     % didSetMovieInvert
-    didSetMovieViewBGsubbed
-    
+
     didSetTrxFilesAll
     didSetTrxFilesAllGT
 
@@ -450,10 +449,6 @@ classdef Labeler < handle
     %   % Not much care is taken wrt interactions with cropInfo. If you 
     %   % change your .movieInvert, then your crops will likely be wrong.
     %   % A warning is thrown but nothing else
-  end
-
-  properties (Transient, SetAccess = protected)
-    movieViewBGsubbed = false
   end
 
   properties (Dependent)
@@ -4735,7 +4730,7 @@ classdef Labeler < handle
       cmax_auto = nan(1,obj.nview); %#ok<*PROPLC>
       for iView = 1:obj.nview,
         im = obj.movieReader(iView).readframe(1,...
-          'doBGsub',obj.movieViewBGsubbed,'docrop',false);
+          'doBGsub',false,'docrop',false);
         cmax_auto(iView) = GuessImageMaxValue(im);
         if numel(obj.cmax_auto) >= iView && cmax_auto(iView) == obj.cmax_auto(iView) && ...
             size(obj.clim_manual,1) >= iView && all(~isnan(obj.clim_manual(iView,:))),
@@ -12405,11 +12400,11 @@ classdef Labeler < handle
           if tfCropMode
             [obj.currIm{iView},~,obj.currImRoi{iView}] = ...
               obj.movieReader(iView).readframe(frameIndex,...
-                                               'doBGsub',obj.movieViewBGsubbed,'docrop',false);                   
+                                               'doBGsub',false,'docrop',false);
           else
             [obj.currIm{iView},~,obj.currImRoi{iView}] = ...
               obj.movieReader(iView).readframe(frameIndex,...
-                                               'doBGsub',obj.movieViewBGsubbed,'docrop',true);                  
+                                               'doBGsub',false,'docrop',true);
           end          
         end
         obj.notify_('updateCurrImagesAllViews') ;
@@ -12604,7 +12599,7 @@ classdef Labeler < handle
       % end
       [im,~,imRoi] = ...
         mr.readframe(frm,...
-                     'doBGsub',obj.movieViewBGsubbed,...
+                     'doBGsub',false,...
                      'docrop',~obj.cropIsCropMode);
 
       % to do: figure out what to do when there are multiple views

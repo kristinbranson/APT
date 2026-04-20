@@ -481,8 +481,6 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetMovieForceGrayscale',@(s,e)(obj.cbkMovieForceGrayscaleChanged(s,e)));
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetMovieViewBGsubbed',@(s,e)(obj.cbkMovieViewBGsubbedChanged(s,e)));
-      obj.listeners_(end+1) = ...
         addlistener(labeler,'didInitLblCore',@(src,evt)(obj.didInitLblCore(src, evt)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'gtIsGTModeChanged',@(s,e)(obj.didSetGTMode())) ;
@@ -3628,10 +3626,7 @@ classdef LabelerController < handle
       obj.updateViewMenu() ;
     end  % function
 
-    function cbkMovieViewBGsubbedChanged(obj, src, evt)  %#ok<INUSD>
-    end  % function
-
-    function didSetGTMode(obj)       
+    function didSetGTMode(obj)
       % Updates the controls that depend upon whether the Labeler is in GT mode or
       % not, and then also brings the movie manager window to the fore if we just
       % switched to GT mode.
@@ -7437,23 +7432,6 @@ classdef LabelerController < handle
           warndlg(warnstr,'Image sizes vary','modal');
         end
       end
-    end  % function
-
-    function toggleMovieViewBGsubbed_(obj)
-      lObj = obj.labeler_;
-      old = lObj.movieViewBGsubbed;
-      v = ~old;
-      if v
-        ppPrms = lObj.preProcParams;
-        if isempty(ppPrms) || ...
-            isempty(ppPrms.BackSub.BGType) || isempty(ppPrms.BackSub.BGReadFcn)
-          error('Background type and/or background read function are not set in tracking parameters.');
-        end
-      end
-      lObj.movieViewBGsubbed = v;
-      lObj.hlpSetCurrPrevFrameGUI(lObj.currFrame,true);
-      clim(obj.axes_curr,'auto');
-      lObj.notify_('didSetMovieViewBGsubbed');
     end  % function
 
     function labelMakeLabelMovie_(obj,fname,varargin)
