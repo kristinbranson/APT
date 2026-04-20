@@ -1688,11 +1688,10 @@ classdef LabelerController < handle
     end  % function
 
     function updateHudReadoutFields(obj)
-      % Sync the AxisHUD readout fields from the AxisHUDModel.
+      % Sync the AxisHUD readout fields from Labeler state.
       labeler = obj.labeler_ ;
-      model = labeler.currImHudModel ;
       if isempty(obj.currImHud) || ~isvalid(obj.currImHud)
-        obj.currImHud = AxisHUD(obj, labeler, model, obj.axes_curr.Parent, obj.axes_curr) ;
+        obj.currImHud = AxisHUD(obj, labeler, obj.axes_curr.Parent, obj.axes_curr) ;
       end
       obj.currImHud.updateReadoutFields() ;
     end  % function

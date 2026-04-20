@@ -780,8 +780,7 @@ classdef Labeler < handle
   %% Misc
   properties
     prevFrame = nan       % last previously VISITED frame
-    currTarget_ = 1      % always 1 if proj doesn't have trx    
-    currImHudModel  % scalar AxisHUDModel object. init: C
+    currTarget_ = 1      % always 1 if proj doesn't have trx
   end
 %   properties
 %     keyPressHandlers  % [nhandlerx1] cell array of LabelerKeyEventHandlers.
@@ -1924,8 +1923,8 @@ classdef Labeler < handle
       obj.movieReader = mr;
       obj.currIm = cell(obj.nview,1);
       obj.currImRoi = cell(obj.nview,1);
-      obj.currImHudModel = AxisHUDModel() ;
-      
+
+
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
       obj.movieFrameStepBig = cfg.Movie.FrameStepBig;
       obj.movieShiftArrowNavMode = ShiftArrowMovieNavMode.(cfg.Movie.ShiftArrowNavMode);

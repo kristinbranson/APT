@@ -25,7 +25,6 @@ classdef AxisHUD < handle
   properties
     labelerController_
     labeler_
-    axisHUDModel_
     hPanel  % scalar handle to the uipanel the HUD appears in
     hTxtTgt  % scalar handle to target text uicontrol
     hTxtLblPt  % scalar handle to some kind of text uicontrol
@@ -42,11 +41,10 @@ classdef AxisHUD < handle
 
   methods
     
-    function obj = AxisHUD(labelerController, labeler, axisHUDModel, hPanel, hAxes)
+    function obj = AxisHUD(labelerController, labeler, hPanel, hAxes)
       assert(ishandle(hPanel));
       obj.labelerController_ = labelerController ;
       obj.labeler_ = labeler ;
-      obj.axisHUDModel_ = axisHUDModel ;
       obj.hPanel = hPanel;
       obj.initHandedAnno_();
       obj.clearHTxts_();
