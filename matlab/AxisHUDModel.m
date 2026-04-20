@@ -1,3 +1,4 @@
+
 classdef AxisHUDModel < handle
 % Model layer for AxisHUD.
 %
@@ -5,7 +6,6 @@ classdef AxisHUDModel < handle
 % fields are active, layout constants, colors, and format strings.
 
   properties
-    hasLblPt = false  % scalar logical
     hasSusp = false  % scalar logical
     hasTrklet = false  % scalar logical
 

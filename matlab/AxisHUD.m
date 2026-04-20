@@ -40,7 +40,6 @@ classdef AxisHUD < handle
     hTxts  
       % col vec of handles to text uicontrols.  Contains all of hTxtTgt,
       % hTxtLblPt, hTxtSusp, hTxtTrklet, that are not empty.
-    hasLblPt
     hasSusp
     hasTrklet
   end
@@ -62,10 +61,6 @@ classdef AxisHUD < handle
       
       obj.cbkHandednessUpdate([],struct('AffectedObject',hAxes)); % initialize
     end
-
-    function result = get.hasLblPt(obj)
-      result = obj.axisHUDModel_.hasLblPt ;
-    end  % function
 
     function result = get.hasSusp(obj)
       result = obj.axisHUDModel_.hasSusp ;
@@ -130,7 +125,7 @@ classdef AxisHUD < handle
       % Update the readout fields.
       
       % if obj.labeler_.hasTarget, tgtStr = obj.hTxtTgt.String; end
-      % if obj.hasLblPt, lblPtStr = obj.hTxtLblPt.String; end
+      % if obj.labeler_.isMultiView, lblPtStr = obj.hTxtLblPt.String; end
       % if obj.hasSusp, suspStr = obj.hTxtSusp.String; end
       % if obj.hasTrklet, trkletStr = obj.hTxtTrklet.String; end
 
@@ -145,7 +140,7 @@ classdef AxisHUD < handle
         [obj.hTxtTgt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrTarget, 'hud_tgt') ;
         obj.updateTarget_() ;
       end
-      if obj.hasLblPt
+      if obj.labeler_.isMultiView
         [obj.hTxtLblPt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrLblPoint, 'hud_lblpt') ;
         obj.updateLblPoint_() ;
       end
@@ -169,7 +164,7 @@ classdef AxisHUD < handle
 
     function updateLblPoint_(obj)
       % Update the label-point readout.
-      assert(obj.hasLblPt) ;
+      assert(obj.labeler_.isMultiView) ;
       nLblPts = obj.labeler_.lblCore.nPointSet ;
       iLblPt = obj.labeler_.lblCore.iSetWorking ;
       str = sprintf('Lbl pt: %d/%d', iLblPt, nLblPts) ;

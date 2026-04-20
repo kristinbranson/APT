@@ -1,4 +1,3 @@
-
 classdef LabelCoreSeqMAModel < LabelCoreModel
 % Multi-animal sequential labeling model
 %
