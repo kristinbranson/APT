@@ -9672,9 +9672,10 @@ classdef Labeler < handle
             rois(3,:) - rois(1,:);...
             rois(6,:) - rois(5,:)]';
           
-          conn = rectint(rect,rect)>0;
-          gr = graph(conn);
-          components = conncomp(gr);
+          % conn = rectint(rect,rect)>0;
+          % gr = graph(conn);
+          % components = conncomp(gr);
+          components = 1:size(rois,2);
           ncomp = max(components);
           for cndx = 1:ncomp
             cur_roi = rois(:,components==cndx);

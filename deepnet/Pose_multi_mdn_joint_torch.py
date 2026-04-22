@@ -1103,6 +1103,9 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     break
 
                 cur_ref = all_cur_ref[ndx, ci]  # (n_classes, 2)
+                if torch.all(cur_ref[:,0]>n_x_r*self.ref_scale) or torch.all(cur_ref[:,1]>n_y_r*self.ref_scale) or torch.all(cur_ref<0):
+                    # if the ref prediction is out of bounds, skip NMS since the joint prediction is the fallback and is not expected to be accurate. This also avoids the issue where the ref prediction for all classes are out of bounds and are same, which causes them to suppress each other in NMS.
+                    continue
 
                 # NMS on refined predictions
                 cur_sz = torch.mean(cur_ref.max(dim=-2)[0] - cur_ref.min(dim=-2)[0])
