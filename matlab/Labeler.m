@@ -9657,6 +9657,7 @@ classdef Labeler < handle
 % 
     function crop_sz = get_ma_crop_sz(obj)
       % Get crop sz for MA
+      fprintf('Setting crop size for multi-animal project\n');
       sagg = TrnPack.aggregateLabelsAddRoi(obj,false,...
         obj.trackParams.ROOT.MultiAnimal.Detect.BBox,...
         obj.trackParams.ROOT.MultiAnimal.LossMask);
@@ -9682,6 +9683,10 @@ classdef Labeler < handle
             xmax = max(cur_roi(3,:));
             ymin = min(cur_roi(5,:));
             ymax = max(cur_roi(6,:));
+            if (xmax-xmin > maxx) || (ymax-ymin > maxy),
+              fprintf('movie: %d, frame %d, (%d,%d)\n',ndx,fr,round(xmax-xmin),round(ymax-ymin));
+            end
+
             maxx = max(maxx,xmax-xmin);
             maxy = max(maxy,ymax-ymin);
           end
@@ -9689,6 +9694,7 @@ classdef Labeler < handle
       end
       crop_sz = max(maxx,maxy);
       crop_sz = ceil(crop_sz/min_crop)*min_crop;
+      fprintf('Crop size set to %d\n',crop_sz);
     end
 
     function r = maEstimateTgtCropRad(obj,cropszfac)
