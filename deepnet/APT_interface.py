@@ -1829,14 +1829,14 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         d_x = (conf.imsz[1] - (x_max - x_min)) * 0.9
         r_x = (np.random.rand() - 0.5) * d_x
         x_left = int(round((x_max + x_min) / 2 - conf.imsz[1] / 2 + r_x))
-        x_left = min(x_left, frame.shape[1] - conf.imsz[1])
+        x_left = min(x_left, conf.multi_frame_sz[1] - conf.imsz[1])
         x_left = max(x_left, 0)
         x_right = x_left + conf.imsz[1]
 
         d_y = (conf.imsz[0] - (y_max - y_min)) * 0.9
         r_y = (np.random.rand() - 0.5) * d_y
         y_top = int(round((y_max + y_min) / 2 - conf.imsz[0] / 2 + r_y))
-        y_top = min(y_top, frame.shape[0] - conf.imsz[0])
+        y_top = min(y_top, conf.multi_frame_sz[0] - conf.imsz[0])
         y_top = max(y_top, 0)
         y_bottom = y_top + conf.imsz[0]
 
