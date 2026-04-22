@@ -1840,7 +1840,17 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         y_top = max(y_top, 0)
         y_bottom = y_top + conf.imsz[0]
 
-        assert (y_top-1) <= round(y_min) and (y_bottom+1) >= round(y_max) and (x_left-1) <= round(x_min) and (x_right+1) >= round(x_max), 'Cropping for cluster is improper'
+        ok = ((y_top-1) <= round(y_min) and (y_bottom+1) >= round(y_max)
+              and (x_left-1) <= round(x_min) and (x_right+1) >= round(x_max))
+        if not ok:
+            logging.warning(
+                'Improper crop (roi not fully contained). '
+                'info=%s roi x=[%g,%g] y=[%g,%g] crop x=[%d,%d] y=[%d,%d] '
+                'imsz=%s multi_frame_sz=%s frame.shape=%s. '
+                'Labels outside crop will be dropped.',
+                info, x_min, x_max, y_min, y_max,
+                x_left, x_right, y_top, y_bottom,
+                conf.imsz, conf.multi_frame_sz, frame.shape)
         return x_left, y_top, x_right, y_bottom
 
     def roi2patch(roi_in, x_left, y_top):
