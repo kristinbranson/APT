@@ -70,12 +70,17 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
 
     function [xy, tfeo, iTrx, iTrx2Viz2iTrxNew] = newFrame(obj, frm)
       % Compute per-frame tracklet data for the TV to render.
+      % Basically this seems to set obj.iTrxViz2iTrx appropriately for
+      % the new frame.  -- ALT, 2026-04-21
       ptrx = obj.ptrx ;
       if isempty(ptrx)
         xy = [] ;
         tfeo = [] ;
         iTrx = [] ;
         iTrx2Viz2iTrxNew = zeros(obj.ntrxmax, 1) ;
+        % Seems like a bug that we don't do e.g. 
+        % `obj.iTrxViz2iTrx = iTrx2Viz2iTrxNew ;`
+        % here.  --ALT, 2026-04-21
         return
       end
 
