@@ -623,8 +623,11 @@ classdef Labels
         ann = cocos.annotations(annidx(i));
         px = ann.keypoints(1:3:end);
         py = ann.keypoints(2:3:end);
+        vis = ann.keypoints(3:3:end);
         s.p(:,i) = [px(:);py(:)]+1; % add 1 for 1-indexing
-        s.occ(:,i) = 2-ann.keypoints(3:3:end);
+        s.occ(:,i) = vis(:) == 1;
+        tfFullOcc = vis(:) == 0;
+        s.p([tfFullOcc;tfFullOcc],i) = inf;
         imid = ann.image_id; 
         imidxcurr = find([cocos.images.id]==imid);
         if hasmovies,

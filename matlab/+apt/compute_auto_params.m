@@ -73,6 +73,7 @@ function autoparams = compute_auto_params(lobj)
     y = aligned_labels(:,2,:);
     aligned_labels(:,1,:) = x .* cos_a - y .* sin_a;
     aligned_labels(:,2,:) = x .* sin_a + y .* cos_a;
+    aligned_labels(isinf(aligned_labels)) = nan;
   else
     aligned_labels = all_labels;
   end
@@ -138,8 +139,9 @@ function autoparams = compute_auto_params(lobj)
   end
 
   if has_ht
-    a_min = permute(nanmin(aligned_labels,[],1),[2,3,1]);
-    a_max = permute(nanmax(aligned_labels,[],1),[2,3,1]);
+
+    a_min = permute(min(aligned_labels,[],1,'omitmissing'),[2,3,1]);
+    a_max = permute(max(aligned_labels,[],1,'omitmissing'),[2,3,1]);
     a_span = a_max-a_min;
     a_span_pc = prctile(a_span,98,2);
     a_ratio_pc = prctile(a_span(2,:)./a_span(1,:),[5,50,95]);
