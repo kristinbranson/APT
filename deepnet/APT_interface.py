@@ -2,8 +2,7 @@
 #from __future__ import print_function
 
 PREFETCH_BATCHES = True
-if PREFETCH_BATCHES:
-    from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 import logging
 from operator import truediv
@@ -437,10 +436,15 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
     coco_info['ndx'] += 1
     imfile = os.path.join(coco_info['imdir'], '{:08d}.png'.format(ndx))
     if cur_im.shape[2] == 1:
-        cv2.imwrite(imfile, cur_im[:, :, 0])
+        im_to_write = cur_im[:, :, 0]
     else:
-        cur_im = cv2.cvtColor(cur_im, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(imfile, cur_im)
+        im_to_write = cv2.cvtColor(cur_im, cv2.COLOR_RGB2BGR)
+        cur_im = im_to_write
+    executor = coco_info.get('executor')
+    if executor is not None:
+        executor.submit(cv2.imwrite, imfile, im_to_write)
+    else:
+        cv2.imwrite(imfile, im_to_write)
 
     ann['images'].append(
         {'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': imfile, 'movid': info[0],
@@ -542,16 +546,18 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
     categories = [{'id': 1, 'skeleton': skeleton, 'keypoints': names, 'super_category': 'fly', 'name': 'fly'}, {'id': 2, 'super_category': 'neg_box', 'name': 'neg_box'}]
 
     train_ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
-    train_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'train')}
     val_ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
-    val_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'val')}
     os.makedirs(os.path.join(conf.cachedir, 'train'), exist_ok=True)
     os.makedirs(os.path.join(conf.cachedir, 'val'), exist_ok=True)
+    imwrite_executor = ThreadPoolExecutor(max_workers=4)
+    train_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'train'), 'executor': imwrite_executor}
+    val_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'val'), 'executor': imwrite_executor}
 
     out_fns = [lambda data: convert_to_coco(train_info, train_ann, data, conf),
                lambda data: convert_to_coco(val_info, val_ann, data, conf)]
 
     splits, __ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt, trnpack_val_split=trnpack_val_split)
+    imwrite_executor.shutdown(wait=True)
     # if use_cache:
     # else:
     #     splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples, db_dict=db_dict)
@@ -1795,28 +1801,11 @@ def get_clusters(rois):
 
 def create_mask(roi, sz):
     # sz should be h x w (i.e y first then x)
-    x, y = np.meshgrid(np.arange(sz[1]), np.arange(sz[0]))
-    x = x.flatten()
-    y = y.flatten()
-    pts = np.vstack((x, y)).T
-    grid = None
+    mask = np.zeros(sz, dtype=np.uint8)
     for c in roi:
-        rr = c.tolist()
-        rr.append(rr[0])
-        path = Path(rr)
-        cgrid = path.contains_points(pts)
-        if grid is not None:
-#            logging.warning('Code changed by KB because IDE was showing an error here, let KB know if this breaks!')
-            grid = np.logical_or(grid,cgrid)
-            #grid = grid | cgrid
-        else:
-            grid = cgrid
-
-    if grid is None:
-        mask = np.zeros(sz) > 0.5
-    else:
-        mask = grid.reshape(sz)
-    return mask
+        pts = np.round(c).astype(np.int32)  # (N, 2) array of (x, y)
+        cv2.fillPoly(mask, [pts], color=1)
+    return mask.astype(bool)
 
 
 def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
@@ -1866,9 +1855,14 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         return roi_in
 
     def labels_within_mask(curl, mask):
+        # First FInd all the labels that fall within the patch, then find if their centroid falls within the mask. If multi_loss_mask is false, then all labels that fall within the patch are used for loss. If multi_loss_mask is true, then only those labels whose centroid falls within the mask are used for loss.
+
         sel = np.where(np.all( ((curl[..., 0] >= 0) & (curl[..., 1] >= 0) &
                 (curl[..., 0] < conf.imsz[1]) & (curl[..., 1] < conf.imsz[0])) |
                 np.isnan(curl[...,0]), 1))[0]
+        # remove labels that are all NaNs
+        all_nan = np.all(np.isnan(curl[sel,...,0]), axis=1)
+        sel = sel[~all_nan]
         if conf.multi_loss_mask:
             curl = np.nanmean(curl[sel],axis=1)
             cur_mask_pts = np.round(curl).astype('int')
@@ -1880,15 +1874,20 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
 
     # clusters = get_clusters(roi)
     # n_clusters = len(np.unique(clusters))
-    n_clusters = len(roi)
     all_data = []
     mask_sc = 4
     mask_sz = (conf.multi_frame_sz[0]//mask_sc, conf.multi_frame_sz[1]//mask_sc)
     done_mask = np.zeros(mask_sz) > 1
 
     roi = roi.copy()
+    nan_roi = np.all(np.isnan(roi), axis=(-1,-2))
+    roi = roi[~nan_roi]
     roi[..., 0] = np.clip(roi[..., 0], 0, conf.multi_frame_sz[1])
     roi[..., 1] = np.clip(roi[..., 1], 0, conf.multi_frame_sz[0])
+    n_clusters = len(roi)
+
+    cur_pts = cur_pts.copy()
+    cur_pts = cur_pts[~nan_roi]
 
     if conf.multi_loss_mask or conf.multi_use_mask:
         n_extra_roi = 0 if extra_roi is None else len(extra_roi)
