@@ -5706,20 +5706,6 @@ classdef LabelerController < handle
       obj.navPrefsUI() ;
     end
 
-    % function menu_view_flip_flipud_movie_only_actuated_(obj, src, evt)  %#ok<INUSD>
-    %   labeler = obj.labeler_ ;
-    %   [tfproceed,~,iAxApply] = obj.hlpAxesAdjustPrompt_();  % Prompt which views to flip if multiview
-    %   if tfproceed
-    %     labeler.movieInvert(iAxApply) = ~labeler.movieInvert(iAxApply);
-    %     if labeler.hasMovie
-    %       labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
-    %     end
-    %     if ~labeler.isMultiView,
-    %       toggleOnOff(obj.menu_view_flip_flipud_movie_only,'Checked');
-    %     end
-    %   end
-    % end
-
     function menu_view_flip_flipud_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt_(obj);

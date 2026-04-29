@@ -1713,7 +1713,7 @@ classdef Labeler < handle
         [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
         obj.movieForceGrayscale = v;
         if ~obj.isinit && obj.hasMovie %#ok<MCSUP>
-          obj.setFrame(obj.currFrame, 'tfforcereadmovie', true) ; %#ok<MCSUP>
+          obj.reloadCurrentFrameImages_() ; %#ok<MCSUP>
             % Re-read the current frame so the user sees the new setting
             % without waiting for the next frame change.
         end
@@ -11626,9 +11626,12 @@ classdef Labeler < handle
         obj.syncCropInfoToCurrMov();
       end
       obj.cropIsCropMode = tf;
-      obj.setFrame(obj.currFrame, 'tfforcereadmovie', true) ;
+      obj.reloadCurrentFrameImages_() ;
         % Toggling crop mode changes how the current frame's image is read,
         % so re-read it before notifying the GUI of the mode change.
+      obj.notify_('updateTargetCentrationAndZoom') ;
+        % Crop mode toggle changes the effective image ROI, so the zoom /
+        % centration may need to be refreshed.
       obj.notify_('cropIsCropModeChanged');
     end
     
@@ -12055,9 +12058,8 @@ classdef Labeler < handle
         setframetic = tic;
         starttime = setframetic;   
       end
-      [tfforcereadmovie, updateLabels, updateTables, changeTgtsIfNec] = ...
+      [updateLabels, updateTables, changeTgtsIfNec] = ...
         myparse(varargin, ...
-                'tfforcereadmovie', false, ...
                 'updateLabels', true, ...
                 'updateTables', true, ...
                 'changeTgtsIfNec', false ...
@@ -12101,7 +12103,7 @@ classdef Labeler < handle
       
       % Remainder nearly identical to setFrameAndTarget()
       try
-        obj.setCurrentAndPreviousFrameData_(frm, tfforcereadmovie) ;
+        obj.setCurrentAndPreviousFrameData_(frm, false) ;
       catch ME
         warning(ME.identifier,'Could not set previous frame:\n%s',getReport(ME));
       end
@@ -12466,8 +12468,31 @@ classdef Labeler < handle
       % Note: updatePrevPanelAfterFrameChange is fired by callers (setFrame,
       % setFrameAndTarget) after currTarget etc. have settled.
     end  % function
+
+    function reloadCurrentFrameImages_(obj)
+      % Re-read the current frame's pixels from disk into obj.currIm /
+      % obj.currImRoi and notify the view, without touching prevFrame /
+      % prevIm or firing the rest of the setFrame() update pipeline. Used
+      % when the movie reader's read parameters change (e.g. forceGrayscale,
+      % crop mode) but the current frame index itself does not.
+      tfCropMode = obj.cropIsCropMode ;
+      for iView = 1:obj.nview
+        if tfCropMode
+          [obj.currIm{iView}, ~, obj.currImRoi{iView}] = ...
+            obj.movieReader(iView).readframe(obj.currFrame, ...
+                                             'doBGsub', false, ...
+                                             'docrop', false) ;
+        else
+          [obj.currIm{iView}, ~, obj.currImRoi{iView}] = ...
+            obj.movieReader(iView).readframe(obj.currFrame, ...
+                                             'doBGsub', false, ...
+                                             'docrop', true) ;
+        end
+      end
+      obj.notify_('updateCurrImagesAllViews') ;
+    end  % function
   end
-  
+
   %% PrevAxes
   methods
 
