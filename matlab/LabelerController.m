@@ -5615,13 +5615,8 @@ classdef LabelerController < handle
 
     function menu_view_converttograyscale_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      tf = ~strcmp(src.Checked,'on');
-      labeler.movieForceGrayscale = tf;
-      if labeler.hasMovie
-        % Pure convenience: update image for user rather than wait for next
-        % frame-switch. Could also put this in Labeler.set.movieForceGrayscale.
-        labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
-      end
+      tf = ~strcmp(src.Checked, 'on') ;
+      labeler.movieForceGrayscale = tf ;
     end
 
     function menu_view_gammacorrect_actuated_(obj, src, evt)  %#ok<INUSD>

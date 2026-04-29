@@ -1712,6 +1712,11 @@ classdef Labeler < handle
       if isscalar(v) && islogical(v) ,
         [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
         obj.movieForceGrayscale = v;
+        if ~obj.isinit && obj.hasMovie %#ok<MCSUP>
+          obj.setFrame(obj.currFrame, 'tfforcereadmovie', true) ; %#ok<MCSUP>
+            % Re-read the current frame so the user sees the new setting
+            % without waiting for the next frame change.
+        end
         obj.notify_('didSetMovieForceGrayscale') ;
       else
         obj.notify_('didSetMovieForceGrayscale') ;
