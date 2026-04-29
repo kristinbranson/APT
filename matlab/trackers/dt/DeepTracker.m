@@ -3527,6 +3527,7 @@ classdef DeepTracker < LabelTracker
       % Notify controller to create/update TV
       lObj.notifyRetrograde('updateTrkPredViz') ;
     end  % function
+    
     function setHideViz(obj, tf)
       % Set hideViz on model state.  TVM stores the flag; controller
       % forwards to TV.
@@ -3537,6 +3538,7 @@ classdef DeepTracker < LabelTracker
       end
       obj.hideViz = tf ;
     end  % function
+
     function setShowPredsCurrTargetOnly(obj, tf)
       % Set showOnlyPrimary on model state.
       if ~isempty(obj.trkVizer) && isa(obj.trkVizer, 'TrackingVisualizerMTModel')

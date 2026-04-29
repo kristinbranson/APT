@@ -12055,7 +12055,7 @@ classdef Labeler < handle
                 'updateLabels',true,...
                 'updateTables',true,...
                 'updateTrajs',true,...
-                'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frm
+                'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frame
                 );
       
       if debugtiming,
@@ -12180,13 +12180,18 @@ classdef Labeler < handle
     end
 
     function setFrameAndTracklet(obj, frameIndex, trackletIndex)
-      % Set the current frame and tracklet for an MA project.
-      % TODO: This is a stub that currently forwards trackletIndex as though it
-      % were a target index.  In MA mode, tracklet indices and target indices
-      % are not in general the same, so this may cause navigation to the wrong
-      % row until a proper implementation lands.  (Previous code in the
-      % uncertain-frames listbox actuation passed targetIndex here instead.)
-      obj.setFrameAndTarget(frameIndex, trackletIndex) ;
+      % Set the current frame and select the given tracklet for an MA project.
+      assert(obj.maIsMA, 'setFrameAndTracklet is only valid for MA projects') ;
+      tracker = obj.tracker ;
+      assert(~isempty(tracker) && ~isempty(tracker.trkVizer) && ...
+             isa(tracker.trkVizer, 'TrackingVisualizerTrackletsModel'), ...
+             'setFrameAndTracklet requires a tracker with a tracklet visualizer model') ;
+      obj.setFrame(frameIndex) ;
+        % setFrame() fires updateAfterCurrentFrameSet, whose controller handler
+        % calls tv.newFrame(currFrame).  That refreshes iTrxViz2iTrx for the
+        % new frame, which the didSetSelectedTracklet handler relies on when
+        % it calls tv.updateSelectedTrxID().
+      tracker.trkVizer.setSelectedTracklet(trackletIndex) ;
     end  % function
 
     function setFrameAndTarget(obj,frm,iTgt,tfforce)
