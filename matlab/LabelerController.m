@@ -3708,11 +3708,7 @@ classdef LabelerController < handle
     end  % function
 
     function cbkCropIsCropModeChanged(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;       
-      obj.cropReactNewCropMode_();
-      if labeler.hasProject && labeler.hasMovie
-        labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
-      end
+      obj.cropReactNewCropMode_() ;
     end  % function
 
     function cbkUpdateCropGUITools(obj, src, evt)  %#ok<INUSD>

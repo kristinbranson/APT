@@ -11621,6 +11621,9 @@ classdef Labeler < handle
         obj.syncCropInfoToCurrMov();
       end
       obj.cropIsCropMode = tf;
+      obj.setFrame(obj.currFrame, 'tfforcereadmovie', true) ;
+        % Toggling crop mode changes how the current frame's image is read,
+        % so re-read it before notifying the GUI of the mode change.
       obj.notify_('cropIsCropModeChanged');
     end
     
@@ -12034,7 +12037,7 @@ classdef Labeler < handle
   %% Navigation
   methods
     
-    function setFrame(obj,frm,varargin)
+    function setFrame(obj, frm, varargin)
       % Set movie frame, maintaining current movie/target.
       %
       % CTRL-C note: This is fairly ctrl-c safe; a ctrl-c break may leave
@@ -12093,7 +12096,7 @@ classdef Labeler < handle
       
       % Remainder nearly identical to setFrameAndTarget()
       try
-        obj.setCurrentAndPreviousFrameData_(frm,tfforcereadmovie);
+        obj.setCurrentAndPreviousFrameData_(frm, tfforcereadmovie) ;
       catch ME
         warning(ME.identifier,'Could not set previous frame:\n%s',getReport(ME));
       end
