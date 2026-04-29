@@ -1713,9 +1713,7 @@ classdef Labeler < handle
         [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
         obj.movieForceGrayscale = v;
         if ~obj.isinit && obj.hasMovie %#ok<MCSUP>
-          obj.reloadCurrentFrameImages_() ; %#ok<MCSUP>
-            % Re-read the current frame so the user sees the new setting
-            % without waiting for the next frame change.
+          obj.reloadCurrentFrameImages_() ; 
         end
         obj.notify_('didSetMovieForceGrayscale') ;
       else
