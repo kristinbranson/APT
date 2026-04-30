@@ -142,26 +142,33 @@ classdef UncertainFramesModel < handle
         result = {} ;
         return
       end
-      nBouts = numel(obj.startFrameFromBoutIndex_) ;
-      result = cell(nBouts, 1) ;
-      isMultiTarget = obj.labeler_.hasTrx || obj.labeler_.maIsMA ;
-      for iBout = 1 : nBouts
-        startFrm = obj.startFrameFromBoutIndex_(iBout) ;
-        endFrm = obj.endFrameFromBoutIndex_(iBout) ;
-        conf = obj.extremeConfidenceFromBoutIndex_(iBout) ;
-        isSingleFrame = (startFrm == endFrm) ;
+      boutCount = numel(obj.startFrameFromBoutIndex_) ;
+      result = cell(boutCount, 1) ;
+      isMA = obj.labeler_.maIsMA ;
+      isMultiTarget = obj.labeler_.hasTrx || isMA ;
+      for boutIndex = 1 : boutCount
+        startFrameIndex = obj.startFrameFromBoutIndex_(boutIndex) ;
+        endFrameIndex = obj.endFrameFromBoutIndex_(boutIndex) ;
+        confidence = obj.extremeConfidenceFromBoutIndex_(boutIndex) ;
+        isSingleFrame = (startFrameIndex == endFrameIndex) ;
         if isMultiTarget
-          tgt = obj.targetIndexFromBoutIndex_(iBout) ;
-          if isSingleFrame
-            result{iBout} = sprintf('Frm %d  Tgt %d  Conf %.3f', startFrm, tgt, conf) ;
+          if isMA
+            label = 'Trklet' ;
+            tragletIndex = obj.trackletIndexFromBoutIndex_(boutIndex) ;
           else
-            result{iBout} = sprintf('Frm %d-%d  Tgt %d  Conf %.3f', startFrm, endFrm, tgt, conf) ;
+            label = 'Tgt' ;
+            tragletIndex = obj.targetIndexFromBoutIndex_(boutIndex) ;
+          end
+          if isSingleFrame
+            result{boutIndex} = sprintf('Frm %d  %s %d  Conf %.3f', startFrameIndex, label, tragletIndex, confidence) ;
+          else
+            result{boutIndex} = sprintf('Frm %d-%d  %s %d  Conf %.3f', startFrameIndex, endFrameIndex, label, tragletIndex, confidence) ;
           end
         else
           if isSingleFrame
-            result{iBout} = sprintf('Frm %d  Conf %.3f', startFrm, conf) ;
+            result{boutIndex} = sprintf('Frm %d  Conf %.3f', startFrameIndex, confidence) ;
           else
-            result{iBout} = sprintf('Frm %d-%d  Conf %.3f', startFrm, endFrm, conf) ;
+            result{boutIndex} = sprintf('Frm %d-%d  Conf %.3f', startFrameIndex, endFrameIndex, confidence) ;
           end
         end
       end
