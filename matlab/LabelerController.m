@@ -8661,23 +8661,6 @@ classdef LabelerController < handle
         tv = TrackingVisualizerMT(obj, tvm) ;
       end
     end  % function
-    
-
-
-    function setFrameAndTarget(obj, frm, iTgt, tfforce)
-      % Set to new frame and target for current movie.
-      % Prefer setFrame() or setTarget() if possible to
-      % provide better continuity wrt labeling etc.
-
-      % changed this to default to NOT forcing
-      if nargin < 4
-        tfforce = false;
-      end
-
-      % This is a simple pass-through to the Labeler.  For now.
-      labeler = obj.labeler_ ;
-      labeler.setFrameAndTarget(frm, iTgt, tfforce) ;
-    end  % function
 
     function requestMovieFilesCheckAndUserFinding(obj)
       % Check that movie files exist, prompting user to find them if not.
