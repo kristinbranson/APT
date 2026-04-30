@@ -12100,11 +12100,7 @@ classdef Labeler < handle
       end
       
       % Remainder nearly identical to setFrameAndTarget()
-      try
-        obj.setCurrentAndPreviousFrameData_(frm) ;
-      catch ME
-        warning(ME.identifier,'Could not set previous frame:\n%s',getReport(ME));
-      end
+      obj.setCurrentAndPreviousFrameData_(frm) ;
       
       if debugtiming,
         fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
@@ -12119,8 +12115,6 @@ classdef Labeler < handle
       if updateLabels
         obj.labelsSyncToNewFrame_() ;
       end
-
-      obj.notify_('updatePrevPanelAfterFrameChange') ;
 
       if debugtiming,
         fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
@@ -12198,7 +12192,7 @@ classdef Labeler < handle
       tracker.trkVizer.setSelectedTracklet(trackletIndex) ;
     end  % function
 
-    function setFrameAndTarget(obj,frm,iTgt)
+    function setFrameAndTarget(obj, frm, iTgt)
       % Set to new frame and target for current movie.
       % Prefer setFrame() or setTarget() if possible to
       % provide better continuity wrt labeling etc.
@@ -12211,14 +12205,10 @@ classdef Labeler < handle
           'Target idx %d is not live at current frame (%d).',iTgt,frm);
       end
 
-      try
-        obj.setCurrentAndPreviousFrameData_(frm);
-      catch ME
-        warning(ME.identifier,'Could not set previous frame: %s', ME.message);
-      end
+      obj.setCurrentAndPreviousFrameData_(frm);
 
       if isnan(iTgt)
-        return;
+        return
       end
 
       prevTarget = obj.currTarget;
@@ -12231,8 +12221,6 @@ classdef Labeler < handle
         obj.notify_('updateTrxTable');
         obj.fireUpdateTrxVisibilityMaybe_();  % All this does is send a notification, and only in some cases
       end
-
-      obj.notify_('updatePrevPanelAfterFrameChange') ;
     end  % function setFrameAndTarget
   end
 
@@ -12394,70 +12382,29 @@ classdef Labeler < handle
     end
 
     function setCurrentAndPreviousFrameData_(obj, frameIndex)
-      % helper for setFrame(), setFrameAndTarget()
+      % Helper for setFrame(), setFrameAndTarget().
+      % Sets the current frame to frameIndex, updates obj.prevFrame,
+      % and updates the cache of frame image data by reading from disk.
 
-      currFrameOriginal = obj.currFrame ;
-      % imcurr = controller.image_curr;
-      if isempty(obj.currIm) || isempty(obj.currIm{1})
-        currIm1Original = 0 ;
-        currImRoi1Original = [ 1 1 1 1 ] ;
+      % Limit frameIndex to valid values     
+      if frameIndex<1
+        frameIndex = 1 ;
       else
-        currIm1Original = obj.currIm{1} ;
-        currImRoi1Original = obj.currImRoi{1} ;
-      end
-
-      frameCount = min([obj.movieReader(:).nframes]);
-      if frameIndex > frameCount
-        frameIndex = frameCount ;
-      end
-
-      tfCropMode = obj.cropIsCropMode;
-      for iView=1:obj.nview
-        if tfCropMode
-          [obj.currIm{iView},~,obj.currImRoi{iView}] = ...
-            obj.movieReader(iView).readframe(frameIndex,...
-                                             'doBGsub',false,'docrop',false);
-        else
-          [obj.currIm{iView},~,obj.currImRoi{iView}] = ...
-            obj.movieReader(iView).readframe(frameIndex,...
-                                             'doBGsub',false,'docrop',true);
+        frameCount = min([obj.movieReader(:).nframes]) ;
+        if frameIndex > frameCount
+          frameIndex = frameCount ;
         end
       end
-      obj.notify_('updateCurrImagesAllViews') ;
 
-      obj.currFrame = frameIndex;
+      % Update the frame indices
+      currFrameOriginal = obj.currFrame ;
+      obj.currFrame = frameIndex ;
+      if frameIndex ~= currFrameOriginal
+        obj.prevFrame = currFrameOriginal ;
+      end
 
-      if ~isempty(obj.tracker),
-        obj.tracker.newLabelerFrame();
-      end
-      
-      obj.prevFrame = currFrameOriginal;
-      currIm1Nr = size(obj.currIm{1},1);
-      currIm1Nc = size(obj.currIm{1},2);
-      if ~isequal([size(currIm1Original,1) size(currIm1Original,2)],...
-                  [currIm1Nr currIm1Nc])
-        % In this scenario we do not use currIm1Orig b/c axes_prev and 
-        % axes_curr are linked and that can force the axes into 'manual'
-        % XLimMode and so on. Generally it is disruptive to view-handling.
-        % Ideally maybe we would prefer to catch/handle this in view code,
-        % but there is no convenient hook between setting the image CData
-        % and display.
-        %
-        % Maybe more importantly, the only time the sizes will disagree are 
-        % in edge cases eg when a project is loaded or changed. In this 
-        % case currIm1Orig is not going to represent anything meaningful 
-        % anyway.
-        % obj.prevIm = struct('CData',zeros(currIm1Nr,currIm1Nc),...
-        %                     'XData',1:currIm1Nc,'YData',1:currIm1Nr);
-        obj.prevIm = zeros(currIm1Nr,currIm1Nc) ;
-        obj.prevImRoi = [ 1 currIm1Nc 1 currIm1Nr ] ;
-      else
-        obj.prevIm = currIm1Original ;
-        obj.prevImRoi = currImRoi1Original ;
-      end
-      % obj.prevAxesImFrmUpdate(tfforce) ;
-      % Note: updatePrevPanelAfterFrameChange is fired by callers (setFrame,
-      % setFrameAndTarget) after currTarget etc. have settled.
+      % Reload the frame image cache to match the new frame indices
+      obj.reloadCurrentFrameImages_() ;
     end  % function
 
     function reloadCurrentFrameImages_(obj)
