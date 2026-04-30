@@ -12468,11 +12468,12 @@ classdef Labeler < handle
     end  % function
 
     function reloadCurrentFrameImages_(obj)
-      % Re-read the current frame's pixels from disk into obj.currIm /
-      % obj.currImRoi and notify the view, without touching prevFrame /
-      % prevIm or firing the rest of the setFrame() update pipeline. Used
-      % when the movie reader's read parameters change (e.g. forceGrayscale,
-      % crop mode) but the current frame index itself does not.
+      % Re-read the current and previous frames' pixels from disk into
+      % obj.currIm / obj.currImRoi and obj.prevIm / obj.prevImRoi, and
+      % notify the view, without touching currFrame / prevFrame or firing
+      % the rest of the setFrame() update pipeline. Used when the movie
+      % reader's read parameters change (e.g. forceGrayscale, crop mode)
+      % but the current and previous frame indices themselves do not.
       tfCropMode = obj.cropIsCropMode ;
       for iView = 1:obj.nview
         if tfCropMode
@@ -12488,6 +12489,38 @@ classdef Labeler < handle
         end
       end
       obj.notify_('updateCurrImagesAllViews') ;
+
+      % Re-read the previous frame's pixels (view 1 only) when prevFrame
+      % is a valid frame index. prevFrame can be NaN before any frame
+      % has been visited, in which case prevIm is set to a blank
+      % placeholder below.
+      isPrevFrameValid = ...
+        isscalar(obj.prevFrame) && ...
+        isfinite(obj.prevFrame) && ...
+        obj.prevFrame >= 1 && ...
+        obj.prevFrame <= obj.movieReader(1).nframes ;
+      if isPrevFrameValid
+        if tfCropMode
+          [obj.prevIm, ~, obj.prevImRoi] = ...
+            obj.movieReader(1).readframe(obj.prevFrame, ...
+                                         'doBGsub', false, ...
+                                         'docrop', false) ;
+        else
+          [obj.prevIm, ~, obj.prevImRoi] = ...
+            obj.movieReader(1).readframe(obj.prevFrame, ...
+                                         'doBGsub', false, ...
+                                         'docrop', true) ;
+        end
+      else
+        % No valid previous frame: fall back to a blank image sized to
+        % match the current view-1 image, mirroring the placeholder used
+        % in setCurrentAndPreviousFrameData_().
+        currIm1Nr = size(obj.currIm{1}, 1) ;
+        currIm1Nc = size(obj.currIm{1}, 2) ;
+        obj.prevIm = zeros(currIm1Nr, currIm1Nc) ;
+        obj.prevImRoi = [ 1 currIm1Nc 1 currIm1Nr ] ;
+      end
+      obj.notify_('updatePrevPanel') ;
     end  % function
   end
 
