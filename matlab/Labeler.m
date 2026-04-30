@@ -7884,7 +7884,6 @@ classdef Labeler < handle
         tracker.trkPathFromImovAndViewIndex{iMov, vwi} = trkfiles{vwi} ;
       end
       tracker.trackCurrResUpdate() ;
-      tracker.newLabelerFrame() ;
       obj.setDoesNeedSave(true, 'Imported tracking results') ;
     end
 
@@ -9910,7 +9909,6 @@ classdef Labeler < handle
         newCurrentTracker.activate() ;
         newCurrentTracker.setHideViz(false);
         newCurrentTracker.trackCurrResUpdate() ;
-        newCurrentTracker.newLabelerFrame() ;
       end
       
       % What is this doing, exactly?  -- ALT, 2025-02-05
@@ -13209,7 +13207,6 @@ classdef Labeler < handle
     
     function set.currTarget(obj, newValue)
       obj.currTarget_ = newValue ;
-      sendMaybe(obj.tracker, 'newLabelerTarget')
       obj.notify_('didSetCurrTarget') ;
     end
 
@@ -13328,9 +13325,8 @@ classdef Labeler < handle
     function set.currFrame(obj, newValue)
       obj.currFrame_ = newValue ;
       obj.infoTimelineModel_.didSetCurrFrame(newValue) ;
-      sendMaybe(obj.tracker, 'newLabelerFrame') ;
       obj.notify_('updateAfterCurrentFrameSet') ;
-    end    
+    end
 
     function setPropertiesToFireCallbacksToInitializeUI_(obj)
       % These properties need their callbacks fired to properly init UI.  (For

@@ -95,8 +95,6 @@ classdef (Abstract) LabelTracker < handle
       
       % listeners = { ...
       %   addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
-      %   %addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
-      %   addlistener(labelerObj,'didSetCurrTarget',@(s,e)(obj.newLabelerTarget()));
       %   addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
       %   addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
       %   };
@@ -282,14 +280,6 @@ classdef (Abstract) LabelTracker < handle
       % Default impl: none
     end    
         
-    function newLabelerFrame(obj)
-      % Called when Labeler is navigated to a new frame
-    end
-    
-    function newLabelerTarget(obj)
-      % Called when Labeler is navigated to a new target
-    end
-    
     function newLabelerMovie(obj)
       % Called when Labeler is navigated to a new movie
     end

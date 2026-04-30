@@ -498,7 +498,6 @@ classdef DeepTracker < LabelTracker
         obj.trackResInit();
         obj.trackCurrResUpdate();
         % obj.syncInfoFromDMC_(); % AL: prob unnec but also prob doesn't hurt
-        obj.newLabelerFrame();
       end
     end
 
@@ -514,10 +513,9 @@ classdef DeepTracker < LabelTracker
         obj.trackResInit();
         obj.trackCurrResUpdate();
         % obj.syncInfoFromDMC_(); % AL: prob unnec but also prob doesn't hurt
-        obj.newLabelerFrame();
       end
     end
-      
+
     function v = get.sPrm(obj)
       if isempty(obj.sPrmAll),
         v = [];
@@ -579,7 +577,6 @@ classdef DeepTracker < LabelTracker
       
 %      obj.setHideViz(s.hideViz);
       obj.trackCurrResUpdate();
-      obj.newLabelerFrame();
     end
 
     function updateDLCache(obj, dlcachedir)
@@ -2542,7 +2539,6 @@ classdef DeepTracker < LabelTracker
                 % Jumping to the firstframe was super annoying!!
                 % changing so that we don't MK 20220729
               end
-              obj.newLabelerFrame();
             end
           else
             for i = 1 : numel(movfiles) ,
@@ -2684,20 +2680,16 @@ classdef DeepTracker < LabelTracker
       % What does this do, and why do we do it here?  -- ALT, 2025-04-22
       obj.trackCurrResUpdate();
 
-      % What does this do, and why do we do it here?  -- ALT, 2025-04-22
-      obj.newLabelerFrame();
-      
       % Update the number of completed iterations
       obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
-      
+
       % are there tracking results from previous trackers? TODO This can be
       % moved under bgTrnIsRunning at some point, but right now there can
-      % be mixed up tracking results, so let's always check. 
+      % be mixed up tracking results, so let's always check.
       isCurr = obj.checkTrackingResultsCurrent_() ;
       if ~isCurr
         obj.cleanOutOfDateTrackingResults_();
         obj.trackCurrResUpdate();
-        obj.newLabelerFrame();
         % % MK 20230301 -- tried to make it work for single animal projects
         % % but couldn't create tinfo properly enough after a few feeble
         % % attempts. Abandoning it for someone more valorous.
@@ -2729,7 +2721,6 @@ classdef DeepTracker < LabelTracker
       
       % Do other stuff
       obj.trackCurrResUpdate();
-      obj.newLabelerFrame();
     end  % function
 
     % function args = trnType2ConstructorArgs(obj,trntypes,loc)  %#ok<INUSD>
@@ -3378,7 +3369,6 @@ classdef DeepTracker < LabelTracker
       % FUTURE TODO: For now we do not actually delete the previous trkfiles.
       obj.trackResInit();
       obj.trackCurrResUpdate();
-      obj.newLabelerFrame();
     end  % function
   end  % methods
   
@@ -3563,15 +3553,6 @@ classdef DeepTracker < LabelTracker
 
   %% Labeler nav
   methods
-    function newLabelerFrame(obj)  %#ok<MANU>
-      % Model-only: the controller handles TV.newFrame via its listener.
-      % Keep this as a no-op; the controller calls tv.newFrame directly.
-    end  % function
-
-    function newLabelerTarget(obj)  %#ok<MANU>
-      % Model-only: the controller handles tv.updatePrimary.
-    end  % function
-
     function newLabelerMovie(obj)
       if obj.lObj.hasMovie
         obj.trackCurrResUpdate() ;
@@ -3600,7 +3581,6 @@ classdef DeepTracker < LabelTracker
         % skip this stuff; current movie can never be removed so preds for
         % current movie should not change
         %obj.trackCurrResUpdate();
-        %obj.newLabelerFrame();
       end  
       
       [tf,tpdir] = obj.trainPackExists();
