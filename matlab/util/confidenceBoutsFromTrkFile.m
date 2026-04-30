@@ -2,7 +2,7 @@ function [firstFrameIndexFromSortedBoutIndex, lastFrameIndexFromSortedBoutIndex,
           trackletIndexFromSortedBoutIndex, targetIndexFromSortedBoutIndex, extremalConfFromSortedBoutIndex, ...
           minConf, maxConf, ...
           absoluteThreshold] = ...
-  confidenceBoutsFromTrkFile(trkFile, quantileThreshold, isConfidenceLackThereof)
+  confidenceBoutsFromTrkFile(trkFile, naiveQuantileThreshold, isConfidenceLackThereof)
 % Find bouts of consecutive frames whose confidence is above a threshold.
 %
 % A bout is a maximal contiguous run of consecutive frames (within a single
@@ -50,7 +50,13 @@ end
 minConf = min(minConfFromPairIndex) ;
 maxConf = max(maxConfFromPairIndex) ;
 
-naiveQuantileThreshold = quantileThreshold ;
+% Compute the quantile threshold.  The convention is that a higher quantile
+% threshold should result in fewer points 'passing through the filter'.  If
+% "confidence" is actually lack-of-confidence (i.e. uncertainty), then we
+% can just use naiveQuantileThreshold and this works with quantile().  But
+% if "confidence" really is confidence, we need to use
+% 1-naiveQuantileThreshold when we call quantile() to get the desired
+% semantics.
 quantileThreshold = fif(isConfidenceLackThereof, naiveQuantileThreshold, 1-naiveQuantileThreshold) ;
 confFromPairIndex = fif(isConfidenceLackThereof, maxConfFromPairIndex, minConfFromPairIndex) ;
 absoluteThreshold = quantile(confFromPairIndex, quantileThreshold) ;
