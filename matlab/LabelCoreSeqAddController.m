@@ -24,7 +24,7 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
       mdl = obj.model_ ;
       obj.txLblCoreAux_.Visible = 'on' ;
       obj.refreshTxLabelCoreAux() ;
-      set(obj.tbAccept_, 'Enable', 'off', 'Style', 'pushbutton') ;
+      set(obj.labelerController_.tbAccept, 'Enable', 'off', 'Style', 'pushbutton') ;
 
       % Old points are not selectable or movable
       nold = mdl.nold_ ;
@@ -44,16 +44,16 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
       mdl = obj.model_ ;
       switch mdl.state
         case LabelState.LABEL
-          set(obj.tbAccept_, 'BackgroundColor', [0 0 0.4], ...
+          set(obj.labelerController_.tbAccept, 'BackgroundColor', [0 0 0.4], ...
             'String', 'Adding', 'Enable', 'off', 'Value', 0) ;
           set(obj.hPts_(ishandle(obj.hPts_)), 'HitTest', 'off') ;
         case LabelState.ADJUST
-          set(obj.tbAccept_, 'BackgroundColor', [0.6 0 0], 'String', 'Accept', ...
+          set(obj.labelerController_.tbAccept, 'BackgroundColor', [0.6 0 0], 'String', 'Accept', ...
             'Value', 0, 'Enable', 'off') ;
         case LabelState.ACCEPTED
           hptsadd = obj.hPts_(mdl.nold_+1:end) ;
           set(hptsadd(ishandle(hptsadd)), 'HitTest', 'on') ;
-          set(obj.tbAccept_, 'BackgroundColor', [0 0.4 0], 'String', 'Next', ...
+          set(obj.labelerController_.tbAccept, 'BackgroundColor', [0 0.4 0], 'String', 'Next', ...
             'Value', 1, 'Enable', 'on') ;
         otherwise
           error('LabelCoreSeqAddController:unknownState', ...

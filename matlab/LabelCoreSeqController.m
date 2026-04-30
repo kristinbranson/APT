@@ -23,7 +23,7 @@ classdef LabelCoreSeqController < LabelCoreController
       % Initialize Seq-specific graphics state.
       obj.txLblCoreAux_.Visible = 'on' ;
       obj.refreshTxLabelCoreAux() ;
-      set(obj.tbAccept_, 'Enable', 'off') ;
+      set(obj.labelerController_.tbAccept, 'Enable', 'off') ;
     end  % function
 
   end  % methods
@@ -36,15 +36,15 @@ classdef LabelCoreSeqController < LabelCoreController
       mdl = obj.model_ ;
       switch mdl.state
         case LabelState.LABEL
-          set(obj.tbAccept_, 'BackgroundColor', [0.4 0 0], ...
+          set(obj.labelerController_.tbAccept, 'BackgroundColor', [0.4 0 0], ...
             'String', 'Unlabeled', 'Enable', 'off', 'Value', 0) ;
           set(obj.hPts_(ishandle(obj.hPts_)), 'HitTest', 'off') ;
         case LabelState.ADJUST
-          set(obj.tbAccept_, 'BackgroundColor', [0.6 0 0], 'String', 'Accept', ...
+          set(obj.labelerController_.tbAccept, 'BackgroundColor', [0.6 0 0], 'String', 'Accept', ...
             'Value', 0, 'Enable', 'off') ;
         case LabelState.ACCEPTED
           set(obj.hPts_(ishandle(obj.hPts_)), 'HitTest', 'on') ;
-          set(obj.tbAccept_, 'BackgroundColor', [0 0.4 0], 'String', 'Labeled', ...
+          set(obj.labelerController_.tbAccept, 'BackgroundColor', [0 0.4 0], 'String', 'Labeled', ...
             'Value', 1, 'Enable', 'off') ;
         otherwise
           error('LabelCoreSeqController:unknownState', ...

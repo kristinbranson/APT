@@ -25,8 +25,6 @@ classdef LabelCoreController < handle
     hAx_                    % [nview] axis handles (first is main axis)
     hIms_                   % [nview] image handles
     hAxOcc_                 % [nview] scalar handle, occluded-axis
-    tbAccept_               % scalar handle, togglebutton
-    pbClear_                % scalar handle, clearbutton
     txLblCoreAux_           % scalar handle, auxiliary text
 
     hPts_                   % [nPts x 1] point handles
@@ -72,10 +70,8 @@ classdef LabelCoreController < handle
       obj.hAx_ = labelerController.axes_all ;
       obj.hIms_ = labelerController.images_all ;
       obj.hAxOcc_ = labelerController.axes_occ ;
-      obj.tbAccept_ = labelerController.tbAccept ;
-      obj.pbClear_ = labelerController.pbClear ;
       obj.txLblCoreAux_ = labelerController.txLblCoreAux ;
-      set(obj.tbAccept_, 'Style', 'togglebutton') ;
+      set(labelerController.tbAccept, 'Style', 'togglebutton') ;
     end  % function
 
     function init(obj)

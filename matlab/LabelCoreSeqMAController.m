@@ -510,14 +510,14 @@ classdef LabelCoreSeqMAController < LabelCoreController
     end  % function
 
     function layoutControls(obj)
-      % Reposition the ROI and MA buttons to track tbAccept_/pbClear_.
+      % Reposition the ROI and MA buttons to track tbAccept/pbClear.
       % Needed because layoutMainFigure_() in LabelerController moves
-      % tbAccept_/pbClear_ when the figure is below the minimum layout size,
+      % tbAccept/pbClear when the figure is below the minimum layout size,
       % but it does not know about the buttons added on top of them.
 
       YOFF_PIXELS = 7 ;
-      obj.pbRoiNew_.Position  = obj.tbAccept_.Position ;
-      obj.pbRoiEdit_.Position = obj.pbClear_.Position ;
+      obj.pbRoiNew_.Position  = obj.labelerController_.tbAccept.Position ;
+      obj.pbRoiEdit_.Position = obj.labelerController_.pbClear.Position ;
       newTgtPos = obj.pbRoiNew_.Position ;
       newTgtPos(2) = newTgtPos(2) + newTgtPos(4) + YOFF_PIXELS ;
       obj.pbNewTgt_.Position = newTgtPos ;
@@ -588,7 +588,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
     function roiAddButtons(obj)
       % Create ROI-related pushbuttons (New Label Box, Edit Label Boxes).
 
-      btn = obj.tbAccept_ ;
+      btn = obj.labelerController_.tbAccept ;
       pbRoiNew = uicontrol( ...
         'parent', obj.hFig_(1), ...
         'style', 'pushbutton', ...
@@ -603,7 +603,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       ) ;
       obj.pbRoiNew_ = pbRoiNew ;
 
-      btn = obj.pbClear_ ;
+      btn = obj.labelerController_.pbClear ;
       pbRoiEdit = uicontrol( ...
         'parent', obj.hFig_(1), ...
         'style', 'togglebutton', ...
