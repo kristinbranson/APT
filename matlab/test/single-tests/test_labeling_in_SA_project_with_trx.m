@@ -40,7 +40,7 @@ for iFrame = 1:nFramesToLabel
   % Navigate to a different target for each iteration (stay on same frame)
   if iFrame > 1
     nextTgt = mod(iTgt - 1 + (iFrame - 1), labeler.nTrx) + 1 ;
-    labeler.setFrameAndTarget(iFrm, nextTgt, true) ;
+    labeler.setFrameAndTarget(iFrm, nextTgt) ;
     drawnow() ;
     iTgt = nextTgt ;
 

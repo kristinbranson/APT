@@ -2687,7 +2687,7 @@ classdef Labeler < handle
             s.currFrame = 1;
             s.currTarget = 1;
           end
-          obj.setFrameAndTarget(s.currFrame,s.currTarget,true); % force updates of everything
+          obj.setFrameAndTarget(s.currFrame,s.currTarget);
         end
       end
       fprintf('Opened current movie (%f s).\n',toc(t0));
@@ -4779,7 +4779,7 @@ classdef Labeler < handle
       obj.trxSet(trxvar);
       %obj.trxfile = trxFile; % this must come after .trxSet() call
         
-      obj.setFrameAndTarget(1,1,true);
+      obj.setFrameAndTarget(1,1);
       
       obj.isinit = isInitOrig;  % end Initialization hell      
 
@@ -4823,10 +4823,10 @@ classdef Labeler < handle
       % Proj/Movie/LblCore initialization can maybe be improved
       % Call setFrame again now that lblCore is set up
       if obj.hasTrx
-        obj.setFrameAndTarget(obj.currTrx.firstframe, obj.currTarget, true);
+        obj.setFrameAndTarget(obj.currTrx.firstframe, obj.currTarget);
       else
-        obj.setFrameAndTarget(1, 1, true);
-      end            
+        obj.setFrameAndTarget(1, 1);
+      end
     end  % function
     
     function tfsuccess = movieSetMIdx(obj,mIdx,varargin)
@@ -12198,18 +12198,13 @@ classdef Labeler < handle
       tracker.trkVizer.setSelectedTracklet(trackletIndex) ;
     end  % function
 
-    function setFrameAndTarget(obj,frm,iTgt,tfforce)
+    function setFrameAndTarget(obj,frm,iTgt)
       % Set to new frame and target for current movie.
       % Prefer setFrame() or setTarget() if possible to
       % provide better continuity wrt labeling etc.
-     
+
 %       validateattributes(iTgt,{'numeric'},...
 %         {'positive' 'integer' '<=' obj.nTargets});
-
-      % changed this to default to NOT forcing
-      if nargin < 4,
-        tfforce = false;
-      end
 
       if ~obj.isinit && obj.hasTrx && ~obj.frm2trx(frm,iTgt)
         error('Labeler:target',...
@@ -12217,7 +12212,7 @@ classdef Labeler < handle
       end
 
       try
-        obj.setCurrentAndPreviousFrameData_(frm,tfforce);
+        obj.setCurrentAndPreviousFrameData_(frm,true);
       catch ME
         warning(ME.identifier,'Could not set previous frame: %s', ME.message);
       end
