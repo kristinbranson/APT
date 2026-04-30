@@ -46,6 +46,6 @@ set(ht,...
   'FontSize',14,...
   'FontColor',[1 1 1]);
 
-drawnow('expose', 'nocallbacks') ;  % Allegedly blocks until uifigure is actually showing, but doesn't seem to work.
+drawnow('nocallbacks') ;  % Allegedly blocks until uifigure is actually showing, but doesn't seem to work.
 
 end  % function
