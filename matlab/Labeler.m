@@ -12101,7 +12101,7 @@ classdef Labeler < handle
       
       % Remainder nearly identical to setFrameAndTarget()
       try
-        obj.setCurrentAndPreviousFrameData_(frm, false) ;
+        obj.setCurrentAndPreviousFrameData_(frm) ;
       catch ME
         warning(ME.identifier,'Could not set previous frame:\n%s',getReport(ME));
       end
@@ -12212,7 +12212,7 @@ classdef Labeler < handle
       end
 
       try
-        obj.setCurrentAndPreviousFrameData_(frm,true);
+        obj.setCurrentAndPreviousFrameData_(frm);
       catch ME
         warning(ME.identifier,'Could not set previous frame: %s', ME.message);
       end
@@ -12393,7 +12393,7 @@ classdef Labeler < handle
       obj.movieFilesAllGTHaveLbls = cellfun(fcnNumLbledRows,obj.labelsGT);
     end
 
-    function setCurrentAndPreviousFrameData_(obj, frameIndex, tfforce)
+    function setCurrentAndPreviousFrameData_(obj, frameIndex)
       % helper for setFrame(), setFrameAndTarget()
 
       currFrameOriginal = obj.currFrame ;
@@ -12411,26 +12411,24 @@ classdef Labeler < handle
         frameIndex = frameCount ;
       end
 
-      if obj.currFrame~=frameIndex || tfforce
-        tfCropMode = obj.cropIsCropMode;        
-        for iView=1:obj.nview
-          if tfCropMode
-            [obj.currIm{iView},~,obj.currImRoi{iView}] = ...
-              obj.movieReader(iView).readframe(frameIndex,...
-                                               'doBGsub',false,'docrop',false);
-          else
-            [obj.currIm{iView},~,obj.currImRoi{iView}] = ...
-              obj.movieReader(iView).readframe(frameIndex,...
-                                               'doBGsub',false,'docrop',true);
-          end          
+      tfCropMode = obj.cropIsCropMode;
+      for iView=1:obj.nview
+        if tfCropMode
+          [obj.currIm{iView},~,obj.currImRoi{iView}] = ...
+            obj.movieReader(iView).readframe(frameIndex,...
+                                             'doBGsub',false,'docrop',false);
+        else
+          [obj.currIm{iView},~,obj.currImRoi{iView}] = ...
+            obj.movieReader(iView).readframe(frameIndex,...
+                                             'doBGsub',false,'docrop',true);
         end
-        obj.notify_('updateCurrImagesAllViews') ;
+      end
+      obj.notify_('updateCurrImagesAllViews') ;
 
-        obj.currFrame = frameIndex;
-        
-        if ~isempty(obj.tracker),
-          obj.tracker.newLabelerFrame();
-        end
+      obj.currFrame = frameIndex;
+
+      if ~isempty(obj.tracker),
+        obj.tracker.newLabelerFrame();
       end
       
       obj.prevFrame = currFrameOriginal;
