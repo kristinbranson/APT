@@ -170,6 +170,11 @@ classdef LabelCoreController < handle
       % Called from init(). Override in subclasses.
     end  % function
 
+    function layoutControls(obj) %#ok<MANU>
+      % Reposition controller-owned widgets in response to a figure resize.
+      % Override in subclasses that add their own widgets to the main figure.
+    end  % function
+
   end  % methods
 
   %% Model event handlers

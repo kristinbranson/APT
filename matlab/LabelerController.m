@@ -3909,7 +3909,7 @@ classdef LabelerController < handle
       % Constants that define features of the layout.  If not specified, these
       % are in logical pixels.
       minLayoutWidth = 968 ;  % If the fig is narrower than this, we pretend it's this width when doing layout
-      minLayoutHeight = 1024 ;  % If the fig is shorter than this, we pretend it's this height when doing layout
+      minLayoutHeight = 1040 ;  % If the fig is shorter than this, we pretend it's this height when doing layout
       leftSidebarWidth = 450 ;
         % The main figure has a bunch of controls in a fixed-width area on the left
         % margin of the figure.  This is the width of this area.
@@ -4057,6 +4057,9 @@ classdef LabelerController < handle
       %% --- Subcontrollers ---
       if ~isempty(obj.currImHud) && isvalid(obj.currImHud)
         obj.currImHud.layout() ;
+      end
+      if ~isempty(obj.lblCoreController_)
+        obj.lblCoreController_.layoutControls() ;
       end
     end  % function
 
