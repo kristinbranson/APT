@@ -194,6 +194,7 @@ classdef Labeler < handle
     requestMacroizationGUI
     requestMessageBox
     requestQuestionDialog
+    updateLabelCoreTrackResForCurrentTarget
     updateUncertainFrames
     didSetUncertainFramesThreshold
     didSetUncertainFramesIsVisible
@@ -6427,7 +6428,62 @@ classdef Labeler < handle
       end
       obj.labeledposNeedsSave = true;
     end
-      
+
+    function setLabelsFromTrackerPredictionsForCurrentFrame(obj)
+      % Set labels from the current tracker's predictions for the current frame.
+      % For MA projects, adds a new target whose label is set from the
+      % currently-selected tracklet's prediction at the current frame.  For SA
+      % projects, sets the current target's label from the tracker's prediction
+      % for the current target at the current frame.
+
+      if obj.gtIsGTMode
+        error('APT:unsupportedInGTMode', 'Unsupported in GT mode.') ;
+      end
+
+      if obj.currMovie == 0
+        error('APT:noMovieOpen', 'No movie open.') ;
+      end
+
+      tracker = obj.tracker ;
+      frm = obj.currFrame ;
+
+      if obj.maIsMA
+        % MA: use predictions for the currently-selected tracklet
+        if isempty(tracker) || isempty(tracker.trkVizer)
+          error('APT:noPredictions', ...
+                'No predictions for current frame or no valid tracklet selected.  Nothing to use as a label.') ;
+        end
+        [tfhaspred, xy, tfocc] = tracker.getTrackingResultsCurrFrm() ;
+        iTgt = tracker.trkVizer.currTrklet ;
+        if isnan(iTgt) || ~tfhaspred(iTgt)
+          error('APT:noPredictions', ...
+                'No predictions for current frame or no valid tracklet selected.  Nothing to use as a label.') ;
+        end
+        xy = xy(:,:,iTgt) ;
+        occ = tfocc(:,iTgt) ;
+        nTgts = obj.labelNumLabeledTgts() ;
+        obj.setTargetMA(nTgts+1) ;
+        obj.labelPosSet(xy, occ) ;
+        obj.notify_('updateTrxTable') ;
+        obj.setTarget(nTgts+1) ;
+        obj.notify_('updateLabelCoreTrackResForCurrentTarget') ;
+      else
+        % SA: use the tracker prediction for the current target
+        if isempty(tracker)
+          error('APT:noPredictions', 'No predictions for current frame.') ;
+        end
+        [tfhaspred, xy, ~] = tracker.getTrackingResultsCurrFrm() ;
+        iTgt = obj.currTarget ;
+        if ~tfhaspred(iTgt)
+          error('APT:noPredictions', 'No predictions for current frame.') ;
+        end
+        xy = xy(:,:,iTgt) ;
+        lpos2xy = reshape(xy, obj.nLabelPoints, 2) ;
+        obj.labelPosSet(lpos2xy) ;
+        obj.lblCore.newFrame(frm, frm, 1, true) ;
+      end
+    end  % function
+
 %     function labelPosSetI(obj,xy,iPt)
 %       % Set labelpos for current movie/frame/target
 %             

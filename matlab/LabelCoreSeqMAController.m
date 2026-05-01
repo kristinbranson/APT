@@ -125,6 +125,11 @@ classdef LabelCoreSeqMAController < LabelCoreController
       end
     end  % function
 
+    function updateTrackResI(obj, xy, tfeo, iTgt)
+      % Pass-through method for calling obj.tv_.updateTrackResI()
+      obj.tv_.updateTrackResI(xy, tfeo, iTgt) ;
+    end
+    
     function updateAccepted(obj)
       % Respond to acceptLabels: update tv for current target, restore hittest.
 

@@ -594,6 +594,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'requestMessageBox',@(s,e)(obj.requestMessageBox())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'requestQuestionDialog',@(s,e)(obj.requestQuestionDialog())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updateLabelCoreTrackResForCurrentTarget',@(s,e)(obj.updateLabelCoreTrackResForCurrentTarget())) ;
 
 
 
@@ -6009,58 +6011,7 @@ classdef LabelerController < handle
 
     function menu_label_set_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       % Set labels from tracker predictions for current frame
-      labeler = obj.labeler_ ;
-
-      tracker = labeler.tracker;
-      if labeler.gtIsGTMode
-        error('LabelerGUI:gt','Unsupported in GT mode.');
-      end
-
-      iMov = labeler.currMovie ;
-      if iMov==0
-        error('LabelerGUI:setLabels','No movie open.');
-      end
-
-      frm = labeler.currFrame;
-
-      if labeler.maIsMA
-        % MA: use tracker predictions
-        if isempty(tracker) || isempty(tracker.trkVizer)
-          obj.nonmodalMessageBox_('No predictions for current frame or no valid tracklet selected. Nothing to use as a label') ;
-          return
-        end
-        [tfhaspred,xy,tfocc] = tracker.getTrackingResultsCurrFrm();
-        iTgt = tracker.trkVizer.currTrklet;
-        if isnan(iTgt) || ~tfhaspred(iTgt)
-          obj.nonmodalMessageBox_('No predictions for current frame or no valid tracklet selected. Nothing to use as a label') ;
-          return
-        end
-        xy = xy(:,:,iTgt) ;
-        occ = tfocc(:,iTgt);
-        ntgts = labeler.labelNumLabeledTgts();
-        labeler.setTargetMA(ntgts+1);
-        labeler.labelPosSet(xy,occ);
-        obj.updateTrxTable();
-        labeler.setTarget(ntgts+1);
-        iTgt = labeler.currTarget;
-        obj.lblCoreController_.tv_.updateTrackResI(xy, occ, iTgt) ;
-      else
-        % SA: use tracker predictions
-        if isempty(tracker)
-          obj.nonmodalMessageBox_('No predictions for current frame.') ;
-          return
-        end
-        [tfhaspred,xy,tfocc] = tracker.getTrackingResultsCurrFrm(); %#ok<ASGLU>
-        itgt = labeler.currTarget;
-        if ~tfhaspred(itgt)
-          obj.nonmodalMessageBox_('No predictions for current frame.') ;
-          return
-        end
-        xy = xy(:,:,itgt) ;
-        lpos2xy = reshape(xy,labeler.nLabelPoints,2);
-        labeler.labelPosSet(lpos2xy);
-        labeler.lblCore.newFrame(frm,frm,1,true);
-      end
+      obj.labeler_.setLabelsFromTrackerPredictionsForCurrentFrame() ;
     end  % function
 
 
@@ -8693,6 +8644,19 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       params = labeler.dialogLaunchPad ;
       obj.nonmodalMessageBox_(params.text, params.title) ;
+    end  % function
+
+    function updateLabelCoreTrackResForCurrentTarget(obj)
+      % Update the LabelCore tracking visualizer for the current target's
+      % stored label.  Fired by the Labeler after it sets a label from a
+      % tracker prediction.
+      labeler = obj.labeler_ ;
+      iTgt = labeler.currTarget ;
+      [tf, xy, occ] = labeler.labelPosIsLabeled(labeler.currFrame, iTgt) ;
+      if ~tf
+        return
+      end
+      obj.lblCoreController_.updateTrackResI(xy, occ, iTgt) ;
     end  % function
 
     function requestQuestionDialog(obj)
