@@ -8485,19 +8485,15 @@ classdef Labeler < handle
   
   methods (Access=private)
     
-    function labelsSyncToNewFrame_(obj, force)
-      %ticinfo = tic;
-      if obj.isinit || ~obj.hasMovie
-        return;
+    function labelsSyncToNewFrame_(obj, doForce)
+      if ~obj.isinit && obj.hasMovie
+        if ~exist('doForce','var') || isempty(doForce)
+          doForce = false;
+        end
+        if ~isempty(obj.lblCore) && (obj.prevFrame~=obj.currFrame || doForce)
+          obj.lblCore.newFrame(obj.prevFrame, obj.currFrame, obj.currTarget) ;
+        end
       end
-      if exist('force','var')==0
-        force = false;
-      end
-      %fprintf('labelsUpdateNewFrame 1: %f\n',toc(ticinfo)); ticinfo = tic;
-      if ~isempty(obj.lblCore) && (obj.prevFrame~=obj.currFrame || force)
-        obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
-      end
-      %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
       obj.notify_('updatePrevAxesLabels') ;
     end
 
@@ -12049,11 +12045,16 @@ classdef Labeler < handle
       % (full/completed) setFrame() call should fix things up. We could
       % prob make it even more Ctrl-C safe with onCleanup-plus-a-flag.
       
+      % Timing debugging stuff
       debugtiming = false;
-      if debugtiming,
-        setframetic = tic;
+      if debugtiming
+        setframetic = tic() ;
         starttime = setframetic;   
       end
+
+      % Parse args.  Note that setting updateLabels or updateTables to false can
+      % lead to violations of the Labeler invariants, so should be done with care
+      % and only in specific scenarios.
       [updateLabels, updateTables, doChangeTargetIfNecessary] = ...
         myparse(varargin, ...
                 'updateLabels', true, ...
@@ -12062,6 +12063,7 @@ classdef Labeler < handle
                   ... % if true, will alter the current target if it is not live in frame
                 ) ;
       
+      % Timing debugging stuff
       if debugtiming,
         fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
@@ -12102,45 +12104,51 @@ classdef Labeler < handle
         end
       end  % if obj.hasTrx
       
+      % Timing debugging stuff
       if debugtiming,
         fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
       
-      % Remainder nearly identical to setFrameAndTarget()
+      % Update the frame image cache to match the new frame
       obj.setCurrentAndPreviousFrameData_(frm) ;
       
+      % Timing debugging stuff
       if debugtiming,
         fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
       
+      % Update the centering and zoom of the target, if called for
       obj.notify_('updateTargetCentrationAndZoom') ;
       
+      % Timing debugging stuff
       if debugtiming,
         fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
       
+      % Tell the child LabelCore, if present, that currFrame was set.  
+      % This will typically fire a updatePrevAxesLabels event.
       if updateLabels
         obj.labelsSyncToNewFrame_() ;
       end
 
+      % Timing debugging stuff
       if debugtiming,
         fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
       
+      % Fire an event to update the table view
       if updateTables
         obj.notify_('updateTrxTable');
       end
-      
+
+      % Fire an event to update the visibility of the trx
       obj.notify_('updateTrxVisibility') ;
       
+      % Timing debugging stuff
       if debugtiming,
         fprintf('setFrame %d, update showtrx took %f seconds\n',frm,toc(setframetic));
-      end
-
-      if debugtiming,
         fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
-      end
-      
+      end      
     end  % function setFrame
     
 %     function setTargetID(obj,tgtID)
