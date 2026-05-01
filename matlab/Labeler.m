@@ -12054,11 +12054,11 @@ classdef Labeler < handle
         setframetic = tic;
         starttime = setframetic;   
       end
-      [updateLabels, updateTables, changeTgtsIfNec] = ...
+      [updateLabels, updateTables, doChangeTargetIfNecessary] = ...
         myparse(varargin, ...
                 'updateLabels', true, ...
                 'updateTables', true, ...
-                'changeTgtsIfNec', false ...
+                'doChangeTargetIfNecessary', false ...
                   ... % if true, will alter the current target if it is not live in frame
                 ) ;
       
@@ -12066,32 +12066,41 @@ classdef Labeler < handle
         fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
       
+      % If the project has trx, need to make sure obj.currTarget will have a
+      % valid value in the destination frame.  If not, optionally take steps to
+      % find a valid target in the desitination frame.
       if obj.hasTrx
-        assert(~obj.isMultiView,'MultiView labeling not supported with trx.');
-        frm2trxThisFrm = obj.frm2trx(frm,:);
-        iTgt = obj.currTarget;
-        if ~frm2trxThisFrm(1,iTgt)
-          if changeTgtsIfNec
-            iTgtsLive = find(frm2trxThisFrm);
-            if isempty(iTgtsLive)
+        assert(~obj.isMultiView, 'MultiView labeling not supported with trx.');
+        isLiveFromTargetIndex = obj.frm2trx(frm,:) ;
+        targetIndex = obj.currTarget ;
+        if isLiveFromTargetIndex(targetIndex)
+          % do nothing, all is well
+        else
+          % targetIndex is *not* live in frame frm
+          if doChangeTargetIfNecessary
+            % If caller has requested, find a new target that is 'nearby' in terms
+            % of its target index.
+            targetIndexFromLiveTargetIndex = find(isLiveFromTargetIndex);
+            if isempty(targetIndexFromLiveTargetIndex)
               error('Labeler:target','No targets live in frame %d.',frm);              
             else
-              iTgtsLiveDist = abs(iTgtsLive-iTgt);
-              itmp = argmin(iTgtsLiveDist);
-              iTgtNew = iTgtsLive(itmp);
+              % Find the closest target by target index
+              distanceFromLiveTargetIndex = abs(targetIndexFromLiveTargetIndex-targetIndex);
+              closestLiveTargetIndex = argmin(distanceFromLiveTargetIndex);
+              newTargetIndex = targetIndexFromLiveTargetIndex(closestLiveTargetIndex);
               warningNoTrace('Target %d is not live in frame %d. Changing to target %d.\n',...
-                             iTgt,frm,iTgtNew);
-              obj.setFrameAndTarget(frm,iTgtNew);
-              return;
+                             targetIndex,frm,newTargetIndex);
+              obj.setFrameAndTarget(frm,newTargetIndex);
+              return
             end
           else
+            % If ~doChangeTargetIfNecessary, then we can't change the frame as
+            % requested b/c that would make obj.currTarget invalid.
             error('Labeler:target','Target %d not live in frame %d.',...
-                  iTgt,frm);
+                  targetIndex,frm);
           end
         end
-      elseif obj.maIsMA
-        % do nothing
-      end
+      end  % if obj.hasTrx
       
       if debugtiming,
         fprintf('setFrame %d, trx stuff took %f seconds\n',frm,toc(setframetic)); setframetic = tic;

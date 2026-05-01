@@ -4329,7 +4329,7 @@ classdef LabelerController < handle
         row = row(1);
         dat = get(src,'Data');
         if ~isempty(dat{row,1}),
-          labeler.setFrame(dat{row,1},'changeTgtsIfNec',true);
+          labeler.setFrame(dat{row,1},'doChangeTargetIfNecessary',true);
         end
       end
       obj.hlpRemoveFocus_() ;
@@ -5078,23 +5078,23 @@ classdef LabelerController < handle
     end
 
     function menu_go_movies_summary_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.ShowMovieManager();
+      obj.showMovieManager_();
     end
 
-    function ShowMovieManager(obj)
+    function showMovieManager_(obj)
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Opening Movie Manager...') ;  % Want to do this here, b/c the stuff in this method can take a while
-      oc = onCleanup(@()(labeler.popBusyStatus()));
-      drawnow;
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
+      drawnow('nocallbacks') ;
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
-        obj.movieManagerController_.setVisible(true);
+        obj.movieManagerController_.setVisible(true) ;
       else
-        obj.movieManagerController_ = MovieManagerController(obj, obj.labeler_);
+        obj.movieManagerController_ = MovieManagerController(obj, obj.labeler_) ;
       end
     end  % function
 
     function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.ShowMovieManager();
+      obj.showMovieManager_();
     end
 
     function tfSucc = movieRmGUI(obj, iMov, varargin)
@@ -6113,7 +6113,7 @@ classdef LabelerController < handle
       if labeler.gtIsGTMode,
         obj.gtShowGTManager();
         if ~obj.labeler_.hasMovie,
-          obj.ShowMovieManager();
+          obj.showMovieManager_();
         end
       else
         obj.gtCloseGTManager();

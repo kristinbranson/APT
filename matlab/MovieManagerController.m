@@ -114,6 +114,7 @@ classdef MovieManagerController < handle
       
       mainFigurePosition = obj.parent_.mainFigurePixelPosition() ;
       centerOnOtherFigureGivenPositionBang(obj.hFig, mainFigurePosition) ;
+      waitForFigureToSync(obj.hFig) ;
     end
 
     function lclDeleteFig(obj,~,~)
@@ -172,11 +173,12 @@ classdef MovieManagerController < handle
   
   methods
     
-    function setVisible(obj,tf)
+    function setVisible(obj, tf)
       obj.hFig.Visible = onIff(tf);
       if tf
         figure(obj.hFig);
       end
+      waitForFigureToSync(obj.hFig) ;
     end
 
     function tf = isValid(obj)
