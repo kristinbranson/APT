@@ -132,6 +132,12 @@ classdef (Abstract) LabelTracker < handle
       % Called from init() when a new project is created/loaded, etc
       % Designed to be overloaded by subclasses.
     end
+
+    function didSetCurrFrame(obj, frm) %#ok<INUSD>
+      % Called by the Labeler when the current frame changes.  Subclasses
+      % that cache per-frame data on a TVM should override to refresh that
+      % cache.  Default is a no-op.
+    end  % function
         
     function sPrm = getParams(obj)
       sPrm = struct();

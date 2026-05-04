@@ -2708,7 +2708,7 @@ classdef Labeler < handle
       obj.notify_('updateFrameTableComplete');
       
       if obj.currMovie>0
-        obj.labelsSyncToNewFrame_(true);
+        obj.syncLabelsToCurrFrame_(true);
       end
       
       % Set up the prev_axes
@@ -6028,7 +6028,7 @@ classdef Labeler < handle
       
       % Sometimes labelcore need this kick to get properly set up
       % Me no like this.  -- ALT, 2026-03-17
-      obj.labelsSyncToNewFrame_(true) ;
+      obj.syncLabelsToCurrFrame_(true) ;
 
       % Send the notification(s)
       obj.notify_('didInitLblCore') ;
@@ -6950,7 +6950,7 @@ classdef Labeler < handle
     function labelImportTrk(obj,iMovs,trkfiles)
       mIdx = MovieIndex(iMovs,obj.gtIsGTMode);
       obj.labelImportTrkGeneric(mIdx, trkfiles);
-      obj.labelsSyncToNewFrame_(true);
+      obj.syncLabelsToCurrFrame_(true);
       obj.syncPropsMovieFilesAllHaveLabels_() ;
       obj.notify_('updateFrameTableComplete');
       if obj.gtIsGTMode
@@ -8512,7 +8512,7 @@ classdef Labeler < handle
   
   methods (Access=private)
     
-    function labelsSyncToNewFrame_(obj, doForce)
+    function syncLabelsToCurrFrame_(obj, doForce)
       if ~obj.isinit && obj.hasMovie
         if ~exist('doForce','var') || isempty(doForce)
           doForce = false;
@@ -10647,7 +10647,7 @@ classdef Labeler < handle
       tObj.track('totrackinfo', totrackinfo, 'isexternal', false, args{:}, 'projTempDir', obj.projTempDir) ;
 
       % For template mode to see new tracking results
-      obj.labelsSyncToNewFrame_(true);
+      obj.syncLabelsToCurrFrame_(true);
     end  % track() function
     
     function trackTbl(obj,tblMFT,varargin)
@@ -10658,7 +10658,7 @@ classdef Labeler < handle
       end
       tObj.track(tblMFT,varargin{:});
       % For template mode to see new tracking results
-      obj.labelsSyncToNewFrame_(true);
+      obj.syncLabelsToCurrFrame_(true);
       
       fprintf('Tracking complete at %s.\n',datestr(now));
     end
@@ -12155,7 +12155,7 @@ classdef Labeler < handle
       % Tell the child LabelCore, if present, that currFrame was set.  
       % This will typically fire a updatePrevAxesLabels event.
       if updateLabels
-        obj.labelsSyncToNewFrame_() ;
+        obj.syncLabelsToCurrFrame_() ;
       end
 
       % Timing debugging stuff
@@ -13369,29 +13369,12 @@ classdef Labeler < handle
     function set.currFrame(obj, newValue)
       obj.currFrame_ = newValue ;
       obj.infoTimelineModel_.didSetCurrFrame(newValue) ;
-      obj.refreshTrackerVisualizerModelForCurrentFrame_() ;
+      tracker = obj.tracker ;
+      if ~isempty(tracker)
+        tracker.didSetCurrFrame(newValue) ;
+      end
       obj.notify_('updateAfterCurrentFrameSet') ;
     end
-
-    function refreshTrackerVisualizerModelForCurrentFrame_(obj)
-      % If the current tracker has a TVM that caches per-frame data for its
-      % view, refresh that cache for the current frame.  Done here so that
-      % the controller's updateAfterCurrentFrameSet handler can render
-      % directly from the cached state.
-      tracker = obj.tracker ;
-      if isempty(tracker)
-        return
-      end
-      tvm = tracker.trkVizer ;
-      if isempty(tvm)
-        return
-      end
-      if isa(tvm, 'TrackingVisualizerMTModel') || ...
-         isa(tvm, 'TrackingVisualizerMTFastModel') || ...
-         isa(tvm, 'TrackingVisualizerTrackletsModel')
-        tvm.didSetCurrFrame(obj.currFrame_) ;
-      end
-    end  % function
 
     function setPropertiesToFireCallbacksToInitializeUI_(obj)
       % These properties need their callbacks fired to properly init UI.  (For

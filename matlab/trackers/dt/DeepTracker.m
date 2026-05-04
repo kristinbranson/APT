@@ -3449,6 +3449,21 @@ classdef DeepTracker < LabelTracker
     
   %% Viz
   methods
+    function didSetCurrFrame(obj, frm)
+      % Refresh the TVM's per-frame cache so the controller's
+      % updateAfterCurrentFrameSet handler can render directly from cached
+      % state.  No-op if there is no TVM yet.
+      tvm = obj.trkVizer ;
+      if isempty(tvm)
+        return
+      end
+      if isa(tvm, 'TrackingVisualizerMTModel') || ...
+         isa(tvm, 'TrackingVisualizerMTFastModel') || ...
+         isa(tvm, 'TrackingVisualizerTrackletsModel')
+        tvm.didSetCurrFrame(frm) ;
+      end
+    end  % function
+
     function vizModelInit_(obj, existingTVMInit)
       % Create/destroy the TrackingVisualizerModel (TVM) based on .trkP,
       % then notify the controller to create/destroy the TV (view).
@@ -3509,6 +3524,11 @@ classdef DeepTracker < LabelTracker
       end
 
       tvm.trkInit(obj.trkP) ;
+
+      % Refresh the TVM's per-frame cache for the current frame, so the
+      % controller's updateAfterCurrentFrameSet handler can render directly
+      % from cached state when updateTrkPredViz fires below.
+      obj.didSetCurrFrame(lObj.currFrame) ;
 
       if isa(tvm, 'TrackingVisualizerTrackletsModel')
         lObj.notifyRetrograde('updateHudReadoutFields') ;
