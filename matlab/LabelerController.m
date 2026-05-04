@@ -2542,7 +2542,6 @@ classdef LabelerController < handle
       obj.lblCoreController_.init() ;
       labeler.preProcInit();
       labeler.isinit = isinit0;
-      %labeler.labelsUpdateNewFrame(true);
       set(obj.menu_label_sequential_add_mode,'Visible','on');
     end  % function
     

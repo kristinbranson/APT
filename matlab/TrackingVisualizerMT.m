@@ -536,11 +536,14 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       end
       obj.updateSkel(xy);
     end
-    function updateAfterCurrentFrameSet(obj, frm)
-      % Display tracking results for given/new frame.
-      [~, xy, tfocc] = obj.tvm_.newFrame(frm) ;
-      obj.updateTrackRes(xy, tfocc) ;
+
+    function updateAfterCurrentFrameSet(obj, frm)  %#ok<INUSD>
+      % Display tracking results for the current frame.  Reads cached state
+      % from the TVM, which the Labeler refreshed before firing the event.
+      tvm = obj.tvm_ ;
+      obj.updateTrackRes(tvm.xyCurr, tvm.occCurr) ;
     end
+    
     function updatePrimary(obj, iTgtPrimary)
       tvm = obj.tvm_ ;
       iTgtPrimary0 = tvm.iTgtPrimary ;

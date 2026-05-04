@@ -13398,8 +13398,27 @@ classdef Labeler < handle
     function set.currFrame(obj, newValue)
       obj.currFrame_ = newValue ;
       obj.infoTimelineModel_.didSetCurrFrame(newValue) ;
+      obj.refreshTrackerVisualizerModelForCurrentFrame_() ;
       obj.notify_('updateAfterCurrentFrameSet') ;
     end
+
+    function refreshTrackerVisualizerModelForCurrentFrame_(obj)
+      % If the current tracker has a TVM that caches per-frame data for its
+      % view, refresh that cache for the current frame.  Done here so that
+      % the controller's updateAfterCurrentFrameSet handler can render
+      % directly from the cached state.
+      tracker = obj.tracker ;
+      if isempty(tracker)
+        return
+      end
+      tvm = tracker.trkVizer ;
+      if isempty(tvm)
+        return
+      end
+      if isa(tvm, 'TrackingVisualizerMTModel') || isa(tvm, 'TrackingVisualizerMTFastModel')
+        tvm.newFrame(obj.currFrame_) ;
+      end
+    end  % function
 
     function setPropertiesToFireCallbacksToInitializeUI_(obj)
       % These properties need their callbacks fired to properly init UI.  (For
