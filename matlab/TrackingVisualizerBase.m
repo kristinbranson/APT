@@ -2,7 +2,7 @@ classdef TrackingVisualizerBase < handle
 % Tracking Visualizer base class; mostly for doc
 %
 % TrackingVisualizerBase provides an interface for TVs, currently related
-% to frame updates and cosmetics. Clients like Labeler and DeepTracker have
+% to frame updates and cosmetics. Clients like LabelerController have
 % common needs regardless of visualization type.
 %
 % *Frame updates, direct*

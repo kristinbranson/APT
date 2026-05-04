@@ -212,8 +212,9 @@ classdef LabelCoreModel < handle
   %% State transition hooks (called by Labeler)
   methods
 
-    function newFrame(obj, iFrm0, iFrm1, iTgt, tfForceUpdate) %#ok<INUSD>
+    function newFrame(obj, iFrm0, iFrm1, iTgt, tfForceUpdate) %#ok<INUSD>      
       % Frame has changed, target is the same.
+      % Presumably iFrm1 is the new frame index, and iFrm0 is the old...
     end  % function
 
     function newTarget(obj, iTgt0, iTgt1, iFrm) %#ok<INUSD>
