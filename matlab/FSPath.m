@@ -105,6 +105,7 @@ classdef FSPath
     function tf = hasAnyMacro(str)
       tf = ~isempty(regexp(str,'\$','once'));
     end
+
     function tf = hasMacro(str,macro)
       tf = ~isempty(regexp(str,['\$' macro],'once'));
     end
@@ -270,6 +271,7 @@ classdef FSPath
     function estr = errStrFileNotFound(file,fileType)
       estr = sprintf('Cannot find %s ''%s''.',fileType,file);
     end
+
     function estr = errStrFileNotFoundMacroAware(file,fileFull,fileType)
       % Macro-aware file-not-found error string. 
       % Backslash (\) is NOT ESCAPED.
@@ -285,9 +287,11 @@ classdef FSPath
           fileType,file,fileFull);
       end
     end
+
     function errDlgFileNotFound(estr)
       errordlg(estr,'File not found');
     end
+
     function throwErrFileNotFoundMacroAware(file,fileFull,fileType)
       emsg = FSPath.errStrFileNotFoundMacroAware(file,fileFull,fileType);
       errorNoTrace(emsg);
@@ -341,6 +345,7 @@ classdef FSPath
       % ...
       fname = cellfun(@(x)FSPath.nLevelFnameChar(x,n),fname,'uni',0);
     end
+
     function fnameN = nLevelFnameChar(fname,n)
       fnameN = '';
       while n>0

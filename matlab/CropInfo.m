@@ -86,6 +86,7 @@ classdef CropInfo < handle
       tf = 1<=roi(:,1) & roi(:,2)<=imnc & ...
            1<=roi(:,3) & roi(:,4)<=imnr;
     end
+
     function [roi,tfchanged] = roiSmartFit(roi,imnc,imnr)
       % Adjust an roi so it is proper, ie it fits within the image
       % [1,imnc] x [1,imnr].
@@ -123,6 +124,7 @@ classdef CropInfo < handle
         tfchanged = true;
       end
     end
+
     function posn = roi2RectPos(roi)
       % See notes at top of CropInfo.m re: rois vs posns.
       %
@@ -132,6 +134,7 @@ classdef CropInfo < handle
 
       posn = [roi(:,1) roi(:,3) roi(:,2)-roi(:,1) roi(:,4)-roi(:,3)];
     end
+
     function [roi,roiwidth,roiheight] = rectPos2roi(posn)
       % See notes at top of CropInfo.m re: rois vs posns.
       %
@@ -155,18 +158,21 @@ classdef CropInfo < handle
         warningNoTrace('Non-positive ROI coordinates.');
       end      
     end    
+
     function posnCtrd = rectPos2Ctrd(posn)
       % posn: [nx4] 
       % posnCtrd: [nx4]      
       posnCtrd = posn;
       posnCtrd(:,[1 2]) = posnCtrd(:,[1 2])+posn(:,[3 4])/2;
     end
+
     function posn = rectPosCtrd2Pos(posnCtrd)
       % posnCtrd: [nx4]      
       % posn: [nx4] 
       posn = posnCtrd;
       posn(:,[1 2]) = posn(:,[1 2])-posn(:,[3 4])/2;
     end
+
     function posn = rectPosResize(posn,widthHeight)
       % Alter widthHeight of a set of posn's, keeping the posn's centers
       % fixed. DOES NOT check for any proper-ness.

@@ -11,6 +11,7 @@ classdef LabelerKeyEventHandler < handle
       obj.evtMatchFcn = eFcn;
       obj.actionFcn = actFcn;
     end
+
     function tfHandled = handleKeyPress(obj,evt,lObj)
       % evt: keypress event, eg
       %   matlab.ui.eventdata.UIClientComponentKeyEvent

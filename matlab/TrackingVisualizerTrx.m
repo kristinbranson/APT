@@ -32,9 +32,11 @@ classdef TrackingVisualizerTrx < handle
       obj.parent_ = labelerController;
       obj.lObj = labeler;
     end
+
     function delete(obj)
       obj.deleteGfxHandles();
     end
+
     function deleteGfxHandles(obj)
       deleteValidGraphicsHandles(obj.hTraj);
       obj.hTraj = [];

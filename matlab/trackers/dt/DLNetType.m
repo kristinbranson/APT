@@ -77,9 +77,11 @@ classdef DLNetType < handle
             
       obj.timelinePropList = DLNetType.auxflds2PropList(obj.trkAuxLabels);
     end
+
     function g = getModelGlobs(obj,iterCurr)
       g = cellfun(@(x)sprintf(x,iterCurr),obj.modelGlobs,'uni',0);
     end
+
     function tf = requiresTrnPack(obj, netMode)  %#ok<INUSD> 
       % whether training requires trnpack generation      
       tf = true ;

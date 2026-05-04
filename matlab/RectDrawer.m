@@ -11,15 +11,18 @@ classdef RectDrawer < handle
       obj.ax = hax;
       obj.hRect = gobjects(0,1);      
     end
+
     function delete(obj)
       deleteValidGraphicsHandles(obj.hRect);
       obj.hRect = [];
       obj.ax = [];
     end
+
     function initRois(obj)
       deleteValidGraphicsHandles(obj.hRect);
       obj.hRect = gobjects(0,1);
     end
+
     function newRoiDraw(obj)
       hax = obj.ax;
       lims = axis(hax);
@@ -71,6 +74,7 @@ classdef RectDrawer < handle
       h.addlistener('DeletingROI',@(s,e)obj.cbkROIDeleted(s,e));
       obj.hRect(end+1,1) = h;
     end
+
     function setEdit(obj,tf)
       if isempty(obj.hRect)
         return;
@@ -82,14 +86,17 @@ classdef RectDrawer < handle
       end
       [obj.hRect.InteractionsAllowed] = deal(val);
     end
+
     function cbkROIDeleted(obj,src,evt)
       tf = obj.hRect==src;
       obj.hRect(tf,:) = [];
     end
+
     function rmRoi(obj,iRoi)
       delete(obj.hRect(iRoi));
       obj.hRect(iRoi,:) = [];
     end
+
     function setRois(obj,v)
       % v: [4 x 2 x nroi] vertices; as in image.roi.Rectangle.Vertices
       %
@@ -114,6 +121,7 @@ classdef RectDrawer < handle
       end
       obj.hRect = h;
     end
+
     function setShowRois(obj,tf)
       onoff = onIff(tf);
       h = obj.hRect;
@@ -121,6 +129,7 @@ classdef RectDrawer < handle
         [obj.hRect.Visible] = deal(onoff);
       end
     end
+
     function v = getRoisVerts(obj)
       % v: [4 x 2 x nroi]
       if isempty(obj.hRect)

@@ -113,6 +113,7 @@ classdef PxAssign
       imdiff = PxAssign.simplebgsub(bgtype,im,imbg,imbgdev);
       imL = PxAssign.asgnCCcore(imdiff,trx,f,fgthresh);      
     end
+
     function imL = asgnCCcore(imdiff,trx,f,fgthresh)
       bwfg = imdiff>fgthresh;
       cc = bwconncomp(bwfg);
@@ -145,6 +146,7 @@ classdef PxAssign
       imdiff = PxAssign.simplebgsub(bgtype,im,imbg,imbgdev);
       [imL,imLpre,nfliescurr] = PxAssign.asgnGMMglobalcore(imdiff,trx,f,fgthresh);
     end
+
     function [imL,imLpre,nfliescurr] = asgnGMMglobalcore(imdiff,trx,f,fgthresh)
       isfore = imdiff>=fgthresh; % in BackSub.m, n_bg_std_thresh_low  
       [imLpre,nfliescurr] = AssignPixels(isfore,imdiff,trx,f);

@@ -123,53 +123,68 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       end
       controller.videoCenterOn(trx_curr.x(ndx_fr), trx_curr.y(ndx_fr)) ;
     end
+
     function updatePrimary(obj, iTgtPrimary) %#ok<INUSD>
       % currently unused. Labeler/iTgtPrimary does not know about tracklet
       % indices.
     end
+
     function setShowOnlyPrimary(obj, tf)
       obj.tvmt.setShowOnlyPrimary(tf) ;
       obj.tvtrx.setShowOnlyPrimary(tf) ;
     end
+
     function setShowSkeleton(obj, tf)
       obj.tvmt.setShowSkeleton(tf) ;
     end
+
     function setHideViz(obj, tf)
       obj.tvmt.setHideViz(tf) ;
       obj.tvtrx.setHideViz(tf) ;
     end
+
     function setHideTextLbls(obj, tf)
       obj.tvmt.setHideTextLbls(tf) ;
     end
+
     function setAllShowHide(obj, tfHideOverall, tfHideTxtMT, tfShowCurrTgtOnly, tfShowSkel)
       obj.tvmt.setAllShowHide(tfHideOverall, tfHideTxtMT, tfShowCurrTgtOnly, tfShowSkel) ;
       obj.tvtrx.setAllShowHide(tfHideOverall, tfShowCurrTgtOnly) ;
     end
+
     function initAndUpdateSkeletonEdges(obj, sedges)
       obj.tvmt.initAndUpdateSkeletonEdges(sedges) ;
     end
+
     function updateLandmarkColors(obj, ptsClrs)
       obj.tvmt.updateLandmarkColors(ptsClrs) ;
     end
+
     function updateTrajColors(obj)
       obj.tvtrx.updateColors() ;
     end
+
     function setMarkerCosmetics(obj, pvargs)
       obj.tvmt.setMarkerCosmetics(pvargs) ;
     end
+
     function setTextCosmetics(obj, pvargs)
       obj.tvmt.setTextCosmetics(pvargs) ;
     end
+
     function setTextOffset(obj, offsetPx)
       obj.tvmt.setTextOffset(offsetPx) ;
     end
+
     function updateSkeletonCosmetics(obj)
       obj.tvmt.updateSkeletonCosmetics() ;
     end
+
     function delete(obj)
       obj.tvmt.delete() ;
       obj.tvtrx.delete() ;
     end
+
     function deleteGfxHandles(obj) %#ok<MANU>
       % no-op; sub-TVs handle their own handles
     end

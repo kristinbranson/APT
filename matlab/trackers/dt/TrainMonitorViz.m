@@ -86,6 +86,7 @@ classdef TrainMonitorViz < handle
     function v = get.nmodels(obj)
       v = size(obj.hline,1);
     end
+
     function v = get.nset(obj)
       v = size(obj.haxs,2);
     end

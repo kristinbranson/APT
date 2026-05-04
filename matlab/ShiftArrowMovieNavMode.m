@@ -13,6 +13,7 @@ classdef ShiftArrowMovieNavMode
     function obj = ShiftArrowMovieNavMode(str)
       obj.prettyStr = str;
     end
+
     function [tffound,f] = seekFrame(obj,lObj,dir,thresh,cmp)
       % dir: +1 or -1
       % 

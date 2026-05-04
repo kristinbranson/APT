@@ -669,6 +669,7 @@ classdef TrkFile < dynamicprops
     function v = isValidLoadFullMatrix(s)
       v = isfield(s,'pTrk');
     end
+
     function v = isValidSparse(s)
       v = all(isfield(s,{'p','frm','tgt'}));
     end

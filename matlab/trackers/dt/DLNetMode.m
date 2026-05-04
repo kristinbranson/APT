@@ -40,12 +40,15 @@ classdef DLNetMode < handle
     function v = get.is_multi(obj)
       v = obj.isMA && ~(obj.isTopDown && obj.topDownStage==2);
     end
+
     function v = get.multi_crop_ims(obj)
       v = obj.isMA && ~(obj.isTopDown && obj.isObjDet);
     end
+
     function v = get.multi_only_ht(obj)
       v = obj.isMA && obj.isTopDown && obj.isHeadTail && obj.topDownStage==1;
     end
+
     function v = get.isTwoStage(obj)
       v = obj.isTopDown && (obj.isHeadTail || obj.isObjDet);
     end
@@ -60,6 +63,7 @@ classdef DLNetMode < handle
       obj.isObjDet = od;
       obj.isTrnPack = istp;
     end
+
     function tf = netTypeMatches(obj,nettypes,nstages,stage)
       % tf = netTypeMatches(obj,nettypes,nstages,stage)
       % Tests whether the input nettypes are instances of this netmode

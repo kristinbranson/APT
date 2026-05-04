@@ -110,6 +110,7 @@ classdef APTParameters
       sPrm0 = tPrm0.structize();
       sPrm0 = sPrm0.ROOT;
     end
+
     function sPrm0 = defaultParamsStructAll
       tPrm0 = APTParameters.defaultParamsTree;
       sPrm0 = tPrm0.structize();
@@ -134,6 +135,7 @@ classdef APTParameters
       sPrm = tPrm.structize();
       sPrmDTcommon = sPrm.ROOT.DeepTrack;
     end
+
     function sPrmDTspecific = defaultParamsStructDT(nettype)
       tPrm = APTParameters.getParamTrees(char(nettype));
       sPrmDTspecific = tPrm.structize();
@@ -143,14 +145,17 @@ classdef APTParameters
       fld = fld{1};
       sPrmDTspecific = sPrmDTspecific.(fld);
     end
+
     function ppPrm0 = defaultPreProcParamsOldStyle
       sPrm0 = APTParameters.defaultParamsOldStyle();
       ppPrm0 = sPrm0.PreProc;
     end
+
     function sPrm0 = defaultCPRParamsOldStyle
       sPrm0 = APTParameters.defaultParamsOldStyle();
       sPrm0 = rmfield(sPrm0,'PreProc');
     end
+
     function [tPrm,minLevel] = propagateLevelFromLeaf(tPrm)
       
       if isempty(tPrm.Children),
@@ -165,6 +170,7 @@ classdef APTParameters
       tPrm.Data.Level = PropertyLevelsEnum(minLevel);
       
     end
+
     function [tPrm,rqts] = propagateRequirementsFromLeaf(tPrm)
       
       if isempty(tPrm.Children),
@@ -182,6 +188,7 @@ classdef APTParameters
       tPrm.Data.Requirements = rqts;
       
     end
+
     function filterPropertiesByLevel(tree,level)
       
       if isempty(tree.Children),

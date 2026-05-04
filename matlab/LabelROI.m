@@ -26,12 +26,14 @@ classdef LabelROI
         s.f(end+1:end+nroi,1) = f;
       end
     end
+
     function v = getF(s,f)
       % Get rois for frame f
       % v: [4 x 2 x nroi]
       tf = s.f==f;
       v = s.verts(:,:,tf);
     end
+
     function s = fromcoco(cocos,varargin)
       % s = fromcoco(cocos,...)
       % Create a LabelROI structure for one movie from input cocos struct.

@@ -59,6 +59,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     function v = get.nPts(obj)
       v = obj.tvm_.nPts ;
     end
+
     function v = get.nTgts(obj)
       v = size(obj.hXYPrdRed, 2) ;
     end
@@ -102,6 +103,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       obj.hPch = [obj.hPch hPch1];
       obj.hPchTxt = [obj.hPchTxt hPchT];
     end
+
     function ensureNTgts(obj, ntgtsreqd)
       % Ensure that obj can handle ntgtsreqd
       % Relevant gfx handles: .hXY*, .hPch*
@@ -119,6 +121,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       ntgtsadd = round(ntgtsadd);
       obj.addTgts(ntgtsadd);
     end
+
     function [hPred,hTxt] = hlpPlotTgts(obj, ntgtsplot, itgtoffset, ...
         markerPVscell, textPVscell)
       % create/plot gfx handles for ntgtsplot targets
@@ -154,6 +157,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         end
       end
     end
+
     function [hPc,hPchT] = hlpPlotPches(obj, ntgtsplot, itgtoffset, pchTextPVs)
       tvm = obj.tvm_ ;
       ax = obj.hAxs;
@@ -183,6 +187,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
           'ButtonDownFcn',@(s,e)obj.cbkPchTextBDF(s,e));
       end
     end
+
     function vizInit(obj, varargin)
       % Initialize graphics handles and cosmetics.
       %
@@ -279,13 +284,16 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
 
       obj.vizInitHook();
     end
+
     function vizInitHook(obj) %#ok<MANU>
       % overload me
     end
+
     function initAndUpdateSkeletonEdges(obj, sedges) %#ok<INUSD>
       % Inits skel edges and sets their posns based on current hXYPrdRed.
       obj.updateSkel();
     end
+
     function updateSkel(obj, xy)
       % xy (opt): if provided, must be [npts 2 ntgts].
 
@@ -338,29 +346,36 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       TrackingVisualizerMTFast.updateSkelStc(obj.hSkel, se, npts, xy, ...
         'linestyle', tvm.skel_linestyle) ;
     end
+
     function setShowSkeleton(obj, tf)
       obj.tvm_.tfShowSkel = tf ;
       obj.updateShowHideAll();
     end
+
     function setHideViz(obj, tf)
       obj.tvm_.tfHideViz = tf ;
       obj.updateShowHideAll();
     end
+
     function setHideTextLbls(obj, tf)
       obj.tvm_.tfHideTxt = tf ;
       obj.updateShowHideAll();
     end
+
     function setShowPches(obj, tf)
       obj.tvm_.tfShowPch = tf ;
       obj.updateShowHideAll();
     end
+
     function hideOtherTargets(obj)
       obj.setShowOnlyPrimary(true);
     end
+
     function setShowOnlyPrimary(obj, tf)
       obj.tvm_.showOnlyPrimary = tf ;
       obj.updateShowHideAll();
     end
+
     function setAllShowHide(obj, tfHide, tfHideTxt, tfShowCurrTgtOnly, tfShowSkel)
       tvm = obj.tvm_ ;
       tvm.tfHideViz = tfHide ;
@@ -369,6 +384,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       tvm.showOnlyPrimary = tfShowCurrTgtOnly ;
       obj.updateShowHideAll();
     end
+
     function updateShowHideAll(obj)
       % update .Visible for
       % * .hXYPrd* [npts x ntgt]
@@ -411,6 +427,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         [obj.hPchTxt(~tfTgtOn).Visible] = deal('off');
       end
     end
+
     function set_hittest(obj, onoff)
       if ~isempty(obj.hXYPrdRed) % protect against rare cases uninitted obj (eg projLoad with "nomovie")
         [obj.hXYPrdRed.HitTest] = deal(onoff);
@@ -426,9 +443,11 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         [obj.hPchTxt.HitTest] = deal(onoff);
       end
     end
+
     function hittest_off_all(obj)
       obj.set_hittest('off');
     end
+
     function hittest_on_all(obj)
       obj.set_hittest('on');
     end
@@ -468,6 +487,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         set(hPT(iTgt),'Position',[roi(1,:) 0]);
       end
     end
+
     function updateTrackRes(obj, xy, tfeo)
       % xy: [npts x 2 x ntgtsgiven]
       % tfeo: [npts x ntgtsgiven] logical for est-occ
@@ -558,6 +578,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         end
       end
     end
+
     function updateHideTarget(obj, iTgtHide)
       % unhide/show iTgtHide0, hide iTgtHide
 
@@ -594,6 +615,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         obj.updateSkel();
       end
     end
+
     function updatePches(obj)
       tvm = obj.tvm_ ;
       if tvm.doPch
@@ -610,6 +632,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         end
       end
     end
+
     function updateLandmarkColors(obj, ptsClrs)
       npts = obj.nPts;
       szassert(ptsClrs,[npts 3]);
@@ -620,6 +643,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       end
       obj.tvm_.ptClrs = ptsClrs ;
     end
+
     function setMarkerCosmetics(obj, pvargs)
       if isstruct(pvargs)
         pvargs = obj.convertLabelerMarkerPVs(pvargs);
@@ -629,6 +653,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         assert(false);
       end
     end
+
     function setTextCosmetics(obj, pvargs)
       if isstruct(pvargs)
         pvargs = obj.convertLabelerTextPVs(pvargs);
@@ -637,6 +662,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         assert(false);
       end
     end
+
     function setTextOffset(obj, offsetPx)
       obj.tvm_.txtOffPx = offsetPx ;
 
@@ -653,6 +679,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
 
       obj.updateTrackRes(xy,[]);
     end
+
     function updateSkeletonCosmetics(obj)
       tvm = obj.tvm_ ;
       lObj = obj.parent_.labeler_ ;
@@ -660,6 +687,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       ppi = lObj.(ppiFld);
       set(obj.hSkel,ppi.SkeletonProps);
     end
+
     function cbkPchTextBDF(obj, s, e) %#ok<INUSD>
       iTgt = s.UserData;
       obj.parent_.labeler_.setTarget(iTgt);
@@ -695,9 +723,11 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       obj.hAxs = gd.axes_all;
       obj.hIms = gd.images_all;
     end
+
     function delete(obj)
       obj.deleteGfxHandles();
     end
+
     function s = saveobj(obj)
       s = struct();
       tvm = obj.tvm_ ;
@@ -724,16 +754,19 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       pchTextPVs = struct('FontSize',round(textPVs.FontSize*2.0));
       skelPVs = pppi.SkeletonProps;
     end
+
     function markerPVs = convertLabelerMarkerPVs(markerPVs)
       sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
       markerPVs.MarkerSize = round(markerPVs.MarkerSize*sizefac);
       markerPVs.PickableParts = 'none';
     end
+
     function textPVs = convertLabelerTextPVs(textPVs)
       sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
       textPVs.FontSize = round(textPVs.FontSize*sizefac);
       textPVs.PickableParts = 'none';
     end
+
     function b = loadobj(a)
       if isstruct(a)
         b = TrackingVisualizerMT();

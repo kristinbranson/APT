@@ -785,6 +785,7 @@ classdef TrackMonitorViz < handle
       nrowind = ceil(sqrt(nmov/width2height));
       ncolind = ceil(nrowind*width2height);
     end
+
     function [gridnrow,gridncol] = getIndicatorGridSz(nmov,width2height)
       for gridnrow=1:100
         % We try using nrows 
@@ -803,6 +804,7 @@ classdef TrackMonitorViz < handle
         end
       end
     end
+
     function hpch = makeIndicatorPatches(nmov,gridnrow,gridncol,ax,clr,pchargs)  %#ok<INUSD> 
       hpch = gobjects(nmov,1);
       for imov = 1:nmov
@@ -813,6 +815,7 @@ classdef TrackMonitorViz < handle
         hpch(imov) = patch(xpch,ypch,clr,'Parent',ax,pchargs{:});
       end
     end
+
     function mm = testIndPches(ax,n1)
       hfig = ancestor(ax,'figure');
       for nmov=1:n1

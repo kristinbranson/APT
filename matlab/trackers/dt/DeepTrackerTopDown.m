@@ -121,9 +121,11 @@ classdef DeepTrackerTopDown < DeepTracker
     function netType = getNetType(obj)
       netType = [obj.stage1Tracker.trnNetType,getNetType@DeepTracker(obj)];
     end
+
     function netMode = getNetMode(obj)
       netMode = [obj.stage1Tracker.trnNetMode,getNetMode@DeepTracker(obj)];
     end
+
     function iterFinal = getIterFinal(obj)
       sPrmGDStg1 = obj.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.GradientDescent;
       iterFinal = [sPrmGDStg1.dl_steps,getIterFinal@DeepTracker(obj)];

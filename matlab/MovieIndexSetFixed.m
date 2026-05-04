@@ -7,6 +7,7 @@ classdef MovieIndexSetFixed < MovieIndexSet
       assert(isa(mi,'MovieIndex'));
       obj.mIdxs = mi(:)';
     end
+
     function str = getPrettyString(obj)
       mi = obj.mIdxs;
       [tf,gt] = mi.isConsistentSet;
@@ -20,6 +21,7 @@ classdef MovieIndexSetFixed < MovieIndexSet
         str = sprintf('Movies (mixed GT/reg): %s',mat2str(int32(mi)));
       end
     end
+
     function mIdx = getMovieIndices(obj,labelerObj)
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;      
       mIdx = obj.mIdxs;

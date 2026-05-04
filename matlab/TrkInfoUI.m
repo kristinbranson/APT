@@ -260,6 +260,7 @@ if ~isempty(tv)
 end
 
 end
+
 function prev_btn_callback(handles,event,~)
 h = guidata(handles);
 if isempty(h.tbl.Selection)

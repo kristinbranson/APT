@@ -6,6 +6,7 @@ classdef FrameDecimationVariable < FrameDecimation
     function obj = FrameDecimationVariable(fcn)
       obj.getDecimationHookFcn = fcn;
     end
+
     function dec = getDecimation(obj,labelerObj)
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;            
       dec = obj.getDecimationHookFcn(labelerObj);

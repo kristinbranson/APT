@@ -173,6 +173,7 @@ classdef LandmarkSpecs < handle
         app.edgeClickedSwap(h,e);
       end
     end
+
     function edgeClickedSkel(app,h,e)
       edge = get(h,'UserData');
       
@@ -201,6 +202,7 @@ classdef LandmarkSpecs < handle
       
       app.sklISelected = iSeld;
     end
+
     function edgeClickedSwap(app,h,e)
       edge = get(h,'UserData');
       
@@ -240,6 +242,7 @@ classdef LandmarkSpecs < handle
         app.ptClickedSkel(h,e,'spISelected','spHpts','spHEdgeSelected','spEdges');
       end
     end
+
     function ptClickedSkel(app,h,e,fldISel,fldHPts,fldHEdgeSel,fldedges)
       iClicked = get(h,'UserData');
       
@@ -320,6 +323,7 @@ classdef LandmarkSpecs < handle
         obj.updateTableSwap();
       end
     end
+
     function updateTableSkel(obj)
       ht = obj.UITable;      
       ht.RowName = 'numbered';
@@ -331,6 +335,7 @@ classdef LandmarkSpecs < handle
       ht.Units = 'normalized';
       ht.ColumnWidth = {pos(3)*.8};
     end
+
     function updateTableHT(obj)
       nphyspts = numel(obj.ptNames); 
       htmat = false(nphyspts,2);
@@ -353,6 +358,7 @@ classdef LandmarkSpecs < handle
       tbl.Units = 'normalized';
       tbl.ColumnWidth = {pos(3)*.5 pos(3)*.15 pos(3)*.15};
     end
+
     function updateTableSwap(obj)
       partners = repmat({'none'},size(obj.ptNames(:)));
       swaps = obj.spEdges;
@@ -374,6 +380,7 @@ classdef LandmarkSpecs < handle
       ht.Units = 'normalized';
       ht.ColumnWidth = {pos(3)*.4 pos(3)*.4};
     end    
+
     function moveEdgesToBack(app,axfld,fldhim,fldhtxt,fldhedges, ...
         fldhedgesel,fldhpts)
       hAx = app.(axfld);

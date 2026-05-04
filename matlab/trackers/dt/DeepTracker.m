@@ -231,18 +231,23 @@ classdef DeepTracker < LabelTracker
     function v = get.algorithmName(obj)
       v = getAlgorithmNameHook(obj);
     end
+
     function v = getAlgorithmNameHook(obj)
       v = char(obj.trnNetType);
     end
+
     function v = get.algorithmNamePretty(obj)
       v = obj.getAlgorithmNamePrettyHook();
     end
+
     function v = getAlgorithmNamePrettyHook(obj)
       v = ['Deep Convolutional Network - ' obj.trnNetType.displayString];
     end
+
     function v = getNumStages(obj)  %#ok<MANU> 
       v = 1;
     end
+
     function v = getNetsUsed(obj)
       v = cellstr(obj.trnNetType);
     end
@@ -269,6 +274,7 @@ classdef DeepTracker < LabelTracker
         v = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       end
     end
+
     function v = get.trnNameLbl(obj)
       dmc = obj.trnLastDMC;
       if isempty(dmc)
@@ -284,19 +290,23 @@ classdef DeepTracker < LabelTracker
     function v = get.nPts(obj)
       v = obj.lObj.nLabelPoints;
     end
+
     function v = get.nview(obj)
       v = obj.lObj.nview;
     end
+
     function v = get.hasTracklets(obj)
       % True iff this tracker has been run and produced tracklet output.
       v = obj.lObj.maIsMA && ~isempty(obj.trkP) ;
     end  % function
+
     function v = get.bgTrnIsRunning(obj)
       % Whether training is running.  Technically, only checks whether the
       % background process that polls for training progress is running.
       btm = obj.bgTrnMonitor;
       v = ~isempty(btm) && btm.isRunning;
     end
+
     function v = get.bgTrkIsRunning(obj)
       % Whether tracking is running.  Technically, only checks whether the
       % background process that polls for tracking progress is running.      
@@ -2982,6 +2992,7 @@ classdef DeepTracker < LabelTracker
       v(end+1,:) = trkfiles(:)';
       obj.adhocTrkFilePathsFromMidx(id) = v;
     end
+    
     function [trkfiles,id] = trackResGetTrkfiles(obj,mIdx)
       % Return known .trk file paths for the given MovieIndex.
       id = mIdx.id32() ;

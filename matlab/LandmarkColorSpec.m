@@ -69,6 +69,7 @@ classdef LandmarkColorSpec < matlab.mixin.Copyable
       obj.guessBrightness();
       obj.updateColormap();      
     end
+
     function copyColorState(obj,obj2)
       % Copy color-state from obj2 onto obj
       FLDS = {'colormapname' 'colormap' 'brightness' 'colors' 'tfmanual'};
@@ -76,6 +77,7 @@ classdef LandmarkColorSpec < matlab.mixin.Copyable
         obj.(f) = obj2.(f);
       end
     end
+
     function guessBrightness(obj)
       % sets .brightness and .tfmanual 
       
@@ -114,6 +116,7 @@ classdef LandmarkColorSpec < matlab.mixin.Copyable
       
       obj.tfmanual = false;
     end
+
     function updateColormap(obj)
       obj.colormap = feval(obj.colormapname,obj.nphyspts);
       if obj.brightness > .5,
@@ -124,26 +127,32 @@ classdef LandmarkColorSpec < matlab.mixin.Copyable
         obj.colormap = obj.colormap*v;
       end
     end
+
     function setColormapName(obj,cmapname)
       obj.colormapname = cmapname;
       obj.updateColormap();
       obj.tfmanual = false;
     end
+
     function setBrightness(obj,v)
       obj.brightness = v;
       obj.updateColormap();
       obj.tfmanual = false;
     end
+
     function setColorManual(obj,iphyspt,clr)
       obj.colors(iphyspt,:) = clr;
       obj.tfmanual = true;
     end
+
     function setManualColorsToColormap(obj)
       obj.colors = obj.colormap;
     end
+
     function setTFManual(obj,tf)
       obj.tfmanual = tf;
     end
+
     function setManualColorsToColormapIfNec(obj)
       % obj: can be array
       for i=1:numel(obj)

@@ -29,6 +29,7 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
         v = obj.Field;
       end
     end
+
     function set.Value(obj,val)
       type = obj.Type; %#ok<MCSUP>
       if ischar(type) % type can be a cell for enums

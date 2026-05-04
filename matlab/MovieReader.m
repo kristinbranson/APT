@@ -50,6 +50,7 @@ classdef MovieReader < handle
     function v = get.isOpen(obj)
       v = ~isnan(obj.fid);
     end
+
     function v = get.nrread(obj)
       ci = obj.cropInfo; 
       if isempty(ci)
@@ -58,6 +59,7 @@ classdef MovieReader < handle
         v = ci.roi(4)-ci.roi(3)+1;
       end
     end
+
     function v = get.ncread(obj)
       ci = obj.cropInfo; 
       if isempty(ci)
@@ -66,6 +68,7 @@ classdef MovieReader < handle
         v = ci.roi(2)-ci.roi(1)+1;
       end
     end
+
     function v = get.roiread(obj)
       ci = obj.cropInfo;
       if ~isempty(ci)
@@ -74,6 +77,7 @@ classdef MovieReader < handle
         v = [1 obj.nc 1 obj.nr];
       end
     end
+
     function v = get.hascrop(obj)
       v = ~isempty(obj.cropInfo);
     end

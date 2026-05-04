@@ -41,24 +41,31 @@ classdef BgTrackPoller < BgPoller
     function v = get.views(obj)
       v = obj.toTrackInfos_.views;
     end
+
     function v = get.nViews(obj)
       v = numel(obj.views) ;
     end
+
     function v = get.stages(obj)
       v = obj.toTrackInfos_.stages;
     end
+
     function v = get.nStages(obj)
       v = numel(obj.stages);
     end
+
     function v = get.njobs(obj)
       v = obj.toTrackInfos_.n;
     end
+
     function v = get.movfiles(obj)
       v = obj.toTrackInfos_.getMovfiles();
     end
+
     function v = get.nMovies(obj)
       v = size(obj.movfiles,1);
     end
+
     function sz = get.resultSize(obj)
       switch obj.trackStyle_
         case apt.TrackStyle.list

@@ -12,6 +12,7 @@ classdef FrameDecimationFixed < FrameDecimation
         obj.id = id;
       end
     end
+
     function dec = getDecimation(obj,labelerObj)
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;                  
       dec = obj.decVal;

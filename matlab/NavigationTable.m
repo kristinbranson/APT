@@ -41,6 +41,7 @@ classdef NavigationTable < handle
       obj.fcnRowSelected = cbkSelectRow;
       obj.navOnSingleClick = false;
     end
+
     function initColFormatAPTJava(obj,colfmt)
       % Initialize column cellrenderers based on colfmt. Optionally call 
       % this immediately after construction and before setting data.
@@ -64,6 +65,7 @@ classdef NavigationTable < handle
       jt.Foreground = java.awt.Color.WHITE;
       jt.repaint;
     end
+
     function delete(obj)
       delete(obj.jtable);
       obj.jtable = [];

@@ -61,6 +61,7 @@ classdef (Abstract) LabelTracker < handle
     function v = get.userTag(obj)
       v = obj.userTag_ ;
     end  % function
+
     function set.userTag(obj, v)
       assert(ischar(v) && (isempty(v) || isrow(v)), ...
         'userTag must be an empty char array or a row char array') ;

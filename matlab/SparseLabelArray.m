@@ -25,6 +25,7 @@ classdef SparseLabelArray
       s.idx = i;
       s.val = v;
     end
+
     function s = createEmpty(sz,ty)
       switch ty
         case {'nan' 'ts' 'log'}
@@ -38,6 +39,7 @@ classdef SparseLabelArray
       s.idx = zeros(0,1);
       s.val = zeros(0,1);
     end
+
     function x = full(s)
       assert(isstruct(s));
       switch s.type
@@ -69,6 +71,7 @@ classdef SparseLabelArray
       end
       x = cat(1,x,xadd);
     end
+
     function x = fullRmPts(x,iptsrm)
       colons = repmat({':'},1,ndims(x)-1);
       x(iptsrm,colons{:}) = [];      

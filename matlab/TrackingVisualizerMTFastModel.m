@@ -44,6 +44,7 @@ classdef TrackingVisualizerMTFastModel < TrackingVisualizerModel
     function v = get.nPts(obj)
       v = numel(obj.ipt2vw) ;
     end  % function
+
     function v = get.nTgts(obj)
       v = size(obj.xyCurr, 3) ;
     end  % function

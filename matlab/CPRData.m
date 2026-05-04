@@ -46,18 +46,23 @@ classdef CPRData < handle
     function v = get.N(obj)
       v = size(obj.I,1);
     end
+
     function v = get.nView(obj)
       v = size(obj.I,2);
     end
+
     function v = get.d(obj)
       v = size(obj.bboxes,2)/2;
     end
+
     function v = get.D(obj)
       v = size(obj.pGT,2);
     end
+
     function v = get.nfids(obj)
       v = obj.D/obj.d;
     end
+
     function v = get.isLabeled(obj)
       p = obj.pGT;
       tmp = ~isnan(p);
@@ -72,12 +77,15 @@ classdef CPRData < handle
       
       v = tfAnyPtsLbled;
     end
+
     function v = get.isFullyLabeled(obj)
       v = all(~isnan(obj.pGT),2); 
     end
+
     function v = get.NFullyLabeled(obj)
       v = nnz(obj.isFullyLabeled);
     end
+
     function v = get.iUnused(obj)
       if ~isempty(intersect(obj.iTrn,obj.iTst))
         warning('CPRData:partition','Overlapping iTrn/iTst.');
@@ -85,30 +93,39 @@ classdef CPRData < handle
       iTrnTst = union(obj.iTrn,obj.iTst);
       v = setdiff(1:obj.N,iTrnTst);
     end
+
     function v = get.NTrn(obj)
       v = numel(obj.iTrn);
     end
+
     function v = get.NTst(obj)
       v = numel(obj.iTst);
     end
+
     function v = get.ITrn(obj)
       v = obj.I(obj.iTrn,:);
     end
+
     function v = get.ITst(obj)
       v = obj.I(obj.iTst,:);
     end
+
     function v = get.pGTTrn(obj)
       v = obj.pGT(obj.iTrn,:);
     end
+
     function v = get.pGTTst(obj)
       v = obj.pGT(obj.iTst,:);      
     end
+
     function v = get.bboxesTrn(obj)
       v = obj.bboxes(obj.iTrn,:);
     end
+
     function v = get.bboxesTst(obj)
       v = obj.bboxes(obj.iTst,:);
     end
+
     function v = get.MDTrn(obj)
       md = obj.MD;
       if isempty(md)
@@ -117,6 +134,7 @@ classdef CPRData < handle
         v = md(obj.iTrn,:);
       end
     end
+
     function v = get.MDTst(obj)
       md = obj.MD;
       if isempty(md)
@@ -1106,6 +1124,7 @@ classdef CPRData < handle
       [varargout{1:nargout}] = Shape.viz(obj.I(obj.isFullyLabeled,:),obj.pGT(obj.isFullyLabeled,:),...
         struct('nfids',obj.nfids,'D',obj.D),'md',obj.MD(obj.isFullyLabeled,:),varargin{:});
     end
+
     function varargout = vizIdx(obj,iTrls,varargin)
       n = numel(iTrls);
       nr = floor(sqrt(n));

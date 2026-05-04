@@ -368,6 +368,7 @@ classdef TrackBatchGUI < handle
       set(obj.gdata.text_page,'String',sprintf('Page %d/%d',obj.page,obj.npages));
       
     end
+
     function setRowVisible(obj,i,visible)
       set([obj.gdata.edit_movie(i),obj.gdata.edit_trk(i),...
         obj.gdata.button_details(i),obj.gdata.button_delete(i)],'Visible',visible);
@@ -379,12 +380,14 @@ classdef TrackBatchGUI < handle
     function moviei = item2MovieIdx(obj,itemi)
       moviei = (obj.page-1)*obj.nmovies_per_page + itemi;
     end
+
     function itemi = movie2ItemIdx(obj,moviei)
       itemi = moviei - (obj.page-1)*obj.nmovies_per_page;
       if itemi <= 0 || itemi > obj.nmovies_per_page,
         itemi = [];
       end
     end
+
     function movdata = getMovData(obj,moviei)
       movdata = struct;
       if moviei <= obj.nmovies,
@@ -409,6 +412,7 @@ classdef TrackBatchGUI < handle
         end
       end
     end
+
     function setMovData(obj,moviei,movdata)
       nview = obj.lObj.nview;
       obj.toTrack.movfiles(moviei,:) = movdata.movfiles;
@@ -465,6 +469,7 @@ classdef TrackBatchGUI < handle
       end
       obj.setRowVisible(itemi,'on');      
     end
+
     function pb_details_Callback(obj,h,e,itemi) %#ok<*INUSL>
       obj.setBusy();
       moviei = obj.item2MovieIdx(itemi);
@@ -489,6 +494,7 @@ classdef TrackBatchGUI < handle
       end
       obj.setNotBusy();
     end
+
     function pb_delete_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
       if itemi == 1 && moviei > obj.nmovies,
@@ -539,9 +545,11 @@ classdef TrackBatchGUI < handle
         obj.updateMovieList();
       end
     end
+
     function setNPages(obj)
       obj.npages = ceil(max(1,obj.nmovies) / obj.nmovies_per_page);
     end
+
     function setPage(obj,page)
       obj.page = page;
       obj.updateMovieList();
@@ -665,9 +673,11 @@ classdef TrackBatchGUI < handle
         set(controls(isvisible),'Enable','on');
       end
     end
+
     function setNotBusy(obj)
       obj.setBusy(false);
     end
+
     function edit_movie_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
       movie = h.String;
@@ -727,6 +737,7 @@ classdef TrackBatchGUI < handle
         obj.needsSave = true;
       end
     end
+
     function edit_trk_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
       if moviei>obj.nmovies
@@ -738,6 +749,7 @@ classdef TrackBatchGUI < handle
       % mutating .toTrack outside setMovData
       obj.needsSave = true;
     end
+
     function edit_detect_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
       if moviei>obj.nmovies
@@ -749,6 +761,7 @@ classdef TrackBatchGUI < handle
       % mutating .toTrack outside setMovData
       obj.needsSave = true;
     end
+
     function trk = genTrkfile(obj,movie,defaulttrk,varargin)  
       if isempty(movie)
         trk = '';
@@ -788,6 +801,7 @@ classdef TrackBatchGUI < handle
 
       end
     end
+
     function apply_macro_allmovies(obj)
       defaulttrk = obj.defaulttrkpat;
       for moviei = 1:obj.nmovies
@@ -805,6 +819,7 @@ classdef TrackBatchGUI < handle
       % mutating .toTrack outside setMovData
       obj.needsSave = true;
     end
+
     function macro_changed_trx(obj,h,e)
       trxpat = strtrim(h.String);
       if strcmp(trxpat,obj.defaulttrxpat)
