@@ -536,7 +536,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       end
       obj.updateSkel(xy);
     end
-    function newFrame(obj, frm)
+    function updateAfterCurrentFrameSet(obj, frm)
       % Display tracking results for given/new frame.
       [~, xy, tfocc] = obj.tvm_.newFrame(frm) ;
       obj.updateTrackRes(xy, tfocc) ;

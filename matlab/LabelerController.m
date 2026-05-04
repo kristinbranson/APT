@@ -6599,7 +6599,7 @@ classdef LabelerController < handle
       % Update prediction tracking visualizer for new frame
       tv = obj.tvTrkPred_ ;
       if ~isempty(tv) && hasMovie && ~labeler.isinit
-        tv.newFrame(labeler.currFrame) ;
+        tv.updateAfterCurrentFrameSet(labeler.currFrame) ;
       end
     end  % function
 
@@ -6645,7 +6645,7 @@ classdef LabelerController < handle
 
       % Show current frame
       if labeler.hasMovie && ~labeler.isinit
-        tv.newFrame(labeler.currFrame) ;
+        tv.updateAfterCurrentFrameSet(labeler.currFrame) ;
         if ~labeler.maIsMA
           tv.updatePrimary(labeler.currTarget) ;
         end

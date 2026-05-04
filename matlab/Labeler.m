@@ -12257,9 +12257,9 @@ classdef Labeler < handle
              'setFrameAndTracklet requires a tracker with a tracklet visualizer model') ;
       obj.setFrame(frameIndex) ;
         % setFrame() fires updateAfterCurrentFrameSet, whose controller handler
-        % calls tv.newFrame(currFrame).  That refreshes iTrxViz2iTrx for the
-        % new frame, which the didSetSelectedTracklet handler relies on when
-        % it calls tv.updateSelectedTrxID().
+        % calls tv.updateAfterCurrentFrameSet(currFrame).  That refreshes
+        % iTrxViz2iTrx for the new frame, which the didSetSelectedTracklet
+        % handler relies on when it calls tv.updateSelectedTrxID().
       tracker.trkVizer.setSelectedTracklet(trackletIndex) ;
     end  % function
 

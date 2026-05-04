@@ -44,7 +44,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.tvtrx.init(@(iTrx)(obj.didSelectTrx(iTrx)), tvm.ntrxmax) ;
     end
 
-    function newFrame(obj, frm)
+    function updateAfterCurrentFrameSet(obj, frm)
       % Display tracking results for given/new frame.
 
       tvm = obj.tvtm_ ;
@@ -55,7 +55,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
 
       [xy, tfeo, iTrx, iTrx2Viz2iTrxNew] = tvm.newFrame(frm) ;
       trxMappingChanged = ~isequal(iTrx2Viz2iTrxNew, tvm.iTrxViz2iTrx) ;
-      % Note: newFrame already set tvm.iTrxViz2iTrx
+      % Note: tvm.newFrame already set tvm.iTrxViz2iTrx
 
       tvtrx = obj.tvtrx ; %#ok<*PROPLC>
       tvtrx_primary = find(iTrx2Viz2iTrxNew == tvm.currTrklet) ;

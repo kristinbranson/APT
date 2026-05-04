@@ -8,7 +8,7 @@ classdef TrackingVisualizerBase < handle
 % *Frame updates, direct*
 % Some clients may desire a direct API for setting predictions. This is
 % currently used by eg LabelCoreSeqMA. In this mode:
-% - newFrame() is not called
+% - updateAfterCurrentFrameSet() is not called
 % - eg TrackingVisualizerMT/updateTrackRes is called
 %
 % TrackingVisualizerBase does not currently have API for this and it will
@@ -17,7 +17,7 @@ classdef TrackingVisualizerBase < handle
 % *Frame updates, loaded tracking results*
 % In this mode, tracking results (ie TrkFile or Trk) are provided to TVM
 % (TrackingVisualizerModel) classes via tvm.trkInit(). Then frame-updates
-% are handled within TVs by calling newFrame(). Some points:
+% are handled within TVs by calling updateAfterCurrentFrameSet(). Some points:
 %   - new tracking results are generated only infrequently (by either a
 % tracking job, or an import); so trkInit() calls should be fairly sparse
 %   - a TV may desire to massage or generate its own custom data structure
@@ -38,7 +38,7 @@ classdef TrackingVisualizerBase < handle
     % initialize graphics handles and cosmetics from Labeler (TVs currently 
     % store a Labeler handle as a prop)
     
-    newFrame(obj,frm)
+    updateAfterCurrentFrameSet(obj,frm)
     % display tracking results for given/new frame
     
     initAndUpdateSkeletonEdges(obj,sedges)
