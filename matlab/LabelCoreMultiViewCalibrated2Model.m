@@ -147,7 +147,7 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
   %% State transition hooks
   methods
 
-    function newFrame(obj, iFrm0, iFrm1, iTgt, tfForceUpdate)
+    function didSetCurrFrame(obj, iFrm0, iFrm1, iTgt, tfForceUpdate)
       % Frame has changed, target is the same.
       if ~exist('tfForceUpdate', 'var')
         tfForceUpdate = false ;

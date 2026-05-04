@@ -77,7 +77,7 @@ classdef TrackingVisualizerMTFastModel < TrackingVisualizerModel
       obj.trk = trk ;
     end  % function
 
-    function [tfhaspred, xy, tfocc] = newFrame(obj, frm)
+    function [tfhaspred, xy, tfocc] = didSetCurrFrame(obj, frm)
       % Return per-frame tracking data and update internal xy cache.
       [tfhaspred, xy, tfocc] = obj.trk.getPTrkFrame(frm, 'collapse', true) ;
       itgts = find(tfhaspred) ;

@@ -9,8 +9,8 @@ classdef TrackingVisualizerMTModel < TrackingVisualizerModel
 
     trk % scalar TrkFile, views merged
 
-    xyCurr  % [npts x 2 x nTgts] current pred coords, populated by newFrame()
-    occCurr % [npts x nTgts] logical, current occludedness, populated by newFrame()
+    xyCurr  % [npts x 2 x nTgts] current pred coords, populated by didSetCurrFrame()
+    occCurr % [npts x nTgts] logical, current occludedness, populated by didSetCurrFrame()
 
     ipt2vw % [npts], like Labeler/labeledposIPt2View
     ptsPlotInfoFld % eg 'labelPointsPlotInfo'
@@ -75,7 +75,7 @@ classdef TrackingVisualizerMTModel < TrackingVisualizerModel
       obj.trk = trk ;
     end  % function
 
-    function [tfhaspred, xy, tfocc] = newFrame(obj, frm)
+    function [tfhaspred, xy, tfocc] = didSetCurrFrame(obj, frm)
       % Cache per-frame tracking data on obj.xyCurr/occCurr for the TV to read.
       [tfhaspred, xy, tfocc] = obj.trk.getPTrkFrame(frm, 'collapse', true) ;
       obj.xyCurr = xy ;

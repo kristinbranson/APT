@@ -19,7 +19,7 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
 
     iTrxViz2iTrx % [ntrxmax] mapping from trx in tvtrx -> ptrx
 
-    % Cached per-frame state, populated by newFrame() before the Labeler
+    % Cached per-frame state, populated by didSetCurrFrame() before the Labeler
     % fires updateAfterCurrentFrameSet.  The TV reads these to render.
     xyCurr   % [npts x 2 x nTrxLive] landmark coords for current frame
     tfeoCurr % [npts x nTrxLive] est-occluded flags for current frame
@@ -74,7 +74,7 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
       iTrx = find([obj.ptrx.firstframe] <= frm & [obj.ptrx.endframe] >= frm) ;
     end  % function
 
-    function newFrame(obj, frm)
+    function didSetCurrFrame(obj, frm)
       % Cache per-frame tracklet data for the TV to render.  Populates
       % obj.xyCurr, obj.tfeoCurr, obj.iTrxCurr, and obj.iTrxViz2iTrx so
       % that the TV's updateAfterCurrentFrameSet can read directly from

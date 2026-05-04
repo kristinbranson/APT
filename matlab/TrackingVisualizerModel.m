@@ -16,7 +16,7 @@ classdef TrackingVisualizerModel < handle
     trkInit(obj, trk)
     % Initialize tracking data from a TrkFile.
 
-    newFrame(obj, frm)
+    didSetCurrFrame(obj, frm)
     % Compute per-frame data for the TV to render.  Returns data that the
     % TV uses to update graphics.
 

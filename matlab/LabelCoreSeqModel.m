@@ -48,7 +48,7 @@ classdef LabelCoreSeqModel < LabelCoreModel
   %% State transition hooks
   methods
 
-    function newFrame(obj, iFrm0, iFrm1, iTgt, tfForceUpdate) %#ok<INUSL>
+    function didSetCurrFrame(obj, iFrm0, iFrm1, iTgt, tfForceUpdate) %#ok<INUSL>
       % Frame has changed, target is the same.
       if ~exist('tfForceUpdate', 'var')
         tfForceUpdate = false ; %#ok<NASGU>

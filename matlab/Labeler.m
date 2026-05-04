@@ -6480,7 +6480,7 @@ classdef Labeler < handle
         xy = xy(:,:,iTgt) ;
         lpos2xy = reshape(xy, obj.nLabelPoints, 2) ;
         obj.labelPosSet(lpos2xy) ;
-        obj.lblCore.newFrame(frm, frm, 1, true) ;
+        obj.lblCore.didSetCurrFrame(frm, frm, 1, true) ;
       end
     end  % function
 
@@ -7943,35 +7943,6 @@ classdef Labeler < handle
       obj.setDoesNeedSave(true, 'Imported tracking results') ;
     end
 
-%     function labelImportTrk_Old(obj,iMovs,trkfiles)
-%       % Import label data from trk files.
-%       %
-%       % iMovs: [nMovie]. Movie(set) indices for which to import.
-%       % trkfiles: [nMoviexnview] cellstr. full filenames to trk files
-%       %   corresponding to iMov.
-%       
-%       assert(~obj.gtIsGTMode);
-%       
-%       obj.labelImportTrkGeneric(iMovs,trkfiles,'labeledpos',...
-%         'labeledposTS','labeledpostag');
-%       % need to compute lastLabelChangeTS from scratch
-%       obj.computeLastLabelChangeTS_Old();
-%       
-%       obj.movieFilesAllHaveLbls(iMovs) = ...
-%         cellfun(@Labeler.computeNumLbledRows,obj.labeledpos(iMovs));
-%       
-%       obj.updateFrameTableComplete();
-%       if obj.gtIsGTMode
-%         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
-%       end
-%       
-%       %obj.labeledposNeedsSave = true; AL 20160609: don't touch this for
-%       %now, since what we are importing is already in the .trk file.
-%       obj.labelsUpdateNewFrame(true);
-%       
-%       obj.rcSaveProp('lastTrkFileImported',trkfiles{end});
-%     end
-    
     % compute lastLabelChangeTS from scratch
     function computeLastLabelChangeTS_Old(obj)      
       % do this because some movies might not be labeled
@@ -8547,7 +8518,7 @@ classdef Labeler < handle
           doForce = false;
         end
         if ~isempty(obj.lblCore) && (obj.prevFrame~=obj.currFrame || doForce)
-          obj.lblCore.newFrame(obj.prevFrame, obj.currFrame, obj.currTarget) ;
+          obj.lblCore.didSetCurrFrame(obj.prevFrame, obj.currFrame, obj.currTarget) ;
         end
       end
       obj.notify_('updatePrevAxesLabels') ;
@@ -13418,7 +13389,7 @@ classdef Labeler < handle
       if isa(tvm, 'TrackingVisualizerMTModel') || ...
          isa(tvm, 'TrackingVisualizerMTFastModel') || ...
          isa(tvm, 'TrackingVisualizerTrackletsModel')
-        tvm.newFrame(obj.currFrame_) ;
+        tvm.didSetCurrFrame(obj.currFrame_) ;
       end
     end  % function
 

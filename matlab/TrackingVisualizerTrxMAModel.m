@@ -35,7 +35,7 @@ classdef TrackingVisualizerTrxMAModel < TrackingVisualizerModel
       % no-op for TrxMA model; trx data comes via updateLiveTrx
     end  % function
 
-    function newFrame(obj, frm) %#ok<INUSD>
+    function didSetCurrFrame(obj, frm) %#ok<INUSD>
       % no-op; frame updates driven by TrackingVisualizerTrackletsModel
     end  % function
   end  % methods
