@@ -19,6 +19,12 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
 
     iTrxViz2iTrx % [ntrxmax] mapping from trx in tvtrx -> ptrx
 
+    % Cached per-frame state, populated by newFrame() before the Labeler
+    % fires updateAfterCurrentFrameSet.  The TV reads these to render.
+    xyCurr   % [npts x 2 x nTrxLive] landmark coords for current frame
+    tfeoCurr % [npts x nTrxLive] est-occluded flags for current frame
+    iTrxCurr % [nTrxLive] indices into ptrx of live tracklets for current frame
+
     tfShowTrxTraj = true
   end
 
@@ -68,19 +74,15 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
       iTrx = find([obj.ptrx.firstframe] <= frm & [obj.ptrx.endframe] >= frm) ;
     end  % function
 
-    function [xy, tfeo, iTrx, iTrx2Viz2iTrxNew] = newFrame(obj, frm)
-      % Compute per-frame tracklet data for the TV to render.
-      % Basically this seems to set obj.iTrxViz2iTrx appropriately for
-      % the new frame.  -- ALT, 2026-04-21
+    function newFrame(obj, frm)
+      % Cache per-frame tracklet data for the TV to render.  Populates
+      % obj.xyCurr, obj.tfeoCurr, obj.iTrxCurr, and obj.iTrxViz2iTrx so
+      % that the TV's updateAfterCurrentFrameSet can read directly from
+      % cached state once the Labeler fires the event.
       ptrx = obj.ptrx ;
       if isempty(ptrx)
-        xy = [] ;
-        tfeo = [] ;
-        iTrx = [] ;
-        iTrx2Viz2iTrxNew = zeros(obj.ntrxmax, 1) ;
-        % Seems like a bug that we don't do e.g. 
-        % `obj.iTrxViz2iTrx = iTrx2Viz2iTrxNew ;`
-        % here.  --ALT, 2026-04-21
+        % Leave cached state as-is; the TV's updateAfterCurrentFrameSet
+        % short-circuits when ptrx is empty.
         return
       end
 
@@ -125,6 +127,9 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
       iTrx2Viz2iTrxNew = zeros(obj.ntrxmax, 1) ;
       iTrx2Viz2iTrxNew(1:nLive) = iTrx ;
       obj.iTrxViz2iTrx = iTrx2Viz2iTrxNew ;
+      obj.xyCurr = xy ;
+      obj.tfeoCurr = tfeo ;
+      obj.iTrxCurr = iTrx ;
     end  % function
 
     function iTrxViz = iTrx2iTrxViz(obj, iTrx)

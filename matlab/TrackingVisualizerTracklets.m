@@ -45,7 +45,8 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     end
 
     function updateAfterCurrentFrameSet(obj, frm)
-      % Display tracking results for given/new frame.
+      % Display tracking results for given/new frame.  Reads cached state
+      % from the TVM, which the Labeler refreshed before firing the event.
 
       tvm = obj.tvtm_ ;
       ptrx = tvm.ptrx ;
@@ -53,24 +54,23 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         return;
       end
 
-      [xy, tfeo, iTrx, iTrx2Viz2iTrxNew] = tvm.newFrame(frm) ;
-      trxMappingChanged = ~isequal(iTrx2Viz2iTrxNew, tvm.iTrxViz2iTrx) ;
-      % Note: tvm.newFrame already set tvm.iTrxViz2iTrx
+      iTrx = tvm.iTrxCurr ;
+      iTrxViz2iTrx = tvm.iTrxViz2iTrx ;
 
       tvtrx = obj.tvtrx ; %#ok<*PROPLC>
-      tvtrx_primary = find(iTrx2Viz2iTrxNew == tvm.currTrklet) ;
+      tvtrx_primary = find(iTrxViz2iTrx == tvm.currTrklet) ;
       tvmt_primary = tvtrx_primary ;
       if isempty(tvtrx_primary)
         tvtrx_primary = 0 ;
       end
 
       % update tvmt
-      obj.tvmt.updateTrackRes(xy, tfeo) ;
+      obj.tvmt.updateTrackRes(tvm.xyCurr, tvm.tfeoCurr) ;
       obj.tvmt.updatePrimary(tvmt_primary) ;
 
       % update tvtrx
       tvtrx.updatePrimaryTrx(tvtrx_primary) ;
-      tvtrx.updateLiveTrx(ptrx(iTrx), frm, trxMappingChanged) ;
+      tvtrx.updateLiveTrx(ptrx(iTrx), frm) ;
     end
     
     function iTrxViz = iTrx2iTrxViz(obj, iTrx)

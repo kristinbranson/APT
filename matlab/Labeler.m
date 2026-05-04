@@ -13415,7 +13415,9 @@ classdef Labeler < handle
       if isempty(tvm)
         return
       end
-      if isa(tvm, 'TrackingVisualizerMTModel') || isa(tvm, 'TrackingVisualizerMTFastModel')
+      if isa(tvm, 'TrackingVisualizerMTModel') || ...
+         isa(tvm, 'TrackingVisualizerMTFastModel') || ...
+         isa(tvm, 'TrackingVisualizerTrackletsModel')
         tvm.newFrame(obj.currFrame_) ;
       end
     end  % function

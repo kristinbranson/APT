@@ -161,7 +161,7 @@ classdef TrackingVisualizerTrxMA < handle
       end
     end
 
-    function updateLiveTrx(obj, trxLive, frm, tfUpdateIDs)
+    function updateLiveTrx(obj, trxLive, frm)
       % Set/update positions of all live trx/trajs.
 
       tvm = obj.tvm_ ;
@@ -207,10 +207,8 @@ classdef TrackingVisualizerTrxMA < handle
 
         if lObj.showTrxIDLbl
           set(obj.hTrxTxt(iTrx),'Position',[xTrx+dx yTrx+dx 1]);
-          if tfUpdateIDs
-            idstr = num2str(trxCurr.id);
-            set(obj.hTrxTxt(iTrx),'String',idstr);
-          end
+          idstr = num2str(trxCurr.id);
+          set(obj.hTrxTxt(iTrx),'String',idstr);
         end
       end
     end  % function
