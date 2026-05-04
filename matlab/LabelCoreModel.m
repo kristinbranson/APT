@@ -217,7 +217,7 @@ classdef LabelCoreModel < handle
       % Presumably iFrm1 is the new frame index, and iFrm0 is the old...
     end  % function
 
-    function newTarget(obj, iTgt0, iTgt1, iFrm) %#ok<INUSD>
+    function didSetCurrTarget(obj, iTgt0, iTgt1, iFrm) %#ok<INUSD>
       % Target has changed, frame is the same.
     end  % function
 

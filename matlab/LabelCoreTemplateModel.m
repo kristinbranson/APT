@@ -66,7 +66,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
       obj.newFrameAndTarget(iFrm0, iFrm1, iTgt, iTgt, tfForceUpdate) ;
     end  % function
 
-    function newTarget(obj, iTgt0, iTgt1, iFrm)
+    function didSetCurrTarget(obj, iTgt0, iTgt1, iFrm)
       % Target has changed, frame is the same.
       obj.newFrameAndTarget(iFrm, iFrm, iTgt0, iTgt1) ;
     end  % function

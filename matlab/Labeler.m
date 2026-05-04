@@ -8526,7 +8526,7 @@ classdef Labeler < handle
 
     function labelsSyncToNewTarget_(obj, prevTarget)
       if ~isempty(obj.lblCore)
-        obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
+        obj.lblCore.didSetCurrTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
       obj.notify_('updatePrevAxesLabels') ;
     end

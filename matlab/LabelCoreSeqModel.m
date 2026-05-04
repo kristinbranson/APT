@@ -56,7 +56,7 @@ classdef LabelCoreSeqModel < LabelCoreModel
       obj.newFrameTarget(iFrm1, iTgt) ;
     end  % function
 
-    function newTarget(obj, iTgt0, iTgt1, iFrm) %#ok<INUSL>
+    function didSetCurrTarget(obj, iTgt0, iTgt1, iFrm) %#ok<INUSL>
       % Target has changed, frame is the same.
       obj.newFrameTarget(iFrm, iTgt1) ;
     end  % function
