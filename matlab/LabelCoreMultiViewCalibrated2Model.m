@@ -152,15 +152,15 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
       if ~exist('tfForceUpdate', 'var')
         tfForceUpdate = false ;
       end
-      obj.newFrameAndTarget(iFrm0, iFrm1, iTgt, iTgt, tfForceUpdate) ;
+      obj.didSetCurrFrameAndCurrTarget(iFrm0, iFrm1, iTgt, iTgt, tfForceUpdate) ;
     end  % function
 
     function didSetCurrTarget(obj, iTgt0, iTgt1, iFrm)
       % Target has changed, frame is the same.
-      obj.newFrameAndTarget(iFrm, iFrm, iTgt0, iTgt1) ;
+      obj.didSetCurrFrameAndCurrTarget(iFrm, iFrm, iTgt0, iTgt1) ;
     end  % function
 
-    function newFrameAndTarget(obj, iFrm0, iFrm1, iTgt0, iTgt1, tfForceUpdate)
+    function didSetCurrFrameAndCurrTarget(obj, iFrm0, iFrm1, iTgt0, iTgt1, tfForceUpdate)
       % React to new frame and/or target.
       if ~exist('tfForceUpdate', 'var')
         tfForceUpdate = false ;

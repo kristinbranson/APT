@@ -61,7 +61,7 @@ classdef LabelCoreSeqModel < LabelCoreModel
       obj.newFrameTarget(iFrm, iTgt1) ;
     end  % function
 
-    function newFrameAndTarget(obj, ~, iFrm1, ~, iTgt1, tfForceUpdate)
+    function didSetCurrFrameAndCurrTarget(obj, ~, iFrm1, ~, iTgt1, tfForceUpdate)
       % Frame and target have both changed.
       if ~exist('tfForceUpdate', 'var')
         tfForceUpdate = false ; %#ok<NASGU>

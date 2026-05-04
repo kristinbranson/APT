@@ -221,7 +221,7 @@ classdef LabelCoreModel < handle
       % Target has changed, frame is the same.
     end  % function
 
-    function newFrameAndTarget(obj, iFrm0, iFrm1, iTgt0, iTgt1, tfForceUpdate) %#ok<INUSD>
+    function didSetCurrFrameAndCurrTarget(obj, iFrm0, iFrm1, iTgt0, iTgt1, tfForceUpdate) %#ok<INUSD>
       % Frame and target have both changed.
     end  % function
 
