@@ -124,7 +124,9 @@ classdef AxisHUD < handle
         [obj.hTxtTgt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrTarget, 'hud_tgt') ;
         obj.updateTarget_() ;
       end
-      if obj.labeler_.isMultiView
+      if obj.labeler_.isMultiView && ~isempty(obj.labeler_.lblCore)
+        % lblCore can be empty during movie loading (trxSet fires this update
+        % before labelingInit_ runs); skip the readout until it's set up.
         [obj.hTxtLblPt,yOffset] = obj.createTextUIControl_(yOffset, obj.txtClrLblPoint, 'hud_lblpt') ;
         obj.updateLblPoint_() ;
       end

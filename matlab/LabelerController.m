@@ -3993,7 +3993,9 @@ classdef LabelerController < handle
       obj.slider_frame.Position = [164, 20, panelW-190, 24] ;
 
       % Bottom-left of panel (fixed within panel)
-      obj.axes_occ.Position = [14, 62, 196, 54] ;
+      % Only axes_occ(1) lives in the main figure; auxiliary-view occlusion
+      % axes are positioned in their own figures (see didCreateNewProject).
+      obj.axes_occ(1).Position = [14, 62, 196, 54] ;
       obj.text_occludedpoints.Position = [14, 93, 196, 23] ;
       obj.edit_frame.Position = [91, 20, 68, 24] ;
       obj.pbPlay.Position = [9, 20, 30, 24] ;
