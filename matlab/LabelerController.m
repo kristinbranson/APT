@@ -8286,8 +8286,11 @@ classdef LabelerController < handle
           if tf
             for jj = sel(:)'
               cur_mov = standardizeFileSeparators(not_done{jj});
-              movies_done_new{end+1} = FSPath.replacePrefix(cur_mov,oldPrefix,newPrefix);  %#ok<AGROW>
-              movies_done{end+1} = not_done{jj};  %#ok<AGROW>
+              candidate = FSPath.replacePrefix(cur_mov,oldPrefix,newPrefix);
+              if exist(candidate,'file')
+                movies_done_new{end+1} = candidate;  %#ok<AGROW>
+                movies_done{end+1} = not_done{jj};  %#ok<AGROW>
+              end
             end
           end
         end
