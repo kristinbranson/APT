@@ -8117,20 +8117,16 @@ classdef LabelerController < handle
           qtitle = 'Movie not found';
 
           if FSPath.hasAnyMacro(movfile)
-            qargs = {'Redefine macros','Browse to movie','Cancel','Cancel'};
+            qargs = {'Redefine macros','Browse to movie','Skip movie','Skip movie'};
           else
-            qargs = {'Browse to movie','Cancel','Cancel'};
+            qargs = {'Browse to movie','Skip movie','Skip movie'};
           end
-            % Note that when this function is called in the context of project loading,
-            % the 'Cancel' button is confusing---it sounds like maybe it would abort the
-            % project load, but it means 'Ignore the missing movie and proceed with
-            % loading, I will sort out this issue in the movie manager later'.
           resp = questdlg(qstr,qtitle,qargs{:});
           if isempty(resp)
-            resp = 'Cancel';
+            resp = 'Skip movie';
           end
           switch resp
-            case 'Cancel'
+            case 'Skip movie'
               return;
             case 'Redefine macros'
               obj.projMacrosSetGUI();
@@ -8164,14 +8160,14 @@ classdef LabelerController < handle
             qstr = FSPath.errStrFileNotFoundMacroAware(trxFile,...
               trxFileFull,'trxfile');
             resp = questdlg(qstr,'Trxfile not found',...
-              'Browse to trxfile','Cancel','Cancel');
+              'Browse to trxfile','Skip trxfile','Skip trxfile');
             if isempty(resp)
-              resp = 'Cancel';
+              resp = 'Skip trxfile';
             end
             switch resp
               case 'Browse to trxfile'
                 % none
-              case 'Cancel'
+              case 'Skip trxfile'
                 return;
             end
 
