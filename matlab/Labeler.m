@@ -509,6 +509,7 @@ classdef Labeler < handle
     trxFilesAllFull  % like .movieFilesAllFull, but for .trxFilesAll
     trxFilesAllGTFull  % etc
     trxFilesAllFullGTaware
+    trxFilesAllGTaware  % Either .trxFilesAll or .trxFilesAllGT
     trxInfoAllGTaware
     hasTrx
     currTrx
@@ -1117,6 +1118,15 @@ classdef Labeler < handle
       end
     end
 
+    function v = get.trxFilesAllGTaware(obj)
+      % Returns .trxFilesAllGT if in GT mode, else .trxFilesAll.
+      if obj.gtIsGTMode
+        v = obj.trxFilesAllGT;
+      else
+        v = obj.trxFilesAll;
+      end
+    end
+
     function v = get.trxInfoAllGTaware(obj)
       if obj.gtIsGTMode
         v = obj.trxInfoAllGT;
@@ -1341,7 +1351,7 @@ classdef Labeler < handle
         iMov = 1:nmov;
       end
         
-      PROPS = obj.gtGetSharedPropsStc(gt);
+      PROPS = obj.gtGetSharedPropsStc_(gt);
       %tfaf = obj.(PROPS.TFAF);
       mia = obj.(PROPS.MIA);
       tia = obj.(PROPS.TIA);
@@ -1372,7 +1382,7 @@ classdef Labeler < handle
     end
 
     function v = getNTargets(obj,gt,imov)
-      PROPS = obj.gtGetSharedPropsStc(gt);
+      PROPS = obj.gtGetSharedPropsStc_(gt);
       if obj.hasTrx,
         v = obj.(PROPS.TIA){imov,1}.ntgts;
       elseif obj.maIsMA,
@@ -3906,14 +3916,14 @@ classdef Labeler < handle
       % Return the raw (possibly macroized) movie file path for view iView of
       % movie iMov.  If isGT is true, returns the GT-mode path; otherwise the
       % regular-mode path.
-      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
+      PROPS = Labeler.gtGetSharedPropsStc_(isGT) ;
       p = obj.(PROPS.MFA){iMov, iView} ;
     end  % function
 
     function p = movieFilePathFull(obj, iMov, iView, isGT)
       % Return the macro-resolved full movie file path for view iView of movie
       % iMov.  See movieFilePathRaw for the isGT argument.
-      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
+      PROPS = Labeler.gtGetSharedPropsStc_(isGT) ;
       p = obj.(PROPS.MFAF){iMov, iView} ;
     end  % function
 
@@ -3921,28 +3931,28 @@ classdef Labeler < handle
       % Return the macro-resolved full movie file paths for normal or GT mode
       % as an [nmov x nview] cell array.  See movieFilePathRaw for the isGT
       % argument.
-      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
+      PROPS = Labeler.gtGetSharedPropsStc_(isGT) ;
       v = obj.(PROPS.MFAF) ;
     end  % function
 
     function p = trxFilePathRaw(obj, iMov, iView, isGT)
       % Return the raw (possibly macroized) trx file path for view iView of
       % movie iMov.  See movieFilePathRaw for the isGT argument.
-      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
+      PROPS = Labeler.gtGetSharedPropsStc_(isGT) ;
       p = obj.(PROPS.TFA){iMov, iView} ;
     end  % function
 
     function p = trxFilePathFull(obj, iMov, iView, isGT)
       % Return the macro-resolved full trx file path for view iView of movie
       % iMov.  See movieFilePathRaw for the isGT argument.
-      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
+      PROPS = Labeler.gtGetSharedPropsStc_(isGT) ;
       p = obj.(PROPS.TFAF){iMov, iView} ;
     end  % function
 
     function row = trxFilePathsRawForMovie(obj, iMov, isGT)
       % Return the raw trx file paths for all views of movie iMov as a
       % 1-by-nview cell array.  See movieFilePathRaw for the isGT argument.
-      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
+      PROPS = Labeler.gtGetSharedPropsStc_(isGT) ;
       row = obj.(PROPS.TFA)(iMov, :) ;
     end  % function
 
@@ -3950,7 +3960,7 @@ classdef Labeler < handle
       % Update the persisted (raw) movie file path for view iView of movie
       % iMov, refresh the cached movie info, and notify listeners.  Used by
       % the controller's missing-movie relocation flow.
-      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
+      PROPS = Labeler.gtGetSharedPropsStc_(isGT) ;
       obj.(PROPS.MFA){iMov, iView} = newRawPath ;
       obj.updateMovieInfo_(iMov, iView) ;
       obj.notify_('update') ;
@@ -3960,7 +3970,7 @@ classdef Labeler < handle
       % Update the persisted (raw) trx file path for view iView of movie iMov
       % and notify listeners.  Used by the controller's missing-trxfile
       % relocation flow.
-      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
+      PROPS = Labeler.gtGetSharedPropsStc_(isGT) ;
       obj.(PROPS.TFA){iMov, iView} = newRawPath ;
       obj.notify_('update') ;
     end  % function
@@ -4060,7 +4070,7 @@ classdef Labeler < handle
         end
       end
 
-      PROPS = Labeler.gtGetSharedPropsStc(gt);
+      PROPS = Labeler.gtGetSharedPropsStc_(gt);
       
       moviefile = cellstr(moviefile);
       if istrxfile,
@@ -4254,7 +4264,7 @@ classdef Labeler < handle
         error('Labeler:movieSetAdd','Unsupported for nTargets>1.');
       end
       
-      PROPS = Labeler.gtGetSharedPropsStc(gt);
+      PROPS = Labeler.gtGetSharedPropsStc_(gt);
       
       moviefiles = cellstr(moviefiles);
       if numel(moviefiles)~=obj.nview
@@ -4396,7 +4406,7 @@ classdef Labeler < handle
       
       moviefilesfull = cellfun(@obj.projLocalizePath,moviefiles,'uni',0);
       
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
 
       tfMFeq = arrayfun(@(x)strcmp(moviefiles{x},obj.(PROPS.MFA)(:,x)),1:nvw,'uni',0);
       tfMFFeq = arrayfun(@(x)strcmp(moviefilesfull{x},obj.(PROPS.MFAF)(:,x)),1:nvw,'uni',0);
@@ -4454,7 +4464,7 @@ classdef Labeler < handle
       obj.pushBusyStatus('Removing movie...') ;
       oc = onCleanup(@()(obj.popBusyStatus())) ;
 
-      PROPS = Labeler.gtGetSharedPropsStc(gt);
+      PROPS = Labeler.gtGetSharedPropsStc_(gt);
       nMovOrigReg = obj.nmovies;
       nMovOrigGT = obj.nmoviesGT;
 
@@ -5103,7 +5113,7 @@ classdef Labeler < handle
 %       
 %       tfWB = ~isempty(wbObj);
 %       
-%       PROPS = obj.gtGetSharedPropsStc(isGT);
+%       PROPS = obj.gtGetSharedPropsStc_(isGT);
 %       nmovsets = obj.getnmoviesGTawareArg(isGT);
 %       nvw = obj.nview;
 % 
@@ -5409,7 +5419,7 @@ classdef Labeler < handle
       
 %     function movieHistEqLUTEffectMontageHlp(obj,isGT,frm,wbObj)
 %       % OBSOLETE
-%       PROPS = obj.gtGetSharedPropsStc(isGT);
+%       PROPS = obj.gtGetSharedPropsStc_(isGT);
 %       Tbins = obj.(PROPS.MFALUT);
 %       assert(~isempty(Tbins));
 %       nmovsets = obj.getnmoviesGTawareArg(isGT);
@@ -5586,7 +5596,7 @@ classdef Labeler < handle
       elseif isempty(gt)
         gt = false;
       end
-      PROPS = obj.gtGetSharedPropsStc(gt);
+      PROPS = obj.gtGetSharedPropsStc_(gt);
       mia = obj.(PROPS.MIA)(movi,:);
       tia = obj.(PROPS.TIA)(movi,:);
       nframes = max(cellfun(@(x) x.nframes,mia));
@@ -5796,8 +5806,8 @@ classdef Labeler < handle
       fprintf('Moderning lbl file to store info about trx files, this may take a minute...\n');
       fprintf('After this is done, please save your new lbl file. This will not need to be run again.\n');
 
-      obj.initTrxInfoHelper(Labeler.gtGetSharedPropsStc(false));
-      obj.initTrxInfoHelper(Labeler.gtGetSharedPropsStc(true));
+      obj.initTrxInfoHelper(Labeler.gtGetSharedPropsStc_(false));
+      obj.initTrxInfoHelper(Labeler.gtGetSharedPropsStc_(true));
     end
     
     function initTrxInfoHelper(obj,PROPS)
@@ -6147,7 +6157,7 @@ classdef Labeler < handle
 %       iFrm = obj.currFrame;
 %       iTgt = obj.currTarget;
 %       
-%       PROPS = obj.gtGetSharedProps();
+%       PROPS = obj.gtGetSharedProps_();
 %       x = obj.(PROPS.LPOS){iMov}(:,:,iFrm,iTgt);
 %       if all(isnan(x(:)))
 %         % none; short-circuit set to avoid triggering .labeledposNeedsSave
@@ -6172,7 +6182,7 @@ classdef Labeler < handle
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
       
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov};
       [s,tfchanged] = Labels.rmFT(s,iFrm,iTgt);
       if tfchanged
@@ -6193,7 +6203,7 @@ classdef Labeler < handle
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
       
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov};
       [s,tfchanged] = Labels.rmFTP(s,iFrm,iTgt,pts);
       if tfchanged,
@@ -6229,7 +6239,7 @@ classdef Labeler < handle
         warning('No targets.');
       end
       
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov};
       [s,tfchanged] = Labels.rmFT(s,iFrm,iTgt);
       [s,tfchanged2,ntgts] = Labels.compact(s,iFrm);
@@ -6263,7 +6273,7 @@ classdef Labeler < handle
 %       iFrm = obj.currFrame;
 %       iTgt = obj.currTarget;
 %       
-%       PROPS = obj.gtGetSharedProps();
+%       PROPS = obj.gtGetSharedProps_();
 %       xy = obj.(PROPS.LPOS){iMov}(iPt,:,iFrm,iTgt);
 %       if all(isnan(xy))
 %         % none; short-circuit set to avoid triggering .labeledposNeedsSave
@@ -6288,7 +6298,7 @@ classdef Labeler < handle
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
       
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov}(iPt,:,iFrm,iTgt);
       [s,tfchanged] = Labels.clearFTI(s,iFrm,iTgt,iPt);
       if tfchanged
@@ -6314,7 +6324,7 @@ classdef Labeler < handle
       % lpostag: [npts] logical array 
       % This method does not mutate obj.
       [iMov,gtmode] = myparse(varargin,'iMov',obj.currMovie,'gtmode',obj.gtIsGTMode);
-      PROPS = obj.gtGetSharedPropsStc(gtmode);
+      PROPS = obj.gtGetSharedPropsStc_(gtmode);
       s = obj.(PROPS.LBL){iMov};
       [tf,p,occ] = Labels.isLabeledFT(s,iFrm,iTrx);
       lpos = reshape(p,[numel(p)/2 2]);
@@ -6329,7 +6339,7 @@ classdef Labeler < handle
       % lpostag: [npts] logical array 
       
       iMov = obj.currMovie;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov};
       [tfperpt,p,occ] = Labels.isLabeledPerPtFT(s,iFrm,iTrx);
       lpos = reshape(p,[numel(p)/2 2]);
@@ -6343,7 +6353,7 @@ classdef Labeler < handle
       % iTgts:
       
       iMov = obj.currMovie;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov};
       iTgts = Labels.isLabeledF(s,iFrm);
     end 
@@ -6415,7 +6425,7 @@ classdef Labeler < handle
 %       if exist('iTrx','var')==0
 %         iTrx = obj.currTarget;
 %       end
-%       PROPS = obj.gtGetSharedProps();
+%       PROPS = obj.gtGetSharedProps_();
 %       lpos = obj.(PROPS.LPOS){iMov}(:,:,iFrm,iTrx);
 %       tf = isinf(lpos(:,1));
 %     end
@@ -6428,7 +6438,7 @@ classdef Labeler < handle
       if exist('iTrx','var')==0
         iTrx = obj.currTarget;
       end
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov};
       [tflbl,p,~] = Labels.isLabeledFT(s,iFrm,iTrx);
       if tflbl
@@ -6454,7 +6464,7 @@ classdef Labeler < handle
 %       iMov = obj.currMovie;
 %       iFrm = obj.currFrame;
 %       iTgt = obj.currTarget;
-%       PROPS = obj.gtGetSharedProps();
+%       PROPS = obj.gtGetSharedProps_();
 %       obj.(PROPS.LPOS){iMov}(:,:,iFrm,iTgt) = xy;
 %       ts = now;
 %       obj.(PROPS.LPOSTS){iMov}(:,iFrm,iTgt) = ts;
@@ -6472,7 +6482,7 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       ts = now;
       s = obj.(PROPS.LBL){iMov};
       s = Labels.setpFT(s,iFrm,iTgt,xy);
@@ -6565,7 +6575,7 @@ classdef Labeler < handle
 %       iMov = obj.currMovie;
 %       iFrm = obj.currFrame;
 %       iTgt = obj.currTarget;
-%       PROPS = obj.gtGetSharedProps();
+%       PROPS = obj.gtGetSharedProps_();
 %       obj.(PROPS.LPOS){iMov}(iPt,:,iFrm,iTgt) = xy;
 %       ts = now;
 %       obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = ts;
@@ -6584,7 +6594,7 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov};
       s = Labels.setpFTI(s, iFrm,iTgt,iPt,xy);
       obj.(PROPS.LBL){iMov} = s;
@@ -6626,7 +6636,7 @@ classdef Labeler < handle
 
       iMov = obj.currMovie;
       iTgt = obj.currTarget;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       obj.(PROPS.LPOS){iMov}(iPt,1,frms,iTgt) = xy(1);
       obj.(PROPS.LPOS){iMov}(iPt,2,frms,iTgt) = xy(2);
       obj.syncPropsMovieFilesAllHaveLabels_() ;
@@ -6671,7 +6681,7 @@ classdef Labeler < handle
 %         ...                   % WARNING: 'tgt' assumes target i corresponds across all movies!!
 %         'gt',obj.gtIsGTMode);
 %       
-%       PROPS = Labeler.gtGetSharedPropsStc(gt);
+%       PROPS = Labeler.gtGetSharedPropsStc_(gt);
 %       nMov = obj.getnmoviesGTawareArg(gt);
 %       
 %       ts = now;
@@ -6793,7 +6803,7 @@ classdef Labeler < handle
           iMov,nfrmslbl,nfrmscompact);
       end
       
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       obj.(PROPS.LBL){iMov} = s;
 
       obj.syncPropsMovieFilesAllHaveLabels_() ;
@@ -6863,7 +6873,7 @@ classdef Labeler < handle
       % import labels from COCO json file
       hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
 
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       tsnow = now;
 
       if hasmovies,
@@ -7100,7 +7110,7 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       obj.(PROPS.LPOS){iMov}(iPt,:,iFrm,iTgt) = inf;
       ts = now;
       obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = ts;
@@ -7131,7 +7141,7 @@ classdef Labeler < handle
 %       iMov = obj.currMovie;
 %       iFrm = obj.currFrame;
 %       iTgt = obj.currTarget;
-%       PROPS = obj.gtGetSharedProps();
+%       PROPS = obj.gtGetSharedProps_();
 %       obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
 %       obj.(PROPS.LPOSTAG){iMov}(iPt,iFrm,iTgt) = true;
 %     end
@@ -7146,7 +7156,7 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov};
       s = Labels.setoccFTI(s,iFrm,iTgt,iPt);
       obj.(PROPS.LBL){iMov} = s;
@@ -7183,7 +7193,7 @@ classdef Labeler < handle
       iMov = obj.currMovie;
       iFrm = obj.currFrame;
       iTgt = obj.currTarget;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov};
       s = Labels.clroccFTI(s,iFrm,iTgt,iPt);
       obj.(PROPS.LBL){iMov} = s;      
@@ -7196,7 +7206,7 @@ classdef Labeler < handle
       obj.trxCheckFramesLiveErr(frms);
       iMov = obj.currMovie;
       iTgt = obj.currTarget;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       obj.(PROPS.LPOSTAG){iMov}(iPt,frms,iTgt) = true;
     end
     
@@ -7206,7 +7216,7 @@ classdef Labeler < handle
       
       iMov = obj.currMovie;
       iTgt = obj.currTarget;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       obj.(PROPS.LPOSTAG){iMov}(iPt,frms,iTgt) = false;
     end
     
@@ -7240,7 +7250,7 @@ classdef Labeler < handle
 %       % to be true.      
 %       
 %       iMov = obj.currMovie;
-%       PROPS = obj.gtGetSharedProps();
+%       PROPS = obj.gtGetSharedProps_();
 %       lposTrx = obj.(PROPS.LPOS){iMov}(:,:,:,iTrx);
 %       assert(isrow(obj.NEIGHBORING_FRAME_OFFSETS));
 %       for dFrm = obj.NEIGHBORING_FRAME_OFFSETS
@@ -7273,7 +7283,7 @@ classdef Labeler < handle
       % to be true.      
       
       iMov = obj.currMovie;
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       s = obj.(PROPS.LBL){iMov};
       [tfneighbor,iFrm0,lpos0] = Labels.findLabelNear(s,iFrm,iTrx);
     end
@@ -7982,7 +7992,7 @@ classdef Labeler < handle
         % AL20201223 matlab indexing/language bug 2020b
         %[iMov,isGT] = mIdx(i).get();
         [iMov,isGT] = mIdxI.get();
-        PROPS = obj.gtGetSharedPropsStc(isGT);
+        PROPS = obj.gtGetSharedPropsStc_(isGT);
         lblFld = PROPS.LBL ;
         obj.(lblFld){iMov} = s;
       end
@@ -8217,7 +8227,7 @@ classdef Labeler < handle
       assert(all(gt) || all(~gt),...
         'Currently only all-GT or all-nonGT supported.');
       gt = gt(1);
-      PROPS = Labeler.gtGetSharedPropsStc(gt);
+      PROPS = Labeler.gtGetSharedPropsStc_(gt);
       if obj.hasTrx
         tfaf = obj.(PROPS.TFAF);
       else
@@ -8247,7 +8257,7 @@ classdef Labeler < handle
 %       assert(all(gt) || all(~gt),...
 %         'Currently only all-GT or all-nonGT supported.');
 %       gt = gt(1);
-%       PROPS = Labeler.gtGetSharedPropsStc(gt);
+%       PROPS = Labeler.gtGetSharedPropsStc_(gt);
 %       if obj.hasTrx
 %         tfaf = obj.(PROPS.TFAF);
 %       else
@@ -8537,7 +8547,7 @@ classdef Labeler < handle
       end
       
 %       obj.viewCalSetCheckViewSizes(obj.currMovie,crObj,tfSetViewSizes);
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       obj.(PROPS.VCD){obj.currMovie} = crObj;
       
       lc = obj.lblCore;
@@ -8641,10 +8651,6 @@ classdef Labeler < handle
       if obj.gtIsGTMode
         error('Labeler:gt','Unsupported when in GT mode.');
       end
-    end
-
-    function PROPS = gtGetSharedProps(obj)
-      PROPS = Labeler.gtGetSharedPropsStc(obj.gtIsGTMode);
     end
 
 %     function gtInitSuggestions(obj,gtSuggType,nSamp)
@@ -9159,8 +9165,13 @@ classdef Labeler < handle
         'VariableNames',{'GT Movie Index' 'Labeled Frames' 'Total GT Frames'});
     end
   end
-  methods (Static)
-    function PROPS = gtGetSharedPropsStc(gt)
+  methods (Access = private)
+    function PROPS = gtGetSharedProps_(obj)
+      PROPS = Labeler.gtGetSharedPropsStc_(obj.gtIsGTMode);
+    end
+  end
+  methods (Static, Access = private)
+    function PROPS = gtGetSharedPropsStc_(gt)
       PROPS = Labeler.PROPS_GTSHARED;
       if gt
         PROPS = PROPS.gt;
@@ -11814,7 +11825,7 @@ classdef Labeler < handle
       % roi: [nview x 4]. Applies only when tfhascrop==true; otherwise
       %   indeterminate. roi(ivw,:) is [xlo xhi ylo yhi]. 
       
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       cropInfo = obj.(PROPS.MFACI){iMov};
       if isempty(cropInfo)
         tfhascrop = false;
@@ -11863,7 +11874,7 @@ classdef Labeler < handle
         fprintf(1,'Default crop initialized for all movies.\n');
       end
       
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       roi0 = obj.(PROPS.MFACI){iMov}(iview).roi;
       posn0 = CropInfo.roi2RectPos(roi0);
       posn = CropInfo.roi2RectPos(roi);
@@ -14001,7 +14012,7 @@ classdef Labeler < handle
       tfFrm = nTgts>0 | nPts>0 | nRois>0;
       nTgtsLbledFrms = nTgts(tfFrm);
       nTgtsTot = sum(nTgtsLbledFrms);
-      PROPS = obj.gtGetSharedProps();
+      PROPS = obj.gtGetSharedProps_();
       obj.(PROPS.MFAHL)(obj.currMovie) = nTgtsTot;
     end  % function
 

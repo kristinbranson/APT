@@ -353,15 +353,13 @@ classdef MovieManagerController < handle
     function updateMovieData(obj,movNames,trxNames,movsHaveLbls)
 
       lObj = obj.labeler;
-      tfGT = lObj.gtIsGTMode ;
       gdata = guidata(obj.hFig);
 
       if nargin < 2,
 
-        PROPS = Labeler.gtGetSharedPropsStc(tfGT);
-        movNames = lObj.(PROPS.MFA);
-        trxNames = lObj.(PROPS.TFA);
-        movsHaveLbls = lObj.(PROPS.MFAHL);
+        movNames = lObj.movieFilesAllGTaware;
+        trxNames = lObj.trxFilesAllGTaware;
+        movsHaveLbls = lObj.movieFilesAllHaveLblsGTaware;
 
       end
 

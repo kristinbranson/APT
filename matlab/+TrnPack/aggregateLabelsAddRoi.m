@@ -7,12 +7,8 @@ function sagg = aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,...
     );
 
   isgt = lObj.gtIsGTMode;
-  PROPS = lObj.gtGetSharedProps();
-  fLbl = PROPS.LBL;
-  fmfaf = PROPS.MFAF;
-
-  lbls = lObj.(fLbl);
-  mfafs = lObj.(fmfaf);
+  lbls = lObj.labelsGTaware;
+  mfafs = lObj.movieFilesAllFullGTaware;
   nmov = numel(lbls);
   sagg = cell(nmov,1);
   for imov=1:nmov
