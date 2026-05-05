@@ -3902,65 +3902,65 @@ classdef Labeler < handle
       end
     end  % function
 
-    function p = movieFilePathRaw(obj, iMov, iView, gt)
+    function p = movieFilePathRaw(obj, iMov, iView, isGT)
       % Return the raw (possibly macroized) movie file path for view iView of
-      % movie iMov.  If gt is true, returns the GT-mode path; otherwise the
+      % movie iMov.  If isGT is true, returns the GT-mode path; otherwise the
       % regular-mode path.
-      PROPS = Labeler.gtGetSharedPropsStc(gt) ;
+      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
       p = obj.(PROPS.MFA){iMov, iView} ;
     end  % function
 
-    function p = movieFilePathFull(obj, iMov, iView, gt)
+    function p = movieFilePathFull(obj, iMov, iView, isGT)
       % Return the macro-resolved full movie file path for view iView of movie
-      % iMov.  See movieFilePathRaw for the gt argument.
-      PROPS = Labeler.gtGetSharedPropsStc(gt) ;
+      % iMov.  See movieFilePathRaw for the isGT argument.
+      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
       p = obj.(PROPS.MFAF){iMov, iView} ;
     end  % function
 
-    function v = movieFilePathsAllFull(obj, gt)
+    function v = movieFilePathsAllFull(obj, isGT)
       % Return the macro-resolved full movie file paths for normal or GT mode
-      % as an [nmov x nview] cell array.  See movieFilePathRaw for the gt
+      % as an [nmov x nview] cell array.  See movieFilePathRaw for the isGT
       % argument.
-      PROPS = Labeler.gtGetSharedPropsStc(gt) ;
+      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
       v = obj.(PROPS.MFAF) ;
     end  % function
 
-    function p = trxFilePathRaw(obj, iMov, iView, gt)
+    function p = trxFilePathRaw(obj, iMov, iView, isGT)
       % Return the raw (possibly macroized) trx file path for view iView of
-      % movie iMov.  See movieFilePathRaw for the gt argument.
-      PROPS = Labeler.gtGetSharedPropsStc(gt) ;
+      % movie iMov.  See movieFilePathRaw for the isGT argument.
+      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
       p = obj.(PROPS.TFA){iMov, iView} ;
     end  % function
 
-    function p = trxFilePathFull(obj, iMov, iView, gt)
+    function p = trxFilePathFull(obj, iMov, iView, isGT)
       % Return the macro-resolved full trx file path for view iView of movie
-      % iMov.  See movieFilePathRaw for the gt argument.
-      PROPS = Labeler.gtGetSharedPropsStc(gt) ;
+      % iMov.  See movieFilePathRaw for the isGT argument.
+      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
       p = obj.(PROPS.TFAF){iMov, iView} ;
     end  % function
 
-    function row = trxFilePathsRawForMovie(obj, iMov, gt)
+    function row = trxFilePathsRawForMovie(obj, iMov, isGT)
       % Return the raw trx file paths for all views of movie iMov as a
-      % 1-by-nview cell array.  See movieFilePathRaw for the gt argument.
-      PROPS = Labeler.gtGetSharedPropsStc(gt) ;
+      % 1-by-nview cell array.  See movieFilePathRaw for the isGT argument.
+      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
       row = obj.(PROPS.TFA)(iMov, :) ;
     end  % function
 
-    function relocateMovieFile_(obj, iMov, iView, gt, newRawPath)
+    function relocateMovieFile_(obj, iMov, iView, isGT, newRawPath)
       % Update the persisted (raw) movie file path for view iView of movie
       % iMov, refresh the cached movie info, and notify listeners.  Used by
       % the controller's missing-movie relocation flow.
-      PROPS = Labeler.gtGetSharedPropsStc(gt) ;
+      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
       obj.(PROPS.MFA){iMov, iView} = newRawPath ;
       obj.updateMovieInfo_(iMov, iView) ;
       obj.notify_('update') ;
     end  % function
 
-    function relocateTrxFile_(obj, iMov, iView, gt, newRawPath)
+    function relocateTrxFile_(obj, iMov, iView, isGT, newRawPath)
       % Update the persisted (raw) trx file path for view iView of movie iMov
       % and notify listeners.  Used by the controller's missing-trxfile
       % relocation flow.
-      PROPS = Labeler.gtGetSharedPropsStc(gt) ;
+      PROPS = Labeler.gtGetSharedPropsStc(isGT) ;
       obj.(PROPS.TFA){iMov, iView} = newRawPath ;
       obj.notify_('update') ;
     end  % function
