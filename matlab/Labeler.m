@@ -3946,7 +3946,7 @@ classdef Labeler < handle
       row = obj.(PROPS.TFA)(iMov, :) ;
     end  % function
 
-    function relocateMovieFile_(obj, iMov, iView, isGT, newRawPath)
+    function relocateMovieFile(obj, iMov, iView, isGT, newRawPath)
       % Update the persisted (raw) movie file path for view iView of movie
       % iMov, refresh the cached movie info, and notify listeners.  Used by
       % the controller's missing-movie relocation flow.
@@ -3956,7 +3956,7 @@ classdef Labeler < handle
       obj.notify_('update') ;
     end  % function
 
-    function relocateTrxFile_(obj, iMov, iView, isGT, newRawPath)
+    function relocateTrxFile(obj, iMov, iView, isGT, newRawPath)
       % Update the persisted (raw) trx file path for view iView of movie iMov
       % and notify listeners.  Used by the controller's missing-trxfile
       % relocation flow.

@@ -8122,7 +8122,7 @@ classdef LabelerController < handle
         if ~isempty(mndx) && isscalar(mndx)
           if ~(exist(movies_done_new{mndx},'file')==0)
             movfileFull = movies_done_new{mndx};
-            labeler.relocateMovieFile_(iMov, iView, gt, movfileFull);
+            labeler.relocateMovieFile(iMov, iView, gt, movfileFull);
             done = true;
           end
         end
@@ -8209,7 +8209,7 @@ classdef LabelerController < handle
             if tfMatch
               trxFile = trxFileMacroized;
             end
-            labeler.relocateTrxFile_(iMov, iView, gt, trxFile);
+            labeler.relocateTrxFile(iMov, iView, gt, trxFile);
           end
           labeler.rcSaveProp('lbl_lasttrxfile',trxFile);
         end
@@ -8281,10 +8281,10 @@ classdef LabelerController < handle
       tfMacroize = ~isempty(macro);
       if tfMacroize
         assert(isscalar(movfileMacroized));
-        labeler.relocateMovieFile_(iMov, iView, isGT, movfileMacroized{1});
+        labeler.relocateMovieFile(iMov, iView, isGT, movfileMacroized{1});
         movFileFull = labeler.movieFilePathFull(iMov, iView, isGT);
       else
-        labeler.relocateMovieFile_(iMov, iView, isGT, movFileFull);
+        labeler.relocateMovieFile(iMov, iView, isGT, movFileFull);
       end
 
       % If no macros then try to replace the movies with a simple
