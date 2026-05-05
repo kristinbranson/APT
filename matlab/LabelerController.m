@@ -587,7 +587,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePreProcParams',@(s,e)(obj.updatePreProcParams())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'requestMovieFilesCheckAndUserFinding',@(s,e)(obj.requestMovieFilesCheckAndUserFinding())) ;
+        addlistener(obj.labeler_,'requestAllowUserToLocateMissingMovieAndTrxFile',@(s,e)(obj.requestAllowUserToLocateMissingMovieAndTrxFile())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'requestMacroizationGUI',@(s,e)(obj.requestMacroizationGUI())) ;
       obj.listeners_(end+1) = ...
@@ -8066,7 +8066,7 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function tfsuccess = allowUserToLocateMissingMovieAndTrxFiles_(obj, iMov)  
+    function tfsuccess = allowUserToLocateMissingMovieAndTrxFile_(obj, iMov)  
       % Check that movie/trxfiles exist, allow user to locate them if not.
       %
       % tfsuccess: false indicates user canceled or similar. True indicates
@@ -8074,7 +8074,7 @@ classdef LabelerController < handle
       % labeler.trxFilesAllFull(iMov,:) all exist. User can update these fields
       % by browsing, updating macros etc.
       %
-      % This function can harderror.
+      % This function can throw an error.
 
       labeler = obj.labeler_;
       tfsuccess = false;
@@ -8099,14 +8099,14 @@ classdef LabelerController < handle
         mndx = find(strcmp(movies_done,movfileFull));
         done = false;
         if ~isempty(mndx) && isscalar(mndx)
-          if ~(exist(movies_done_new{mndx},'file')==0)
+          if exist(movies_done_new{mndx},'file')
             movfileFull = movies_done_new{mndx};
             labeler.relocateMovieFile(iMov, iView, gt, movfileFull);
             done = true;
           end
         end
 
-        if exist(movfileFull,'file')==0 && ~done
+        if ~exist(movfileFull,'file') && ~done
           qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
             movfileFull,'movie');
           qtitle = 'Movie not found';
@@ -8126,7 +8126,7 @@ classdef LabelerController < handle
             case 'Redefine macros'
               obj.projMacrosSetGUI();
               movfileFull = labeler.movieFilePathFull(iMov, iView, gt);
-              if exist(movfileFull,'file')==0
+              if ~exist(movfileFull,'file')
                 emsg = FSPath.errStrFileNotFoundMacroAware(movfile,...
                                                            movfileFull,'movie');
                 FSPath.errDlgFileNotFound(emsg);
@@ -8142,8 +8142,8 @@ classdef LabelerController < handle
 
           % At this point, either we have i) harderrored, ii)
           % early-returned with tfsuccess=false, or iii) movfileFull is set
-          assert(exist(movfileFull,'file')>0);
-        end  % if exist(movfileFull,'file')==0 && ~done
+          assert(exist(movfileFull,'file'));
+        end  % if ~exist(movfileFull,'file') && ~done
 
         % trxfile
         assert(strcmp(movfileFull,labeler.movieFilePathFull(iMov, iView, gt)));
@@ -8151,7 +8151,7 @@ classdef LabelerController < handle
         trxFileFull = labeler.trxFilePathFull(iMov, iView, gt);
         tfTrx = ~isempty(trxFile);
         if tfTrx
-          if exist(trxFileFull,'file')==0
+          if ~exist(trxFileFull,'file')
             qstr = FSPath.errStrFileNotFoundMacroAware(trxFile,...
               trxFileFull,'trxfile');
             resp = questdlg(qstr,'Trxfile not found',...
@@ -8174,7 +8174,7 @@ classdef LabelerController < handle
               return;
             end
             trxFile = fullfile(newtrxfilepath,newtrxfile);
-            if exist(trxFile,'file')==0
+            if ~exist(trxFile,'file')
               emsg = FSPath.errStrFileNotFound(trxFile,'trxfile');
               FSPath.errDlgFileNotFound(emsg);
               return;
@@ -8198,10 +8198,10 @@ classdef LabelerController < handle
         movfileFull = labeler.movieFilePathFull(iMov, iView, gt);
         tfile = labeler.trxFilePathRaw(iMov, iView, gt);
         tfileFull = labeler.trxFilePathFull(iMov, iView, gt);
-        if exist(movfileFull,'file')==0
+        if ~exist(movfileFull,'file')
           FSPath.throwErrFileNotFoundMacroAware(movfile,movfileFull,'movie');
         end
-        if ~isempty(tfileFull) && exist(tfileFull,'file')==0
+        if ~isempty(tfileFull) && ~exist(tfileFull,'file')
           FSPath.throwErrFileNotFoundMacroAware(tfile,tfileFull,'trxfile');
         end
       end
@@ -8219,7 +8219,7 @@ classdef LabelerController < handle
                                              movies_all, ...
                                              movies_done, ...
                                              movies_done_new)
-      % Helper for allowUserToLocateMissingMovieAndTrxFiles_(): prompt the user to
+      % Helper for allowUserToLocateMissingMovieAndTrxFile_(): prompt the user to
       % browse to a missing movie file, optionally macroize the result, and
       % update the Labeler.  Returns doReturn=true if the caller should bail out.
       labeler = obj.labeler_;
@@ -8593,12 +8593,12 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function requestMovieFilesCheckAndUserFinding(obj)
+    function requestAllowUserToLocateMissingMovieAndTrxFile(obj)
       % Check that movie files exist, prompting user to find them if not.
       labeler = obj.labeler_ ;
       mIdx = labeler.dialogLaunchPad.mIdxToCheck ;
-      tfsuccess = obj.allowUserToLocateMissingMovieAndTrxFiles_(mIdx) ;
-      labeler.dialogLandingPad = tfsuccess ;
+      doMovieAndTrxFileExist = obj.allowUserToLocateMissingMovieAndTrxFile_(mIdx) ;
+      labeler.dialogLandingPad = doMovieAndTrxFileExist ;
     end  % function
 
     function requestMacroizationGUI(obj)

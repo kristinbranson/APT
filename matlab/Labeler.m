@@ -190,7 +190,7 @@ classdef Labeler < handle
     didSetSkeletonEdges
     % updateLabelSkeletonCosmetics
     updatePreProcParams
-    requestMovieFilesCheckAndUserFinding
+    requestAllowUserToLocateMissingMovieAndTrxFile
     requestMacroizationGUI
     requestMessageBox
     requestQuestionDialog
@@ -4764,22 +4764,24 @@ classdef Labeler < handle
         ); 
       
       % Make sure all the movie files exist.  There's some hacky stuff here
-      % to allow the controller, if present, to help the user find missing movies
+      % to allow the controller, if present, to help the user find a missing movie
       % with the GUI.  But want this method to also work in the absence of a GUI.
       mIdx = MovieIndex(iMov, obj.gtIsGTMode) ;
       obj.dialogLaunchPad_ = struct('mIdxToCheck', mIdx) ;
       obj.dialogLandingPad_ = [] ;
-      obj.notify_('requestMovieFilesCheckAndUserFinding') ;
-      didMovieCheckSucceed = obj.dialogLandingPad_ ;
-      if isempty(didMovieCheckSucceed)
+      obj.notify_('requestAllowUserToLocateMissingMovieAndTrxFile') ;
+      doMovieAndTrxFileExistOrEmpty = obj.dialogLandingPad_ ;
+      if isempty(doMovieAndTrxFileExistOrEmpty)
         % Means there's no controller
-        tfsuccess = obj.movieCheckFilesExist(mIdx) ;
-        if ~tfsuccess
+        doMovieAndTrxFileExist = obj.movieCheckFilesExist(mIdx) ;
+        if ~doMovieAndTrxFileExist
           return
         end
       else
-        % Means there is a controller, it will have checked that all the movies exist.
-        if ~isequal(didMovieCheckSucceed, true)
+        doMovieAndTrxFileExist = doMovieAndTrxFileExistOrEmpty ;
+        % Means there is a controller, it will have checked that the movie and .trx
+        % exist.
+        if ~isequal(doMovieAndTrxFileExist, true)
           return
         end
       end
