@@ -989,12 +989,6 @@ classdef LabelerController < handle
 
       nTgtsTot = sum(cell2mat(dat(:,2)));
 
-      % Moved to Labeler.syncPropsMfahl_() ;
-      % if labeler.hasMovie
-      %   PROPS = labeler.gtGetSharedProps();
-      %   labeler.(PROPS.MFAHL)(labeler.currMovie) = nTgtsTot;
-      % end
-
       tx = obj.txTotalFramesLabeled;
       tx.String = num2str(nTgtsTot);
     end  % function
@@ -1018,12 +1012,6 @@ classdef LabelerController < handle
       obj.setTblFramesData(dat);
 
       nTgtsTot = sum(nTgtsLbledFrms);
-
-      % Moved to Labeler.syncPropsMfahl_() ;
-      % if labeler.hasMovie
-      %   PROPS = labeler.gtGetSharedProps();
-      %   labeler.(PROPS.MFAHL)(labeler.currMovie) = nTgtsTot;
-      % end
 
       tx = obj.txTotalFramesLabeled;
       tx.String = num2str(nTgtsTot);

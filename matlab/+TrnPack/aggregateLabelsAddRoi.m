@@ -7,7 +7,7 @@ function sagg = aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,...
     );
 
   isgt = lObj.gtIsGTMode;
-  PROPS = lObj.gtGetSharedProps;
+  PROPS = lObj.gtGetSharedProps();
   fLbl = PROPS.LBL;
   fmfaf = PROPS.MFAF;
 
