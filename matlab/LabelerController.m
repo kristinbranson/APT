@@ -8101,20 +8101,20 @@ classdef LabelerController < handle
       tfsuccess = false;
 
       [iMov,gt] = iMov.get();
-      PROPS = labeler.gtGetSharedPropsStc(gt);
 
-      if ~all(cellfun(@isempty,labeler.(PROPS.TFA)(iMov,:)))
+      if ~all(cellfun(@isempty,labeler.trxFilePathsRawForMovie(iMov, gt)))
         assert(~labeler.isMultiView,...
           'Multiview labeling with targets unsupported.');
       end
 
       movies_done = {};
       movies_done_new = {};
-      movies_all = labeler.(PROPS.MFAF)(:);
+      moviesAllFull = labeler.movieFilePathsAllFull(gt);
+      movies_all = moviesAllFull(:);
 
       for iView = 1:labeler.nview
-        movfile = labeler.(PROPS.MFA){iMov,iView};
-        movfileFull = labeler.(PROPS.MFAF){iMov,iView};
+        movfile = labeler.movieFilePathRaw(iMov, iView, gt);
+        movfileFull = labeler.movieFilePathFull(iMov, iView, gt);
 
         % check if we have already replaced and that file exists
         mndx = find(strcmp(movies_done,movfileFull));
@@ -8122,8 +8122,7 @@ classdef LabelerController < handle
         if ~isempty(mndx) && isscalar(mndx)
           if ~(exist(movies_done_new{mndx},'file')==0)
             movfileFull = movies_done_new{mndx};
-            labeler.(PROPS.MFA){iMov,iView} = movfileFull;
-            labeler.updateMovieInfo_(iMov, iView) ;
+            labeler.relocateMovieFile_(iMov, iView, gt, movfileFull);
             done = true;
           end
         end
@@ -8151,7 +8150,7 @@ classdef LabelerController < handle
               return;
             case 'Redefine macros'
               obj.projMacrosSetGUI();
-              movfileFull = labeler.(PROPS.MFAF){iMov,iView};
+              movfileFull = labeler.movieFilePathFull(iMov, iView, gt);
               if exist(movfileFull,'file')==0
                 emsg = FSPath.errStrFileNotFoundMacroAware(movfile,...
                                                            movfileFull,'movie');
@@ -8160,7 +8159,7 @@ classdef LabelerController < handle
               end
             case 'Browse to movie'
               [doReturn, movies_done, movies_done_new, movfileFull] = ...
-                obj.allowUserToFindMissingMovieUsingGUI_(PROPS, iMov, iView, movfile, movfileFull, movies_all, movies_done, movies_done_new) ;
+                obj.allowUserToFindMissingMovieUsingGUI_(iMov, iView, gt, movfile, movfileFull, movies_all, movies_done, movies_done_new) ;
               if doReturn
                 return
               end
@@ -8172,10 +8171,9 @@ classdef LabelerController < handle
         end  % if exist(movfileFull,'file')==0 && ~done
 
         % trxfile
-        %movfile = labeler.(PROPS.MFA){iMov,iView};
-        assert(strcmp(movfileFull,labeler.(PROPS.MFAF){iMov,iView}));
-        trxFile = labeler.(PROPS.TFA){iMov,iView};
-        trxFileFull = labeler.(PROPS.TFAF){iMov,iView};
+        assert(strcmp(movfileFull,labeler.movieFilePathFull(iMov, iView, gt)));
+        trxFile = labeler.trxFilePathRaw(iMov, iView, gt);
+        trxFileFull = labeler.trxFilePathFull(iMov, iView, gt);
         tfTrx = ~isempty(trxFile);
         if tfTrx
           if exist(trxFileFull,'file')==0
@@ -8211,7 +8209,7 @@ classdef LabelerController < handle
             if tfMatch
               trxFile = trxFileMacroized;
             end
-            labeler.(PROPS.TFA){iMov,iView} = trxFile;
+            labeler.relocateTrxFile_(iMov, iView, gt, trxFile);
           end
           labeler.rcSaveProp('lbl_lasttrxfile',trxFile);
         end
@@ -8221,10 +8219,10 @@ classdef LabelerController < handle
       % such a way as to incrementally locate files, breaking previously
       % found files
       for iView = 1:labeler.nview
-        movfile = labeler.(PROPS.MFA){iMov,iView};
-        movfileFull = labeler.(PROPS.MFAF){iMov,iView};
-        tfile = labeler.(PROPS.TFA){iMov,iView};
-        tfileFull = labeler.(PROPS.TFAF){iMov,iView};
+        movfile = labeler.movieFilePathRaw(iMov, iView, gt);
+        movfileFull = labeler.movieFilePathFull(iMov, iView, gt);
+        tfile = labeler.trxFilePathRaw(iMov, iView, gt);
+        tfileFull = labeler.trxFilePathFull(iMov, iView, gt);
         if exist(movfileFull,'file')==0
           FSPath.throwErrFileNotFoundMacroAware(movfile,movfileFull,'movie');
         end
@@ -8238,14 +8236,17 @@ classdef LabelerController < handle
 
     function [doReturn, movies_done, movies_done_new, movFileFull] = ...
         allowUserToFindMissingMovieUsingGUI_(obj, ...
-                                             PROPS, ...
                                              iMov, ...
                                              iView, ...
+                                             gt, ...
                                              movFile, ...
                                              movFileFull, ...
                                              movies_all, ...
                                              movies_done, ...
                                              movies_done_new)
+      % Helper for movieCheckFilesExistGUI: prompt the user to browse to a
+      % missing movie file, optionally macroize the result, and update the
+      % labeler.  Returns doReturn=true if the caller should bail out.
       labeler = obj.labeler_;
       doReturn = false ;  % Informs the calling method whether it should immediately return
       pathGuess = FSPath.maxExistingBasePath(movFileFull);
@@ -8280,12 +8281,11 @@ classdef LabelerController < handle
       tfMacroize = ~isempty(macro);
       if tfMacroize
         assert(isscalar(movfileMacroized));
-        labeler.(PROPS.MFA){iMov,iView} = movfileMacroized{1};
-        movFileFull = labeler.(PROPS.MFAF){iMov,iView};
+        labeler.relocateMovieFile_(iMov, iView, gt, movfileMacroized{1});
+        movFileFull = labeler.movieFilePathFull(iMov, iView, gt);
       else
-        labeler.(PROPS.MFA){iMov,iView} = movFileFull;
+        labeler.relocateMovieFile_(iMov, iView, gt, movFileFull);
       end
-      labeler.updateMovieInfo_(iMov, iView) ;
 
       % If no macros then try to replace the movies with a simple
       % pattern.
