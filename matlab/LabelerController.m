@@ -6485,9 +6485,8 @@ classdef LabelerController < handle
       % 
       % iMovs: index into .movieFilesAllGTAware
       
-      labeler = obj.labeler_ ;      
-      PROPS = labeler.gtGetSharedProps();
-      movfiles = labeler.(PROPS.MFAF)(iMovs,:);
+      labeler = obj.labeler_ ;
+      movfiles = labeler.movieFilesAllFullGTaware(iMovs,:);
       [tfsucc,trkfilesUse] = LabelerController.labelImportTrkFindTrkFilesPrompt(movfiles);
       if tfsucc
         feval(importFcn,labeler,iMovs,trkfilesUse);
@@ -7456,9 +7455,7 @@ classdef LabelerController < handle
       noUI = myparse(varargin,...
         'noUI',false);
 
-      PROPS = lObj.gtGetSharedProps();
-
-      movfiles = lObj.(PROPS.MFAF)(iMovs,:);
+      movfiles = lObj.movieFilesAllFullGTaware(iMovs,:);
       if isempty(trkfiles)
         if isempty(rawname)
           rawname = lObj.defaultExportTrkRawname(defaultRawNameArgs{:});
