@@ -7193,7 +7193,7 @@ classdef LabelerController < handle
         return;
       end
 
-      lObj.labelExportTrkGeneric(iMovs,trkfiles,lObj.gtIsGTMode);
+      lObj.labelExportTrkGeneric(iMovs,trkfiles);
     end
 
     function viewCalSetProjWide_(obj,crObj,varargin)

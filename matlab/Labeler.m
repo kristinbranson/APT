@@ -7911,12 +7911,12 @@ classdef Labeler < handle
   end
 
   methods
-    function labelExportTrkGeneric(obj,iMovs,outfiles,isGT)
-      % Export labels for iMovs into trkfiles.  If isGT is true, exports
-      % from obj.labelsGT; otherwise from obj.labels.  iMovs must index
-      % into the chosen labels array.
+    function labelExportTrkGeneric(obj,iMovs,outfiles)
+      % Export labels for iMovs into trkfiles.  Reads from obj.labels or
+      % obj.labelsGT based on the current GT mode; iMovs must index into
+      % the chosen labels array.
 
-      labels = obj.getlabelsGTawareArg(isGT) ;
+      labels = obj.labelsGTaware ;
       nMov = numel(iMovs);
       nView = obj.nview;
       nPhysPts = obj.nPhysPoints;
