@@ -8066,8 +8066,8 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function tfsuccess = movieCheckFilesExistGUI(obj, iMov) % NOT labeler const
-      % Helper function for movieSet(), check that movie/trxfiles exist
+    function tfsuccess = allowUserToLocateMissingMovieAndTrxFiles_(obj, iMov)  
+      % Check that movie/trxfiles exist, allow user to locate them if not.
       %
       % tfsuccess: false indicates user canceled or similar. True indicates
       % that i) labeler.movieFilesAllFull(iMov,:) all exist; ii) if labeler.hasTrx,
@@ -8075,11 +8075,6 @@ classdef LabelerController < handle
       % by browsing, updating macros etc.
       %
       % This function can harderror.
-      %
-      % This function is NOT labeler const -- users can browse to
-      % movies/trxfiles, macro-related state can be mutated etc.
-      %
-      % This function also does UI stuff (hence "GUI").
 
       labeler = obj.labeler_;
       tfsuccess = false;
@@ -8224,9 +8219,9 @@ classdef LabelerController < handle
                                              movies_all, ...
                                              movies_done, ...
                                              movies_done_new)
-      % Helper for movieCheckFilesExistGUI: prompt the user to browse to a
-      % missing movie file, optionally macroize the result, and update the
-      % labeler.  Returns doReturn=true if the caller should bail out.
+      % Helper for allowUserToLocateMissingMovieAndTrxFiles_(): prompt the user to
+      % browse to a missing movie file, optionally macroize the result, and
+      % update the Labeler.  Returns doReturn=true if the caller should bail out.
       labeler = obj.labeler_;
       doReturn = false ;  % Informs the calling method whether it should immediately return
       pathGuess = FSPath.maxExistingBasePath(movFileFull);
@@ -8602,7 +8597,7 @@ classdef LabelerController < handle
       % Check that movie files exist, prompting user to find them if not.
       labeler = obj.labeler_ ;
       mIdx = labeler.dialogLaunchPad.mIdxToCheck ;
-      tfsuccess = obj.movieCheckFilesExistGUI(mIdx) ;
+      tfsuccess = obj.allowUserToLocateMissingMovieAndTrxFiles_(mIdx) ;
       labeler.dialogLandingPad = tfsuccess ;
     end  % function
 
