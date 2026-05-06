@@ -8294,6 +8294,171 @@ classdef LabelerController < handle
       end  % if ~FSPath.hasAnyMacro(movFile)
     end  % function
 
+    function changeMovieOrTrxFilePathGUI(obj, iMov, iView, isGT, isMovie)
+      % Prompt the user to browse for a new movie or trx file path for the
+      % specified cell, update the Labeler, and offer to apply the same
+      % prefix change to other movie/trx paths in the project.  Used by
+      % the MovieManager's "Change Path" button.
+      labeler = obj.labeler_ ;
+
+      if isMovie
+        fileTypeName = 'movie' ;
+        filterPattern = '*.*' ;
+        oldPathRaw = labeler.movieFilePathRaw(iMov, iView, isGT) ;
+        oldPathFull = labeler.movieFilePathFull(iMov, iView, isGT) ;
+      else
+        fileTypeName = 'trx file' ;
+        filterPattern = '*.mat' ;
+        oldPathRaw = labeler.trxFilePathRaw(iMov, iView, isGT) ;
+        oldPathFull = labeler.trxFilePathFull(iMov, iView, isGT) ;
+      end
+
+      if isempty(oldPathRaw)
+        error('APT:invalidPropertyValue', ...
+              'No %s is set for the selected cell.', fileTypeName) ;
+      end
+
+      pathGuess = FSPath.maxExistingBasePath(oldPathFull) ;
+      if isempty(pathGuess)
+        pathGuess = pwd ;
+      end
+      promptStr = sprintf('Select new %s for %s', fileTypeName, oldPathFull) ;
+      [newFile, newPath] = uigetfile(filterPattern, promptStr, pathGuess) ;
+      if isequal(newFile, 0)
+        return  % canceled
+      end
+      newPathFull = fullfile(newPath, newFile) ;
+      if ~exist(newPathFull, 'file')
+        eMsg = FSPath.errStrFileNotFound(newPathFull, fileTypeName) ;
+        FSPath.errDlgFileNotFound(eMsg) ;
+        return
+      end
+
+      if isMovie
+        % Offer macroization for the new path, mirroring the missing-movie flow.
+        [tfCancel, macro, pathstrsMacroized] = ...
+          FSPath.offerMacroizationGUI(labeler.projMacros, {newPathFull}) ;
+        if tfCancel
+          return
+        end
+        if ~isempty(macro)
+          labeler.relocateMovieFile(iMov, iView, isGT, pathstrsMacroized{1}) ;
+        else
+          labeler.relocateMovieFile(iMov, iView, isGT, newPathFull) ;
+        end
+      else
+        labeler.relocateTrxFile(iMov, iView, isGT, newPathFull) ;
+      end
+
+      % Only offer prefix-based fanout when the original path was literal
+      % (with macros, the user should redefine the macro instead).
+      if ~FSPath.hasAnyMacro(oldPathRaw)
+        obj.offerPrefixReplacementForOtherPaths_(oldPathFull, newPathFull) ;
+      end
+    end  % function
+
+    function offerPrefixReplacementForOtherPaths_(obj, oldPathFull, newPathFull)
+      % Detect the differing prefix between oldPathFull and newPathFull,
+      % then prompt the user to apply the same prefix change to other
+      % movie/trx paths (across normal and GT modes) that share oldPrefix.
+      labeler = obj.labeler_ ;
+
+      [oldPrefix, newPrefix, commonSuffix] = ...
+        determineCommonSuffix(oldPathFull, newPathFull) ;
+      if isempty(commonSuffix) || isempty(oldPrefix) || strcmp(oldPrefix, newPrefix)
+        return
+      end
+
+      candidates = obj.collectPrefixReplacementCandidates_( ...
+                       oldPrefix, newPrefix, oldPathFull) ;
+      if isempty(candidates)
+        return
+      end
+
+      listLabels = arrayfun(@(candidate)(candidate.oldPathFull), ...
+                            candidates, 'UniformOutput', false) ;
+      promptLines = {'Select paths to replace prefix', ...
+                     sprintf('"%s"', oldPrefix), ...
+                     'with', sprintf('"%s"', newPrefix), ''} ;
+      [selectedIndices, didConfirm] = ...
+        listdlg('PromptString', promptLines, ...
+                'Name', 'Replace prefix in other paths', ...
+                'ListString', listLabels, ...
+                'ListSize', [1200, 300]) ;
+      if ~didConfirm || isempty(selectedIndices)
+        return
+      end
+      for k = selectedIndices(:)'
+        candidate = candidates(k) ;
+        if candidate.isMovie
+          labeler.relocateMovieFile(candidate.iMov, candidate.iView, ...
+                                    candidate.isGT, candidate.newPathFull) ;
+        else
+          labeler.relocateTrxFile(candidate.iMov, candidate.iView, ...
+                                  candidate.isGT, candidate.newPathFull) ;
+        end
+      end
+    end  % function
+
+    function candidates = collectPrefixReplacementCandidates_(obj, oldPrefix, newPrefix, excludePathFull)
+      % Walk all movie and trx paths (normal and GT modes) and return a
+      % struct array of those that start with oldPrefix (after
+      % standardization).  Excludes the path the user just changed.
+      labeler = obj.labeler_ ;
+      candidates = struct('iMov', {}, ...
+                          'iView', {}, ...
+                          'isGT', {}, ...
+                          'isMovie', {}, ...
+                          'oldPathFull', {}, ...
+                          'newPathFull', {}) ;
+      excludeStandardized = standardizeFileSeparators(excludePathFull) ;
+      viewCount = labeler.nview ;
+      for isGT = [false, true]
+        moviesFull = labeler.movieFilePathsAllFull(isGT) ;
+        movieRowCount = size(moviesFull, 1) ;
+        for iMov = 1:movieRowCount
+          for iView = 1:viewCount
+            % Movie cell
+            movRaw = labeler.movieFilePathRaw(iMov, iView, isGT) ;
+            if ~isempty(movRaw) && ~FSPath.hasAnyMacro(movRaw)
+              movFull = labeler.movieFilePathFull(iMov, iView, isGT) ;
+              movFullStd = standardizeFileSeparators(movFull) ;
+              if ~strcmp(movFullStd, excludeStandardized) && ...
+                  startsWith(movFullStd, oldPrefix)
+                replacedPath = ...
+                  FSPath.replacePrefix(movFullStd, oldPrefix, newPrefix) ;
+                candidates(end+1) = ...
+                  struct('iMov', iMov, ...
+                         'iView', iView, ...
+                         'isGT', isGT, ...
+                         'isMovie', true, ...
+                         'oldPathFull', movFull, ...
+                         'newPathFull', replacedPath) ;  %#ok<AGROW>
+              end
+            end
+            % Trx cell
+            trxRaw = labeler.trxFilePathRaw(iMov, iView, isGT) ;
+            if ~isempty(trxRaw) && ~FSPath.hasAnyMacro(trxRaw)
+              trxFull = labeler.trxFilePathFull(iMov, iView, isGT) ;
+              trxFullStd = standardizeFileSeparators(trxFull) ;
+              if ~strcmp(trxFullStd, excludeStandardized) && ...
+                  startsWith(trxFullStd, oldPrefix)
+                replacedPath = ...
+                  FSPath.replacePrefix(trxFullStd, oldPrefix, newPrefix) ;
+                candidates(end+1) = ...
+                  struct('iMov', iMov, ...
+                         'iView', iView, ...
+                         'isGT', isGT, ...
+                         'isMovie', false, ...
+                         'oldPathFull', trxFull, ...
+                         'newPathFull', replacedPath) ;  %#ok<AGROW>
+              end
+            end
+          end
+        end
+      end
+    end  % function
+
     function result = computePrevAxesSizeInPixels_(obj)
       % Compute the [w h] of the prev axes in pixels.
       units = get(obj.axes_prev, 'Units');

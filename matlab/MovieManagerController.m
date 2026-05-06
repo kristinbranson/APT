@@ -17,8 +17,10 @@ classdef MovieManagerController < handle
     pbNextUnlabeled  % uibutton: "Next Unlabeled"
     pbAdd  % uibutton: "Add Movie"
     pbRm  % uibutton: "Remove Movie"
+    pbChangePath  % uibutton: "Change Path..."
     menuFile  % uimenu: "File"
     menuFileAddMoviesFromTextFile  % uimenu under File
+    lastClickedTable_  % '' | 'movies' | 'movieset' --- which table was most recently clicked
   end
 
   methods    
@@ -58,9 +60,10 @@ classdef MovieManagerController < handle
       rownames = arrayfun(@(x) sprintf('View %d',x), 1:lObj.nview,'Uni',0);
       obj.tblMovieSet = uitable(obj.gl,...
         'ColumnName',{},'tag','tblMovieSet',...
-        'RowName',rownames,'Visible',onIff(lObj.nview > 1));
+        'RowName',rownames,'Visible',onIff(lObj.nview > 1),...
+        'CellSelectionCallback',@(src,evt) obj.selectionChangedTblMovieSet(src,evt));
 
-      obj.glButtons = uigridlayout(obj.gl,[1,4],'Padding',[0,0,0,0],'tag','gl_buttons');
+      obj.glButtons = uigridlayout(obj.gl,[1,5],'Padding',[0,0,0,0],'tag','gl_buttons');
 
       obj.pbSwitch = uibutton(obj.glButtons,...
                               'Tag', 'pbSwitch', ...
@@ -75,6 +78,10 @@ classdef MovieManagerController < handle
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
       obj.pbRm = uibutton(obj.glButtons,'Text','Remove Movie','tag','pbRm',...
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
+      obj.pbChangePath = uibutton(obj.glButtons,'Text','Change Path...','tag','pbChangePath',...
+        'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
+
+      obj.lastClickedTable_ = '';
 
       obj.menuFile = uimenu('Tag','menu_file','Text','File','Parent',obj.hFig);
       obj.menuFileAddMoviesFromTextFile = uimenu('Tag','menu_file_add_movies_from_text_file',...
@@ -140,8 +147,15 @@ classdef MovieManagerController < handle
 
     function selectionChangedTblMovies(obj,~,~)
       % Actuation: tblMovies selection changed; write the new moviesSelected.
+      obj.lastClickedTable_ = 'movies' ;
       obj.labeler.moviesSelected = obj.getSelectedMovies_() ;
     end
+
+    function selectionChangedTblMovieSet(obj,~,~)
+      % Actuation: tblMovieSet selection changed; remember it for the
+      % "Change Path" button so we can target the chosen view.
+      obj.lastClickedTable_ = 'movieset' ;
+    end  % function
 
     function doubleClickFcnCallbackTblMovies(obj,~,evt)
       % Actuation: double-click on a movie row switches the Labeler to it.
@@ -196,10 +210,12 @@ classdef MovieManagerController < handle
           obj.addLabelerMovie(); % can throw
         case 'pbRm'
           obj.rmLabelerMovie();
-        case 'pbSwitch' 
+        case 'pbChangePath'
+          obj.changeLabelerPath_();
+        case 'pbSwitch'
           if obj.labeler.gtIsGTMode
             obj.parent_.gtShowGTManager();
-          else            
+          else
             iMov = obj.getSelectedMovies_();
             if ~isempty(iMov)
               iMov = iMov(1);
@@ -216,7 +232,7 @@ classdef MovieManagerController < handle
         otherwise
           assert(false);
       end
-    end   
+    end
   
     function mnuFileAddMoviesBatch(obj)
       % Actuation: prompt for a batch file and add the listed movies.
@@ -291,6 +307,7 @@ classdef MovieManagerController < handle
       obj.pbNextUnlabeled.Enable = onIff(areControlsEnabled) ;
       obj.pbAdd.Enable = onIff(areControlsEnabled) ;
       obj.pbRm.Enable = onIff(areControlsEnabled) ;
+      obj.pbChangePath.Enable = onIff(areControlsEnabled) ;
     end
 
     function updateMenuEnablement_(obj)
@@ -466,6 +483,78 @@ classdef MovieManagerController < handle
       end
     end
     
+    function changeLabelerPath_(obj)
+      % Actuation: change the path of the currently selected movie or trx
+      % cell, with optional prefix-aware fanout to other matching paths.
+      [iMov, iView, isMovie, isValid, errMsg] = obj.determineSelectedPathCell_() ;
+      if ~isValid
+        uiwait(errordlg(errMsg, 'No path cell selected')) ;
+        return
+      end
+      isGT = obj.labeler.gtIsGTMode ;
+      try
+        obj.parent_.changeMovieOrTrxFilePathGUI(iMov, iView, isGT, isMovie) ;
+      catch ME
+        uiwait(errordlg(getReport(ME, 'basic', 'hyperlinks', 'off'), 'Error changing path')) ;
+      end
+    end  % function
+
+    function [iMov, iView, isMovie, isValid, errMsg] = determineSelectedPathCell_(obj)
+      % Determine which movie/trx cell the user has selected.  Returns
+      % isValid=false (and a user-readable errMsg) if no suitable cell is
+      % selected.
+      iMov = 0 ;
+      iView = 0 ;
+      isMovie = false ;
+      isValid = false ;
+      errMsg = '' ;
+
+      switch obj.lastClickedTable_
+        case 'movies'
+          sel = obj.tblMovies.Selection ;
+          if isempty(sel) || size(sel, 1) ~= 1
+            errMsg = 'Select a single movie or trx cell first.' ;
+            return
+          end
+          iMov = sel(1, 1) ;
+          colIndex = sel(1, 2) ;
+          colNames = obj.tblMovies.ColumnName ;
+          if colIndex < 1 || colIndex > numel(colNames)
+            errMsg = 'Select a movie or trx cell.' ;
+            return
+          end
+          colName = colNames{colIndex} ;
+          switch colName
+            case 'Movie'
+              isMovie = true ;
+            case 'Trx'
+              isMovie = false ;
+            otherwise
+              errMsg = 'Select a movie or trx cell (not the labels column).' ;
+              return
+          end
+          iView = 1 ;
+        case 'movieset'
+          sel = obj.tblMovieSet.Selection ;
+          if isempty(sel) || size(sel, 1) ~= 1
+            errMsg = 'Select a single per-view cell first.' ;
+            return
+          end
+          iView = sel(1, 1) ;
+          mvSel = obj.labeler.moviesSelected ;
+          if numel(mvSel) ~= 1
+            errMsg = 'Select exactly one movieset first.' ;
+            return
+          end
+          iMov = mvSel(1) ;
+          isMovie = true ;  % per-view table only shows movies
+        otherwise
+          errMsg = 'Select a movie or trx cell first.' ;
+          return
+      end
+      isValid = true ;
+    end  % function
+
     function rmLabelerMovie(obj)
       % Actuation: remove the currently selected movies from the Labeler.
       selRow = sort(obj.getSelectedMovies_()) ;
