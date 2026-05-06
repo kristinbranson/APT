@@ -55,7 +55,7 @@ classdef MovieManagerController < handle
         'ColumnName',{'Movie','Has Lbls'},...
         'ColumnWidth',{'1x',70},...
         'tag','tblMovies',...
-        'CellSelectionCallback',@(src,evt) obj.cellSelectionCallbackTblMovies(src,evt),...
+        'CellSelectionCallback',@(src,evt) obj.selectionChangedTblMovies_(src,evt),...
         'DoubleClickedFcn',@(src,evt) obj.doubleClickFcnCallbackTblMovies(src,evt));
       obj.labelSet = ...
         uilabel('Parent',obj.gl,...
@@ -137,19 +137,9 @@ classdef MovieManagerController < handle
       end
     end
 
-    function cellSelectionCallbackTblMovies(obj,~,evt)
-      rows = evt.Indices(:,1);
-      if obj.labeler.nview > 1,
-        if numel(rows) ~= 1,
-          obj.tblMovieSet.Data = cell(0,1);
-          obj.labelSet.Text = '';
-          obj.labeler.moviesSelected = obj.getSelectedMovies() ;
-          return;
-        end
-        obj.tblMovieSet.Data = obj.labeler.movieFilesAllGTaware(rows,:)';
-        obj.labelSet.Text = sprintf('Selected movieset %d',rows);
-      end
+    function selectionChangedTblMovies_(obj,~,~)
       obj.labeler.moviesSelected = obj.getSelectedMovies() ;
+      obj.updateMovieSetDetails_() ;
     end
 
     function doubleClickFcnCallbackTblMovies(obj,~,evt)
@@ -262,6 +252,7 @@ classdef MovieManagerController < handle
       obj.updateMovieData();
       obj.updatePushButtonsEnable();
       obj.updateMMTblRowSelection();
+      obj.updateMovieSetDetails_();
       obj.updateMenusEnable();
     end
 
@@ -300,6 +291,20 @@ classdef MovieManagerController < handle
       else
         n = numel(selectedMovies) ;
         obj.tblMovies.Selection = [selectedMovies(:), ones(n,1)] ;
+      end
+    end
+
+    function updateMovieSetDetails_(obj)
+      % Sync per-view detail pane (tblMovieSet, labelSet) to moviesSelected.
+      lObj = obj.labeler ;
+      rows = lObj.moviesSelected ;
+      isMultiView = lObj.nview > 1 ;
+      if isMultiView && numel(rows) == 1 && obj.areControlsEnabled_()
+        obj.tblMovieSet.Data = lObj.movieFilesAllGTaware(rows,:)' ;
+        obj.labelSet.Text = sprintf('Selected movieset %d', rows) ;
+      else
+        obj.tblMovieSet.Data = cell(0,1) ;
+        obj.labelSet.Text = '' ;
       end
     end
 
