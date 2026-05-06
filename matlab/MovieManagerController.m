@@ -9,6 +9,17 @@ classdef MovieManagerController < handle
     tblMovies
     tblMovieSet
     tabHandles % [2] "handles" struct array
+
+    % UI handles previously kept in guidata(hFig).
+    gl  % top-level uigridlayout
+    labelSet  % uilabel showing which movieset is selected
+    glButtons  % uigridlayout for the bottom button row
+    pbSwitch  % uibutton: "Switch to Movie" or "GT Frames"
+    pbNextUnlabeled  % uibutton: "Next Unlabeled"
+    pbAdd  % uibutton: "Add Movie"
+    pbRm  % uibutton: "Remove Movie"
+    menuFile  % uimenu: "File"
+    menuFileAddMoviesFromTextFile  % uimenu under File
   end
 
   properties (Constant)
@@ -36,60 +47,54 @@ classdef MovieManagerController < handle
       
       obj.hFig = uifigure('Units','pixels','Position',[951,1400,733,436],...
         'Name','Manage Movies');
-      handles.figure1 = obj.hFig;
       %obj.hFig.CloseRequestFcn = @(hObject,eventdata) obj.CloseRequestFcn(hObject,eventdata);
 
-      handles.gl = uigridlayout(obj.hFig,[4,1],'RowHeight',obj.getGridLayoutRowHeights(),'tag','gl');
+      obj.gl = uigridlayout(obj.hFig,[4,1],'RowHeight',obj.getGridLayoutRowHeights(),'tag','gl');
 
-      handles.tblMovies = uitable(handles.gl,...
+      obj.tblMovies = uitable(obj.gl,...
         'ColumnName',{'Movie','Has Lbls'},...
         'ColumnWidth',{'1x',70},...
         'tag','tblMovies',...
         'CellSelectionCallback',@(src,evt) obj.cellSelectionCallbackTblMovies(src,evt),...
         'DoubleClickedFcn',@(src,evt) obj.doubleClickFcnCallbackTblMovies(src,evt));
-      obj.tblMovies = handles.tblMovies;
-      handles.labelSet = ...
-        uilabel('Parent',handles.gl,...
+      obj.labelSet = ...
+        uilabel('Parent',obj.gl,...
                 'Text','<no movieset selected>',...
                 'Visible',onIff(lObj.nview > 1),...
                 'HorizontalAlignment','center');
 
       rownames = arrayfun(@(x) sprintf('View %d',x), 1:lObj.nview,'Uni',0);
-      handles.tblMovieSet = uitable(handles.gl,...
+      obj.tblMovieSet = uitable(obj.gl,...
         'ColumnName',{},'tag','tblMovieSet',...
         'RowName',rownames,'Visible',onIff(lObj.nview > 1));
 
-      obj.tblMovieSet = handles.tblMovieSet;
-
-      handles.gl_buttons = uigridlayout(handles.gl,[1,4],'Padding',[0,0,0,0],'tag','gl_buttons');
+      obj.glButtons = uigridlayout(obj.gl,[1,4],'Padding',[0,0,0,0],'tag','gl_buttons');
 
       if lObj.gtIsGTMode,
-        handles.pbSwitch = uibutton(handles.gl_buttons,'Text','GT Frames','tag','pbGTFrames',...
+        obj.pbSwitch = uibutton(obj.glButtons,'Text','GT Frames','tag','pbGTFrames',...
           'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
       else
-        handles.pbSwitch = uibutton(handles.gl_buttons,'Text','Switch to Movie','tag','pbSwitch',...
+        obj.pbSwitch = uibutton(obj.glButtons,'Text','Switch to Movie','tag','pbSwitch',...
           'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
       end
-      handles.pbNextUnlabeled = uibutton(handles.gl_buttons,'Text','Next Unlabeled','tag','pbNextUnlabeled',...
+      obj.pbNextUnlabeled = uibutton(obj.glButtons,'Text','Next Unlabeled','tag','pbNextUnlabeled',...
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
       if lObj.gtIsGTMode,
-        handles.pbNextUnlabeled.Visible = 'off';
+        obj.pbNextUnlabeled.Visible = 'off';
       end
 
-      handles.pbAdd = uibutton(handles.gl_buttons,'Text','Add Movie','tag','pbAdd',...
+      obj.pbAdd = uibutton(obj.glButtons,'Text','Add Movie','tag','pbAdd',...
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
-      handles.pbRm = uibutton(handles.gl_buttons,'Text','Remove Movie','tag','pbRm',...
+      obj.pbRm = uibutton(obj.glButtons,'Text','Remove Movie','tag','pbRm',...
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
 
 
-      handles.menu_file = uimenu('Tag','menu_file','Text','File','Parent',obj.hFig);
-      handles.menu_file_add_movies_from_text_file = uimenu('Tag','menu_file_add_movies_from_text_file',...
-        'Text','Add movies from text file','Parent',handles.menu_file);
+      obj.menuFile = uimenu('Tag','menu_file','Text','File','Parent',obj.hFig);
+      obj.menuFileAddMoviesFromTextFile = uimenu('Tag','menu_file_add_movies_from_text_file',...
+        'Text','Add movies from text file','Parent',obj.menuFile);
 
-      handles.menu_file_add_movies_from_text_file.MenuSelectedFcn = ...
+      obj.menuFileAddMoviesFromTextFile.MenuSelectedFcn = ...
           @(s,e)obj.mnuFileAddMoviesBatch();
-
-      guidata(obj.hFig,handles);
 
       set(obj.hFig,'MenuBar','None');
       obj.update();
@@ -142,15 +147,14 @@ classdef MovieManagerController < handle
     function cellSelectionCallbackTblMovies(obj,~,evt)
       rows = evt.Indices(:,1);
       if obj.labeler.nview > 1,
-        gdata = guidata(obj.hFig);
         if numel(rows) ~= 1,
           obj.tblMovieSet.Data = cell(0,1);
-          gdata.labelSet.Text = '';
+          obj.labelSet.Text = '';
           obj.labeler.moviesSelected = obj.getSelectedMovies() ;
           return;
         end
         obj.tblMovieSet.Data = obj.labeler.movieFilesAllGTaware(rows,:)';
-        gdata.labelSet.Text = sprintf('Selected movieset %d',rows);
+        obj.labelSet.Text = sprintf('Selected movieset %d',rows);
       end
       obj.labeler.moviesSelected = obj.getSelectedMovies() ;
     end
@@ -310,20 +314,18 @@ classdef MovieManagerController < handle
     
     function updatePushButtonsEnable(obj)
 
-      handles = guidata(obj.hFig);
       lObj = obj.labeler;
       if lObj.gtIsGTMode,
-        set(handles.pbSwitch,'Text','GT Frames','tag','pbGTFrames');
-        handles.pbNextUnlabeled.Visible = 'off';
+        set(obj.pbSwitch,'Text','GT Frames','tag','pbGTFrames');
+        obj.pbNextUnlabeled.Visible = 'off';
       else
-        set(handles.pbSwitch,'Text','Switch to Movie','tag','pbSwitch');
-        handles.pbNextUnlabeled.Visible = 'on';
+        set(obj.pbSwitch,'Text','Switch to Movie','tag','pbSwitch');
+        obj.pbNextUnlabeled.Visible = 'on';
       end
     end
-    
+
     function updateMenusEnable(obj)
-      gdata = guidata(obj.hFig);
-      gdata.menu_file_add_movies_from_text_file.Enable = 'on';
+      obj.menuFileAddMoviesFromTextFile.Enable = 'on';
     end
     
     function setSelectedMovie(obj,iMov)
@@ -356,7 +358,6 @@ classdef MovieManagerController < handle
     function updateMovieData(obj,movNames,trxNames,movsHaveLbls)
 
       lObj = obj.labeler;
-      gdata = guidata(obj.hFig);
 
       if nargin < 2,
 
@@ -370,10 +371,10 @@ classdef MovieManagerController < handle
         % intermediate state, take no action
         return
       end
-      
-      gdata.gl.RowHeight = obj.getGridLayoutRowHeights();
+
+      obj.gl.RowHeight = obj.getGridLayoutRowHeights();
       obj.tblMovieSet.Visible = onIff(lObj.nview > 1);
-      gdata.labelSet.Visible = onIff(lObj.nview > 1);
+      obj.labelSet.Visible = onIff(lObj.nview > 1);
 
       movSetNames = movNames(:,1);
       trxSetNames = trxNames(:,1);
