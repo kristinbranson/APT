@@ -6403,7 +6403,7 @@ classdef LabelerController < handle
       obj.labelTLInfo_.update() ;
       obj.updateGTModeRelatedControls() ;
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
-        obj.movieManagerController_.lblerLstnCbkGTMode() ; % todo check if needed
+        obj.movieManagerController_.update() ;
       end
       obj.updateTimelinePopupMenus() ;
       obj.updateEvaluateMenu() ;
@@ -6416,7 +6416,7 @@ classdef LabelerController < handle
       obj.updateBackgroundProcessingStatus_() ;
       obj.cbkGTSuggUpdated() ;
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
-        obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ; % todo check if needed
+        obj.movieManagerController_.update() ;
       end
       sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
       sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;

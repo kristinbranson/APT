@@ -101,16 +101,14 @@ classdef MovieManagerController < handle
       obj.hFig.Visible = 'on';
       
       lObjs = cell(0,1);
-      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAll',@(s,e)(obj.lblerLstnCbkUpdateTable(s,e)));
-      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllHaveLbls',@(s,e)(obj.lblerLstnCbkUpdateTable(s,e)));
-      lObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAll',@(s,e)(obj.lblerLstnCbkUpdateTable(s,e)));
-      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllGT',@(s,e)(obj.lblerLstnCbkUpdateTable(s,e)));
-      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllGTHaveLbls',@(s,e)(obj.lblerLstnCbkUpdateTable(s,e)));
-      lObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAllGT',@(s,e)(obj.lblerLstnCbkUpdateTable(s,e)));
-
-      lObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
-      lObjs{end+1,1} = addlistener(lObj,'newMovie',@(s,e)obj.lblerLstnCbkNewMovie(s,e));
-      lObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)obj.lblerLstnCbkGTMode(s,e));
+      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAll',@(s,e)(obj.update()));
+      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllHaveLbls',@(s,e)(obj.update()));
+      lObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAll',@(s,e)(obj.update()));
+      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllGT',@(s,e)(obj.update()));
+      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllGTHaveLbls',@(s,e)(obj.update()));
+      lObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAllGT',@(s,e)(obj.update()));
+      lObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)(obj.update()));
+      lObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)(obj.update()));
 
       obj.listeners = lObjs;
       obj.hFig.DeleteFcn = @obj.lclDeleteFig;
@@ -220,22 +218,6 @@ classdef MovieManagerController < handle
       end
     end   
   
-    function lblerLstnCbkUpdateTable(obj,~,~)
-      obj.hlpLblerLstnCbkUpdateTable();
-    end
-
-    function lblerLstnCbkProjLoaded(obj,~,~)
-      obj.hlpLblerLstnCbkUpdateTable();
-    end
-    
-    function lblerLstnCbkNewMovie(obj,~,~)
-      obj.updateMMTblRowSelection();
-    end
-    
-    function lblerLstnCbkGTMode(obj,~,~)
-      obj.update();
-    end
-    
     function mnuFileAddMoviesBatch(obj)
       lObj = obj.labeler;
 
@@ -277,14 +259,6 @@ classdef MovieManagerController < handle
   
   methods (Hidden)
     function update(obj)
-
-      lObj = obj.labeler;
-      if lObj.isinit
-        return;
-      end
-      tfGT = lObj.gtIsGTMode;
-      assert(islogical(tfGT));
-      
       obj.updateMovieData();
       obj.updatePushButtonsEnable();
       obj.updateMMTblRowSelection();
@@ -306,73 +280,48 @@ classdef MovieManagerController < handle
       obj.menuFileAddMoviesFromTextFile.Enable = 'on';
     end
     
-    function setSelectedMovie(obj,iMov)
-      % Set the selected movie in the table and update the Labeler.
-      if ~obj.labeler.isinit,
-        return;
-      end
-      if isempty(obj.tblMovies.Data),
-        return;
-      end
-      if isempty(iMov) || iMov == 0,
-        obj.tblMovies.Selection = zeros(0,2);
-      elseif isequal(obj.tblMovies.Selection(1),iMov),
-        return;
-      else
-        obj.tblMovies.Selection = [iMov,1];
-      end
-      obj.labeler.moviesSelected = obj.getSelectedMovies() ;
-      % todo update movieset table
-    end
-
     function updateMMTblRowSelection(obj)
-      % Update one of the MM tables per lObj.currMovie, lObj.gtIsGTMode
-      
-      iMov = obj.labeler.currMovie;
-      obj.setSelectedMovie(iMov);
+      % Sync tblMovies.Selection to labeler.moviesSelected.
+      selectedMovies = obj.labeler.moviesSelected ;
+      if isempty(selectedMovies) || isempty(obj.tblMovies.Data)
+        obj.tblMovies.Selection = zeros(0,2) ;
+      else
+        n = numel(selectedMovies) ;
+        obj.tblMovies.Selection = [selectedMovies(:), ones(n,1)] ;
+      end
     end
 
     function updateMovieData(obj)
       lObj = obj.labeler;
 
-      movNames = lObj.movieFilesAllGTaware;
-      trxNames = lObj.trxFilesAllGTaware;
-      movsHaveLbls = lObj.movieFilesAllHaveLblsGTaware;
-
-      if ~isequal(size(movNames,1),size(trxNames,1),numel(movsHaveLbls))
-        % intermediate state, take no action
-        return
-      end
-
       obj.gl.RowHeight = obj.getGridLayoutRowHeights();
       obj.tblMovieSet.Visible = onIff(lObj.nview > 1);
       obj.labelSet.Visible = onIff(lObj.nview > 1);
 
-      movSetNames = movNames(:,1);
-      trxSetNames = trxNames(:,1);
-      tfTrx = any(cellfun(@(x)~isempty(x),trxNames(:)));
-      if tfTrx
-        dat = [movSetNames trxSetNames num2cell(int64(movsHaveLbls))];
-        args = MovieManagerController.JTABLEPROPS_TRX;
+      movNames = lObj.movieFilesAllGTaware;
+      trxNames = lObj.trxFilesAllGTaware;
+      movsHaveLbls = lObj.movieFilesAllHaveLblsGTaware;
+
+      if isequal(size(movNames,1),size(trxNames,1),numel(movsHaveLbls))
+        movSetNames = movNames(:,1);
+        trxSetNames = trxNames(:,1);
+        tfTrx = any(cellfun(@(x)~isempty(x),trxNames(:)));
+        if tfTrx
+          dat = [movSetNames trxSetNames num2cell(int64(movsHaveLbls))];
+          args = MovieManagerController.JTABLEPROPS_TRX;
+        else
+          dat = [movSetNames num2cell(int64(movsHaveLbls))];
+          args = MovieManagerController.JTABLEPROPS_NOTRX;
+        end
       else
-        dat = [movSetNames num2cell(int64(movsHaveLbls))];
+        % Model is mid-mutation; render empty until next event arrives.
+        dat = cell(0,2);
         args = MovieManagerController.JTABLEPROPS_NOTRX;
       end
       set(obj.tblMovies,args{:},'Data',dat);
     end
 
-    function hlpLblerLstnCbkUpdateTable(obj)
-      lObj = obj.labeler;
-      if lObj.isinit
-        return
-      end
-      if ~lObj.hasProject
-        return
-      end
-      obj.updateMovieData();
-      obj.updateMMTblRowSelection();
-    end
-    
+
     function addLabelerMovie(obj)
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
