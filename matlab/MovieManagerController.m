@@ -63,8 +63,9 @@ classdef MovieManagerController < handle
       obj.glButtons = uigridlayout(obj.gl,[1,4],'Padding',[0,0,0,0],'tag','gl_buttons');
 
       obj.pbSwitch = uibutton(obj.glButtons,...
-        'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
-      obj.pbNextUnlabeled = uibutton(obj.glButtons,'Text','Next Unlabeled','tag','pbNextUnlabeled',...
+                              'Tag', 'pbSwitch', ...
+                              'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
+      obj.pbNextUnlabeled = uibutton(obj.glButtons,'Text','Next Unlabeled','Tag','pbNextUnlabeled',...
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
       if lObj.gtIsGTMode,
         obj.pbNextUnlabeled.Visible = 'off';
@@ -363,19 +364,56 @@ classdef MovieManagerController < handle
         trxSetNames = trxNames(:,1) ;
         tfTrx = any(cellfun(@(x)~isempty(x),trxNames(:))) ;
         if tfTrx
-          dat = [movSetNames trxSetNames num2cell(int64(movsHaveLbls))] ;
+          tableData = [movSetNames trxSetNames num2cell(int64(movsHaveLbls))] ;
           args = JTABLEPROPS_TRX ;
         else
-          dat = [movSetNames num2cell(int64(movsHaveLbls))] ;
+          tableData = [movSetNames num2cell(int64(movsHaveLbls))] ;
           args = JTABLEPROPS_NOTRX ;
         end
       else
         % Model is mid-mutation; render empty until next event arrives.
-        dat = cell(0,2) ;
+        tableData = cell(0,2) ;
         args = JTABLEPROPS_NOTRX ;
       end
-      set(obj.tblMovies, args{:}, 'Data', dat) ;
+      set(obj.tblMovies, args{:}, 'Data', tableData) ;
+      obj.updateMovieFileExistenceStyles_() ;
     end
+
+    function updateMovieFileExistenceStyles_(obj)
+      % Color movie/trx cells in tblMovies light red if the underlying
+      % file did not exist on disk at the last check; default (white)
+      % otherwise.  If the existence-prop size does not match the
+      % currently displayed rows (e.g. stale after a GT mode toggle),
+      % skip styling for that column.
+      removeStyle(obj.tblMovies) ;
+      [rowCount, colCount] = size(obj.tblMovies.Data) ;
+      if rowCount == 0
+        return
+      end
+      lObj = obj.labeler ;
+      redStyle = uistyle('BackgroundColor', [1.0, 0.85, 0.85]) ;
+
+      movieExists = lObj.movieFilesExistAtLastCheck ;
+      if size(movieExists, 1) == rowCount
+        missingRows = find(any(~movieExists, 2)) ;
+        if ~isempty(missingRows)
+          cells = [missingRows, ones(numel(missingRows), 1)] ;
+          addStyle(obj.tblMovies, redStyle, 'cell', cells) ;
+        end
+      end
+
+      hasTrxColumn = (colCount == 3) ;
+      if hasTrxColumn
+        trxExists = lObj.trxFilesExistAtLastCheck ;
+        if size(trxExists, 1) == rowCount
+          missingRows = find(any(~trxExists, 2)) ;
+          if ~isempty(missingRows)
+            cells = [missingRows, 2*ones(numel(missingRows), 1)] ;
+            addStyle(obj.tblMovies, redStyle, 'cell', cells) ;
+          end
+        end
+      end
+    end  % function
 
     function addLabelerMovie(obj)
       % Actuation: prompt the user for a movie (or movie set) and add it.

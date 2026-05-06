@@ -496,6 +496,26 @@ classdef Labeler < handle
     trxInfoAllGT = {}
   end
 
+  %% File existence
+  properties (Transient, SetAccess=private, Hidden)
+    movieFilesExistAtLastCheck_ = false(0,1)
+      % Logical array recording on-disk existence of the movie files at
+      % the time syncFilesExistAtLastCheck() was last called.  Sized
+      % to match either obj.movieFilesAll or obj.movieFilesAllGT,
+      % depending on which GT mode was active at the last update.  An
+      % entry is true if the file existed on disk at last check, false
+      % otherwise (including for empty paths).
+    trxFilesExistAtLastCheck_ = false(0,1)
+      % Like movieFilesExistAtLastCheck_ but for trx files.  Sized to
+      % match either obj.trxFilesAll or obj.trxFilesAllGT, depending on
+      % which GT mode was active at the last update.
+  end
+
+  properties (Dependent, Hidden)
+    movieFilesExistAtLastCheck
+    trxFilesExistAtLastCheck
+  end
+
   properties (SetAccess=private)
     trxCache = []             % containers.Map. Keys: fullpath. vals: lazy-loaded structs with fields: .trx and .frm2trx
     trx = []                  % trx object
@@ -1135,6 +1155,29 @@ classdef Labeler < handle
         v = obj.trxInfoAll;
       end
     end
+
+    function v = get.movieFilesExistAtLastCheck(obj)
+      % Getter for movieFilesExistAtLastCheck.
+      v = obj.movieFilesExistAtLastCheck_ ;
+    end  % function
+
+    function v = get.trxFilesExistAtLastCheck(obj)
+      % Getter for trxFilesExistAtLastCheck.
+      v = obj.trxFilesExistAtLastCheck_ ;
+    end  % function
+
+    function syncFilesExistAtLastCheck(obj)
+      % Sync movieFilesExistAtLastCheck and trxFilesExistAtLastCheck to
+      % the current state of files on disk.  Only the entries for the
+      % current GT mode (regular or GT) are refreshed.
+      if obj.gtIsGTMode
+        obj.movieFilesExistAtLastCheck_ = filesExistOnDisk(obj.movieFilesAllGTFull) ;
+        obj.trxFilesExistAtLastCheck_   = filesExistOnDisk(obj.trxFilesAllGTFull) ;
+      else
+        obj.movieFilesExistAtLastCheck_ = filesExistOnDisk(obj.movieFilesAllFull) ;
+        obj.trxFilesExistAtLastCheck_   = filesExistOnDisk(obj.trxFilesAllFull) ;
+      end
+    end  % function
 
     function v = getTrxFilesAllFullMovIdx(obj,mIdx)
       % Warning: Expensive to call. Call me once and then index rather than
@@ -5921,24 +5964,25 @@ classdef Labeler < handle
       %   Should NOT CONTAIN macros
       %
       % trxFilesFull: char or cellstr, if cellstr same size as trxFiles
-      
+
       tfChar = ischar(trxFiles);
       trxFiles = cellstr(trxFiles);
       movFilesFull = cellstr(movFilesFull);
       szassert(trxFiles,size(movFilesFull));
       trxFilesFull = cell(size(trxFiles));
-      
+
       for i=1:numel(trxFiles)
         sMacro = Labeler.trxFilesMacros(movFilesFull{i});
         trxFilesFull{i} = FSPath.fullyLocalizeStandardizeChar(trxFiles{i},sMacro);
       end
       FSPath.warnUnreplacedMacros(trxFilesFull);
-      
+
       if tfChar
         trxFilesFull = trxFilesFull{1};
       end
     end
-  end  
+  end
+
   methods % show*
         
     function setShowTrx(obj,tf)

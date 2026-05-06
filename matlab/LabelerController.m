@@ -5085,6 +5085,7 @@ classdef LabelerController < handle
     end  % function
 
     function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
+      obj.labeler_.syncFilesExistAtLastCheck() ;
       obj.showMovieManager_();
     end
 

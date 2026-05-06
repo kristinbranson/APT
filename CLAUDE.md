@@ -140,6 +140,12 @@ communication from the model to the controller should be done via
 without the controller, and without a GUI, for batch usage.  This is
 one of the major advantages of the MVC architecture.
 
+To keep the distinction clear, model method names should not start
+with `update`.  Prefer `sync` for model methods that synchronize
+some piece of model state with another source of truth (e.g. files
+on disk).  Reserve `update*` for controller methods that update the
+view to match the model.
+
 The end user to normally launches APT using the `StartAPT()` function,
 which returns the `Labeler` and the `LabelerController`.  One of the
 APT design goals is for it to be possible to call batch methods on the
@@ -171,6 +177,13 @@ or method would logically be private, add an underscore ("_") to the
 end of its name.  This signals to developers it is private "in
 spirit", but doesn't put in place annoying arbitrary restrictions
 when debugging.
+
+Prefer standalone functions (in matlab/util/, one function per file)
+over static methods on a class.  If a helper doesn't need access to
+class state, it doesn't belong on the class.  Only reach for a static
+method when the helper is genuinely class-specific (e.g. an alternate
+constructor, or a helper that operates on the class's own
+representation in a way that wouldn't make sense elsewhere).
 
 Public properties of classes should generally be Dependent.  If
 you're tempted to make a non-Dependent public-in-spirit property,
