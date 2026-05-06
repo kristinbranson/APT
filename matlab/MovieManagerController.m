@@ -103,6 +103,7 @@ classdef MovieManagerController < handle
       
       mainFigurePosition = obj.parent_.mainFigurePixelPosition() ;
       centerOnOtherFigureGivenPositionBang(obj.hFig, mainFigurePosition) ;
+      lObj.syncMovieAndTrxFileExistence() ;
       obj.hFig.Visible = 'on';
       waitForFigureToSync(obj.hFig) ;
     end
@@ -155,8 +156,14 @@ classdef MovieManagerController < handle
     
     function setVisible(obj, tf)
       % Show or hide the MovieManager figure.
+      wasVisible = strcmp(obj.hFig.Visible, 'on') ;
       obj.hFig.Visible = onIff(tf);
       if tf
+        if ~wasVisible
+          % Refresh on-disk file existence so any out-of-band changes
+          % since the figure was last visible are reflected.
+          obj.labeler.syncMovieAndTrxFileExistence() ;
+        end
         figure(obj.hFig);
       end
       waitForFigureToSync(obj.hFig) ;
