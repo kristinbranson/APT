@@ -382,17 +382,19 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       if lObj.nview==1
+        % Project is single-view
         [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(true,lObj.projectHasTrx);
         if ~tfsucc
-          return;
+          return
         end
         try
           lObj.movieAdd(movfile,trxfile);
         catch ME,
           uiwait(errordlg(getReport(ME,'basic','hyperlinks','off'),'Error adding movies'));
-          return;
+          return
         end
       else
+        % Project is multi-view
         assert(lObj.nTargets==1,'Adding trx files currently unsupported.');
         lastmov = lObj.rcGetProp('lbl_lastmovie');
         if isempty(lastmov)
@@ -405,13 +407,13 @@ classdef MovieManagerController < handle
           'FilterSpec',lastmovpath,...
           'NumFiles',lObj.nview);
         if isequal(movfiles,0)
-          return;
+          return
         end
         try
           lObj.movieSetAdd(movfiles);
         catch ME,
           uiwait(errordlg(getReport(ME,'basic','hyperlinks','off'),'Error adding movies'));
-          return;
+          return
         end
       end
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
