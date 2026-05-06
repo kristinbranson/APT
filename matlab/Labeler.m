@@ -4378,7 +4378,7 @@ classdef Labeler < handle
       % from UI functions which do this for the user. Currently movieSetAdd
       % does not have any UI so do it here.
       if ~obj.hasMovie && obj.nmoviesGTaware>0
-        obj.movieSet(1,'isFirstMovie',true);
+        obj.movieSet(1) ;
       end
     end
 
@@ -4750,7 +4750,7 @@ classdef Labeler < handle
       badfile = [];
     end
     
-    function movieSet(obj, iMov, varargin)
+    function movieSet(obj, iMov)
       % Set the current movie to the one indicated by iMov.
       % iMov: If multiview, movieSet index (row index into .movieFilesAll)
             
@@ -4761,9 +4761,7 @@ classdef Labeler < handle
       obj.pushBusyStatus(sprintf('Switching to movie %d...',iMov));
       oc = onCleanup(@()(obj.popBusyStatus())) ;
 
-      [isFirstMovie] = myparse(varargin,...
-        'isFirstMovie',~obj.hasMovie... % passing true for the first time a movie is added to a proj helps the UI
-        ); 
+      isFirstMovie = ~obj.hasMovie ;
       
       % Make sure all the movie files exist.  There's some hacky stuff here
       % to allow the controller, if present, to help the user find a missing movie

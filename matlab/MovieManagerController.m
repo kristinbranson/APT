@@ -257,7 +257,7 @@ classdef MovieManagerController < handle
       obj.updatePointer() ;
       obj.updateMovieData_();
       obj.updatePushButtonEnablement_();
-      obj.updateRowSelection_();
+      obj.updateTableSelection_();
       obj.updateMovieSetDetails_();
       obj.updateMenuEnablement_();
     end
@@ -291,25 +291,33 @@ classdef MovieManagerController < handle
       obj.menuFileAddMoviesFromTextFile.Enable = onIff(areControlsEnabled) ;
     end
     
-    function updateRowSelection_(obj)
-      % Sync tblMovies.Selection to labeler.moviesSelected.
+    function updateTableSelection_(obj)
+      % Sync tblMovies.Selection to labeler.moviesSelected, preserving
+      % each row's currently-selected column where possible.
       selectedMovies = obj.labeler.moviesSelected ;
       if isempty(selectedMovies) || isempty(obj.tblMovies.Data)
         obj.tblMovies.Selection = zeros(0,2) ;
       else
+        currentSelection = obj.tblMovies.Selection ;
         n = numel(selectedMovies) ;
-        obj.tblMovies.Selection = [selectedMovies(:), ones(n,1)] ;
+        cols = ones(n,1) ;
+        if size(currentSelection,2) >= 2
+          [tf,loc] = ismember(selectedMovies(:), currentSelection(:,1)) ;
+          cols(tf) = currentSelection(loc(tf), 2) ;
+        end
+        obj.tblMovies.Selection = [selectedMovies(:), cols] ;
       end
     end
 
     function didSetMoviesSelected(obj)
       % Listener callaback for didSetMoviesSelected event in the Labeler.
-      obj.updateRowSelection_() ;
+      obj.updateTableSelection_() ;
       obj.updateMovieSetDetails_() ;
     end
 
     function updateMovieSetDetails_(obj)
-      % Sync per-view detail pane (tblMovieSet, labelSet) to moviesSelected.
+      % Sync per-view detail pane (obj.tblMovieSet and obj.labelSet) to
+      % labeler.moviesSelected.
       lObj = obj.labeler ;
       rows = lObj.moviesSelected ;
       isMultiView = lObj.nview > 1 ;
@@ -323,16 +331,16 @@ classdef MovieManagerController < handle
     end
 
     function updateMovieData_(obj)
-      % Sync tblMovies contents and visibility to the current Labeler state.
+      % Sync obj.tblMovies contents and visibility to the current Labeler state.
       lObj = obj.labeler ;
       areControlsEnabled = obj.areControlsEnabled_() ;
 
       obj.gl.RowHeight = obj.getGridLayoutRowHeights_() ;
+      obj.tblMovies.Enable = onIff(areControlsEnabled) ;
       isMultiView = (lObj.nview > 1) ;
       obj.tblMovieSet.Visible = onIff(isMultiView) ;
       obj.labelSet.Visible = onIff(isMultiView) ;
-      obj.tblMovies.Enable = onIff(areControlsEnabled) ;
-      obj.tblMovieSet.Enable = onIff(areControlsEnabled) ;
+      obj.tblMovieSet.Enable = onIff(isMultiView&&areControlsEnabled) ;
 
       if areControlsEnabled
         movNames = lObj.movieFilesAllGTaware ;
@@ -407,7 +415,7 @@ classdef MovieManagerController < handle
         end
       end
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
-        lObj.movieSet(1,'isFirstMovie',true);
+        lObj.movieSet(1);
       end
     end
     
