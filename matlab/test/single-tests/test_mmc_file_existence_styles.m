@@ -1,9 +1,10 @@
 function test_mmc_file_existence_styles()
 % Test the file-existence cell coloring in MovieManagerController.
 % Open the MMC, verify all cells start white, then break each movie and
-% trx file path in turn (by directly mutating the Labeler), call
-% syncMovieAndTrxFileExistence(), and confirm that only the corresponding
-% row's Movie or Trx cell is painted pink.
+% trx file path in turn (by directly mutating the Labeler), and confirm
+% that only the corresponding row's Movie or Trx cell is painted pink.
+% The Labeler now syncs file existence automatically when the path
+% arrays are assigned.
 
 % linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
 linux_project_file_path = ...
@@ -22,8 +23,7 @@ end
 cleaner = onCleanup(@()(delete(controller))) ;  % deletes labeler too
 cleaner2 = onCleanup(@()(delete(labeler))) ;  % belt-and-suspenders
 
-% Open the Movie Manager via the menu actuation; this also calls
-% syncMovieAndTrxFileExistence() as a side effect.
+% Open the Movie Manager via the menu actuation.
 controller.menu_file_managemovies_actuated_([], []) ;
 mmc = controller.movieManagerController_ ;
 if isempty(mmc) || ~isvalid(mmc.hFig)
@@ -34,7 +34,7 @@ uit = mmc.tblMovies ;  % the uitable
 % Initially every file exists on disk; no cells should be pink.
 assertPinkCells(uit, zeros(0, 2)) ;
 
-% Walk every movie file path; break it, sync, verify, restore.
+% Walk every movie file path; break it, verify, restore.
 movieFilesOriginal = labeler.movieFilesAll ;
 [rowCount, viewCount] = size(movieFilesOriginal) ;
 fakeMoviePath = '/this/path/does/not/exist/foo.avi' ;
@@ -43,14 +43,10 @@ for rowIndex = 1 : rowCount
     newMovs = movieFilesOriginal ;
     newMovs{rowIndex, viewIndex} = fakeMoviePath ;
     labeler.movieFilesAll = newMovs ;
-    labeler.syncMovieAndTrxFileExistence() ;
-    mmc.update() ;
     pause(0.5) ;  % just so you can see it
     assertPinkCells(uit, [rowIndex, 1]) ;
 
     labeler.movieFilesAll = movieFilesOriginal ;
-    labeler.syncMovieAndTrxFileExistence() ;
-    mmc.update() ;
     assertPinkCells(uit, zeros(0, 2)) ;
   end
 end
@@ -71,14 +67,10 @@ if hasAnyTrx
       newTrx = trxFilesOriginal ;
       newTrx{rowIndex, viewIndex} = fakeTrxPath ;
       labeler.trxFilesAll = newTrx ;
-      labeler.syncMovieAndTrxFileExistence() ;
-      mmc.update() ;
       pause(0.5) ;  % just so you can see it
       assertPinkCells(uit, [rowIndex, 2]) ;
 
       labeler.trxFilesAll = trxFilesOriginal ;
-      labeler.syncMovieAndTrxFileExistence() ;
-      mmc.update() ;
       assertPinkCells(uit, zeros(0, 2)) ;
     end
   end

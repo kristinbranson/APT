@@ -12,11 +12,11 @@ classdef Labeler < handle
     SAVEPROPS = { ...
       'VERSION' 'projname' 'maIsMA' ...
       'movieReadPreLoadMovies' ...
-      'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'trxInfoAll' 'projMacros'...
-      'movieFilesAllGT' 'movieInfoAllGT' ...
+      'movieFilesAll_' 'movieInfoAll' 'trxFilesAll_' 'trxInfoAll' 'projMacros'...
+      'movieFilesAllGT_' 'movieInfoAllGT' ...
       'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
       'movieFilesAllHistEqLUT' 'movieFilesAllGTHistEqLUT' ...
-      'trxFilesAllGT' 'trxInfoAllGT' ...
+      'trxFilesAllGT_' 'trxInfoAllGT' ...
       'cropIsCropMode' ...
       'viewCalibrationData' 'viewCalProjWide' ...
       'viewCalibrationDataGT' ...
@@ -40,8 +40,8 @@ classdef Labeler < handle
      % props to update when replace path is given during initialization
      % MK 20220418
     MOVIEPROPS = { ...
-      'movieFilesAll' 'trxFilesAll' 'projMacros' ...
-      'movieFilesAllGT' 'trxFilesAllGT' }
+      'movieFilesAll_' 'trxFilesAll_' 'projMacros' ...
+      'movieFilesAllGT_' 'trxFilesAllGT_' }
     
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};     
@@ -352,8 +352,13 @@ classdef Labeler < handle
   end
 
   properties
-    movieFilesAll = {}  % [nmovset x nview] column cellstr, full paths to movies; can include macros 
-    movieFilesAllGT = {}  % same as .movieFilesAll but for GT mode
+    movieFilesAll_ = {}  % storage for movieFilesAll; private in spirit
+    movieFilesAllGT_ = {}  % storage for movieFilesAllGT; private in spirit
+  end
+
+  properties (Dependent)
+    movieFilesAll  % [nmovset x nview] column cellstr, full paths to movies; can include macros
+    movieFilesAllGT  % same as .movieFilesAll but for GT mode
   end
 
   properties
@@ -490,10 +495,15 @@ classdef Labeler < handle
   
   %% Trx
   properties
-    trxFilesAll = {}  % column cellstr, full paths to trxs. Same size as movieFilesAll.
+    trxFilesAll_ = {}  % storage for trxFilesAll; private in spirit
     trxInfoAll = {}
-    trxFilesAllGT = {}  % etc. Same size as movieFilesAllGT.
+    trxFilesAllGT_ = {}  % storage for trxFilesAllGT; private in spirit
     trxInfoAllGT = {}
+  end
+
+  properties (Dependent)
+    trxFilesAll  % column cellstr, full paths to trxs. Same size as movieFilesAll.
+    trxFilesAllGT  % etc. Same size as movieFilesAllGT.
   end
 
   %% File existence
@@ -1167,15 +1177,31 @@ classdef Labeler < handle
     end  % function
 
     function syncMovieAndTrxFileExistence(obj)
-      % Sync doesMovieFileExist and doesTrxFileExist to
-      % the current state of files on disk.  Only the entries for the
-      % current GT mode (regular or GT) are refreshed.
+      % Sync doesMovieFileExist and doesTrxFileExist to the current
+      % state of files on disk.  Only the entries for the current GT
+      % mode (regular or GT) are refreshed.
+      obj.syncDoesMovieFileExist_() ;
+      obj.syncDoesTrxFileExist_() ;
+    end  % function
+
+    function syncDoesMovieFileExist_(obj)
+      % Refresh doesMovieFileExist for the active GT mode.  Touches only
+      % the movie side, so the trx-side dependents are not queried.
       if obj.gtIsGTMode
         obj.doesMovieFileExist_ = filesExistOnDisk(obj.movieFilesAllGTFull) ;
-        obj.doesTrxFileExist_   = filesExistOnDisk(obj.trxFilesAllGTFull) ;
       else
         obj.doesMovieFileExist_ = filesExistOnDisk(obj.movieFilesAllFull) ;
-        obj.doesTrxFileExist_   = filesExistOnDisk(obj.trxFilesAllFull) ;
+      end
+    end  % function
+
+    function syncDoesTrxFileExist_(obj)
+      % Refresh doesTrxFileExist for the active GT mode.  Touches only
+      % the trx side, so the movie-side dependents are not queried
+      % beyond what trxFilesAllFull/trxFilesAllGTFull resolution requires.
+      if obj.gtIsGTMode
+        obj.doesTrxFileExist_ = filesExistOnDisk(obj.trxFilesAllGTFull) ;
+      else
+        obj.doesTrxFileExist_ = filesExistOnDisk(obj.trxFilesAllFull) ;
       end
     end  % function
 
@@ -2478,10 +2504,10 @@ classdef Labeler < handle
       end
       
       if macroreplace
-        s.movieFilesAll = obj.movieFilesAllFull;
-        s.movieFilesAllGT = obj.movieFilesAllGTFull;
-        s.trxFilesAll = obj.trxFilesAllFull;
-        s.trxFilesAllGT = obj.trxFilesAllGTFull;
+        s.movieFilesAll_ = obj.movieFilesAllFull;
+        s.movieFilesAllGT_ = obj.movieFilesAllGTFull;
+        s.trxFilesAll_ = obj.trxFilesAllFull;
+        s.trxFilesAllGT_ = obj.trxFilesAllGTFull;
         s.trxInfoAll = obj.trxInfoAll;
         s.trxInfoAllGT = obj.trxInfoAllGT;
       end
@@ -2581,7 +2607,7 @@ classdef Labeler < handle
         s.trackDLBackEnd = backend ;
       end
 
-      if ~all(isfield(s,{'VERSION' 'movieFilesAll'}))
+      if ~isfield(s,'VERSION') || ~(isfield(s,'movieFilesAll') || isfield(s,'movieFilesAll_'))
         error('Labeler:load','Unexpected contents in Label file.');
       end
       obj.rcSaveProp('lastLblFile',fname);
@@ -2715,7 +2741,9 @@ classdef Labeler < handle
       end
       trackerHistory = apt.trimTrackersAfterLoad(rawTrackerHistory, isFilePreTrackerHistory, currTracker) ;
       obj.trackerHistory_ = trackerHistory;
-      
+
+      obj.syncMovieAndTrxFileExistence() ;
+
       obj.isinit = false;
 
       % Initialize preprocessed data cache
@@ -3876,6 +3904,23 @@ classdef Labeler < handle
             ss = s.(fn);
           end
           s.(fn) = ss;
+        end
+      end
+
+      % Rename old non-underscored path-array keys to their underscored
+      % storage names.  Older .lbl files used keys like 'movieFilesAll';
+      % storage now lives in 'movieFilesAll_'.
+      legacyToCurrent = { ...
+        'movieFilesAll',   'movieFilesAll_'   ; ...
+        'movieFilesAllGT', 'movieFilesAllGT_' ; ...
+        'trxFilesAll',     'trxFilesAll_'     ; ...
+        'trxFilesAllGT',   'trxFilesAllGT_'   } ;
+      for i = 1 : size(legacyToCurrent, 1)
+        legacyName = legacyToCurrent{i, 1} ;
+        currentName = legacyToCurrent{i, 2} ;
+        if isfield(s, legacyName) && ~isfield(s, currentName)
+          s.(currentName) = s.(legacyName) ;
+          s = rmfield(s, legacyName) ;
         end
       end
     end  % function lblModernize()
@@ -13064,15 +13109,27 @@ classdef Labeler < handle
       obj.notify_('didSetProjFSInfo') ;
     end
 
+    function v = get.movieFilesAll(obj)
+      % Getter for movieFilesAll.
+      v = obj.movieFilesAll_ ;
+    end
+
     function set.movieFilesAll(obj, newValue)
-      obj.movieFilesAll = newValue ;
-      obj.syncMovieAndTrxFileExistence() ;
+      % Setter for movieFilesAll.
+      obj.movieFilesAll_ = newValue ;
+      obj.syncDoesMovieFileExist_() ;
       obj.notify_('didSetMovieFilesAll') ;
     end
 
+    function v = get.movieFilesAllGT(obj)
+      % Getter for movieFilesAllGT.
+      v = obj.movieFilesAllGT_ ;
+    end
+
     function set.movieFilesAllGT(obj, newValue)
-      obj.movieFilesAllGT = newValue ;
-      obj.syncMovieAndTrxFileExistence() ;
+      % Setter for movieFilesAllGT.
+      obj.movieFilesAllGT_ = newValue ;
+      obj.syncDoesMovieFileExist_() ;
       obj.notify_('didSetMovieFilesAllGT') ;
     end
 
@@ -13090,15 +13147,27 @@ classdef Labeler < handle
       end
     end
 
+    function v = get.trxFilesAll(obj)
+      % Getter for trxFilesAll.
+      v = obj.trxFilesAll_ ;
+    end
+
     function set.trxFilesAll(obj, newValue)
-      obj.trxFilesAll = newValue ;
-      obj.syncMovieAndTrxFileExistence() ;
+      % Setter for trxFilesAll.
+      obj.trxFilesAll_ = newValue ;
+      obj.syncDoesTrxFileExist_() ;
       obj.notify_('didSetTrxFilesAll') ;
     end
 
+    function v = get.trxFilesAllGT(obj)
+      % Getter for trxFilesAllGT.
+      v = obj.trxFilesAllGT_ ;
+    end
+
     function set.trxFilesAllGT(obj, newValue)
-      obj.trxFilesAllGT = newValue ;
-      obj.syncMovieAndTrxFileExistence() ;
+      % Setter for trxFilesAllGT.
+      obj.trxFilesAllGT_ = newValue ;
+      obj.syncDoesTrxFileExist_() ;
       obj.notify_('didSetTrxFilesAllGT') ;
     end
 
