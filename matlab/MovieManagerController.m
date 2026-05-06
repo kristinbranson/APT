@@ -157,7 +157,7 @@ classdef MovieManagerController < handle
       if isempty(row),
         return;
       end
-      obj.tblCbkMovieSelected(row);
+      obj.tblCbkMovieSelected_(row);
     end
 
     function delete(obj)
@@ -184,7 +184,7 @@ classdef MovieManagerController < handle
       idx = unique(obj.tblMovies.Selection(:,1),'stable');
     end
     
-    function tblCbkMovieSelected(obj,iMov)
+    function tblCbkMovieSelected_(obj,iMov)
       assert(isscalar(iMov) && iMov>0);
       % iMov is gt-aware movie index (unsigned)
       obj.labeler.movieSet(iMov);
@@ -202,7 +202,7 @@ classdef MovieManagerController < handle
           iMov = obj.getSelectedMovies();
           if ~isempty(iMov)
             iMov = iMov(1);
-            obj.tblCbkMovieSelected(iMov);
+            obj.tblCbkMovieSelected_(iMov);
           end
         case 'pbNextUnlabeled'
           iMov = find(~lObj.movieFilesAllHaveLbls,1);
