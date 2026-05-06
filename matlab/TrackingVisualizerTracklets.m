@@ -32,14 +32,15 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     end
 
     function vizInit(obj, varargin)
-      % Initialize graphics handles and cosmetics.
+      % Initialize graphics handles and cosmetics.  The model
+      % (TrackingVisualizerTrackletsModel) is initialized separately by
+      % DeepTracker.vizModelInit_ before this runs; the View must not
+      % mutate the Model.
       ntgtmax = myparse(varargin,...
         'ntgtmax',20 ...
         );
 
       tvm = obj.tvtm_ ;
-      tvm.init(ntgtmax) ;
-
       obj.tvmt.vizInit('ntgts', ntgtmax) ;
       obj.tvtrx.init(@(iTrx)(obj.didSelectTrx(iTrx)), tvm.ntrxmax) ;
     end
