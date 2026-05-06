@@ -5,7 +5,8 @@ function test_mmc_file_existence_styles()
   % syncFilesExistAtLastCheck(), and confirm that only the corresponding
   % row's Movie or Trx cell is painted pink.
 
-  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
+  % linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved_3_lightly_trained.lbl' ;
   if ispc()
     project_file_path = strrep(linux_project_file_path, '/groups/branson/bransonlab', 'Z:') ;
     replace_path = { '/groups/branson/bransonlab', 'Z:' } ;
@@ -43,6 +44,7 @@ function test_mmc_file_existence_styles()
       labeler.movieFilesAll = newMovs ;
       labeler.syncFilesExistAtLastCheck() ;
       mmc.update() ;
+      pause(0.5) ;  % just so you can see it
       assertPinkCells(uit, [rowIndex, 1]) ;
 
       labeler.movieFilesAll = movieFilesOriginal ;
@@ -70,6 +72,7 @@ function test_mmc_file_existence_styles()
         labeler.trxFilesAll = newTrx ;
         labeler.syncFilesExistAtLastCheck() ;
         mmc.update() ;
+        pause(0.5) ;  % just so you can see it
         assertPinkCells(uit, [rowIndex, 2]) ;
 
         labeler.trxFilesAll = trxFilesOriginal ;
