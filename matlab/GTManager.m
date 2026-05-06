@@ -412,11 +412,6 @@ else
   itgt = nan;
 end
 
-% function imovs = cbkGetSelectedMovies(hMMobj)
-% % Get current selection in Table
-% handles = guidata(hMMobj);
-% imovs = handles.navTreeTbl.getSelectedMovies();
-
 function menu_gtframes_suggest_Callback(hObject, eventdata, handles)
 LabelerGT.generateSuggestionsUI(handles.labeler);
 handles = updateAll(handles);
