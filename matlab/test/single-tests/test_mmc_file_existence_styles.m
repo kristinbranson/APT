@@ -104,14 +104,19 @@ function pinkCells = collectPinkCells(uit)
   cfg = uit.StyleConfigurations ;
   pinkCells = zeros(0, 2) ;
   for i = 1 : height(cfg)
-    if ~strcmp(cfg.Target{i}, 'cell')
+    target = string(cfg.Target(i)) ;  % robust to cellstr/string/categorical
+    if target ~= "cell"
       continue
     end
     bg = cfg.Style(i).BackgroundColor ;
     if ~isequal(bg, pinkRGB)
       continue
     end
-    pinkCells = [pinkCells ; cfg.TargetIndex{i}] ;  %#ok<AGROW>
+    rawIndex = cfg.TargetIndex(i) ;
+    if iscell(rawIndex)
+      rawIndex = rawIndex{1} ;
+    end
+    pinkCells = [pinkCells ; rawIndex] ;  %#ok<AGROW>
   end
   pinkCells = sortrows(pinkCells) ;
 end  % function
