@@ -192,10 +192,8 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       % Initialize graphics handles and cosmetics.
       %
       % See TrackingVisualizerBase
-      % See "Construction/Init notes" below
 
-      [postload,ntgtsinitial,~] = myparse(varargin,...
-        'postload',false, ... % see Construction/Init notes
+      [ntgtsinitial,~] = myparse(varargin,...
         'ntgts',[], ... % optionally provide known initial number of targets
         'ntgtmax',[] ... % unused, just eliminates warning
         );
@@ -213,13 +211,9 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       if isempty(ntgtsinitial)
         ntgtsinitial = lObj.nTargets;
       end
-      if postload
-        ptclrs = tvm.ptClrs ;
-      else
-        ptclrs = lObj.mapSetColorsToPointColors(pppi.Colors);
-        tvm.ptClrs = ptclrs ;
-        tvm.txtOffPx = pppi.TextOffset ;
-      end
+      ptclrs = lObj.mapSetColorsToPointColors(pppi.Colors);
+      tvm.ptClrs = ptclrs ;
+      tvm.txtOffPx = pppi.TextOffset ;
       szassert(ptclrs,[npts 3]);
 
       % init .xyVizPlotArgs*
@@ -228,12 +222,6 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       markerPVscell = struct2paramscell(markerPVs);
       textPVscell = struct2paramscell(textPVs);
       skelPVscell = struct2paramscell(skelPVs);
-
-      if postload
-        % We init first with markerPVs/textPVs, then set saved custom PVs
-        hXYPrdRed0 = obj.hXYPrdRed;
-        hXYPrdRedTxt0 = obj.hXYPrdRedTxt;
-      end
 
       axs = obj.hAxs;
       arrayfun(@(x)hold(x,'on'),axs);
@@ -254,23 +242,6 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
 
       if tvm.doPch
         [obj.hPch,obj.hPchTxt] = obj.hlpPlotPches(ntgtsinitial,0,pchTextPVs);
-      end
-
-      if postload
-        if isstruct(hXYPrdRed0)
-          if numel(hXYPrdRed0)==numel(obj.hXYPrdRed)
-            arrayfun(@(x,y)set(x,y),obj.hXYPrdRed,hXYPrdRed0);
-          else
-            warningNoTrace('.hXYPrdRed: Number of saved prop-val structs does not match number of line handles.');
-          end
-        end
-        if isstruct(hXYPrdRedTxt0)
-          if numel(hXYPrdRedTxt0)==numel(obj.hXYPrdRedTxt)
-            arrayfun(@(x,y)set(x,y),obj.hXYPrdRedTxt,hXYPrdRedTxt0);
-          else
-            warningNoTrace('.hXYPrdRedTxt: Number of saved prop-val structs does not match number of line handles.');
-          end
-        end
       end
 
       tvm.tfShowPch = false ;
@@ -697,15 +668,10 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
   methods
     % Construction/Init notes
     %
-    % 1. Call the constructor normally, then vizInit();
-    %   - This initializes cosmetics from labeler.predPointsPlotInfo
-    %   - This is the codepath used for LabelTrackers. LabelTracker TVs
-    %   are not serialized. New/fresh ones are created and cosmetics are
-    %   initted from labeler.predPointsPlotInfo.
-    % 2. From serialized. Call constructor with no args, then postLoadInit()
-    %   - SaveObj restores various cosmetic state, including PV props in
-    %   .hXYPrdRed and .hXYPrdRedTxt
-    %   - PostLoadInit->vizInit sets up cosmetic state on handles
+    % Call the constructor normally, then vizInit().  vizInit
+    % initializes cosmetics from labeler.predPointsPlotInfo.
+    % LabelTracker TVs are not serialized; new/fresh ones are created
+    % each session.
 
     function obj = TrackingVisualizerMT(parent, tvm)
       % Construct a TrackingVisualizerMT.
