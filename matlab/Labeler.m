@@ -8683,6 +8683,7 @@ classdef Labeler < handle
           end
         end
         obj.gtIsGTMode = tf;
+        obj.syncMovieAndTrxFileExistence() ;
         nMov = obj.nmoviesGTaware;
         if nMov==0
           obj.movieSetNoMovie_();
@@ -13065,11 +13066,13 @@ classdef Labeler < handle
 
     function set.movieFilesAll(obj, newValue)
       obj.movieFilesAll = newValue ;
+      obj.syncMovieAndTrxFileExistence() ;
       obj.notify_('didSetMovieFilesAll') ;
     end
 
     function set.movieFilesAllGT(obj, newValue)
       obj.movieFilesAllGT = newValue ;
+      obj.syncMovieAndTrxFileExistence() ;
       obj.notify_('didSetMovieFilesAllGT') ;
     end
 
@@ -13089,11 +13092,13 @@ classdef Labeler < handle
 
     function set.trxFilesAll(obj, newValue)
       obj.trxFilesAll = newValue ;
+      obj.syncMovieAndTrxFileExistence() ;
       obj.notify_('didSetTrxFilesAll') ;
     end
 
     function set.trxFilesAllGT(obj, newValue)
       obj.trxFilesAllGT = newValue ;
+      obj.syncMovieAndTrxFileExistence() ;
       obj.notify_('didSetTrxFilesAllGT') ;
     end
 
