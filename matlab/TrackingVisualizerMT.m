@@ -204,17 +204,12 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       lObj = obj.parent_.labeler_ ;
       pppiFld = tvm.ptsPlotInfoFld ;
       pppi = lObj.(pppiFld) ;
-      tvm.mrkrReg = pppi.MarkerProps.Marker ;
-      tvm.mrkrOcc = pppi.OccludedMarker ;
 
       npts = tvm.nPts ;
       if isempty(ntgtsinitial)
         ntgtsinitial = lObj.nTargets;
       end
-      ptclrs = lObj.mapSetColorsToPointColors(pppi.Colors);
-      tvm.ptClrs = ptclrs ;
-      tvm.txtOffPx = pppi.TextOffset ;
-      szassert(ptclrs,[npts 3]);
+      szassert(tvm.ptClrs,[npts 3]);
 
       % init .xyVizPlotArgs*
       [markerPVs,textPVs,pchTextPVs,skelPVs] = ...
@@ -244,14 +239,8 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         [obj.hPch,obj.hPchTxt] = obj.hlpPlotPches(ntgtsinitial,0,pchTextPVs);
       end
 
-      tvm.tfShowPch = false ;
-      tvm.tfShowSkel = lObj.showSkeleton ;
-
       % default textPVs do not respect .tfHideViz/.tfHideTxt
       obj.updateShowHideAll();
-
-      tvm.iTgtPrimary = zeros(1,0) ;
-      tvm.iTgtHide = zeros(1,0) ;
 
       obj.vizInitHook();
     end
