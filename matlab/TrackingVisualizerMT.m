@@ -40,6 +40,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     hPch  % [1 x ntgt] handle vec
     hPchTxt % [1 x ntgt] text/lbl for pch
   end
+
   properties (Constant)
     SAVEPROPS = {'ipt2vw' 'ptClrs' 'txtOffPx' 'tfHideViz' 'tfHideTxt' ...
       'handleTagPfix' 'ptsPlotInfoFld'};
@@ -51,10 +52,12 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     MRKR_SIZE_FAC = 0.6;
 
   end
+
   properties (Dependent)
     nPts
     nTgts
   end
+
   methods
     function v = get.nPts(obj)
       v = obj.tvm_.nPts ;
@@ -63,9 +66,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     function v = get.nTgts(obj)
       v = size(obj.hXYPrdRed, 2) ;
     end
-  end
-
-  methods
+    
     function deleteGfxHandles(obj)
       if ~isstruct(obj.hXYPrdRed) % guard against serialized TVs which have PV structs in .hXYPrdRed
         deleteValidGraphicsHandles(obj.hXYPrdRed);
