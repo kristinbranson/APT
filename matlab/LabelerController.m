@@ -51,7 +51,7 @@ classdef LabelerController < handle
     %   notification (fired when DeepTracker creates or destroys its TVM).
     %   The corresponding model object (a TrackingVisualizerModel subclass)
     %   lives on labeler_.tracker.trkVizer.
-    tvTrx_  % scalar TrackingVisualizerTrx, or []
+    tvTrx_  % scalar TrxVisualizer, or []
     tvTrkPred_ % scalar TrackingVisualizer* (TrackingVisualizerMT,
                % TrackingVisualizerMTFast, or TrackingVisualizerTracklets),
                % or []
@@ -309,7 +309,7 @@ classdef LabelerController < handle
       obj.labeler_ = labeler ;
       mainFigure = createLabelerMainFigure() ;
       obj.mainFigure_ = mainFigure ;
-      obj.tvTrx_ = TrackingVisualizerTrx(obj, labeler) ;
+      obj.tvTrx_ = TrxVisualizer(obj, labeler) ;
       obj.isInYodaMode_ = isInYodaMode ;
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
         % Useful for debugging.

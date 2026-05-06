@@ -1,7 +1,7 @@
-classdef TrackingVisualizerTrxMAModel < TrackingVisualizerModel
-% Model layer for TrackingVisualizerTrxMA.
+classdef TrxVisualizerMAModel < TrackingVisualizerModel
+% Model layer for TrxVisualizerMA.
 %
-% Holds non-gobject properties extracted from TrackingVisualizerTrxMA:
+% Holds non-gobject properties extracted from TrxVisualizerMA:
 % trajectory parameters, color state, and show/hide flags.
 
   properties
@@ -23,8 +23,8 @@ classdef TrackingVisualizerTrxMAModel < TrackingVisualizerModel
   end
 
   methods
-    function obj = TrackingVisualizerTrxMAModel(lObj)
-      % Construct a TrackingVisualizerTrxMAModel.
+    function obj = TrxVisualizerMAModel(lObj)
+      % Construct a TrxVisualizerMAModel.
       if nargin == 0
         return
       end

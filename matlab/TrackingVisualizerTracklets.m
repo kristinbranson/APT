@@ -1,7 +1,7 @@
 classdef TrackingVisualizerTracklets < TrackingVisualizerBase
   % Tracklet visualization
   % - landmarks via TVMT (TrackingVisualizerMT)
-  % - trx/target label via tvtrx (TrackingVisualizerTrxMA)
+  % - trx/target label via tvtrx (TrxVisualizerMA)
   %
   % Non-gobject model state lives on the associated
   % TrackingVisualizerTrackletsModel (accessed via obj.tvm_).
@@ -10,7 +10,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     parent_  % LabelerController reference
     tvtm_  % TrackingVisualizerTrackletsModel reference
     tvmt  % scalar TrackingVisualizerMT (controller)
-    tvtrx  % scalar TrackingVisualizerTrxMA (controller)
+    tvtrx  % scalar TrxVisualizerMA (controller)
   end
 
   methods
@@ -28,7 +28,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.tvtm_ = tvtm ;
 
       obj.tvmt = TrackingVisualizerMT(parent, tvtm.tvmt) ;
-      obj.tvtrx = TrackingVisualizerTrxMA(parent, tvtm.tvtrx) ;
+      obj.tvtrx = TrxVisualizerMA(parent, tvtm.tvtrx) ;
     end
 
     function vizInit(obj, varargin)

@@ -1,12 +1,12 @@
-classdef TrackingVisualizerTrxMA < handle
+classdef TrxVisualizerMA < handle
   % Shows a trx/centroid marker, text label, trajectory traces
   %
   % Non-gobject model state lives on the associated
-  % TrackingVisualizerTrxMAModel (accessed via obj.tvm_).
+  % TrxVisualizerMAModel (accessed via obj.tvm_).
 
   properties
     parent_  % LabelerController reference
-    tvm_  % TrackingVisualizerTrxMAModel reference, set in constructor
+    tvm_  % TrxVisualizerMAModel reference, set in constructor
     trxSelectCbk  % function handle
 
     hTraj                    % nTrx x 1 vector of line handles
@@ -20,11 +20,11 @@ classdef TrackingVisualizerTrxMA < handle
 
   methods
 
-    function obj = TrackingVisualizerTrxMA(parent, tvm)
-      % Construct a TrackingVisualizerTrxMA.
+    function obj = TrxVisualizerMA(parent, tvm)
+      % Construct a TrxVisualizerMA.
       %
       % parent: LabelerController
-      % tvm: TrackingVisualizerTrxMAModel
+      % tvm: TrxVisualizerMAModel
 
       if nargin == 0
         return

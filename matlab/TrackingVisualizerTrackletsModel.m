@@ -8,7 +8,7 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
     lObj % Labeler reference
 
     tvmt % scalar TrackingVisualizerMTModel
-    tvtrx % scalar TrackingVisualizerTrxMAModel
+    tvtrx % scalar TrxVisualizerMAModel
 
     ptrx % ptrx structure: has landmarks in addition to .x, .y
 
@@ -38,7 +38,7 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
 
       obj.tvmt = TrackingVisualizerMTModel(lObj, ptsPlotInfoFld, handleTagPfix, ...
                                            'skel_linestyle', '-') ;
-      obj.tvtrx = TrackingVisualizerTrxMAModel(lObj) ;
+      obj.tvtrx = TrxVisualizerMAModel(lObj) ;
       obj.npts = lObj.nLabelPoints ;
       obj.ntrxmax = 0 ;
 

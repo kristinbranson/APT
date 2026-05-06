@@ -1,4 +1,4 @@
-classdef TrackingVisualizerTrx < handle
+classdef TrxVisualizer < handle
   % shows a trx/centroid marker, text label, trajectory traces
   
   properties
@@ -25,8 +25,8 @@ classdef TrackingVisualizerTrx < handle
       v = numel(obj.hTrx);
     end
     
-    function obj = TrackingVisualizerTrx(labelerController, labeler)
-      % Construct a TrackingVisualizerTrx.
+    function obj = TrxVisualizer(labelerController, labeler)
+      % Construct a TrxVisualizer.
       obj.parent_ = labelerController;
       obj.lObj = labeler;
     end
