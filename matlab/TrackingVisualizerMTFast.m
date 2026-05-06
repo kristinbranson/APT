@@ -80,11 +80,6 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       pppiFld = tvm.ptsPlotInfoFld ;
       pppi = lObj.(pppiFld);
 
-      tvm.mrkrReg = pppi.MarkerProps.Marker ;
-      tvm.mrkrOcc = pppi.OccludedMarker ;
-      tvm.txtOffPx = pppi.TextOffset ;
-      tvm.skelEdges = lObj.skeletonEdges ;
-
       npts = tvm.nPts ;
       ptclrs = lObj.mapSetColorsToPointColors(pppi.Colors);
       szassert(ptclrs,[npts 3]);
@@ -130,11 +125,6 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       end
 
       assert(~tvm.doPch);
-      if ~lObj.maIsMA,
-        tvm.iTgtPrimary = lObj.currTarget ;
-      else
-        tvm.iTgtPrimary = zeros(1,0) ;
-      end
     end
 
     function updateSkel(obj)

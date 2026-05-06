@@ -52,7 +52,17 @@ classdef TrackingVisualizerMTFastModel < TrackingVisualizerModel
 
   methods
     function obj = TrackingVisualizerMTFastModel(lObj, ptsPlotInfoField, handleTagPfix)
-      % Construct a TrackingVisualizerMTFastModel.
+      % Construct a TrackingVisualizerMTFastModel.  Seeds cosmetic
+      % state (markers, text offset, skeleton edges) from lObj's
+      % plot-info field; runtime changes are pushed in via the
+      % controller's update*Cosmetics handlers.
+
+      obj.tfHideTxt = false ;
+      obj.tfHideViz = false ;
+      obj.tfShowOnlyPrimary = false ;
+      obj.tfShowPch = false ;
+      obj.tfShowSkel = false ;
+      obj.iTgtPrimary = zeros(1,0) ;
 
       if nargin == 0
         return
@@ -61,21 +71,28 @@ classdef TrackingVisualizerMTFastModel < TrackingVisualizerModel
       obj.lObj = lObj ;
       obj.ipt2vw = lObj.labeledposIPt2View ;
       obj.ptsPlotInfoFld = ptsPlotInfoField ;
-
-      obj.tfHideTxt = false ;
-      obj.tfHideViz = false ;
-      obj.tfShowOnlyPrimary = false ;
-      obj.tfShowPch = false ;
-      obj.tfShowSkel = false ;
-
       obj.handleTagPfix = handleTagPfix ;
+
+      pppi = lObj.(ptsPlotInfoField) ;
+      obj.mrkrReg = pppi.MarkerProps.Marker ;
+      obj.mrkrOcc = pppi.OccludedMarker ;
+      obj.txtOffPx = pppi.TextOffset ;
+      obj.skelEdges = lObj.skeletonEdges ;
     end  % function
 
     function trkInit(obj, trk)
-      % Initialize tracking data from a TrkFile.
+      % Initialize tracking data from a TrkFile.  Also resets the
+      % primary-target selection to the labeler's current target so it
+      % doesn't carry across reinitialization with new tracking
+      % results.
       assert(isscalar(trk) && isa(trk, 'TrkFile')) ;
       assert(trk.nframes == obj.lObj.nframes) ;
       obj.trk = trk ;
+      if obj.lObj.maIsMA
+        obj.iTgtPrimary = zeros(1,0) ;
+      else
+        obj.iTgtPrimary = obj.lObj.currTarget ;
+      end
     end  % function
 
     function [tfhaspred, xy, tfocc] = didSetCurrFrame(obj, frm)
