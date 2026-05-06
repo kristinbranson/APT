@@ -174,11 +174,6 @@ classdef MovieManagerController < handle
       end
       obj.listeners = [];      
     end
-   
-        
-  end
-  
-  methods
     
     function setVisible(obj, tf)
       obj.hFig.Visible = onIff(tf);
@@ -294,8 +289,6 @@ classdef MovieManagerController < handle
   end  % methods
   
   methods (Hidden)
-
-
     function update(obj)
 
       lObj = obj.labeler;
@@ -309,11 +302,9 @@ classdef MovieManagerController < handle
       obj.updatePushButtonsEnable();
       obj.updateMMTblRowSelection();
       obj.updateMenusEnable();
-
     end
     
     function updatePushButtonsEnable(obj)
-
       lObj = obj.labeler;
       if lObj.gtIsGTMode,
         set(obj.pbSwitch,'Text','GT Frames','tag','pbGTFrames');
@@ -352,19 +343,15 @@ classdef MovieManagerController < handle
       
       iMov = obj.labeler.currMovie;
       obj.setSelectedMovie(iMov);
-
     end
 
     function updateMovieData(obj,movNames,trxNames,movsHaveLbls)
-
       lObj = obj.labeler;
 
       if nargin < 2,
-
         movNames = lObj.movieFilesAllGTaware;
         trxNames = lObj.trxFilesAllGTaware;
         movsHaveLbls = lObj.movieFilesAllHaveLblsGTaware;
-
       end
 
       if ~isequal(size(movNames,1),size(trxNames,1),numel(movsHaveLbls))
@@ -387,7 +374,6 @@ classdef MovieManagerController < handle
         args = MovieManagerController.JTABLEPROPS_NOTRX;
       end
       set(obj.tblMovies,args{:},'Data',dat);
-
     end
 
     function hlpLblerLstnCbkUpdateTable(obj)
@@ -395,13 +381,9 @@ classdef MovieManagerController < handle
       if lObj.isinit
         return
       end
-
       if ~lObj.hasProject
         return
-        % error('MovieManagerController:proj',...
-        %   'Please open/create a project first.');
       end
-
       obj.updateMovieData();
       obj.updateMMTblRowSelection();
     end
@@ -420,7 +402,6 @@ classdef MovieManagerController < handle
           uiwait(errordlg(getReport(ME,'basic','hyperlinks','off'),'Error adding movies'));
           return;
         end
-
       else
         assert(lObj.nTargets==1,'Adding trx files currently unsupported.');
         lastmov = lObj.rcGetProp('lbl_lastmovie');
@@ -467,8 +448,6 @@ classdef MovieManagerController < handle
           break;
         end
       end
-    end  % function
-    
-  end  % methods (Hidden)
-  
+    end  % function    
+  end  % methods (Hidden)  
 end  % classdef
