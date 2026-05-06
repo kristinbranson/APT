@@ -51,7 +51,8 @@ interface is `APT_interface.py`.
 ```matlab
 test_apt()                    % Run all local backend tests
 test_apt('remote', true)      % Run all tests including remote backends
-test_apt('test_function_name') % Run single test for debugging
+test_function_name()          % Run a single test for debugging --
+                              % just call the test function directly
 ```
 
 ## Key Directories
@@ -201,6 +202,11 @@ evolving versions of some value.
 Prefer explicit variable names, even if they are long; and avoid
 abbreviations.  Use a shorter English word that means the same thing
 instead of an abbreviation.
+
+For identifiers representing the number of something, prefer
+`<singularNoun>Count` to `n<PluralNoun>`.  E.g. prefer `rowCount` to
+`nRows`, and `viewCount` to `nViews`.  Applies to local variables,
+properties, function/method names, and arguments alike.
 
 Use spaces liberally in long expressions to add clarity.  E.g. add a
 space after each comma in the argument list for functions.
