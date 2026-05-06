@@ -83,7 +83,7 @@ classdef MovieManagerController < handle
         obj.pbNextUnlabeled.Visible = 'off';
       end
 
-      obj.pbAdd = uibutton(obj.glButtons,'Text','Add Movie','tag','pbAdd',...
+      obj.pbAdd = uibutton(obj.glButtons,'Text','Add Movie...','tag','pbAdd',...
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
       obj.pbRm = uibutton(obj.glButtons,'Text','Remove Movie','tag','pbRm',...
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
@@ -100,17 +100,17 @@ classdef MovieManagerController < handle
       obj.update();
       obj.hFig.Visible = 'on';
       
-      lObjs = cell(0,1);
-      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAll',@(s,e)(obj.update()));
-      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllHaveLbls',@(s,e)(obj.update()));
-      lObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAll',@(s,e)(obj.update()));
-      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllGT',@(s,e)(obj.update()));
-      lObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllGTHaveLbls',@(s,e)(obj.update()));
-      lObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAllGT',@(s,e)(obj.update()));
-      lObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)(obj.update()));
-      lObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)(obj.update()));
+      listenerObjs = cell(0,1);
+      listenerObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAll',@(s,e)(obj.update()));
+      listenerObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllHaveLbls',@(s,e)(obj.update()));
+      listenerObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAll',@(s,e)(obj.update()));
+      listenerObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllGT',@(s,e)(obj.update()));
+      listenerObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAllGTHaveLbls',@(s,e)(obj.update()));
+      listenerObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAllGT',@(s,e)(obj.update()));
+      listenerObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)(obj.update()));
+      listenerObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)(obj.update()));
 
-      obj.listeners = lObjs;
+      obj.listeners = listenerObjs;
       obj.hFig.DeleteFcn = @obj.lclDeleteFig;
       
       mainFigurePosition = obj.parent_.mainFigurePixelPosition() ;
@@ -119,11 +119,11 @@ classdef MovieManagerController < handle
     end
 
     function lclDeleteFig(obj,~,~)
-      listenObjs = obj.listeners;
-      for i=1:numel(listenObjs)
-        o = listenObjs{i};
-        if isvalid(o)
-          delete(o);
+      listenerObjs = obj.listeners;
+      for i=1:numel(listenerObjs)
+        listener = listenerObjs{i};
+        if isvalid(listener)
+          delete(listener);
         end
       end
     end
@@ -264,9 +264,16 @@ classdef MovieManagerController < handle
       obj.updateMMTblRowSelection();
       obj.updateMenusEnable();
     end
-    
+
+    function tf = areControlsEnabled_(obj)
+      % Whether MMC controls should be enabled, given Labeler state.
+      lObj = obj.labeler ;
+      tf = ~lObj.isinit && lObj.hasProject ;
+    end
+
     function updatePushButtonsEnable(obj)
-      lObj = obj.labeler;
+      lObj = obj.labeler ;
+      enabled = obj.areControlsEnabled_() ;
       if lObj.gtIsGTMode,
         set(obj.pbSwitch,'Text','GT Frames','tag','pbGTFrames');
         obj.pbNextUnlabeled.Visible = 'off';
@@ -274,10 +281,15 @@ classdef MovieManagerController < handle
         set(obj.pbSwitch,'Text','Switch to Movie','tag','pbSwitch');
         obj.pbNextUnlabeled.Visible = 'on';
       end
+      obj.pbSwitch.Enable = onIff(enabled) ;
+      obj.pbNextUnlabeled.Enable = onIff(enabled) ;
+      obj.pbAdd.Enable = onIff(enabled) ;
+      obj.pbRm.Enable = onIff(enabled) ;
     end
 
     function updateMenusEnable(obj)
-      obj.menuFileAddMoviesFromTextFile.Enable = 'on';
+      enabled = obj.areControlsEnabled_() ;
+      obj.menuFileAddMoviesFromTextFile.Enable = onIff(enabled) ;
     end
     
     function updateMMTblRowSelection(obj)
@@ -292,33 +304,43 @@ classdef MovieManagerController < handle
     end
 
     function updateMovieData(obj)
-      lObj = obj.labeler;
+      lObj = obj.labeler ;
+      enabled = obj.areControlsEnabled_() ;
 
-      obj.gl.RowHeight = obj.getGridLayoutRowHeights();
-      obj.tblMovieSet.Visible = onIff(lObj.nview > 1);
-      obj.labelSet.Visible = onIff(lObj.nview > 1);
+      obj.gl.RowHeight = obj.getGridLayoutRowHeights() ;
+      obj.tblMovieSet.Visible = onIff(lObj.nview > 1) ;
+      obj.labelSet.Visible = onIff(lObj.nview > 1) ;
+      obj.tblMovies.Enable = onIff(enabled) ;
+      obj.tblMovieSet.Enable = onIff(enabled) ;
 
-      movNames = lObj.movieFilesAllGTaware;
-      trxNames = lObj.trxFilesAllGTaware;
-      movsHaveLbls = lObj.movieFilesAllHaveLblsGTaware;
+      if enabled
+        movNames = lObj.movieFilesAllGTaware ;
+        trxNames = lObj.trxFilesAllGTaware ;
+        movsHaveLbls = lObj.movieFilesAllHaveLblsGTaware ;
+      else
+        % No project / mid-init; force empty.
+        movNames = cell(0,1) ;
+        trxNames = cell(0,1) ;
+        movsHaveLbls = false(0,1) ;
+      end
 
       if isequal(size(movNames,1),size(trxNames,1),numel(movsHaveLbls))
-        movSetNames = movNames(:,1);
-        trxSetNames = trxNames(:,1);
-        tfTrx = any(cellfun(@(x)~isempty(x),trxNames(:)));
+        movSetNames = movNames(:,1) ;
+        trxSetNames = trxNames(:,1) ;
+        tfTrx = any(cellfun(@(x)~isempty(x),trxNames(:))) ;
         if tfTrx
-          dat = [movSetNames trxSetNames num2cell(int64(movsHaveLbls))];
-          args = MovieManagerController.JTABLEPROPS_TRX;
+          dat = [movSetNames trxSetNames num2cell(int64(movsHaveLbls))] ;
+          args = MovieManagerController.JTABLEPROPS_TRX ;
         else
-          dat = [movSetNames num2cell(int64(movsHaveLbls))];
-          args = MovieManagerController.JTABLEPROPS_NOTRX;
+          dat = [movSetNames num2cell(int64(movsHaveLbls))] ;
+          args = MovieManagerController.JTABLEPROPS_NOTRX ;
         end
       else
         % Model is mid-mutation; render empty until next event arrives.
-        dat = cell(0,2);
-        args = MovieManagerController.JTABLEPROPS_NOTRX;
+        dat = cell(0,2) ;
+        args = MovieManagerController.JTABLEPROPS_NOTRX ;
       end
-      set(obj.tblMovies,args{:},'Data',dat);
+      set(obj.tblMovies, args{:}, 'Data', dat) ;
     end
 
 
