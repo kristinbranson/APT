@@ -147,14 +147,19 @@ classdef MovieManagerController < handle
 
     function selectionChangedTblMovies(obj,~,~)
       % Actuation: tblMovies selection changed; write the new moviesSelected.
+      % Selection col + lastClickedTable_ are pure view state, so refresh
+      % the Change Path enablement directly --- the model can't drive it.
       obj.lastClickedTable_ = 'movies' ;
       obj.labeler.moviesSelected = obj.getSelectedMovies_() ;
+      obj.updateChangePathEnablement_() ;
     end
 
     function selectionChangedTblMovieSet(obj,~,~)
       % Actuation: tblMovieSet selection changed; remember it for the
-      % "Change Path" button so we can target the chosen view.
+      % "Change Path" button so we can target the chosen view.  See
+      % selectionChangedTblMovies for why this directly updates the view.
       obj.lastClickedTable_ = 'movieset' ;
+      obj.updateChangePathEnablement_() ;
     end  % function
 
     function doubleClickFcnCallbackTblMovies(obj,~,evt)
@@ -284,6 +289,7 @@ classdef MovieManagerController < handle
       obj.updateTableSelection_();
       obj.updateMovieSetDetails_();
       obj.updateMenuEnablement_();
+      obj.updateChangePathEnablement_() ;
     end
 
     function tf = areControlsEnabled_(obj)
@@ -307,8 +313,19 @@ classdef MovieManagerController < handle
       obj.pbNextUnlabeled.Enable = onIff(areControlsEnabled) ;
       obj.pbAdd.Enable = onIff(areControlsEnabled) ;
       obj.pbRm.Enable = onIff(areControlsEnabled) ;
-      obj.pbChangePath.Enable = onIff(areControlsEnabled) ;
     end
+
+    function updateChangePathEnablement_(obj)
+      % Sync pbChangePath.Enable to whether a movie or trx cell is
+      % currently selected (as opposed to nothing, or a non-path column
+      % like "Num Labels").
+      if obj.areControlsEnabled_()
+        [~, ~, ~, isPathCellSelected] = obj.determineSelectedPathCell_() ;
+        obj.pbChangePath.Enable = onIff(isPathCellSelected) ;
+      else
+        obj.pbChangePath.Enable = onIff(false) ;
+      end
+    end  % function
 
     function updateMenuEnablement_(obj)
       % Sync the File menu items' Enable state to the Labeler.
@@ -338,6 +355,7 @@ classdef MovieManagerController < handle
       % Listener callaback for didSetMoviesSelected event in the Labeler.
       obj.updateTableSelection_() ;
       obj.updateMovieSetDetails_() ;
+      obj.updateChangePathEnablement_() ;
     end
 
     function updateMovieSetDetails_(obj)
