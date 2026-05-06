@@ -114,7 +114,8 @@ classdef Labeler < handle
     didSetMovieFilesAll
     didSetMovieFilesAllGT
     didSetMovieFilesAllHaveLbls
-    didSetMovieFilesAllGTHaveLbls    
+    didSetMovieFilesAllGTHaveLbls
+    didSetMoviesSelected
 
     didSetMovieCenterOnTarget
     didSetMovieRotateTargetUp
@@ -1294,6 +1295,7 @@ classdef Labeler < handle
     function set.moviesSelected(obj, v)
       % Set the currently selected movies.
       obj.moviesSelected_ = v ;
+      obj.notify_('didSetMoviesSelected') ;
     end  % function
 
     function v = get.hasTrx(obj)

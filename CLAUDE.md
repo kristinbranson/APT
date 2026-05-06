@@ -111,6 +111,15 @@ Each controller method should be either an actuation method or an
 update method.  Actuation methods should never touch any of the GUI
 objects, and update methods should never mutate the model state.
 
+Actuation methods must also never directly call update methods after
+mutating the model.  The proper flow is always: actuation calls a
+model method (or assigns to a model property), the model fires an
+event, and a listener registered in the controller's constructor calls
+the relevant `update*()` method(s).  The model is the single source of
+truth for the GUI; routing GUI sync through events keeps the view
+consistent even when something other than the actuation mutates the
+model (e.g. batch scripts).
+
 Model methods that are called from controller actuation methods should
 mutate the model as needed, then call `obj.notify()` one or more times
 to alert the controller that some aspect of the GUI needs to be

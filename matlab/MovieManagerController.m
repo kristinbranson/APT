@@ -6,9 +6,8 @@ classdef MovieManagerController < handle
     labeler % scalar labeler Obj
     listeners % cell array of listener objs
 
-    tblMovies
-    tblMovieSet
-    tabHandles % [2] "handles" struct array
+    tblMovies  % the main table
+    tblMovieSet  % A table used in multiview projects, showing the movies for the selected movieset
 
     % UI handles previously kept in guidata(hFig).
     gl  % top-level uigridlayout
@@ -22,15 +21,7 @@ classdef MovieManagerController < handle
     menuFileAddMoviesFromTextFile  % uimenu under File
   end
 
-  properties (Constant)
-    JTABLEPROPS_NOTRX = {'ColumnName',{'Movie' 'Num Labels'},...
-                         'ColumnWidth',{'1x',250}};
-    JTABLEPROPS_TRX = {'ColumnName',{'Movie' 'Trx' 'Num Labels'},...
-                       'ColumnWidth',{'2x','1x',100}};
-  end
-    
-  methods
-    
+  methods    
     % MovieManagerController messages between Labeler and Tables
     % 1. Labeler/clients can fetch current selection in Table
     % 2. Labeler prop changes fire MMC listeners to update Table content
@@ -49,13 +40,13 @@ classdef MovieManagerController < handle
         'Name','Manage Movies');
       %obj.hFig.CloseRequestFcn = @(hObject,eventdata) obj.CloseRequestFcn(hObject,eventdata);
 
-      obj.gl = uigridlayout(obj.hFig,[4,1],'RowHeight',obj.getGridLayoutRowHeights(),'tag','gl');
+      obj.gl = uigridlayout(obj.hFig,[4,1],'RowHeight',obj.getGridLayoutRowHeights_(),'tag','gl');
 
       obj.tblMovies = uitable(obj.gl,...
         'ColumnName',{'Movie','Has Lbls'},...
         'ColumnWidth',{'1x',70},...
         'tag','tblMovies',...
-        'CellSelectionCallback',@(src,evt) obj.selectionChangedTblMovies_(src,evt),...
+        'CellSelectionCallback',@(src,evt) obj.selectionChangedTblMovies(src,evt),...
         'DoubleClickedFcn',@(src,evt) obj.doubleClickFcnCallbackTblMovies(src,evt));
       obj.labelSet = ...
         uilabel('Parent',obj.gl,...
@@ -109,6 +100,8 @@ classdef MovieManagerController < handle
       listenerObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAllGT',@(s,e)(obj.update()));
       listenerObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)(obj.update()));
       listenerObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)(obj.update()));
+      listenerObjs{end+1,1} = addlistener(lObj,'didSetMoviesSelected',...
+                                          @(s,e)(obj.didSetMoviesSelected()));
 
       obj.listeners = listenerObjs;
       obj.hFig.DeleteFcn = @obj.lclDeleteFig;
@@ -128,7 +121,7 @@ classdef MovieManagerController < handle
       end
     end
     
-    function rowheights = getGridLayoutRowHeights(obj)
+    function rowheights = getGridLayoutRowHeights_(obj)
       lObj = obj.labeler;
       if lObj.nview == 1,
         rowheights = {'1x',0,0,40};
@@ -137,15 +130,14 @@ classdef MovieManagerController < handle
       end
     end
 
-    function selectionChangedTblMovies_(obj,~,~)
+    function selectionChangedTblMovies(obj,~,~)
       obj.labeler.moviesSelected = obj.getSelectedMovies() ;
-      obj.updateMovieSetDetails_() ;
     end
 
     function doubleClickFcnCallbackTblMovies(obj,~,evt)
       row = evt.InteractionInformation.DisplayRow;
-      if isempty(row),
-        return;
+      if isempty(row)
+        return
       end
       obj.tblCbkMovieSelected_(row);
     end
@@ -171,10 +163,19 @@ classdef MovieManagerController < handle
     end
 
     function idx = getSelectedMovies(obj)
-      idx = unique(obj.tblMovies.Selection(:,1),'stable');
+      % Get the indices of movies currently selected in obj.tblMovies.
+
+      selection = obj.tblMovies.Selection ;
+      % MATLAB sometimes hands back Selection in a degenerate empty
+      % shape like 1x0 (e.g. clicks in empty space), so guard.
+      if isempty(selection)
+        idx = zeros(0,1) ;
+      else
+        idx = unique(selection(:,1),'stable') ;
+      end
     end
     
-    function tblCbkMovieSelected_(obj,iMov)
+    function tblCbkMovieSelected_(obj, iMov)
       assert(isscalar(iMov) && iMov>0);
       % iMov is gt-aware movie index (unsigned)
       obj.labeler.movieSet(iMov);
@@ -249,11 +250,11 @@ classdef MovieManagerController < handle
   
   methods (Hidden)
     function update(obj)
-      obj.updateMovieData();
-      obj.updatePushButtonsEnable();
-      obj.updateMMTblRowSelection();
+      obj.updateMovieData_();
+      obj.updatePushButtonEnablement_();
+      obj.updateRowSelection_();
       obj.updateMovieSetDetails_();
-      obj.updateMenusEnable();
+      obj.updateMenuEnablement_();
     end
 
     function tf = areControlsEnabled_(obj)
@@ -262,9 +263,9 @@ classdef MovieManagerController < handle
       tf = ~lObj.isinit && lObj.hasProject ;
     end
 
-    function updatePushButtonsEnable(obj)
+    function updatePushButtonEnablement_(obj)
       lObj = obj.labeler ;
-      enabled = obj.areControlsEnabled_() ;
+      areControlsEnabled = obj.areControlsEnabled_() ;
       if lObj.gtIsGTMode,
         set(obj.pbSwitch,'Text','GT Frames','tag','pbGTFrames');
         obj.pbNextUnlabeled.Visible = 'off';
@@ -272,18 +273,18 @@ classdef MovieManagerController < handle
         set(obj.pbSwitch,'Text','Switch to Movie','tag','pbSwitch');
         obj.pbNextUnlabeled.Visible = 'on';
       end
-      obj.pbSwitch.Enable = onIff(enabled) ;
-      obj.pbNextUnlabeled.Enable = onIff(enabled) ;
-      obj.pbAdd.Enable = onIff(enabled) ;
-      obj.pbRm.Enable = onIff(enabled) ;
+      obj.pbSwitch.Enable = onIff(areControlsEnabled) ;
+      obj.pbNextUnlabeled.Enable = onIff(areControlsEnabled) ;
+      obj.pbAdd.Enable = onIff(areControlsEnabled) ;
+      obj.pbRm.Enable = onIff(areControlsEnabled) ;
     end
 
-    function updateMenusEnable(obj)
-      enabled = obj.areControlsEnabled_() ;
-      obj.menuFileAddMoviesFromTextFile.Enable = onIff(enabled) ;
+    function updateMenuEnablement_(obj)
+      areControlsEnabled = obj.areControlsEnabled_() ;
+      obj.menuFileAddMoviesFromTextFile.Enable = onIff(areControlsEnabled) ;
     end
     
-    function updateMMTblRowSelection(obj)
+    function updateRowSelection_(obj)
       % Sync tblMovies.Selection to labeler.moviesSelected.
       selectedMovies = obj.labeler.moviesSelected ;
       if isempty(selectedMovies) || isempty(obj.tblMovies.Data)
@@ -292,6 +293,12 @@ classdef MovieManagerController < handle
         n = numel(selectedMovies) ;
         obj.tblMovies.Selection = [selectedMovies(:), ones(n,1)] ;
       end
+    end
+
+    function didSetMoviesSelected(obj)
+      % Listener callaback for didSetMoviesSelected event in the Labeler.
+      obj.updateRowSelection_() ;
+      obj.updateMovieSetDetails_() ;
     end
 
     function updateMovieSetDetails_(obj)
@@ -308,17 +315,18 @@ classdef MovieManagerController < handle
       end
     end
 
-    function updateMovieData(obj)
+    function updateMovieData_(obj)
       lObj = obj.labeler ;
-      enabled = obj.areControlsEnabled_() ;
+      areControlsEnabled = obj.areControlsEnabled_() ;
 
-      obj.gl.RowHeight = obj.getGridLayoutRowHeights() ;
-      obj.tblMovieSet.Visible = onIff(lObj.nview > 1) ;
-      obj.labelSet.Visible = onIff(lObj.nview > 1) ;
-      obj.tblMovies.Enable = onIff(enabled) ;
-      obj.tblMovieSet.Enable = onIff(enabled) ;
+      obj.gl.RowHeight = obj.getGridLayoutRowHeights_() ;
+      isMultiView = (lObj.nview > 1) ;
+      obj.tblMovieSet.Visible = onIff(isMultiView) ;
+      obj.labelSet.Visible = onIff(isMultiView) ;
+      obj.tblMovies.Enable = onIff(areControlsEnabled) ;
+      obj.tblMovieSet.Enable = onIff(areControlsEnabled) ;
 
-      if enabled
+      if areControlsEnabled
         movNames = lObj.movieFilesAllGTaware ;
         trxNames = lObj.trxFilesAllGTaware ;
         movsHaveLbls = lObj.movieFilesAllHaveLblsGTaware ;
@@ -329,25 +337,29 @@ classdef MovieManagerController < handle
         movsHaveLbls = false(0,1) ;
       end
 
+      JTABLEPROPS_NOTRX = {'ColumnName',{'Movie' 'Num Labels'},...
+                           'ColumnWidth',{'1x',250}};
+      JTABLEPROPS_TRX = {'ColumnName',{'Movie' 'Trx' 'Num Labels'},...
+                         'ColumnWidth',{'2x','1x',100}};
+      
       if isequal(size(movNames,1),size(trxNames,1),numel(movsHaveLbls))
         movSetNames = movNames(:,1) ;
         trxSetNames = trxNames(:,1) ;
         tfTrx = any(cellfun(@(x)~isempty(x),trxNames(:))) ;
         if tfTrx
           dat = [movSetNames trxSetNames num2cell(int64(movsHaveLbls))] ;
-          args = MovieManagerController.JTABLEPROPS_TRX ;
+          args = JTABLEPROPS_TRX ;
         else
           dat = [movSetNames num2cell(int64(movsHaveLbls))] ;
-          args = MovieManagerController.JTABLEPROPS_NOTRX ;
+          args = JTABLEPROPS_NOTRX ;
         end
       else
         % Model is mid-mutation; render empty until next event arrives.
         dat = cell(0,2) ;
-        args = MovieManagerController.JTABLEPROPS_NOTRX ;
+        args = JTABLEPROPS_NOTRX ;
       end
       set(obj.tblMovies, args{:}, 'Data', dat) ;
     end
-
 
     function addLabelerMovie(obj)
       lObj = obj.labeler;
@@ -391,10 +403,8 @@ classdef MovieManagerController < handle
     end
     
     function rmLabelerMovie(obj)
-      selRow = obj.getSelectedMovies();
-      selRow = sort(selRow);
+      selRow = sort(obj.getSelectedMovies()) ;
       n = numel(selRow);
-      % lObj = obj.labeler;
       labelerController = obj.parent_ ;
       for i = n:-1:1
         row = selRow(i);
