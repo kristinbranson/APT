@@ -4,6 +4,7 @@ classdef TrainingOverlayReceiver < handle
     tstrBases
     tblMFT
   end
+
   methods
     function obj = TrainingOverlayReceiver(hAx,tbases,tMFT)
       assert(numel(hAx)==numel(tbases));

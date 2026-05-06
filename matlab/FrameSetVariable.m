@@ -11,6 +11,7 @@ classdef FrameSetVariable < FrameSet
     avoidTbl % MFTtable of frames to avoid
     avoidRadius % avoidance radius-- 1=>avoidrow frame itself is avoided, but adjacent frame is not. 0=>no avoidance
   end
+
   methods
     function obj = FrameSetVariable(psFcn,pcsFun,frmfcn,varargin)
       [avdTbl,avdRad,id] = myparse(varargin,...

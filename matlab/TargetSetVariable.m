@@ -6,6 +6,7 @@ classdef TargetSetVariable < TargetSet
     getTargetIndicesHook 
     id % id for testing for special cases
   end
+
   methods
     function obj = TargetSetVariable(ps,pcs,fcn,id)
       obj.prettyString = ps;

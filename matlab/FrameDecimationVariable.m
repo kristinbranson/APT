@@ -2,6 +2,7 @@ classdef FrameDecimationVariable < FrameDecimation
   properties
     getDecimationHookFcn % function with sig dec = getDecimationHookFcn(lObj)
   end
+
   methods
     function obj = FrameDecimationVariable(fcn)
       obj.getDecimationHookFcn = fcn;

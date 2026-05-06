@@ -2,6 +2,7 @@ classdef MovieIndexSetFixed < MovieIndexSet
   properties
     mIdxs
   end
+
   methods
     function obj = MovieIndexSetFixed(mi)
       assert(isa(mi,'MovieIndex'));

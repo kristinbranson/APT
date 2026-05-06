@@ -23,10 +23,12 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
 
     hSkel   % [1xnview] skeleton line handle (all edges/tgts)
   end
+
   properties (Dependent)
     nPts
     nTgts
   end
+
   methods
     function v = get.nPts(obj)
       v = obj.tvm_.nPts ;
@@ -147,6 +149,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
                           obj.hSkel, tvm.skelEdges, tvm.nPts, xy);
     end
   end
+
   methods (Static)
     function updateSkelStc(hSkel, skelEdges, npt, xy, varargin)
       % Set hSkel.XData/.YData per xy
@@ -199,6 +202,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       end
     end
   end
+
   methods
     function initAndUpdateSkeletonEdges(obj, sedges)
       obj.tvm_.skelEdges = sedges ;

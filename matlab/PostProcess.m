@@ -3,6 +3,7 @@ classdef PostProcess < handle
   properties
     pts2run = []; % row vec into 1..npts, used when pts independent. use at own risk
   end
+
   properties (GetAccess=public,SetAccess=public)
     
     algorithm = 'maxdensity';

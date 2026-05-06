@@ -154,6 +154,7 @@ classdef LandmarkSpecs < handle
       s.txtOffset = txtOffset;
     end
   end
+
   methods (Static)
     function hIm = initImage(hAx,slbl)
       % Initialize image display in an axes.
@@ -165,6 +166,7 @@ classdef LandmarkSpecs < handle
       colormap(hAx,'gray');
     end
   end
+
   methods (Access=private) % cbks
     function edgeClicked(app,h,e)
       if h.Parent==app.axSkel

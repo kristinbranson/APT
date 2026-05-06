@@ -40,6 +40,7 @@ classdef CropInfo < handle
   properties
     roi % [1x4] 
   end
+
   methods 
     function obj = CropInfo(roiArr)
       % roi: [nobj x 4]
@@ -60,6 +61,7 @@ classdef CropInfo < handle
       end
     end
   end
+
   methods (Static)
     function obj = CropInfoCentered(posnCtrd)
       % Create array of CropInfos given posncntred. See notes at top of
@@ -74,6 +76,7 @@ classdef CropInfo < handle
       obj = CropInfo(roi);
     end
   end
+
   methods (Static)
     function tf = roiIsProper(roi,imnc,imnr)
       %

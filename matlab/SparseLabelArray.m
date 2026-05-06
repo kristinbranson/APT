@@ -55,6 +55,7 @@ classdef SparseLabelArray
       x(s.idx) = s.val; % scalar expansion for 'log'
     end
   end
+
   methods (Static) 
     % Methods that act on full arrays; maybe this class should be
     % 'LabelArray'

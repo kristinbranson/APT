@@ -449,6 +449,7 @@ classdef DeepTracker < LabelTracker
     end
     
   end
+
   methods
     
     % AL 20190415. Note on DeepTrack.Saving.CacheDir
@@ -598,6 +599,7 @@ classdef DeepTracker < LabelTracker
     end
 
   end
+
   methods (Static)
     function s = modernizeSaveToken(s)
       % 20181215
@@ -1757,6 +1759,7 @@ classdef DeepTracker < LabelTracker
       j = jsonencode({tblTrn{:,:} tblTst{:,:}});
     end
   end
+
   methods 
     function trainsplit(obj,tblSplit,varargin)  %#ok<INUSD> 
       % tblSplit: 
@@ -3294,6 +3297,7 @@ classdef DeepTracker < LabelTracker
     end  % function
 
   end
+
   methods
     
     function tblTrkRes = getTrackingResultsTable(obj,mIdxs,varargin) % obj const

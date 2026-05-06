@@ -54,9 +54,11 @@ classdef (Abstract) LabelTracker < handle
   properties
     userTag_ = '' % char, user-assigned short name for this tracker
   end
+
   properties (Dependent)
     userTag
   end
+
   methods
     function v = get.userTag(obj)
       v = obj.userTag_ ;

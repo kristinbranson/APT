@@ -11,6 +11,7 @@ classdef DLNetType < handle
   properties (Constant)
     NETS = lclReadNetYaml();
   end
+
   properties
     shortString
     %paramString % field used in tracking params

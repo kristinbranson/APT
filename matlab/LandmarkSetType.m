@@ -4,9 +4,11 @@ classdef LandmarkSetType
     Label ('labelPointsPlotInfo')
     Prediction ('predPointsPlotInfo')
   end
+
   properties
     labelerPropPlotInfo
   end
+
   methods 
     function obj = LandmarkSetType(lprop)
       obj.labelerPropPlotInfo = lprop;

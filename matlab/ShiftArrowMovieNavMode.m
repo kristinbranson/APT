@@ -6,9 +6,11 @@ classdef ShiftArrowMovieNavMode
     NEXTTRACKED ('Next tracked')
     % NEXTIMPORTED ('Next imported')
   end
+
   properties 
     prettyStr
   end
+
   methods
     function obj = ShiftArrowMovieNavMode(str)
       obj.prettyStr = str;

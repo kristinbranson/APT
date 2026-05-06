@@ -5664,6 +5664,7 @@ classdef Labeler < handle
 
 
   end
+
   methods (Static)
     
     function [trx,frm2trx] = getTrxCacheStc(trxCache,filename,nfrm)
@@ -5744,6 +5745,7 @@ classdef Labeler < handle
       frm2trxTotAnd = cellaccumulate(frm2trxCell,@and);
     end
   end
+
   methods
         
     function trxSet(obj,trx)
@@ -8402,6 +8404,7 @@ classdef Labeler < handle
       roi = xylohi(idxs);
     end
   end
+
   methods
 %     function maSetPtInfo(obj,ptNames)
 %       % ht assumed to be correct even if htEnabled==false
@@ -9211,11 +9214,13 @@ classdef Labeler < handle
         'VariableNames',{'GT Movie Index' 'Labeled Frames' 'Total GT Frames'});
     end
   end
+
   methods (Access = private)
     function PROPS = gtGetSharedProps_(obj)
       PROPS = Labeler.gtGetSharedPropsStc_(obj.gtIsGTMode);
     end
   end
+
   methods (Static, Access = private)
     function PROPS = gtGetSharedPropsStc_(gt)
       PROPS = Labeler.PROPS_GTSHARED;
@@ -11346,6 +11351,7 @@ classdef Labeler < handle
     end
     
   end
+
   methods
     function tblBig = trackGetBigLabeledTrackedTable_(obj)
       % Do the core work of generating the big target summary table.

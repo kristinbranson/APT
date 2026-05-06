@@ -13,6 +13,7 @@ classdef AxesHighlightManager < handle
   properties (Constant)
     ORANGE = [1 .6 .2];
   end
+
   properties
     HILITEPROPS = struct(...
       'axes',struct(...

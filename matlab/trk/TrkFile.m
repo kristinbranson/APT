@@ -56,6 +56,7 @@ classdef TrkFile < dynamicprops
     
     trkfldsextra = {}; % extra fields added
   end
+
   properties (Dependent)
     ntracklets
     %ntlts  % Wasn't used anywhere

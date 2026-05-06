@@ -7,6 +7,7 @@ classdef APTParameters
     % Use getParamTrees to access copies of these trees.
     PARAM_FILES_TREES = APTParameters.paramFilesTrees() ; 
   end
+
   methods (Static)
     function trees = getParamTrees(subtree)
       % Get a copy of PARAM_FILES_TREES. A copy is made for safety so the

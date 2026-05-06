@@ -8,9 +8,11 @@ classdef NavigationTable < handle
     navOnSingleClick % If true, navigate on single click; otherwise require double-click
     data % data in table form. jtable has it in cell form as well
   end
+
   properties (Dependent)
     height % height of jtable
   end
+
   methods
     function v = get.height(obj)
       jt = obj.jtable;
@@ -74,6 +76,7 @@ classdef NavigationTable < handle
       obj.data = [];
     end
   end
+
   methods
     
     % tbl: [nxnFld] table

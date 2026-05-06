@@ -3,6 +3,7 @@ classdef Coco < handle
     j
     fname
   end
+
   methods
     function obj = Coco(jsonfname)
       if exist(jsonfname,'file')==0
@@ -217,6 +218,7 @@ classdef Coco < handle
       kps = kpsall;
     end
   end
+
   methods (Static)
     function roi = computeRoi(xy,varargin)
       % See Labeler/maGetRoi

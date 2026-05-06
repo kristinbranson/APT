@@ -16,6 +16,7 @@ classdef CPRData < handle
     iTrn    % [1xNtrn] row indices into I for training set
     iTst    % [1xNtst] row indices into I for test set
   end
+
   properties (Dependent)
     N
     nView

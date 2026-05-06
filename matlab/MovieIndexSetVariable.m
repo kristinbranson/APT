@@ -5,6 +5,7 @@ classdef MovieIndexSetVariable < MovieIndexSet
     id
     getMovieIndicesHook % fcn with sig mIdx = fcn(labeler)
   end
+
   methods
     function obj = MovieIndexSetVariable(ps,cps,fcn,id)
       obj.prettyString = ps;

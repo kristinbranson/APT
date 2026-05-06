@@ -19,9 +19,11 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
     Visible = true
     AffectsTraining = true
   end
+
   properties (Dependent)
     DispNameUse
   end
+
   methods
     function v = get.DispNameUse(obj)
       v = obj.DispName;
@@ -48,6 +50,7 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
       obj.Value = val;
     end
   end
+
   methods 
     function obj = PropertiesGUIProp(fld,dispname,type,editable,desc,...
         dfltval,val,prmViz,level,rqts,visible,affectsTraining)

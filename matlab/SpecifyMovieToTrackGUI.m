@@ -25,6 +25,7 @@ classdef SpecifyMovieToTrackGUI < handle
     track_type = apt.TrackType.track;
     detailed_options = true;
   end
+
   methods
     function obj = SpecifyMovieToTrackGUI(lObj,hParent,movdata,varargin)
       

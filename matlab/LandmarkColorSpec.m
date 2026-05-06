@@ -34,6 +34,7 @@ classdef LandmarkColorSpec < matlab.mixin.Copyable
       'cool'
       };
   end
+
   properties
     landmarkSetType % scalar LandmarkSetType
     
@@ -47,6 +48,7 @@ classdef LandmarkColorSpec < matlab.mixin.Copyable
     colors 
     tfmanual % if false, use .colormap; else, use .colors 
   end
+
   methods
     function obj = LandmarkColorSpec(lsettype,nphyspts,pointsPlotInfo)
       % name: arbitrary id

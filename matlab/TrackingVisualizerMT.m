@@ -700,6 +700,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       s.hXYPrdRedTxt = cell2struct(vals,textprops,2);
     end
   end
+
   methods (Static)
     function [markerPVs,textPVs,pchTextPVs,skelPVs] = ...
                                   convertLabelerCosmeticPVs(pppi)

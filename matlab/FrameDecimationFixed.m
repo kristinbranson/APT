@@ -3,6 +3,7 @@ classdef FrameDecimationFixed < FrameDecimation
     decVal
     id % id for testing for special cases
   end
+
   methods
     function obj = FrameDecimationFixed(dval,id)
       obj.decVal = dval;

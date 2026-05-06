@@ -2,6 +2,7 @@ classdef LabelMode
   properties 
     prettyString
   end
+
   enumeration
     NONE ('None')
     SEQUENTIAL ('Sequential')
@@ -11,6 +12,7 @@ classdef LabelMode
     MULTIANIMAL ('MultiAnimal')
     SEQUENTIALADD ('SequentialAdd')
   end
+
   methods
     function obj = LabelMode(pStr)
       obj.prettyString = pStr;

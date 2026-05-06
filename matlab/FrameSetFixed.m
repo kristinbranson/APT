@@ -2,6 +2,7 @@ classdef FrameSetFixed < FrameSet
   properties
     frames
   end
+
   methods
     function obj = FrameSetFixed(frms)
       assert(isvector(frms));

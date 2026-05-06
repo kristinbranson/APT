@@ -29,6 +29,7 @@ classdef NavigationTreeTable < handle
     fcnDataRowNaved % fcnhandle, fcnDataRowNaved(iData)
     navOnSingleClick % If true, navigate on single click; otherwise require double-click
   end
+
   properties (Dependent)
     isEmpty
     nData % height(.treeTblData)
