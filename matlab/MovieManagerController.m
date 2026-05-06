@@ -29,6 +29,7 @@ classdef MovieManagerController < handle
     % 4. MMC buttons can add/rm labeler movies
 
     function obj = MovieManagerController(labelerController, labeler)
+      % Construct the MMC: build the UI and wire up Labeler listeners.
       assert(isa(labelerController, 'LabelerController'));
       assert(isa(labeler, 'Labeler'));
       obj.parent_ = labelerController;
@@ -61,13 +62,8 @@ classdef MovieManagerController < handle
 
       obj.glButtons = uigridlayout(obj.gl,[1,4],'Padding',[0,0,0,0],'tag','gl_buttons');
 
-      if lObj.gtIsGTMode,
-        obj.pbSwitch = uibutton(obj.glButtons,'Text','GT Frames','tag','pbGTFrames',...
-          'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
-      else
-        obj.pbSwitch = uibutton(obj.glButtons,'Text','Switch to Movie','tag','pbSwitch',...
-          'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
-      end
+      obj.pbSwitch = uibutton(obj.glButtons,...
+        'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
       obj.pbNextUnlabeled = uibutton(obj.glButtons,'Text','Next Unlabeled','tag','pbNextUnlabeled',...
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
       if lObj.gtIsGTMode,
@@ -79,7 +75,6 @@ classdef MovieManagerController < handle
       obj.pbRm = uibutton(obj.glButtons,'Text','Remove Movie','tag','pbRm',...
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
 
-
       obj.menuFile = uimenu('Tag','menu_file','Text','File','Parent',obj.hFig);
       obj.menuFileAddMoviesFromTextFile = uimenu('Tag','menu_file_add_movies_from_text_file',...
         'Text','Add movies from text file','Parent',obj.menuFile);
@@ -89,7 +84,6 @@ classdef MovieManagerController < handle
 
       set(obj.hFig,'MenuBar','None');
       obj.update();
-      obj.hFig.Visible = 'on';
       
       listenerObjs = cell(0,1);
       listenerObjs{end+1,1} = addlistener(lObj,'didSetMovieFilesAll',@(s,e)(obj.update()));
@@ -108,10 +102,21 @@ classdef MovieManagerController < handle
       
       mainFigurePosition = obj.parent_.mainFigurePixelPosition() ;
       centerOnOtherFigureGivenPositionBang(obj.hFig, mainFigurePosition) ;
+      obj.hFig.Visible = 'on';
       waitForFigureToSync(obj.hFig) ;
     end
 
+    function delete(obj)
+      % Destructor: tear down the figure and the Labeler listeners.
+      delete(obj.hFig);
+      for i=1:numel(obj.listeners)
+        delete(obj.listeners{i});
+      end
+      obj.listeners = [];      
+    end
+    
     function lclDeleteFig(obj,~,~)
+      % Delete the Labeler listeners when the MMC figure is closed.
       listenerObjs = obj.listeners;
       for i=1:numel(listenerObjs)
         listener = listenerObjs{i};
@@ -122,6 +127,7 @@ classdef MovieManagerController < handle
     end
     
     function rowheights = getGridLayoutRowHeights_(obj)
+      % Compute the RowHeight cell array for the top-level uigridlayout.
       lObj = obj.labeler;
       if lObj.nview == 1,
         rowheights = {'1x',0,0,40};
@@ -131,26 +137,23 @@ classdef MovieManagerController < handle
     end
 
     function selectionChangedTblMovies(obj,~,~)
-      obj.labeler.moviesSelected = obj.getSelectedMovies() ;
+      % Actuation: tblMovies selection changed; write the new moviesSelected.
+      obj.labeler.moviesSelected = obj.getSelectedMovies_() ;
     end
 
     function doubleClickFcnCallbackTblMovies(obj,~,evt)
+      % Actuation: double-click on a movie row switches the Labeler to it.
+      % This should have the same action as first selecting the row and them
+      % clicking the "Switch to Movie" button.
       row = evt.InteractionInformation.DisplayRow;
       if isempty(row)
         return
       end
-      obj.tblCbkMovieSelected_(row);
-    end
-
-    function delete(obj)
-      delete(obj.hFig);
-      for i=1:numel(obj.listeners)
-        delete(obj.listeners{i});
-      end
-      obj.listeners = [];      
+      obj.labeler.movieSet(row);
     end
     
     function setVisible(obj, tf)
+      % Show or hide the MovieManager figure.
       obj.hFig.Visible = onIff(tf);
       if tf
         figure(obj.hFig);
@@ -159,10 +162,11 @@ classdef MovieManagerController < handle
     end
 
     function tf = isValid(obj)
+      % True if the MovieManager figure still exists.
       tf = isvalid(obj.hFig);
     end
 
-    function idx = getSelectedMovies(obj)
+    function idx = getSelectedMovies_(obj)
       % Get the indices of movies currently selected in obj.tblMovies.
 
       selection = obj.tblMovies.Selection ;
@@ -175,25 +179,24 @@ classdef MovieManagerController < handle
       end
     end
     
-    function tblCbkMovieSelected_(obj, iMov)
-      assert(isscalar(iMov) && iMov>0);
-      % iMov is gt-aware movie index (unsigned)
-      obj.labeler.movieSet(iMov);
-    end
-    
     function cbkPushButton(obj,src,~)
+      % Actuation: dispatch a button press to the matching action.
       lObj = obj.labeler;
-      
+
       switch src.Tag
         case 'pbAdd'
           obj.addLabelerMovie(); % can throw
         case 'pbRm'
           obj.rmLabelerMovie();
         case 'pbSwitch' 
-          iMov = obj.getSelectedMovies();
-          if ~isempty(iMov)
-            iMov = iMov(1);
-            obj.tblCbkMovieSelected_(iMov);
+          if obj.labeler.gtIsGTMode
+            obj.parent_.gtShowGTManager();
+          else            
+            iMov = obj.getSelectedMovies_();
+            if ~isempty(iMov)
+              iMov = iMov(1);
+              obj.labeler.movieSet(iMov)
+            end
           end
         case 'pbNextUnlabeled'
           iMov = find(~lObj.movieFilesAllHaveLbls,1);
@@ -202,14 +205,13 @@ classdef MovieManagerController < handle
           else
             lObj.movieSet(iMov);
           end
-        case 'pbGTFrames'
-          obj.parent_.gtShowGTManager();
         otherwise
           assert(false);
       end
     end   
   
     function mnuFileAddMoviesBatch(obj)
+      % Actuation: prompt for a batch file and add the listed movies.
       lObj = obj.labeler;
 
       lastTxtFile = lObj.rcGetProp('lastMovieBatchFile');
@@ -236,6 +238,7 @@ classdef MovieManagerController < handle
     end
 
     function bringWindowToFront(obj)
+      % Make the MovieManager figure visible and bring it to the foreground.
       obj.setVisible(true) ;  % make sure is visible
       figure(obj.hFig) ;
     end
@@ -250,6 +253,8 @@ classdef MovieManagerController < handle
   
   methods (Hidden)
     function update(obj)
+      % Sync every aspect of the MMC GUI to the current Labeler state.
+      obj.updatePointer() ;
       obj.updateMovieData_();
       obj.updatePushButtonEnablement_();
       obj.updateRowSelection_();
@@ -264,13 +269,14 @@ classdef MovieManagerController < handle
     end
 
     function updatePushButtonEnablement_(obj)
+      % Sync the bottom-row push buttons (text and Enable) to Labeler state.
       lObj = obj.labeler ;
       areControlsEnabled = obj.areControlsEnabled_() ;
       if lObj.gtIsGTMode,
-        set(obj.pbSwitch,'Text','GT Frames','tag','pbGTFrames');
+        set(obj.pbSwitch,'Text','GT Frames');
         obj.pbNextUnlabeled.Visible = 'off';
       else
-        set(obj.pbSwitch,'Text','Switch to Movie','tag','pbSwitch');
+        set(obj.pbSwitch,'Text','Switch to Movie');
         obj.pbNextUnlabeled.Visible = 'on';
       end
       obj.pbSwitch.Enable = onIff(areControlsEnabled) ;
@@ -280,6 +286,7 @@ classdef MovieManagerController < handle
     end
 
     function updateMenuEnablement_(obj)
+      % Sync the File menu items' Enable state to the Labeler.
       areControlsEnabled = obj.areControlsEnabled_() ;
       obj.menuFileAddMoviesFromTextFile.Enable = onIff(areControlsEnabled) ;
     end
@@ -316,6 +323,7 @@ classdef MovieManagerController < handle
     end
 
     function updateMovieData_(obj)
+      % Sync tblMovies contents and visibility to the current Labeler state.
       lObj = obj.labeler ;
       areControlsEnabled = obj.areControlsEnabled_() ;
 
@@ -362,6 +370,7 @@ classdef MovieManagerController < handle
     end
 
     function addLabelerMovie(obj)
+      % Actuation: prompt the user for a movie (or movie set) and add it.
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       if lObj.nview==1
@@ -403,7 +412,8 @@ classdef MovieManagerController < handle
     end
     
     function rmLabelerMovie(obj)
-      selRow = sort(obj.getSelectedMovies()) ;
+      % Actuation: remove the currently selected movies from the Labeler.
+      selRow = sort(obj.getSelectedMovies_()) ;
       n = numel(selRow);
       labelerController = obj.parent_ ;
       for i = n:-1:1

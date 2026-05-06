@@ -12,7 +12,7 @@ end
 multiSelOnOff = onIff(tfMultiSelect);
 
 lastmov = RC.getprop('lbl_lastmovie');
-[movfile,movpath] = uigetfile('*.*','Select video',lastmov,...
+[movfile,movpath] = uigetfile('*.*','Add Movie',lastmov,...
   'multiselect',multiSelOnOff);
 if isequal(movfile,0)
   tfsucc = false;
@@ -26,7 +26,7 @@ movfile = cellstr(movfile);
 if tfHasTrx,
   
   [trxfile,trxpath] = uigetfile('*.mat',...
-    'Select trx file (click Cancel if there is no trx file)',movpath,...
+    'Select trx File (click Cancel if there is no trx file)',movpath,...
     'multiselect',multiSelOnOff);
   if isequal(trxfile,0)
     % user canceled; interpret this as "there is no trx file"
