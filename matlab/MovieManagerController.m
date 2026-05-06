@@ -345,14 +345,12 @@ classdef MovieManagerController < handle
       obj.setSelectedMovie(iMov);
     end
 
-    function updateMovieData(obj,movNames,trxNames,movsHaveLbls)
+    function updateMovieData(obj)
       lObj = obj.labeler;
 
-      if nargin < 2,
-        movNames = lObj.movieFilesAllGTaware;
-        trxNames = lObj.trxFilesAllGTaware;
-        movsHaveLbls = lObj.movieFilesAllHaveLblsGTaware;
-      end
+      movNames = lObj.movieFilesAllGTaware;
+      trxNames = lObj.trxFilesAllGTaware;
+      movsHaveLbls = lObj.movieFilesAllHaveLblsGTaware;
 
       if ~isequal(size(movNames,1),size(trxNames,1),numel(movsHaveLbls))
         % intermediate state, take no action
