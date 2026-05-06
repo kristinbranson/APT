@@ -498,22 +498,22 @@ classdef Labeler < handle
 
   %% File existence
   properties (Transient, SetAccess=private, Hidden)
-    movieFilesExistAtLastCheck_ = false(0,1)
+    doesMovieFileExist_ = false(0,1)
       % Logical array recording on-disk existence of the movie files at
-      % the time syncFilesExistAtLastCheck() was last called.  Sized
+      % the time syncMovieAndTrxFileExistence() was last called.  Sized
       % to match either obj.movieFilesAll or obj.movieFilesAllGT,
       % depending on which GT mode was active at the last update.  An
       % entry is true if the file existed on disk at last check, false
       % otherwise (including for empty paths).
-    trxFilesExistAtLastCheck_ = false(0,1)
-      % Like movieFilesExistAtLastCheck_ but for trx files.  Sized to
+    doesTrxFileExist_ = false(0,1)
+      % Like doesMovieFileExist_ but for trx files.  Sized to
       % match either obj.trxFilesAll or obj.trxFilesAllGT, depending on
       % which GT mode was active at the last update.
   end
 
   properties (Dependent, Hidden)
-    movieFilesExistAtLastCheck
-    trxFilesExistAtLastCheck
+    doesMovieFileExist
+    doesTrxFileExist
   end
 
   properties (SetAccess=private)
@@ -1156,26 +1156,26 @@ classdef Labeler < handle
       end
     end
 
-    function v = get.movieFilesExistAtLastCheck(obj)
-      % Getter for movieFilesExistAtLastCheck.
-      v = obj.movieFilesExistAtLastCheck_ ;
+    function v = get.doesMovieFileExist(obj)
+      % Getter for doesMovieFileExist.
+      v = obj.doesMovieFileExist_ ;
     end  % function
 
-    function v = get.trxFilesExistAtLastCheck(obj)
-      % Getter for trxFilesExistAtLastCheck.
-      v = obj.trxFilesExistAtLastCheck_ ;
+    function v = get.doesTrxFileExist(obj)
+      % Getter for doesTrxFileExist.
+      v = obj.doesTrxFileExist_ ;
     end  % function
 
-    function syncFilesExistAtLastCheck(obj)
-      % Sync movieFilesExistAtLastCheck and trxFilesExistAtLastCheck to
+    function syncMovieAndTrxFileExistence(obj)
+      % Sync doesMovieFileExist and doesTrxFileExist to
       % the current state of files on disk.  Only the entries for the
       % current GT mode (regular or GT) are refreshed.
       if obj.gtIsGTMode
-        obj.movieFilesExistAtLastCheck_ = filesExistOnDisk(obj.movieFilesAllGTFull) ;
-        obj.trxFilesExistAtLastCheck_   = filesExistOnDisk(obj.trxFilesAllGTFull) ;
+        obj.doesMovieFileExist_ = filesExistOnDisk(obj.movieFilesAllGTFull) ;
+        obj.doesTrxFileExist_   = filesExistOnDisk(obj.trxFilesAllGTFull) ;
       else
-        obj.movieFilesExistAtLastCheck_ = filesExistOnDisk(obj.movieFilesAllFull) ;
-        obj.trxFilesExistAtLastCheck_   = filesExistOnDisk(obj.trxFilesAllFull) ;
+        obj.doesMovieFileExist_ = filesExistOnDisk(obj.movieFilesAllFull) ;
+        obj.doesTrxFileExist_   = filesExistOnDisk(obj.trxFilesAllFull) ;
       end
     end  % function
 

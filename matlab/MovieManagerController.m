@@ -393,7 +393,7 @@ classdef MovieManagerController < handle
       lObj = obj.labeler ;
       redStyle = uistyle('BackgroundColor', [1.0, 0.85, 0.85]) ;
 
-      movieExists = lObj.movieFilesExistAtLastCheck ;
+      movieExists = lObj.doesMovieFileExist ;
       if size(movieExists, 1) == rowCount
         missingRows = find(any(~movieExists, 2)) ;
         if ~isempty(missingRows)
@@ -404,7 +404,7 @@ classdef MovieManagerController < handle
 
       hasTrxColumn = (colCount == 3) ;
       if hasTrxColumn
-        trxExists = lObj.trxFilesExistAtLastCheck ;
+        trxExists = lObj.doesTrxFileExist ;
         if size(trxExists, 1) == rowCount
           missingRows = find(any(~trxExists, 2)) ;
           if ~isempty(missingRows)
