@@ -15,6 +15,7 @@ classdef TrackingVisualizerTrx < handle
     trxSelectCbk;             % cbk with sig trxSelectCbk(iTrx); called when 
                               % trxClickable=true and on trx BDF
   end
+
   properties (Dependent)
     nTrx
   end
@@ -23,9 +24,6 @@ classdef TrackingVisualizerTrx < handle
     function v = get.nTrx(obj)
       v = numel(obj.hTrx);
     end
-  end
-      
-  methods
     
     function obj = TrackingVisualizerTrx(labelerController, labeler)
       % Construct a TrackingVisualizerTrx.
@@ -114,7 +112,7 @@ classdef TrackingVisualizerTrx < handle
           'PickableParts','none',...
           'Tag',sprintf('Labeler_TrxTxt_%d',i));
       end
-    end
+    end  % function
     
     function bdfTrx(obj,src,~)
       iTrx = src.UserData;
@@ -209,7 +207,7 @@ classdef TrackingVisualizerTrx < handle
             'HitTest','off');
         end
       end
-    end
+    end  % function
     
     function updatePrimary(~, ~)
       % none    
@@ -228,8 +226,8 @@ classdef TrackingVisualizerTrx < handle
       else
         set(obj.hTrxTxt,'Visible','off');
       end
-    end
+    end  % function
     
-  end
+  end  % methods
   
-end
+end  % classdef
