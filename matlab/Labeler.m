@@ -3526,11 +3526,29 @@ classdef Labeler < handle
       assert(isTrackParams);
             
       s.cfg = Labeler.cfgModernize(s.cfg);
-      
+
+      % Rename old non-underscored path-array keys to their underscored
+      % storage names.  Older .lbl files used keys like 'movieFilesAll';
+      % storage now lives in 'movieFilesAll_'.  Done early so the rest of
+      % this function can rely on the canonical (underscored) names.
+      legacyToCurrent = { ...
+        'movieFilesAll',   'movieFilesAll_'   ; ...
+        'movieFilesAllGT', 'movieFilesAllGT_' ; ...
+        'trxFilesAll',     'trxFilesAll_'     ; ...
+        'trxFilesAllGT',   'trxFilesAllGT_'   } ;
+      for i = 1 : size(legacyToCurrent, 1)
+        legacyName = legacyToCurrent{i, 1} ;
+        currentName = legacyToCurrent{i, 2} ;
+        if isfield(s, legacyName) && ~isfield(s, currentName)
+          s.(currentName) = s.(legacyName) ;
+          s = rmfield(s, legacyName) ;
+        end
+      end
+
       if ~isfield(s,'maIsMA')
         s.maIsMA = false;
       end
-      
+
       % defaultTrackersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
       assert(iscell(s.trackerClass));
 
@@ -3783,8 +3801,8 @@ classdef Labeler < handle
       if ~isfield(s,'trkRes')
         s = Labeler.resetTrkResFieldsStruct(s);
       end
-      if size(s.trkRes,1)~=size(s.movieFilesAll,1) || ...
-         size(s.trkResGT,1)~=size(s.movieFilesAllGT,1) 
+      if size(s.trkRes,1)~=size(s.movieFilesAll_,1) || ...
+         size(s.trkResGT,1)~=size(s.movieFilesAllGT_,1)
         % AL20200702: we appear to have had a bug in movieSetAdd which 
         % didn't maintain/update .trkRes/.trkResGT size appropriately. Fix
         % here at load-time. The .trkRes* infrastructure is power-users only
@@ -3905,30 +3923,13 @@ classdef Labeler < handle
           s.(fn) = ss;
         end
       end
-
-      % Rename old non-underscored path-array keys to their underscored
-      % storage names.  Older .lbl files used keys like 'movieFilesAll';
-      % storage now lives in 'movieFilesAll_'.
-      legacyToCurrent = { ...
-        'movieFilesAll',   'movieFilesAll_'   ; ...
-        'movieFilesAllGT', 'movieFilesAllGT_' ; ...
-        'trxFilesAll',     'trxFilesAll_'     ; ...
-        'trxFilesAllGT',   'trxFilesAllGT_'   } ;
-      for i = 1 : size(legacyToCurrent, 1)
-        legacyName = legacyToCurrent{i, 1} ;
-        currentName = legacyToCurrent{i, 2} ;
-        if isfield(s, legacyName) && ~isfield(s, currentName)
-          s.(currentName) = s.(legacyName) ;
-          s = rmfield(s, legacyName) ;
-        end
-      end
     end  % function lblModernize()
-    
+
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
-      nmov = size(s.movieFilesAll,1);
-      nmovGT = size(s.movieFilesAllGT,1);
-      nvw = size(s.movieFilesAll,2);
+      nmov = size(s.movieFilesAll_,1);
+      nmovGT = size(s.movieFilesAllGT_,1);
+      nvw = size(s.movieFilesAll_,2);
       s.trkResIDs = cell(0,1);
       s.trkRes = cell(nmov,nvw,0);
       s.trkResGT = cell(nmovGT,nvw,0);
@@ -3955,12 +3956,10 @@ classdef Labeler < handle
     end
 
     function stcSaveLblFile(data,tardir,outname)
-
       save(fullfile(tardir,'label_file.lbl'),'-struct','data','-mat');
       tar([outname,'.tar'],'*',tardir);
       movefile([outname,'.tar'],outname);
-
-    end
+    end  % function
 
   end  % methods (Static) 
   
