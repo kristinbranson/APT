@@ -191,7 +191,6 @@ classdef Labeler < handle
     didSetSkeletonEdges
     % updateLabelSkeletonCosmetics
     updatePreProcParams
-    requestAllowUserToLocateMissingMovieAndTrxFile
     requestMacroizationGUI
     requestMessageBox
     requestQuestionDialog
