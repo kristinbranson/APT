@@ -196,17 +196,10 @@ if ~foundGtTwin
         'GT cell sharing the changed cell''s file should still be a candidate') ;
 end
 
-% Apply every candidate.  After this, every path should sit under the
-% symlink prefix --- and because the symlink resolves to the same data
-% dir, every file still exists.
-for k = 1:numel(candidates2)
-  candidate = candidates2(k) ;
-  if candidate.isMovie
-    labeler.relocateMovieFile(candidate.iMov, candidate.iView, candidate.isGT, candidate.newPathFull) ;
-  else
-    labeler.relocateTrxFile(candidate.iMov, candidate.iView, candidate.isGT, candidate.newPathFull) ;
-  end
-end
+% Apply every candidate in one batch.  After this, every path should sit
+% under the symlink prefix --- and because the symlink resolves to the
+% same data dir, every file still exists.
+labeler.relocateFiles(candidates2) ;
 
 % Regular and GT movie paths should now all start with the symlink prefix.
 for r = 1:size(labeler.movieFilesAll, 1)
@@ -224,9 +217,8 @@ for r = 1:size(labeler.movieFilesAllGT, 1)
   end
 end
 
-% All files exist via the symlink, so no cell should be pink.
-labeler.syncMovieAndTrxFileExistence() ;
-pause(0.5) ;
+% relocateFiles already synced existence and fired 'update', so the MMC
+% styling is current.  All files exist via the symlink, so no cell pink.
 assertPinkCellsEquivalent(mmc.tblMovies, zeros(0, 2)) ;
 
 % Restore everything so subsequent tests in the suite see a clean slate.

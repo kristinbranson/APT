@@ -4068,6 +4068,68 @@ classdef Labeler < handle
       obj.notify_('update') ;
     end  % function
 
+    function relocateFiles(obj, candidates)
+      % Apply a batch of movie/trx file-path relocations.  Each entry of
+      % `candidates` must have fields iMov, iView, isGT, isMovie, and
+      % newPathFull --- the schema produced by
+      % collectPrefixReplacementCandidates(), though any extra fields are
+      % ignored.
+      %
+      % Compared to calling relocateMovieFile/relocateTrxFile in a loop,
+      % this is significantly cheaper for large batches: we mutate the
+      % underlying *_ storage directly so the per-set existence sync and
+      % didSet* notification don't fire on every entry, then sync the
+      % existence caches once and fire one didSet* per array that
+      % actually changed (plus a single 'update').
+      if isempty(candidates)
+        return
+      end
+
+      didTouchAnyMovie = false ;
+      didTouchAnyTrx = false ;
+
+      for k = 1:numel(candidates)
+        cand = candidates(k) ;
+        if cand.isMovie
+          if cand.isGT
+            obj.movieFilesAllGT_{cand.iMov, cand.iView} = cand.newPathFull ;
+          else
+            obj.movieFilesAll_{cand.iMov, cand.iView} = cand.newPathFull ;
+          end
+          didTouchAnyMovie = true ;
+        else
+          if cand.isGT
+            obj.trxFilesAllGT_{cand.iMov, cand.iView} = cand.newPathFull ;
+          else
+            obj.trxFilesAll_{cand.iMov, cand.iView} = cand.newPathFull ;
+          end
+          didTouchAnyTrx = true ;
+        end
+      end
+
+      % Refresh cached movie metadata for the changed movie slots.
+      for k = 1:numel(candidates)
+        cand = candidates(k) ;
+        if cand.isMovie
+          obj.updateMovieInfo_(cand.iMov, cand.iView, cand.isGT) ;
+        end
+      end
+
+      if didTouchAnyMovie
+        obj.syncDoesMovieFileExist_() ;
+      end
+      if didTouchAnyTrx
+        obj.syncDoesTrxFileExist_() ;
+      end
+
+      % The didSet{Movie,Trx}FilesAll{,GT} events that the per-cell setters
+      % fire are only listened for in MovieManagerController, where each
+      % handler just calls update().  LabelerController listens for
+      % 'update' and itself calls movieManagerController_.update().  So
+      % firing 'update' alone is enough to refresh both controllers.
+      obj.notify_('update') ;
+    end  % function
+
     function candidates = collectPrefixReplacementCandidates(obj, oldPrefix, newPrefix, excludePathFull)
       % Walk every movie and trx file path stored in the project ---
       % regular- and GT-mode, every (iMov, iView) slot --- and return the

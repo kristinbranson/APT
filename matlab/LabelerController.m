@@ -8392,16 +8392,7 @@ classdef LabelerController < handle
       if ~didConfirm || isempty(selectedIndices)
         return
       end
-      for k = selectedIndices(:)'
-        candidate = candidates(k) ;
-        if candidate.isMovie
-          labeler.relocateMovieFile(candidate.iMov, candidate.iView, ...
-                                    candidate.isGT, candidate.newPathFull) ;
-        else
-          labeler.relocateTrxFile(candidate.iMov, candidate.iView, ...
-                                  candidate.isGT, candidate.newPathFull) ;
-        end
-      end
+      labeler.relocateFiles(candidates(selectedIndices)) ;
     end  % function
 
     function result = computePrevAxesSizeInPixels_(obj)
