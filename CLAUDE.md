@@ -220,6 +220,11 @@ When checking for optional arguments, don't use nargin.  Use
 exist(<variable name>, 'var').  This is less likely to break when
 you add/remove arguments.
 
+Treat the result of exist() as a logical only.  Don't compare it to
+a specific numeric value (e.g. `exist(x, 'file') == 2`); the codes
+overlap in subtle ways and shift between releases.  Just write
+`if exist(x, 'var')` or `if ~exist(x, 'file')`.
+
 The "end" keyword at the end of a function should be followed by the
 comment "% function".  Same for end of a methods block and a
 classdef block.

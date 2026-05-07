@@ -8320,7 +8320,7 @@ classdef LabelerController < handle
 
       pathGuess = FSPath.maxExistingBasePath(oldPathFull) ;
       if isempty(pathGuess)
-        pathGuess = pwd ;
+        pathGuess = pwd() ;
       end
       promptStr = sprintf('Select new %s for %s', fileTypeName, oldPathFull) ;
       [newFile, newPath] = uigetfile(filterPattern, promptStr, pathGuess) ;
@@ -8369,8 +8369,12 @@ classdef LabelerController < handle
         return
       end
 
-      candidates = obj.collectPrefixReplacementCandidates_( ...
-                       oldPrefix, newPrefix, oldPathFull) ;
+      % Pass newPathFull as the exclude key: by now the just-changed cell
+      % has been relocated, so its current path is newPathFull.  Excluding
+      % by oldPathFull would also drop any *other* cell that happened to
+      % share the original path (e.g. the same movie listed in both
+      % regular and GT modes).
+      candidates = labeler.collectPrefixReplacementCandidates(oldPrefix, newPrefix, newPathFull) ;
       if isempty(candidates)
         return
       end
@@ -8396,65 +8400,6 @@ classdef LabelerController < handle
         else
           labeler.relocateTrxFile(candidate.iMov, candidate.iView, ...
                                   candidate.isGT, candidate.newPathFull) ;
-        end
-      end
-    end  % function
-
-    function candidates = collectPrefixReplacementCandidates_(obj, oldPrefix, newPrefix, excludePathFull)
-      % Walk all movie and trx paths (normal and GT modes) and return a
-      % struct array of those that start with oldPrefix (after
-      % standardization).  Excludes the path the user just changed.
-      labeler = obj.labeler_ ;
-      candidates = struct('iMov', {}, ...
-                          'iView', {}, ...
-                          'isGT', {}, ...
-                          'isMovie', {}, ...
-                          'oldPathFull', {}, ...
-                          'newPathFull', {}) ;
-      excludeStandardized = standardizeFileSeparators(excludePathFull) ;
-      viewCount = labeler.nview ;
-      for isGT = [false, true]
-        moviesFull = labeler.movieFilePathsAllFull(isGT) ;
-        movieRowCount = size(moviesFull, 1) ;
-        for iMov = 1:movieRowCount
-          for iView = 1:viewCount
-            % Movie cell
-            movRaw = labeler.movieFilePathRaw(iMov, iView, isGT) ;
-            if ~isempty(movRaw) && ~FSPath.hasAnyMacro(movRaw)
-              movFull = labeler.movieFilePathFull(iMov, iView, isGT) ;
-              movFullStd = standardizeFileSeparators(movFull) ;
-              if ~strcmp(movFullStd, excludeStandardized) && ...
-                  startsWith(movFullStd, oldPrefix)
-                replacedPath = ...
-                  FSPath.replacePrefix(movFullStd, oldPrefix, newPrefix) ;
-                candidates(end+1) = ...
-                  struct('iMov', iMov, ...
-                         'iView', iView, ...
-                         'isGT', isGT, ...
-                         'isMovie', true, ...
-                         'oldPathFull', movFull, ...
-                         'newPathFull', replacedPath) ;  %#ok<AGROW>
-              end
-            end
-            % Trx cell
-            trxRaw = labeler.trxFilePathRaw(iMov, iView, isGT) ;
-            if ~isempty(trxRaw) && ~FSPath.hasAnyMacro(trxRaw)
-              trxFull = labeler.trxFilePathFull(iMov, iView, isGT) ;
-              trxFullStd = standardizeFileSeparators(trxFull) ;
-              if ~strcmp(trxFullStd, excludeStandardized) && ...
-                  startsWith(trxFullStd, oldPrefix)
-                replacedPath = ...
-                  FSPath.replacePrefix(trxFullStd, oldPrefix, newPrefix) ;
-                candidates(end+1) = ...
-                  struct('iMov', iMov, ...
-                         'iView', iView, ...
-                         'isGT', isGT, ...
-                         'isMovie', false, ...
-                         'oldPathFull', trxFull, ...
-                         'newPathFull', replacedPath) ;  %#ok<AGROW>
-              end
-            end
-          end
         end
       end
     end  % function

@@ -3976,14 +3976,17 @@ classdef Labeler < handle
       end
     end
 
-    function updateMovieInfo_(obj, iMov, iView)
+    function updateMovieInfo_(obj, iMov, iView, isGT)
       % Update the movie info for movieset iMov, view iView by reading the movie
-      % metadata from disk.  Is savvy about normal-vs-GT mode.
+      % metadata from disk.  isGT selects which (regular or GT) array to read
+      % and write; it defaults to the labeler's current mode.
       if ~exist('iView', 'var') || isempty(iView)
         iView = 1 ;
       end
-      isgt = obj.gtIsGTMode ;
-      if isgt,
+      if ~exist('isGT', 'var') || isempty(isGT)
+        isGT = obj.gtIsGTMode ;
+      end
+      if isGT,
         movfiles = obj.movieFilesAllGTFull;
       else
         movfiles = obj.movieFilesAllFull;
@@ -3995,7 +3998,7 @@ classdef Labeler < handle
       movieInfo = struct();
       movieInfo.nframes = mr.nframes;
       movieInfo.info = mr.info;
-      if isgt,
+      if isGT,
         obj.movieInfoAllGT{iMov, iView} = movieInfo;
       else
         obj.movieInfoAll{iMov, iView} = movieInfo;
@@ -4052,7 +4055,7 @@ classdef Labeler < handle
       % the controller's missing-movie relocation flow.
       PROPS = Labeler.gtGetSharedPropsStc_(isGT) ;
       obj.(PROPS.MFA){iMov, iView} = newRawPath ;
-      obj.updateMovieInfo_(iMov, iView) ;
+      obj.updateMovieInfo_(iMov, iView, isGT) ;
       obj.notify_('update') ;
     end  % function
 
@@ -4063,6 +4066,80 @@ classdef Labeler < handle
       PROPS = Labeler.gtGetSharedPropsStc_(isGT) ;
       obj.(PROPS.TFA){iMov, iView} = newRawPath ;
       obj.notify_('update') ;
+    end  % function
+
+    function candidates = collectPrefixReplacementCandidates(obj, oldPrefix, newPrefix, excludePathFull)
+      % Walk every movie and trx file path stored in the project ---
+      % regular- and GT-mode, every (iMov, iView) slot --- and return the
+      % ones whose macro-resolved full path starts with oldPrefix.  Used
+      % by the "Change Path" flow to find which other movie/trx paths
+      % could be relocated to share a freshly chosen prefix.
+      %
+      % A path is *not* a candidate if:
+      %   - the raw path is empty, or
+      %   - the raw path contains a project macro (let the user redefine
+      %     the macro instead), or
+      %   - the macro-resolved full path equals excludePathFull (typically
+      %     the just-relocated path's new value).
+      %
+      % Returns a struct array with fields:
+      %   iMov, iView, isGT, isMovie - the "coordinates" of the file within the
+      %                                project
+      %   oldPathFull                - the file's current macro-resolved path
+      %   newPathFull                - oldPathFull with oldPrefix replaced
+      %                                by newPrefix
+      %
+      % Note that this method does not mutate obj.
+      candidates = struct('iMov', {}, ...
+                          'iView', {}, ...
+                          'isGT', {}, ...
+                          'isMovie', {}, ...
+                          'oldPathFull', {}, ...
+                          'newPathFull', {}) ;
+      excludeStandardized = standardizeFileSeparators(excludePathFull) ;
+      viewCount = obj.nview ;
+      for isGT = [false, true]
+        moviesFull = obj.movieFilePathsAllFull(isGT) ;
+        movieRowCount = size(moviesFull, 1) ;
+        for iMov = 1:movieRowCount
+          for iView = 1:viewCount
+            movRaw = obj.movieFilePathRaw(iMov, iView, isGT) ;
+            if ~isempty(movRaw) && ~FSPath.hasAnyMacro(movRaw)
+              movFull = obj.movieFilePathFull(iMov, iView, isGT) ;
+              movFullStd = standardizeFileSeparators(movFull) ;
+              if ~strcmp(movFullStd, excludeStandardized) && ...
+                  startsWith(movFullStd, oldPrefix)
+                replacedPath = ...
+                  FSPath.replacePrefix(movFullStd, oldPrefix, newPrefix) ;
+                candidates(end+1) = ...
+                  struct('iMov', iMov, ...
+                         'iView', iView, ...
+                         'isGT', isGT, ...
+                         'isMovie', true, ...
+                         'oldPathFull', movFull, ...
+                         'newPathFull', replacedPath) ;  %#ok<AGROW>
+              end
+            end
+            trxRaw = obj.trxFilePathRaw(iMov, iView, isGT) ;
+            if ~isempty(trxRaw) && ~FSPath.hasAnyMacro(trxRaw)
+              trxFull = obj.trxFilePathFull(iMov, iView, isGT) ;
+              trxFullStd = standardizeFileSeparators(trxFull) ;
+              if ~strcmp(trxFullStd, excludeStandardized) && ...
+                  startsWith(trxFullStd, oldPrefix)
+                replacedPath = ...
+                  FSPath.replacePrefix(trxFullStd, oldPrefix, newPrefix) ;
+                candidates(end+1) = ...
+                  struct('iMov', iMov, ...
+                         'iView', iView, ...
+                         'isGT', isGT, ...
+                         'isMovie', false, ...
+                         'oldPathFull', trxFull, ...
+                         'newPathFull', replacedPath) ;  %#ok<AGROW>
+              end
+            end
+          end
+        end
+      end
     end  % function
 
     function [tfCancel,macro,pathstrsMacroized] = offerMacroization_(obj, pathstrs)
