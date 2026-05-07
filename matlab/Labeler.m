@@ -2902,7 +2902,7 @@ classdef Labeler < handle
       if nomovie || (doAllRegularMoviesExist && doAllGTMoviesExist)
         % All is well, do nothing.
       else
-        error('Labeler:movie_missing', 'At least one movie is missing (see console for list).  Use Movie Manager to fix.') ;
+        error('Labeler:movie_missing', 'At least one movie is missing (see console for list).  Use File > Manage Movies... to fix.') ;
       end
       % Final sign-off
       fprintf('\nFinished loading project, elapsed time %f s.\n',toc(starttime)); 
@@ -4990,27 +4990,11 @@ classdef Labeler < handle
 
       isFirstMovie = ~obj.hasMovie ;
       
-      % Make sure all the movie files exist.  There's some hacky stuff here
-      % to allow the controller, if present, to help the user find a missing movie
-      % with the GUI.  But want this method to also work in the absence of a GUI.
       mIdx = MovieIndex(iMov, obj.gtIsGTMode) ;
-      obj.dialogLaunchPad_ = struct('mIdxToCheck', mIdx) ;
-      obj.dialogLandingPad_ = [] ;
-      obj.notify_('requestAllowUserToLocateMissingMovieAndTrxFile') ;
-      doMovieAndTrxFileExistOrEmpty = obj.dialogLandingPad_ ;
-      if isempty(doMovieAndTrxFileExistOrEmpty)
-        % Means there's no controller
-        doMovieAndTrxFileExist = obj.movieCheckFilesExist(mIdx) ;
-        if ~doMovieAndTrxFileExist
-          return
-        end
-      else
-        doMovieAndTrxFileExist = doMovieAndTrxFileExistOrEmpty ;
-        % Means there is a controller, it will have checked that the movie and .trx
-        % exist.
-        if ~isequal(doMovieAndTrxFileExist, true)
-          return
-        end
+      doMovieAndTrxFileExist = obj.movieCheckFilesExist(mIdx) ;
+      if ~doMovieAndTrxFileExist
+        error('APT:missingMovieOrTrxFile', ...
+              'One or more files for this movieset are missing.  Use File > Manage Movies... to fix.') ;
       end
 
       movsAllFull = obj.movieFilesAllFullGTaware;
