@@ -6,8 +6,8 @@ classdef MovieManagerController < handle
     labeler % scalar labeler Obj
     listeners % cell array of listener objs
 
-    tblMovies  % the main table
-    tblMovieSet  % A table used in multiview projects, showing the movies for the selected movieset
+    tblMain  % the main table
+    tblView  % A table used in multiview projects, showing the movies for the selected movieset
 
     % UI handles previously kept in guidata(hFig).
     gl  % top-level uigridlayout
@@ -20,7 +20,6 @@ classdef MovieManagerController < handle
     pbChangePath  % uibutton: "Change Path..."
     menuFile  % uimenu: "File"
     menuFileAddMoviesFromTextFile  % uimenu under File
-    lastClickedTable_  % '' | 'movies' | 'movieset' --- which table was most recently clicked
   end
 
   methods    
@@ -39,16 +38,17 @@ classdef MovieManagerController < handle
       %obj.hFig = MovieManager(obj);
       obj.labeler = lObj;
       
-      obj.hFig = uifigure('Units','pixels','Position',[951,1400,733,436],...
-        'Name','Manage Movies');
+      obj.hFig = uifigure('Units','pixels', ...
+                          'Position',[951 1400 733 436], ...
+                          'Name','Manage Movies') ;
       %obj.hFig.CloseRequestFcn = @(hObject,eventdata) obj.CloseRequestFcn(hObject,eventdata);
 
       obj.gl = uigridlayout(obj.hFig,[4,1],'RowHeight',obj.getGridLayoutRowHeights_(),'tag','gl');
 
-      obj.tblMovies = uitable(obj.gl,...
+      obj.tblMain = uitable(obj.gl,...
         'ColumnName',{'Movie','Has Lbls'},...
         'ColumnWidth',{'1x',70},...
-        'tag','tblMovies',...
+        'Tag','tblMain',...
         'CellSelectionCallback',@(src,evt) obj.selectionChangedTblMovies(src,evt),...
         'DoubleClickedFcn',@(src,evt) obj.doubleClickFcnCallbackTblMovies(src,evt));
       obj.labelSet = ...
@@ -58,8 +58,8 @@ classdef MovieManagerController < handle
                 'HorizontalAlignment','center');
 
       rownames = arrayfun(@(x) sprintf('View %d',x), 1:lObj.nview,'Uni',0);
-      obj.tblMovieSet = uitable(obj.gl,...
-        'ColumnName',{},'tag','tblMovieSet',...
+      obj.tblView = uitable(obj.gl,...
+        'ColumnName',{},'Tag','tblView',...
         'RowName',rownames,'Visible',onIff(lObj.nview > 1),...
         'CellSelectionCallback',@(src,evt) obj.selectionChangedTblMovieSet(src,evt));
 
@@ -80,8 +80,6 @@ classdef MovieManagerController < handle
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
       obj.pbChangePath = uibutton(obj.glButtons,'Text','Change Path...','tag','pbChangePath',...
         'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
-
-      obj.lastClickedTable_ = '';
 
       obj.menuFile = uimenu('Tag','menu_file','Text','File','Parent',obj.hFig);
       obj.menuFileAddMoviesFromTextFile = uimenu('Tag','menu_file_add_movies_from_text_file',...
@@ -146,20 +144,19 @@ classdef MovieManagerController < handle
     end
 
     function selectionChangedTblMovies(obj,~,~)
-      % Actuation: tblMovies selection changed; write the new moviesSelected.
-      % Selection col + lastClickedTable_ are pure view state, so refresh
-      % the Change Path enablement directly --- the model can't drive it.
-      obj.lastClickedTable_ = 'movies' ;
+      % Actuation: tblMain selection changed; write the new moviesSelected.
+      % The selected column is pure view state (not in the model), so we
+      % refresh the Change Path enablement directly --- no didSet*
+      % notification will drive it for us.
       obj.labeler.moviesSelected = obj.getSelectedMovies_() ;
-      obj.updateChangePathEnablement_() ;
+      obj.updateChangePathButtonEnablement_() ;
     end
 
     function selectionChangedTblMovieSet(obj,~,~)
-      % Actuation: tblMovieSet selection changed; remember it for the
-      % "Change Path" button so we can target the chosen view.  See
-      % selectionChangedTblMovies for why this directly updates the view.
-      obj.lastClickedTable_ = 'movieset' ;
-      obj.updateChangePathEnablement_() ;
+      % Actuation: tblView selection changed.  No model state to update
+      % here --- the per-view selection only matters to the Change Path
+      % button --- so just refresh that button's enablement.
+      obj.updateChangePathButtonEnablement_() ;
     end  % function
 
     function doubleClickFcnCallbackTblMovies(obj,~,evt)
@@ -194,9 +191,9 @@ classdef MovieManagerController < handle
     end
 
     function idx = getSelectedMovies_(obj)
-      % Get the indices of movies currently selected in obj.tblMovies.
+      % Get the indices of movies currently selected in obj.tblMain.
 
-      selection = obj.tblMovies.Selection ;
+      selection = obj.tblMain.Selection ;
       % MATLAB sometimes hands back Selection in a degenerate empty
       % shape like 1x0 (e.g. clicks in empty space), so guard.
       if isempty(selection)
@@ -285,23 +282,23 @@ classdef MovieManagerController < handle
       % Sync every aspect of the MMC GUI to the current Labeler state.
       obj.updatePointer() ;
       obj.updateMovieData_();
-      obj.updatePushButtonEnablement_();
+      obj.updateMostButtonEnablement_();
       obj.updateTableSelection_();
       obj.updateMovieSetDetails_();
       obj.updateMenuEnablement_();
-      obj.updateChangePathEnablement_() ;
+      obj.updateChangePathButtonEnablement_() ;
     end
 
-    function tf = areControlsEnabled_(obj)
+    function tf = isLabelerOutOfInitAndHasProject_(obj)
       % Whether MMC controls should be enabled, given Labeler state.
       lObj = obj.labeler ;
       tf = ~lObj.isinit && lObj.hasProject ;
     end
 
-    function updatePushButtonEnablement_(obj)
+    function updateMostButtonEnablement_(obj)
       % Sync the bottom-row push buttons (text and Enable) to Labeler state.
       lObj = obj.labeler ;
-      areControlsEnabled = obj.areControlsEnabled_() ;
+      areControlsEnabled = obj.isLabelerOutOfInitAndHasProject_() ;
       if lObj.gtIsGTMode,
         set(obj.pbSwitch,'Text','GT Frames');
         obj.pbNextUnlabeled.Visible = 'off';
@@ -315,39 +312,42 @@ classdef MovieManagerController < handle
       obj.pbRm.Enable = onIff(areControlsEnabled) ;
     end
 
-    function updateChangePathEnablement_(obj)
-      % Sync pbChangePath.Enable to whether a movie or trx cell is
-      % currently selected (as opposed to nothing, or a non-path column
-      % like "Num Labels").
-      if obj.areControlsEnabled_()
+    function updateChangePathButtonEnablement_(obj)
+      % Sync pbChangePath.Enable to whether a single, concrete path cell
+      % is selected.  In multiview projects a click in the main table
+      % only identifies a movieset (n paths), so the button stays
+      % disabled until the user picks a specific view in the per-view
+      % table.
+      if obj.isLabelerOutOfInitAndHasProject_()
         [~, ~, ~, isPathCellSelected] = obj.determineSelectedPathCell_() ;
-        obj.pbChangePath.Enable = onIff(isPathCellSelected) ;
+        doEnable = isPathCellSelected ;
       else
-        obj.pbChangePath.Enable = onIff(false) ;
+        doEnable = false ;
       end
+      obj.pbChangePath.Enable = onIff(doEnable) ;
     end  % function
 
     function updateMenuEnablement_(obj)
       % Sync the File menu items' Enable state to the Labeler.
-      areControlsEnabled = obj.areControlsEnabled_() ;
+      areControlsEnabled = obj.isLabelerOutOfInitAndHasProject_() ;
       obj.menuFileAddMoviesFromTextFile.Enable = onIff(areControlsEnabled) ;
     end
     
     function updateTableSelection_(obj)
-      % Sync tblMovies.Selection to labeler.moviesSelected, preserving
+      % Sync tblMain.Selection to labeler.moviesSelected, preserving
       % each row's currently-selected column where possible.
       selectedMovies = obj.labeler.moviesSelected ;
-      if isempty(selectedMovies) || isempty(obj.tblMovies.Data)
-        obj.tblMovies.Selection = zeros(0,2) ;
+      if isempty(selectedMovies) || isempty(obj.tblMain.Data)
+        obj.tblMain.Selection = zeros(0,2) ;
       else
-        currentSelection = obj.tblMovies.Selection ;
+        currentSelection = obj.tblMain.Selection ;
         n = numel(selectedMovies) ;
         cols = ones(n,1) ;
         if size(currentSelection,2) >= 2
           [tf,loc] = ismember(selectedMovies(:), currentSelection(:,1)) ;
           cols(tf) = currentSelection(loc(tf), 2) ;
         end
-        obj.tblMovies.Selection = [selectedMovies(:), cols] ;
+        obj.tblMain.Selection = [selectedMovies(:), cols] ;
       end
     end
 
@@ -355,35 +355,35 @@ classdef MovieManagerController < handle
       % Listener callaback for didSetMoviesSelected event in the Labeler.
       obj.updateTableSelection_() ;
       obj.updateMovieSetDetails_() ;
-      obj.updateChangePathEnablement_() ;
+      obj.updateChangePathButtonEnablement_() ;
     end
 
     function updateMovieSetDetails_(obj)
-      % Sync per-view detail pane (obj.tblMovieSet and obj.labelSet) to
+      % Sync per-view detail pane (obj.tblView and obj.labelSet) to
       % labeler.moviesSelected.
       lObj = obj.labeler ;
       rows = lObj.moviesSelected ;
       isMultiView = lObj.nview > 1 ;
-      if isMultiView && numel(rows) == 1 && obj.areControlsEnabled_()
-        obj.tblMovieSet.Data = lObj.movieFilesAllGTaware(rows,:)' ;
+      if isMultiView && numel(rows) == 1 && obj.isLabelerOutOfInitAndHasProject_()
+        obj.tblView.Data = lObj.movieFilesAllGTaware(rows,:)' ;
         obj.labelSet.Text = sprintf('Selected movieset %d', rows) ;
       else
-        obj.tblMovieSet.Data = cell(0,1) ;
+        obj.tblView.Data = cell(0,1) ;
         obj.labelSet.Text = '' ;
       end
     end
 
     function updateMovieData_(obj)
-      % Sync obj.tblMovies contents and visibility to the current Labeler state.
+      % Sync obj.tblMain contents and visibility to the current Labeler state.
       lObj = obj.labeler ;
-      areControlsEnabled = obj.areControlsEnabled_() ;
+      areControlsEnabled = obj.isLabelerOutOfInitAndHasProject_() ;
 
       obj.gl.RowHeight = obj.getGridLayoutRowHeights_() ;
-      obj.tblMovies.Enable = onIff(areControlsEnabled) ;
+      obj.tblMain.Enable = onIff(areControlsEnabled) ;
       isMultiView = (lObj.nview > 1) ;
-      obj.tblMovieSet.Visible = onIff(isMultiView) ;
+      obj.tblView.Visible = onIff(isMultiView) ;
       obj.labelSet.Visible = onIff(isMultiView) ;
-      obj.tblMovieSet.Enable = onIff(isMultiView&&areControlsEnabled) ;
+      obj.tblView.Enable = onIff(isMultiView&&areControlsEnabled) ;
 
       if areControlsEnabled
         movNames = lObj.movieFilesAllGTaware ;
@@ -396,9 +396,12 @@ classdef MovieManagerController < handle
         movsHaveLbls = false(0,1) ;
       end
 
-      JTABLEPROPS_NOTRX = {'ColumnName',{'Movie' 'Num Labels'},...
+      % In multiview projects each row represents a movieset (n movies,
+      % one per view); in single-view it's just one movie per row.
+      movieColumnHeader = fif(isMultiView, 'Movieset', 'Movie') ;
+      JTABLEPROPS_NOTRX = {'ColumnName',{movieColumnHeader 'Num Labels'},...
                            'ColumnWidth',{'1x',250}};
-      JTABLEPROPS_TRX = {'ColumnName',{'Movie' 'Trx' 'Num Labels'},...
+      JTABLEPROPS_TRX = {'ColumnName',{movieColumnHeader 'Trx' 'Num Labels'},...
                          'ColumnWidth',{'2x','1x',100}};
       
       if isequal(size(movNames,1),size(trxNames,1),numel(movsHaveLbls))
@@ -417,18 +420,18 @@ classdef MovieManagerController < handle
         tableData = cell(0,2) ;
         args = JTABLEPROPS_NOTRX ;
       end
-      set(obj.tblMovies, args{:}, 'Data', tableData) ;
+      set(obj.tblMain, args{:}, 'Data', tableData) ;
       obj.updateMovieFileExistenceStyles_() ;
     end
 
     function updateMovieFileExistenceStyles_(obj)
-      % Color movie/trx cells in tblMovies light red if the underlying
+      % Color movie/trx cells in tblMain light red if the underlying
       % file did not exist on disk at the last check; default (white)
       % otherwise.  If the existence-prop size does not match the
       % currently displayed rows (e.g. stale after a GT mode toggle),
       % skip styling for that column.
-      removeStyle(obj.tblMovies) ;
-      [rowCount, colCount] = size(obj.tblMovies.Data) ;
+      removeStyle(obj.tblMain) ;
+      [rowCount, colCount] = size(obj.tblMain.Data) ;
       if rowCount == 0
         return
       end
@@ -440,7 +443,7 @@ classdef MovieManagerController < handle
         missingRows = find(any(~movieExists, 2)) ;
         if ~isempty(missingRows)
           cells = [missingRows, ones(numel(missingRows), 1)] ;
-          addStyle(obj.tblMovies, redStyle, 'cell', cells) ;
+          addStyle(obj.tblMain, redStyle, 'cell', cells) ;
         end
       end
 
@@ -451,7 +454,7 @@ classdef MovieManagerController < handle
           missingRows = find(any(~trxExists, 2)) ;
           if ~isempty(missingRows)
             cells = [missingRows, 2*ones(numel(missingRows), 1)] ;
-            addStyle(obj.tblMovies, redStyle, 'cell', cells) ;
+            addStyle(obj.tblMain, redStyle, 'cell', cells) ;
           end
         end
       end
@@ -527,48 +530,53 @@ classdef MovieManagerController < handle
       isValid = false ;
       errMsg = '' ;
 
-      switch obj.lastClickedTable_
-        case 'movies'
-          sel = obj.tblMovies.Selection ;
-          if isempty(sel) || size(sel, 1) ~= 1
-            errMsg = 'Select a single movie or trx cell first.' ;
-            return
-          end
-          iMov = sel(1, 1) ;
-          colIndex = sel(1, 2) ;
-          colNames = obj.tblMovies.ColumnName ;
-          if colIndex < 1 || colIndex > numel(colNames)
-            errMsg = 'Select a movie or trx cell.' ;
-            return
-          end
-          colName = colNames{colIndex} ;
-          switch colName
-            case 'Movie'
-              isMovie = true ;
-            case 'Trx'
-              isMovie = false ;
-            otherwise
-              errMsg = 'Select a movie or trx cell (not the labels column).' ;
-              return
-          end
-          iView = 1 ;
-        case 'movieset'
-          sel = obj.tblMovieSet.Selection ;
-          if isempty(sel) || size(sel, 1) ~= 1
-            errMsg = 'Select a single per-view cell first.' ;
-            return
-          end
-          iView = sel(1, 1) ;
-          mvSel = obj.labeler.moviesSelected ;
-          if numel(mvSel) ~= 1
-            errMsg = 'Select exactly one movieset first.' ;
-            return
-          end
-          iMov = mvSel(1) ;
-          isMovie = true ;  % per-view table only shows movies
-        otherwise
-          errMsg = 'Select a movie or trx cell first.' ;
+      lObj = obj.labeler ;
+      if lObj.nview==1
+        % For single-view, the only (visible) table is the main one
+        sel = obj.tblMain.Selection ;
+        if isempty(sel) || size(sel, 1) ~= 1
+          errMsg = 'Select a single movie or trx cell first.' ;
           return
+        end
+        iMov = sel(1, 1) ;
+        colIndex = sel(1, 2) ;
+        colNames = obj.tblMain.ColumnName ;
+        if colIndex < 1 || colIndex > numel(colNames)
+          errMsg = 'Select a movie or trx cell.' ;
+          return
+        end
+        colName = colNames{colIndex} ;
+        switch colName
+          case 'Movie'
+            isMovie = true ;
+          case 'Trx'
+            isMovie = false ;
+          case 'Movieset'
+            % Multiview: a movieset row covers nview cells.  Make the
+            % user pick a specific view in the per-view table below.
+            errMsg = ['For multiview projects, select a per-view cell ' ...
+                      'in the lower table to change a path.'] ;
+            return
+          otherwise
+            errMsg = 'Select a movie or trx cell (not the labels column).' ;
+            return
+        end
+        iView = 1 ;
+      else
+        % For multiview, the view table determines the selected movie
+        sel = obj.tblView.Selection ;
+        if isempty(sel) || size(sel, 1) ~= 1
+          errMsg = 'Select a single per-view cell first.' ;
+          return
+        end
+        iView = sel(1, 1) ;
+        mvSel = obj.labeler.moviesSelected ;
+        if numel(mvSel) ~= 1
+          errMsg = 'Select exactly one movieset first.' ;
+          return
+        end
+        iMov = mvSel(1) ;
+        isMovie = true ;  % per-view table only shows movies
       end
       isValid = true ;
     end  % function

@@ -219,7 +219,7 @@ end
 
 % relocateFiles already synced existence and fired 'update', so the MMC
 % styling is current.  All files exist via the symlink, so no cell pink.
-assertPinkCellsEquivalent(mmc.tblMovies, zeros(0, 2)) ;
+assertPinkCellsEquivalent(mmc.tblMain, zeros(0, 2)) ;
 
 % Restore everything so subsequent tests in the suite see a clean slate.
 labeler.movieFilesAll = movieFilesOriginal ;
@@ -232,7 +232,7 @@ end  % function
 
 
 function simulateMainTableSelection(mmc, selection)
-% Simulate the user clicking on tblMovies.  Setting Selection
+% Simulate the user clicking on tblMain.  Setting Selection
 % programmatically does not fire the CellSelectionCallback, so we
 % invoke it explicitly.
 %
@@ -240,7 +240,7 @@ function simulateMainTableSelection(mmc, selection)
 % select, matching the shape uitable.Selection takes when SelectionType
 % is 'cell'.  Use zeros(0, 2) to clear the selection; pass a single row
 % like [3, 1] to select one cell.
-mmc.tblMovies.Selection = selection ;
+mmc.tblMain.Selection = selection ;
 mmc.selectionChangedTblMovies([], []) ;
 end  % function
 

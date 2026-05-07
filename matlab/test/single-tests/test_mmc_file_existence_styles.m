@@ -29,7 +29,7 @@ mmc = controller.movieManagerController_ ;
 if isempty(mmc) || ~isvalid(mmc.hFig)
   error('test_mmc_file_existence_styles:noMMC', 'Movie Manager did not open') ;
 end
-uit = mmc.tblMovies ;  % the uitable
+uit = mmc.tblMain ;  % the uitable
 
 % Initially every file exists on disk; no cells should be pink.
 assertPinkCells(uit, zeros(0, 2)) ;
