@@ -3646,7 +3646,7 @@ set(image_curr,'PickableParts','none');
 hold(axes_curr,'on');  % Is this needed/wanted?  -- ALT, 2024-06-02
 %set(handles.axes_curr,'Color',[0 0 0],'Tag','axes_curr');
 %enableDefaultInteractivity(axes_curr);  % have to do this after something is in the axes
-% Create and show the axes toolbar, even though there is no figure toolbar
+% Create and show the axes toolbar at the top of the figure, even though there is no figure toolbar
 axes_curr_toolbar = axtoolbar(axes_curr, 'default'); 
 axes_curr_toolbar.Visible = 'off';
 % set(handles.axes_curr.Toolbar,'Visible','off');
@@ -3722,14 +3722,7 @@ set(main_figure,'Visible','on');
 setLabelerFigureTooltipsBang(main_figure) ;
 
 % Get rid of all the darn toolbars
-hs = findall(main_figure,'-property','Toolbar');
-for i = 1:numel(hs),
-  h = hs(i) ;
-  htoolbar = get(h,'Toolbar');
-  if ishandle(htoolbar),
-    set(htoolbar,'Visible','off');
-  end
-end
+hideAllAxesToolbarsInFigureBang(main_figure) ;
 
 % Add the Debug menu, but leave hidden
 menu_debug = ...

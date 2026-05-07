@@ -2049,7 +2049,7 @@ classdef LabelerController < handle
 
         % Set up the figure toolbar how we want it
         makeFigureMenubarAndToolbarAPTAppropriateBang(thisfig) ;
-        
+
         ims(iView) = imagesc(0,'Parent',axs(iView));  % N.B.: this clears any Tag property set on the axes...
         set(ims(iView),'PickableParts','none');
         %axisoff(axs(iView));
@@ -2070,6 +2070,9 @@ classdef LabelerController < handle
         axis(axsOcc(iView),'ij');
 
         % Hide axes toolbar
+        hideAllAxesToolbarsInFigureBang(thisfig) ;
+
+        % Show axes toolbar at the top of the figure
         axes_toolbar = axtoolbar(axs(iView), 'default');
         axes_toolbar.Visible = 'off';        
       end  % for loop over non-primary view figures
