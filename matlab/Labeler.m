@@ -827,7 +827,7 @@ classdef Labeler < handle
     selectedFrames  % vector of frames currently selected frames; typically t0:t1
   end
 
-  properties 
+  properties
     currFrame_ = 1  % current frame
     currIm = []             % [nview] cell vec of image data. init: C
     currImRoi = []
@@ -1560,7 +1560,7 @@ classdef Labeler < handle
       v = obj.getlabeledposGTawareArg(obj.gtIsGTMode);
     end
 
-    function v = getlabeledposGTawareArg(obj,gt)      
+    function v = getlabeledposGTawareArg(obj,gt)
       if gt
         v = obj.labeledposGT;
       else
@@ -2411,6 +2411,10 @@ classdef Labeler < handle
       % a GUI.)
       obj.pushBusyStatus('Saving project...');
       oc = onCleanup(@()(obj.popBusyStatus())) ;
+
+      % If the project cache is remote, make it local
+      obj.downloadProjectCacheIfNeeded() ;
+
       try
         obj.saveVersionInfo = GetGitMatlabStatus(APT.Root);
       catch
@@ -2436,8 +2440,10 @@ classdef Labeler < handle
         [~,fname] = fileparts(obj.projectfile);
         obj.projname = fname;
       end
+      obj.popBusyStatus;
     end  % function
-    
+
+
 %     function projSaveModified(obj,fname,varargin)
 %       try
 %         [~,obj.saveVersionInfo] = GetGitMatlabStatus(APT.Root);
@@ -3198,9 +3204,6 @@ classdef Labeler < handle
       
       % allModelFiles will contain all projtempdir artifacts to be tarred
       allModelFiles = {rawLblFile};
-      
-      % If the project cache is remote, make it local
-      obj.downloadProjectCacheIfNeeded() ;
 
       % find the model files and then bundle them into the tar directory.
       % but since there isn't much in way of relative path support in
@@ -3318,7 +3321,7 @@ classdef Labeler < handle
       s = rng(obj.projRngSeed);
       v = randfcn();
       rng(s);
-    end  % function    
+    end  % function
   end  % methods
   
   methods % projMacros
@@ -3585,7 +3588,7 @@ classdef Labeler < handle
       end
 
       % %assert(all(tf));
-      % % AL: removing CPR for now until if/when updated 
+      % % AL: removing CPR for now until if/when updated
       % % AL 20210923: Net removal
       % % When an entry is removed from DLNetType, affected trackerDatas will
       % % have their .trnNetTypes loaded as structs. Eliminate these
@@ -3605,7 +3608,7 @@ classdef Labeler < handle
       %     % TODO: two-stage trackers
       %   end
       % end
-      
+
       % Delete elements of s.trackerClass, s.trackerData that do not match a default
       % kind of tracker.
       s.trackerClass(~tfDoKeep) = [];
@@ -8580,10 +8583,11 @@ classdef Labeler < handle
 % 
     function crop_sz = get_ma_crop_sz(obj)
       % Get crop sz for MA
+      fprintf('Setting crop size for multi-animal project\n');
       sagg = TrnPack.aggregateLabelsAddRoi(obj,false,...
         obj.trackParams.ROOT.MultiAnimal.Detect.BBox,...
         obj.trackParams.ROOT.MultiAnimal.LossMask);
-      min_crop = obj.trackParams.ROOT.MultiAnimal.LossMask.PadFloor;
+      min_crop = 32;% obj.trackParams.ROOT.MultiAnimal.LossMask.PadFloor;
       maxx = min_crop; maxy = min_crop;
       for ndx = 1:numel(sagg)
         frs = unique(sagg(ndx).frm);
@@ -8595,9 +8599,10 @@ classdef Labeler < handle
             rois(3,:) - rois(1,:);...
             rois(6,:) - rois(5,:)]';
           
-          conn = rectint(rect,rect)>0;
-          gr = graph(conn);
-          components = conncomp(gr);
+          % conn = rectint(rect,rect)>0;
+          % gr = graph(conn);
+          % components = conncomp(gr);
+          components = 1:size(rois,2);
           ncomp = max(components);
           for cndx = 1:ncomp
             cur_roi = rois(:,components==cndx);
@@ -8605,6 +8610,10 @@ classdef Labeler < handle
             xmax = max(cur_roi(3,:));
             ymin = min(cur_roi(5,:));
             ymax = max(cur_roi(6,:));
+            if (xmax-xmin > maxx) || (ymax-ymin > maxy),
+              fprintf('movie: %d, frame %d, (%d,%d)\n',ndx,fr,round(xmax-xmin),round(ymax-ymin));
+            end
+
             maxx = max(maxx,xmax-xmin);
             maxy = max(maxy,ymax-ymin);
           end
@@ -8612,6 +8621,7 @@ classdef Labeler < handle
       end
       crop_sz = max(maxx,maxy);
       crop_sz = ceil(crop_sz/min_crop)*min_crop;
+      fprintf('Crop size set to %d\n',crop_sz);
     end
 
     function r = maEstimateTgtCropRad(obj,cropszfac)
@@ -9825,22 +9835,22 @@ classdef Labeler < handle
     
 %     function preProcUpdateH0IfNec(obj)
 %       % Update obj.preProcH0
-%       % Update .movieFilesAllHistEqLUT, .movieFilesAllGTHistEqLUT 
-% 
+%       % Update .movieFilesAllHistEqLUT, .movieFilesAllGTHistEqLUT
+%
 %       % AL20180910: currently using frame-by-frame CLAHE
 %       USECLAHE = true;
 %       if USECLAHE
 %         obj.preProcH0 = [];
 %         return
-%       end      
-% 
+%       end
+%
 % %       ppPrms = obj.preProcParams;
 % %       if ppPrms.histeq
 % %         nFrmSampH0 = ppPrms.histeqH0NumFrames;
 % %         s = struct();
 % %         [s.hgram,s.hgraminfo] = obj.movieEstimateImHist(...
 % %           'nFrmPerMov',nFrmSampH0,'debugViz',false);
-% %         
+% %
 % %         data = obj.preProcData;
 % %         if data.N>0 && ~isempty(obj.preProcH0) && ~isequal(data.H0,obj.preProcH0.hgram)
 % %           assert(false,'.preProcData.H0 differs from .preProcH0');
@@ -9852,7 +9862,7 @@ classdef Labeler < handle
 % %           % callers do a retrain or equivalent
 % %         end
 % %         obj.preProcH0 = s;
-% %         
+% %
 % %         wbObj = WaitBarWithCancel('Computing Histogram Matching LUTs',...
 % %           'cancelDisabled',true);
 % %         oc = onCleanup(@()delete(wbObj));
@@ -9860,7 +9870,7 @@ classdef Labeler < handle
 % %           'wbObj',wbObj,'docheck',true);
 % %       else
 % %         assert(isempty(obj.preProcData.H0));
-% %         
+% %
 % %         % For now we don't force .preProcH0, .movieFilesAll*HistEq* to be
 % %         % empty. User can compute them, then turn off HistEq, and the state
 % %         % remains
@@ -10224,7 +10234,7 @@ classdef Labeler < handle
         newCurrentTracker.setHideViz(false);
         newCurrentTracker.trackCurrResUpdate() ;
       end
-      
+
       % What is this doing, exactly?  -- ALT, 2025-02-05
       obj.labelingInit_();      
 
@@ -10249,12 +10259,12 @@ classdef Labeler < handle
       % Validate the new value
       trackers = obj.trackerHistory_ ;
       tracker_count = numel(trackers) ;
-      
+
       % If tracker_count == 0, do nothing, although not clear how that would happen
       if tracker_count == 0
         return
       end
-    
+
       % Get the tracker we're backing up
       originalTracker = trackers{1} ;
       if ~originalTracker.hasBeenTrained()
@@ -10267,10 +10277,10 @@ classdef Labeler < handle
 
       % If in debug mode, run some checks
       if obj.isInDebugMode
-        if ~originalTracker.tfIsTwin(backupTracker) 
+        if ~originalTracker.tfIsTwin(backupTracker)
           error('Internal error: The backup tracker is not the twin of the original') ;
         end
-        if ~backupTracker.tfIsTwin(originalTracker) 
+        if ~backupTracker.tfIsTwin(originalTracker)
           error('Internal error: The original tracker is not the twin of the backup') ;
         end
       end
@@ -10279,18 +10289,18 @@ classdef Labeler < handle
       trackersRest = trackers(2:end) ;
       trackersNew = horzcat({originalTracker}, {backupTracker}, trackersRest) ;
       obj.trackerHistory_ = trackersNew ;
-      
+
       % Send the notification
       obj.notify_('update_menu_track_tracker_history') ;
     end  % function
-    
+
     % function trackMakeNewTrackerGivenIndex(obj, tciIndex, varargin)
     %   % Make a new tracker, and make it current.  tciIndex should be a valid index
     %   % into obj.trackersAll and/or obj.trackersAllCreateInfo_.  The varargin should
     %   % contain the stage 1 and stage 2 constructor args if and only if tciIndex
     %   % indicates a custom two-stage tracker.
-    % 
-    %   % Validate the new value      
+    %
+    %   % Validate the new value
     %   tcis = obj.trackersAllCreateInfo_ ;
     %   template_count = numel(tcis) ;
     %   if is_index_in_range(tciIndex, template_count)
@@ -10298,7 +10308,7 @@ classdef Labeler < handle
     %   else
     %     error('APT:invalidPropertyValue', 'Invalid tracker template index') ;
     %   end
-    % 
+    %
     %   % Want to do some stuff before the set, apparently
     %   trackers = obj.trackerHistory_ ;
     %   if ~isempty(trackers) ,
@@ -10307,35 +10317,35 @@ classdef Labeler < handle
     %     oldCurrentTracker.setHideViz(true);
     %     if ~oldCurrentTracker.hasBeenTrained() ,
     %       % If the current model is untrained, don't keep it in the history
-    %       delete(oldCurrentTracker) ;          
+    %       delete(oldCurrentTracker) ;
     %       trackers = trackers(2:end) ;
     %     end
     %   end
-    % 
+    %
     %   % Create the new tracker
     %   rawTCI = tcis{tciIndex} ;
     %   tci = apt.fillInCustomStagesIfNeeded(rawTCI, varargin{:}) ;
-    %   newTracker = LabelTracker.create(obj, tci) ;     
-    % 
+    %   newTracker = LabelTracker.create(obj, tci) ;
+    %
     %   % Filter untrained trackers out of trackers
     %   isTrained = cellfun(@(tracker)(tracker.hasBeenTrained), trackers) ;
     %   trainedTrackers = trackers(isTrained) ;
-    % 
+    %
     %   % Put the new tracker at the front of the history
     %   trackersNew = horzcat({newTracker}, trainedTrackers) ;
     %   obj.trackerHistory_ = trackersNew ;
-    % 
+    %
     %   % Activate the new tracker
     %   if ~isempty(newTracker),
     %     newTracker.activate() ;
     %   end
-    % 
+    %
     %   % Turn the visualization back on for the new current tracker
     %   newTracker.setHideViz(false);
-    % 
+    %
     %   % What is this doing, exactly?  -- ALT, 2025-02-05
     %   obj.labelingInit('labelMode',obj.labelMode);
-    % 
+    %
     %   % Update the timeline
     %   if ~isempty(newTracker)
     %     auxPropList = newTracker.auxPropList() ;
@@ -10371,7 +10381,7 @@ classdef Labeler < handle
 
     function trackMakeNewTrackerGivenNetTypes(obj, netTypes)
       % trackMakeNewTrackerGivenNetTypes(obj, nettypes)
-      % Create a new tracker based on the input nettypes. 
+      % Create a new tracker based on the input nettypes.
       assert(isShortDLNetTypesRowArray(netTypes));
       tci = TrackerCreateInfo.fromNetTypes(netTypes, obj.maIsMA);
       newTracker = LabelTracker.create(obj, tci) ;
@@ -10381,7 +10391,7 @@ classdef Labeler < handle
     function trackInsertNewTracker_(obj, newTracker)
       % Insert a new tracker.  Not meant to be called by external clients.
 
-      % % Validate the new value      
+      % % Validate the new value
       % tcis = obj.trackersAllCreateInfo_ ;
       % template_count = numel(tcis) ;
       % if is_index_in_range(tciIndex, template_count)
@@ -10389,7 +10399,7 @@ classdef Labeler < handle
       % else
       %   error('APT:invalidPropertyValue', 'Invalid tracker template index') ;
       % end
-      
+
       % Want to do some stuff before the set, apparently
       trackers = obj.trackerHistory_ ;
       if ~isempty(trackers) ,
@@ -11708,7 +11718,7 @@ classdef Labeler < handle
   end  % methods
    
   %% Video
-  methods    
+  methods
     function [tfsucc,xy] = videoCenterOnCurrTargetPointHelp(obj)
       % get (x,y) for current movieCenterOnTargetIPt
       
@@ -11744,11 +11754,11 @@ classdef Labeler < handle
     function unsetdrag(obj)
       obj.drag = false;
       obj.drag_pt = [];
-    end    
+    end
   end  % methods
   
   %% Crop
-  methods    
+  methods
     function cropSetCropMode(obj, tf)
       if ~obj.hasMovie ,
         error('Can''t do that without a movie') ;
@@ -11772,7 +11782,7 @@ classdef Labeler < handle
       obj.notify_('cropIsCropModeChanged');
     end
     
-    function syncCropInfoToCurrMov(obj)      
+    function syncCropInfoToCurrMov(obj)
       iMov = obj.currMovie;
       if obj.gtIsGTMode,
         cropInfo = obj.movieFilesAllGTCropInfo{iMov};
@@ -11963,7 +11973,7 @@ classdef Labeler < handle
       obj.notify_('cropCropsChanged'); 
     end
     
-    function reportLabelChange(obj)      
+    function reportLabelChange(obj)
       obj.labeledposNeedsSave = true;
       obj.lastLabelChangeTS = now;
     end
@@ -12823,9 +12833,9 @@ classdef Labeler < handle
         if isrotated
           curl = [curl,ones(nphyspt,1)]*A;
           curl = curl(:,1:2);
-          curl(:,1) = curl(:,1)-xdata(1)+1;
-          curl(:,2) = curl(:,2)-ydata(1)+1;
         end
+        curl(:,1) = curl(:,1)-xdata(1)+1;
+        curl(:,2) = curl(:,2)-ydata(1)+1;
         minpos = min(curl,[],1);
         maxpos = max(curl,[],1);
         centerpos = (minpos+maxpos)/2;
@@ -13364,7 +13374,7 @@ classdef Labeler < handle
     % function result = get.trackersAll(obj)
     %   result = obj.trackersAll_ ;
     % end
-    % 
+    %
     % function result = get.trackersAllCreateInfo(obj)
     %   result = obj.trackersAllCreateInfo_ ;
     % end
@@ -13608,10 +13618,10 @@ classdef Labeler < handle
 
     % function initializeTrackersAllAndFriends_(obj)
     %   % Create initial values for a few Labeler props, including trackersAll.
-    % 
+    %
     %   % Forcibly clear out any old stuff
     %   cellfun(@delete, obj.trackersAll_) ;
-    % 
+    %
     %   % Create new templates, trackers
     %   trackersCreateInfo = ...
     %     LabelTracker.getAllTrackersCreateInfo(obj.maIsMA) ;  % 1 x number-of-trackers
@@ -13914,9 +13924,9 @@ classdef Labeler < handle
       obj.notify_('updateTimelineSelection');
     end
 
-    function data = getTimelineDataForCurrentMovieAndTarget(obj)
+    function data = getTimelineDataForCurrentMovieAndTarget(obj,varargin)
       % Get timeline data for current movie/target
-      data = obj.infoTimelineModel.getTimelineDataForCurrentMovieAndTarget(obj) ;
+      data = obj.infoTimelineModel.getTimelineDataForCurrentMovieAndTarget(obj,varargin{:}) ;
     end
 
     function result = hasTimelinePrediction(obj)

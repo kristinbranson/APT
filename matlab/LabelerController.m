@@ -1754,13 +1754,15 @@ classdef LabelerController < handle
     end  % function
 
     function updateBigButtonBlock(obj)
-      % Update the Enable property of the four big buttons (Train, Track, Clear, Accept).
+      % Update the Enable and Visible properties of the four big buttons
+      % (Train, Track, Clear, Accept).
       labeler = obj.labeler_ ;
       hasMovie = labeler.hasMovie ;
       hasTracker = ~isempty(labeler.tracker) ;
       isReady = labeler.isReady ;
-      set(obj.pbClear, 'Enable', onIff(hasMovie)) ;
-      set(obj.tbAccept, 'Enable', onIff(hasMovie)) ;
+      visibleIfNotMA = onIff(~labeler.maIsMA) ;
+      set(obj.pbClear, 'Enable', onIff(hasMovie), 'Visible', visibleIfNotMA) ;
+      set(obj.tbAccept, 'Enable', onIff(hasMovie), 'Visible', visibleIfNotMA) ;
       obj.pbTrain.Enable = onIff(hasTracker && isReady) ;
       obj.pbTrack.Enable = onIff(hasTracker && isReady) ;
     end  % function

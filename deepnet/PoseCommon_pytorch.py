@@ -95,8 +95,8 @@ def decode_augment(features, conf, distort):
     return features
 
 def dataloader_worker_init_fn(id,epoch=0):
-    np.random.seed(id + 100*epoch+int(time.time()))
-    random.seed(id+100*epoch+int(time.time()))
+    np.random.seed(id + 100*epoch)#+int(time.time()))
+    random.seed(id+100*epoch)#+int(time.time()))
 
 class coco_loader(torch.utils.data.Dataset):
 
@@ -131,6 +131,14 @@ class coco_loader(torch.utils.data.Dataset):
     def pad(self,image):
         # Get the original image dimensions
         original_height, original_width = image.shape[:2]
+
+        if self.conf.pad_images:
+            padding_w = self.conf.imsz[1] - original_width
+            padding_h = self.conf.imsz[0] - original_height
+
+            padded_image = cv2.copyMakeBorder(image, 0, padding_h, 0, padding_w, cv2.BORDER_CONSTANT)
+            return padded_image
+
 
         # Calculate the aspect ratio of the original image
         original_aspect_ratio = original_width / original_height
@@ -284,6 +292,7 @@ class coco_loader(torch.utils.data.Dataset):
 
 
 class PoseCommon_pytorch(object):
+    can_split_preproc = False
 
     def __init__(self,conf,name='deepnet',usegpu=True,zero_seeds=False,img_prefix_override=None,debug=False):
         self.conf = conf
@@ -737,7 +746,7 @@ class PoseCommon_pytorch(object):
                 start_at = 0
                 self.init_td()
             else:
-                start_at = self.restore(model_file, model, opt, sched)
+                _, start_at = self.restore(model_file, model, opt, sched)
         else:
             try:
                 if self.device=="cpu":

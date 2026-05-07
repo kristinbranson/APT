@@ -21,19 +21,19 @@ classdef SpecifyMovieToTrackGUI < handle
     dostore = false;
     defaulttrkpat = [];
     defaulttrxpat = [];
-    defaultdetectpat = [];
-    track_type = apt.TrackType.track;
+%    defaultdetectpat = [];
+    % track_type = 'track';
     detailed_options = true;
+    link_type = 'motion';
+    showPathEnds = true;  % Path display mode: true = show path ends, false = show path starts
   end
-
   methods
     function obj = SpecifyMovieToTrackGUI(lObj,hParent,movdata,varargin)
       
-      [defaulttrkpat,defaulttrxpat,defaultdetectpat,detailed_options] = myparse(varargin,...
+      [defaulttrkpat,defaulttrxpat,detailed_options] = myparse(varargin,...
         'defaulttrkpat',[], ... % eg '$movdir/$movfile_$projfile_$trackertype'
         'defaulttrxpat',[], ...
-        'defaultdetectpat',[], ...
-        'detailed_options', false ...
+        'detailed_options', true ...
         );
 
       obj.lObj = lObj;
@@ -67,7 +67,7 @@ classdef SpecifyMovieToTrackGUI < handle
 
       obj.defaulttrkpat = defaulttrkpat;
       obj.defaulttrxpat = defaulttrxpat;
-      obj.defaultdetectpat = defaultdetectpat;
+%      obj.defaultdetectpat = defaultdetectpat;
       obj.initMovData(movdata);
 
       obj.createGUI();      
@@ -90,7 +90,7 @@ classdef SpecifyMovieToTrackGUI < handle
         end
       end
     end  % function
-    
+
     function initMovData(obj,movdata)
       
       obj.movdata = movdata;
@@ -109,17 +109,17 @@ classdef SpecifyMovieToTrackGUI < handle
           end
         end
       end
-      if obj.isma && ~isfield(obj.movdata,'detectfiles') 
-        obj.movdata.detectfiles = repmat({''},[1,obj.nview]);
-      end
-      if ~isempty(obj.defaultdetectpat)
-        for ivw=1:obj.nview
-          movI = obj.movdata.movfiles{ivw};
-          if ~isempty(movI) && ~isempty(obj.movdata.detectfiles) && isempty(obj.movdata.detectfiles{ivw})
-            obj.movdata.detectfiles{ivw} = obj.genTrkfile(movI,obj.defaultdetectpat);
-          end
-        end
-      end
+      % if obj.isma && ~isfield(obj.movdata,'detectfiles') 
+      %   obj.movdata.detectfiles = repmat({''},[1,obj.nview]);
+      % end
+      % if ~isempty(obj.defaultdetectpat)
+      %   for ivw=1:obj.nview
+      %     movI = obj.movdata.movfiles{ivw};
+      %     if ~isempty(movI) && ~isempty(obj.movdata.detectfiles) && isempty(obj.movdata.detectfiles{ivw})
+      %       obj.movdata.detectfiles{ivw} = obj.genTrkfile(movI,obj.defaultdetectpat);
+      %     end
+      %   end
+      % end
       if obj.hastrx && ~isfield(obj.movdata,'trxfiles'),
         obj.movdata.trxfiles = repmat({''},[1,obj.nview]);
       end
@@ -158,8 +158,8 @@ classdef SpecifyMovieToTrackGUI < handle
       if iscell(obj.movdata.f1s),
         obj.movdata.f1s = obj.movdata.f1s{1};
       end
-      if ~isfield(obj.movdata,'track_type'),
-        obj.movdata.track_type = apt.TrackType.track;
+      if ~isfield(obj.movdata,'link_type'),
+        obj.movdata.link_type = 'motion';
       end
       
       obj.rowinfo = struct;
@@ -177,12 +177,12 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.rowinfo.trk.type = 'outputfile';
       obj.rowinfo.trk.isvalperview = true;
       
-      obj.rowinfo.detect = struct;
-      obj.rowinfo.detect.prompt = 'Output detection file';
-      obj.rowinfo.detect.movdatafield = 'detectfiles';
-      obj.rowinfo.detect.ext = '*.trk';
-      obj.rowinfo.detect.type = 'outputfile';
-      obj.rowinfo.detect.isvalperview = true;
+      % obj.rowinfo.detect = struct;
+      % obj.rowinfo.detect.prompt = 'Output detection file';
+      % obj.rowinfo.detect.movdatafield = 'detectfiles';
+      % obj.rowinfo.detect.ext = '*.trk';
+      % obj.rowinfo.detect.type = 'outputfile';
+      % obj.rowinfo.detect.isvalperview = true;
       
       obj.rowinfo.trx = struct;
       obj.rowinfo.trx.prompt = 'Multitarget trx file';
@@ -271,7 +271,8 @@ classdef SpecifyMovieToTrackGUI < handle
         'Tag','figure_SpecifyMovieToTrack',...
         'color',obj.colorinfo.backgroundcolor,...
         'units','pixels',...
-        'position',obj.posinfo.figpos);
+        'position',obj.posinfo.figpos,...
+        'ResizeFcn',@(src,evt) obj.figureResizeCallback(src,evt));
         
       set(obj.gdata.fig,'Units','normalized');
       obj.posinfo.figpos = get(obj.gdata.fig,'Position');
@@ -312,13 +313,12 @@ classdef SpecifyMovieToTrackGUI < handle
           0,0,.8
           0,0,.8
           0,.7,.7];
-      else
-        controlbuttonstrs = {'Done','Cancel'};
-        controlbuttontags = {'done','cancel'};
-        controlbuttoncolors = ...
-          [0,0,.8
-          0,.7,.7];
       end
+      controlbuttonstrs = {'Done','Cancel'};
+      controlbuttontags = {'done','cancel'};
+      controlbuttoncolors = ...
+        [0,0,.8
+        0,.7,.7];
       ncontrolbuttons = numel(controlbuttonstrs);
       controlbuttonw = .15;
       allcontrolbuttonw = ncontrolbuttons*controlbuttonw + (ncontrolbuttons-1)*obj.posinfo.colborder;
@@ -334,6 +334,52 @@ classdef SpecifyMovieToTrackGUI < handle
           'Tag',sprintf('controlbutton_%s',controlbuttontags{i}),...
           'Callback',@(h,e) obj.pb_control_Callback(h,e,controlbuttontags{i}));
       end
+
+      % Add path display toggle buttons to the right
+      pathToggleW = 0.08;
+      pathToggleSpacing = 0.005;
+      pathToggleX1 = 1 - obj.posinfo.border - 2*pathToggleW - pathToggleSpacing;
+
+      % Load icon images
+      leftAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_left.png'));
+      rightAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_right.png'));
+      if ndims(leftAlignIcon)==2
+        leftAlignIcon = repmat(leftAlignIcon,[1 1 3]);
+      end
+      if ndims(rightAlignIcon)==2
+        rightAlignIcon = repmat(rightAlignIcon,[1 1 3]);
+      end
+
+      % Create button group for path toggle buttons
+      obj.gdata.bg_path = uibuttongroup(obj.gdata.fig,...
+        'BackgroundColor',obj.colorinfo.backgroundcolor,...
+        'BorderType','none',...
+        'Units','normalized',...
+        'Position',[pathToggleX1 controlbuttony 2*pathToggleW+pathToggleSpacing obj.posinfo.rowh],...
+        'SelectionChangedFcn',@(src,evt) obj.pathToggleChanged(src,evt));
+
+      % "Starts" toggle button (left side)
+      obj.gdata.tb_path_starts = uitogglebutton(obj.gdata.bg_path,...
+        'Text','',...
+        'Icon',leftAlignIcon,...
+        'Tooltip','Show path starts',...
+        'FontColor','w','BackgroundColor',[1,1,1],...
+        'FontWeight','bold',...
+        'Value',~obj.showPathEnds,...
+        'Tag','togglebutton_path_starts');
+
+      % "Ends" toggle button (right side)
+      obj.gdata.tb_path_ends = uitogglebutton(obj.gdata.bg_path,...
+        'Text','',...
+        'Icon',rightAlignIcon,...
+        'Tooltip','Show path ends',...
+        'FontColor','w','BackgroundColor',[1,1,1],...
+        'FontWeight','bold',...
+        'Value',obj.showPathEnds,...
+        'Tag','togglebutton_path_ends');
+
+      % Position the toggle buttons
+      obj.updatePathTogglePositions();
       
       rowi = 1;
       for i = 1:obj.nview,
@@ -346,21 +392,7 @@ classdef SpecifyMovieToTrackGUI < handle
         obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.movfiles{i});
         rowi = rowi + 1;
       end
-      
-      if obj.isma
-        for i = 1:obj.nview,
-          tag = 'detect';
-          if obj.nview > 1,
-            str = sprintf('Output detect view %d:',i);
-          else
-            str = 'Output detect:';
-          end
-          obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.detectfiles{i});
-          rowi = rowi + 1;
-        end
-      
-      end
-      
+            
       for i = 1:obj.nview,
         tag = 'trk';
         if obj.nview > 1,
@@ -447,6 +479,61 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.addRow(obj.posinfo.rowys(rowi),key,i,str,val,...
         'End of frame interval to track',obj.rowinfo.targets.hasdetails);
       rowi = rowi + 1; %#ok<NASGU>
+
+      if obj.isma && obj.detailed_options
+
+        obj.gdata.linktext = ...
+        uicontrol('Style','text','String','Linking Method',...
+        'ForegroundColor','w','BackgroundColor',obj.colorinfo.backgroundcolor,'FontWeight','normal',...
+        'Units','normalized','Position',[obj.posinfo.textx,obj.posinfo.rowys(rowi),obj.posinfo.textw,obj.posinfo.rowh],...
+        'Tag','text_link',...
+        'HorizontalAlignment','right',...
+        'Parent',obj.gdata.fig);
+
+        % Create button group for radio buttons
+        obj.gdata.bg_linking = uibuttongroup(obj.gdata.fig,...
+          'BackgroundColor',obj.colorinfo.backgroundcolor,...
+          'BorderType','none',...
+          'Position',[obj.posinfo.editx obj.posinfo.rowys(rowi) obj.posinfo.editw obj.posinfo.rowh],...
+          'SelectionChangedFcn',@(src,evt) obj.linkingTypeChanged(src,evt));
+
+
+        set(obj.gdata.bg_linking,'Units','pixels');
+        pos = get(obj.gdata.bg_linking,'Position');
+        set(obj.gdata.bg_linking,'Units','normalized');
+        wd = pos(3)/2-20;  % Now divide by 2 instead of 3
+
+        % Radio buttons - positions will be calculated dynamically
+        obj.gdata.rb_motion = uiradiobutton(obj.gdata.bg_linking,...
+          'Text','Motion Linking',...
+          'FontColor','w',...
+          'Position',[10 5 wd 20],...
+          'Value',strcmp(obj.link_type,'motion'));
+
+        obj.gdata.rb_identity = uiradiobutton(obj.gdata.bg_linking,...
+          'Text','Identity linking',...
+          'FontColor','w',...
+          'Position',[wd+20 5 wd 20],...
+          'Value',strcmp(obj.link_type,'identity'));
+        
+        % Update radio button positions after creation
+        obj.updateLinkingButtonPositions();
+        
+        rowi = rowi + 1;
+
+        % for i = 1:obj.nview,
+      %     tag = 'detect';
+      %     if obj.nview > 1,
+      %       str = sprintf('Output detect view %d:',i);
+      %     else
+      %       str = 'Output detect:';
+      %     end
+      %     obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.detectfiles{i});
+        % end
+
+      end
+
+      obj.updatePathDisplay();
 
       
     end
@@ -612,13 +699,13 @@ classdef SpecifyMovieToTrackGUI < handle
           obj.isgood.trk(i) = obj.checkRowValue('trk',i);
           set(obj.gdata.trk.rowedit(i),'String',trkI);
         end
-        if obj.isma && ~isempty(obj.defaultdetectpat)
-          movI = obj.movdata.movfiles{i};
-          trkI = obj.genTrkfile(movI,obj.defaultdetectpat);
-          obj.movdata.detectfiles{i} = trkI;
-          obj.isgood.detect(i) = obj.checkRowValue('detect',i);
-          set(obj.gdata.detect.rowedit(i),'String',trkI);
-        end
+        % if obj.isma && ~isempty(obj.defaultdetectpat)
+        %   movI = obj.movdata.movfiles{i};
+        %   trkI = obj.genTrkfile(movI,obj.defaultdetectpat);
+        %   obj.movdata.detectfiles{i} = trkI;
+        %   obj.isgood.detect(i) = obj.checkRowValue('detect',i);
+        %   set(obj.gdata.detect.rowedit(i),'String',trkI);
+        % end
         if obj.hastrx && ~isempty(obj.defaulttrxpat)
           movI = obj.movdata.movfiles{i};
           trxI = obj.genTrkfile(movI,obj.defaulttrxpat,'enforceExt',false);
@@ -803,32 +890,51 @@ classdef SpecifyMovieToTrackGUI < handle
     end
     
     function pb_control_Callback(obj,h,e,tag)
-      
-      if ismember(lower(tag),{'done','apply','track','link','detect'}),
-        
+
+      if ismember(lower(tag),{'done','apply'}),
+
         fns = fieldnames(obj.isgood);
         isgood = true;
         for i = 1:numel(fns)
           isgood = isgood && all(obj.isgood.(fns{i}));
         end
-        
+
         if ~isgood,
           uiwait(errordlg('Fields marked in red have missing or incorrect values. Correct them or press the Cancel button'));
           return;
         end
+
+        % Check for existing detect files and prompt user
+        userChoice = obj.checkAndPromptForDetectFiles();
+        switch userChoice
+          case 'cancel'
+            return; % User cancelled, don't close dialog
+          case 'use_detect'
+            obj.movdata.docontinue = true;
+          case 'new_tracking'
+            obj.movdata.docontinue = false;
+          case 'no_detect_files'
+            obj.movdata.docontinue = false;
+        end
+
+        % Check for existing output trk files and ask user if they want to overwrite
+        overwriteChoice = obj.checkAndPromptForOutputFiles();
+        if strcmp(overwriteChoice, 'cancel')
+          return; % User cancelled, don't close dialog
+        end
+
         obj.dostore = true;
       end
-      if obj.isma
-        if ismember(lower(tag),{'track','link','detect'})
-          trackType = apt.TrackType(lower(tag));
-          obj.track_type = trackType;
-          obj.movdata.track_type = trackType;
-        end
-      end
-      if ismember(lower(tag),{'done','cancel','track','link','detect'}),
+      % if obj.isma
+      %   if ismember(lower(tag),{'track','link','detect'})
+      %     obj.link_type = lower(tag);
+      %     obj.movdata.link_type = lower(tag);
+      %   end
+      % end
+      if ismember(lower(tag),{'done','cancel'}),
         delete(obj.gdata.fig);
       end
-      
+
     end
     
     function pb_crop_Callback(obj,h,e,iview,dosave)
@@ -870,7 +976,22 @@ classdef SpecifyMovieToTrackGUI < handle
         obj.checkRowValue('crop',iview);
       end
     end
-    
+
+    function linkingTypeChanged(obj, src, evt)
+      % Callback for linking type radio button group
+      selectedButton = evt.NewValue;
+
+      % Determine which linking type was selected
+      if selectedButton == obj.gdata.rb_motion
+        obj.link_type = 'motion';
+      elseif selectedButton == obj.gdata.rb_identity
+        obj.link_type = 'identity';
+      end
+
+      % Update toTrack data structure
+      obj.movdata.link_type = obj.link_type;
+    end
+
     function trk = genTrkfile(obj,movie,defaulttrk,varargin)
       if isempty(movie)
         trk = '';
@@ -880,5 +1001,333 @@ classdef SpecifyMovieToTrackGUI < handle
       end
     end
     
+    function figureResizeCallback(obj, src, evt)
+      % Called when the figure is resized - update radio button positions
+      if obj.lObj.maIsMA && isfield(obj.gdata, 'bg_linking') && isvalid(obj.gdata.bg_linking)
+        obj.updateLinkingButtonPositions();
+      end
+      % Update path toggle button positions on resize
+      if isfield(obj.gdata, 'bg_path') && isvalid(obj.gdata.bg_path)
+        obj.updatePathTogglePositions();
+      end
+      % Update path display after resize to adjust truncation to new component sizes
+      obj.updatePathDisplay();
+    end
+    
+    function updateLinkingButtonPositions(obj)
+      % Calculate and update radio button positions based on button group size
+      if ~isfield(obj.gdata, 'bg_linking') || ~isvalid(obj.gdata.bg_linking)
+        return;
+      end
+      
+      try
+        % Update the "Linking Method" text position if it exists
+        if isfield(obj.gdata, 'linktext') && isvalid(obj.gdata.linktext)
+          % Get current button group position to align text with it
+          bgPos_norm = get(obj.gdata.bg_linking,'Position');
+          % Update text position to align with button group
+          set(obj.gdata.linktext, 'Position', [obj.posinfo.textx, bgPos_norm(2), obj.posinfo.textw, obj.posinfo.rowh]);
+        end
+        
+        % Get the button group position in pixels
+        set(obj.gdata.bg_linking,'Units','pixels');
+        bgPos = get(obj.gdata.bg_linking,'Position');
+        bgWidth = bgPos(3);
+        bgHeight = bgPos(4);
+        set(obj.gdata.bg_linking,'Units','normalized');
+        
+        % Calculate button dimensions with padding
+        padding = 10;  % pixels
+        buttonHeight = max(20, bgHeight - 2*padding);  % minimum 20px height
+        buttonWidth = (bgWidth - 3*padding) / 2;  % divide width by 2 with padding
+
+        % Calculate positions for each button
+        y = (bgHeight - buttonHeight) / 2;  % center vertically
+
+        % Update positions (now only motion and identity)
+        if isfield(obj.gdata, 'rb_motion') && isvalid(obj.gdata.rb_motion)
+          obj.gdata.rb_motion.Position = [padding, y, buttonWidth, buttonHeight];
+        end
+        if isfield(obj.gdata, 'rb_identity') && isvalid(obj.gdata.rb_identity)
+          obj.gdata.rb_identity.Position = [padding + buttonWidth + padding, y, buttonWidth, buttonHeight];
+        end
+        
+      catch ME
+        % Silently handle errors during resize
+        warning(ME.identifier,'Error updating linking button positions: %s', ME.message);
+      end
+    end
+
+    function pathToggleChanged(obj, src, evt)
+      % Callback for path display toggle button group
+      selectedButton = evt.NewValue;
+
+      % Determine which toggle was selected and update showPathEnds accordingly
+      if selectedButton == obj.gdata.tb_path_starts
+        obj.showPathEnds = false;  % Show path starts
+      elseif selectedButton == obj.gdata.tb_path_ends
+        obj.showPathEnds = true;   % Show path ends
+      end
+
+      % Update all displayed file paths
+      obj.updatePathDisplay();
+    end
+
+    function updatePathTogglePositions(obj)
+      % Update positions of the path toggle buttons
+      if ~isfield(obj.gdata, 'bg_path') || ~isvalid(obj.gdata.bg_path)
+        return;
+      end
+
+      try
+        % Get the button group position in pixels
+        set(obj.gdata.bg_path,'Units','pixels');
+        bgPos = get(obj.gdata.bg_path,'Position');
+        bgWidth = bgPos(3);
+        bgHeight = bgPos(4);
+        set(obj.gdata.bg_path,'Units','normalized');
+
+        % Calculate button dimensions - split the width in half
+        buttonWidth = bgWidth / 2;
+        buttonHeight = max(20, bgHeight - 4);  % Leave small padding
+
+        % Position buttons side by side
+        if isfield(obj.gdata, 'tb_path_starts') && isvalid(obj.gdata.tb_path_starts)
+          obj.gdata.tb_path_starts.Position = [2, 2, buttonWidth-4, buttonHeight];
+        end
+        if isfield(obj.gdata, 'tb_path_ends') && isvalid(obj.gdata.tb_path_ends)
+          obj.gdata.tb_path_ends.Position = [buttonWidth+2, 2, buttonWidth-4, buttonHeight];
+        end
+
+      catch ME
+        % Silently handle errors during positioning
+        warning(ME.identifier,'Error updating path toggle positions: %s', ME.message);
+      end
+    end
+
+    function updatePathDisplay(obj)
+      % Update the display of file paths based on current mode (starts vs ends)
+
+      % Update movie file paths
+      if isfield(obj.gdata, 'movie') && isfield(obj.gdata.movie, 'rowedit')
+        for i = 1:obj.nview
+          if i <= length(obj.gdata.movie.rowedit) && isvalid(obj.gdata.movie.rowedit(i))
+            originalPath = obj.movdata.movfiles{i};
+            if ~isempty(originalPath)
+              displayPath = obj.getDisplayPath(originalPath, obj.gdata.movie.rowedit(i));
+              set(obj.gdata.movie.rowedit(i), 'String', displayPath);
+            end
+          end
+        end
+      end
+
+      % Update trk file paths
+      if isfield(obj.gdata, 'trk') && isfield(obj.gdata.trk, 'rowedit')
+        for i = 1:obj.nview
+          if i <= length(obj.gdata.trk.rowedit) && isvalid(obj.gdata.trk.rowedit(i))
+            originalPath = obj.movdata.trkfiles{i};
+            if ~isempty(originalPath)
+              displayPath = obj.getDisplayPath(originalPath, obj.gdata.trk.rowedit(i));
+              set(obj.gdata.trk.rowedit(i), 'String', displayPath);
+            end
+          end
+        end
+      end
+
+      % Update trx file paths (if project has trx)
+      if obj.hastrx && isfield(obj.gdata, 'trx') && isfield(obj.gdata.trx, 'rowedit')
+        for i = 1:obj.nview
+          if i <= length(obj.gdata.trx.rowedit) && isvalid(obj.gdata.trx.rowedit(i))
+            originalPath = obj.movdata.trxfiles{i};
+            if ~isempty(originalPath)
+              displayPath = obj.getDisplayPath(originalPath, obj.gdata.trx.rowedit(i));
+              set(obj.gdata.trx.rowedit(i), 'String', displayPath);
+            end
+          end
+        end
+      end
+
+      % Update calibration file path (if single path for all views)
+      if isfield(obj.gdata, 'cal') && isfield(obj.gdata.cal, 'rowedit') && ...
+         length(obj.gdata.cal.rowedit) >= 1 && isvalid(obj.gdata.cal.rowedit(1))
+        originalPath = obj.movdata.calibrationfiles;
+        if ~isempty(originalPath)
+          displayPath = obj.getDisplayPath(originalPath, obj.gdata.cal.rowedit(1));
+          set(obj.gdata.cal.rowedit(1), 'String', displayPath);
+        end
+      end
+    end
+
+    function displayPath = getDisplayPath(obj, originalPath, editComponent)
+      % Get the appropriate display path based on current toggle setting
+      if isempty(originalPath)
+        displayPath = '';
+        return;
+      end
+
+      if obj.showPathEnds
+        % Show truncated path ends
+        displayPath = PathTruncationUtils.truncateFilePath(...
+          originalPath, 'component', editComponent, 'startFraction', 0);
+      else
+        % Show whole path when showing path starts
+        displayPath = originalPath;
+      end
+    end
+
+    function userChoice = checkAndPromptForDetectFiles(obj)
+      % Check for existing _detect files and prompt user if they want to continue with them
+      % Returns user choice: 'cancel', 'use_detect', 'new_tracking', or 'no_detect_files'
+
+      % Get all trk files from the current movie data
+      trkfiles = {};
+      if isfield(obj.movdata, 'trkfiles') && ~isempty(obj.movdata.trkfiles)
+        trkfiles = obj.movdata.trkfiles;
+      elseif isfield(obj.movdata, 'trkfile') && ~isempty(obj.movdata.trkfile)
+        trkfiles = {obj.movdata.trkfile};
+      end
+
+      if isempty(trkfiles)
+        userChoice = 'no_detect_files';
+        return;
+      end
+
+      existingDetectFiles = {};
+      detectTimestamps = {};
+      predictionStatus = {};
+
+      for i = 1:numel(trkfiles)
+        if isempty(trkfiles{i})
+          continue;
+        end
+
+        % Generate corresponding _detect filename and part filename
+        [pathpart, namepart, ext] = fileparts(trkfiles{i});
+        detectFile = fullfile(pathpart, [namepart '_detect' ext]);
+        detectPartFile = fullfile(pathpart, [namepart '_detect' ext '.part']);
+
+        % Check if _detect file or _detect.part file exists
+        detectExists = exist(detectFile, 'file');
+        detectPartExists = exist(detectPartFile, 'file');
+
+        if detectExists || detectPartExists
+          % Use detect file if it exists, otherwise use part file
+          if detectExists
+            fileToUse = detectFile;
+            status = 'Full';
+            fileInfo = dir(detectFile);
+          else
+            fileToUse = detectPartFile;
+            status = 'Partial';
+            fileInfo = dir(detectPartFile);
+          end
+
+          existingDetectFiles{end+1} = fileToUse; %#ok<AGROW>
+          predictionStatus{end+1} = status; %#ok<AGROW>
+
+          % Get file timestamp
+          if ~isempty(fileInfo)
+            detectTimestamps{end+1} = datestr(fileInfo.datenum, 'yyyy-mm-dd HH:MM:SS'); %#ok<AGROW>
+          else
+            detectTimestamps{end+1} = 'Unknown'; %#ok<AGROW>
+          end
+        end
+      end
+
+      if isempty(existingDetectFiles)
+        userChoice = 'no_detect_files';
+        return;
+      end
+
+      % Create prompt message
+      promptMsg = sprintf('Found %d existing detection file(s):\n\n', numel(existingDetectFiles));
+      for i = 1:numel(existingDetectFiles)
+        [~, fname, fext] = fileparts(existingDetectFiles{i});
+        promptMsg = sprintf('%s%s%s (%s) - %s\n', promptMsg, fname, fext, predictionStatus{i}, detectTimestamps{i});
+      end
+      promptMsg = sprintf('%s\nDo you want to use these existing detection files or start new tracking?', promptMsg);
+
+      % Show dialog
+      choice = questdlg(promptMsg, 'Existing Detection Files Found', ...
+        'Use Existing', 'New Tracking', 'Cancel', 'Use Existing');
+
+      switch choice
+        case 'Use Existing'
+          userChoice = 'use_detect';
+        case 'New Tracking'
+          userChoice = 'new_tracking';
+        case 'Cancel'
+          userChoice = 'cancel';
+        otherwise
+          userChoice = 'cancel';
+      end
+    end
+
+    function userChoice = checkAndPromptForOutputFiles(obj)
+      % Check for existing output trk files and prompt user if they want to overwrite them
+      % Returns user choice: 'cancel', 'overwrite', or 'no_output_files'
+
+      % Get all trk files that will be created as output
+      trkfiles = {};
+      if isfield(obj.movdata, 'trkfiles') && ~isempty(obj.movdata.trkfiles)
+        trkfiles = obj.movdata.trkfiles;
+      elseif isfield(obj.movdata, 'trkfile') && ~isempty(obj.movdata.trkfile)
+        trkfiles = {obj.movdata.trkfile};
+      end
+
+      if isempty(trkfiles)
+        userChoice = 'no_output_files';
+        return;
+      end
+
+      existingOutputFiles = {};
+      outputTimestamps = {};
+
+      for i = 1:numel(trkfiles)
+        if isempty(trkfiles{i})
+          continue;
+        end
+
+        % Check if output trk file already exists
+        if exist(trkfiles{i}, 'file')
+          existingOutputFiles{end+1} = trkfiles{i}; %#ok<AGROW>
+
+          % Get file timestamp
+          fileInfo = dir(trkfiles{i});
+          if ~isempty(fileInfo)
+            outputTimestamps{end+1} = datestr(fileInfo.datenum, 'yyyy-mm-dd HH:MM:SS'); %#ok<AGROW>
+          else
+            outputTimestamps{end+1} = 'Unknown'; %#ok<AGROW>
+          end
+        end
+      end
+
+      if isempty(existingOutputFiles)
+        userChoice = 'no_output_files';
+        return;
+      end
+
+      % Create prompt message
+      promptMsg = sprintf('Found %d existing output tracking file(s):\n\n', numel(existingOutputFiles));
+      for i = 1:numel(existingOutputFiles)
+        [~, fname, fext] = fileparts(existingOutputFiles{i});
+        promptMsg = sprintf('%s%s%s - %s\n', promptMsg, fname, fext, outputTimestamps{i});
+      end
+      promptMsg = sprintf('%s\nDo you want to overwrite these existing tracking files?', promptMsg);
+
+      % Show dialog
+      choice = questdlg(promptMsg, 'Existing Output Files Found', ...
+        'Overwrite', 'Cancel', 'Overwrite');
+
+      switch choice
+        case 'Overwrite'
+          userChoice = 'overwrite';
+        case 'Cancel'
+          userChoice = 'cancel';
+        otherwise
+          userChoice = 'cancel';
+      end
+    end
+
   end
 end

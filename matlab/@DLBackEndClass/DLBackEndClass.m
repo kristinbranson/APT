@@ -336,10 +336,10 @@ classdef DLBackEndClass < handle
 
     function uploadMovies(obj, nativePathFromMovieIndex)
       % Upload movies to the backend, if necessary.
-      
+
       % Validate input
       assert(iscell(nativePathFromMovieIndex), 'nativePathFromMovieIndex must be a cell array');
-      
+
       % Local function to convert char to MetaPath
       function result = convertToMetaPath(path)
         if ischar(path)
@@ -348,16 +348,16 @@ classdef DLBackEndClass < handle
           result = path;
         end
       end
-      
+
       % Convert char elements to native MetaPaths
       nativePathFromMovieIndex = cellfun(@convertToMetaPath, nativePathFromMovieIndex, 'UniformOutput', false);
-      
+
       % Validate that all elements are native movie MetaPaths
       cellfun(@(path) assert(isa(path, 'apt.MetaPath') && ...
         path.locale == apt.PathLocale.native && ...
         path.role == apt.FileRole.movie, ...
         'All elements must be native movie MetaPaths'), nativePathFromMovieIndex);
-      
+
       if isequal(obj.type, DLBackEnd.AWS) ,
         % Convert to WSL MetaPaths
         wslPathFromMovieIndex = cellfun(@(path) path.asWsl(), nativePathFromMovieIndex, 'UniformOutput', false);
@@ -422,7 +422,7 @@ classdef DLBackEndClass < handle
       if isempty(obj.awsec2) ,
         obj.awsec2 = AWSec2() ;
       end
-      
+
       % Modernize the AWSec2 object
       obj.awsec2.modernize();
 
@@ -647,7 +647,7 @@ classdef DLBackEndClass < handle
       if isa(syscmds, 'apt.ShellCommand')
         syscmds = {syscmds};
       end
-      if isa(cmdfiles, 'apt.MetaPath') 
+      if isa(cmdfiles, 'apt.MetaPath')
         cmdfiles = {cmdfiles};
       end
       tfSucc = false(1,numel(syscmds));
@@ -808,7 +808,7 @@ classdef DLBackEndClass < handle
       nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
       obj.writeStringToFile_(nativeFilePath, str) ;  % throws if unable to write file
     end  % function
-    
+
     function writeStringToFile_(obj, filePath, str)
       % Write the given string to a file, overrwriting any previous contents.
       % filePath should be a native or wsl MetaPath.
@@ -850,7 +850,7 @@ classdef DLBackEndClass < handle
         otherwise
           error('Unknown backend type') ;
       end
-    end  % function    
+    end  % function
   end  % methods
 
   % These next two methods allow access to private and protected variables,
@@ -885,7 +885,7 @@ classdef DLBackEndClass < handle
         obj = larva ;
       else
         error('Unable to deal with a larva of class %s', class(larva)) ;
-      end       
+      end
     end
 
     function jobid = parseJobID(backend_type, response)
@@ -1017,7 +1017,7 @@ classdef DLBackEndClass < handle
       commandFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
       commandFileNativePath = apt.MetaPath(commandFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
       commandFileWslPath = commandFileNativePath.asWsl() ;
-      
+
       % logcmd = obj.generateLogCommand_('track', remotetotrackinfo) ;
     
       % Add all the commands to the registry
@@ -1198,7 +1198,7 @@ classdef DLBackEndClass < handle
       % Returns true if there is a running job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
       jobidshort = jobid(1:8);
-      cmd = apt.ShellCommand({apt.dockercmd(), 'ps', '-q', '-f', sprintf('id=%s', jobidshort)}, apt.PathLocale.wsl, apt.Platform.posix);      
+      cmd = apt.ShellCommand({apt.dockercmd(), 'ps', '-q', '-f', sprintf('id=%s', jobidshort)}, apt.PathLocale.wsl, apt.Platform.posix);
       [st,res] = obj.runBatchCommandOutsideContainer_(cmd);
         % It uses the docker executable, but it still runs outside the docker
         % container.
@@ -1278,7 +1278,7 @@ classdef DLBackEndClass < handle
       % Kill the docker job with job id jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
       % Errors if no such job exists.
-      cmd = apt.ShellCommand({apt.dockercmd(), 'kill', jobid}, apt.PathLocale.wsl, apt.Platform.posix);        
+      cmd = apt.ShellCommand({apt.dockercmd(), 'kill', jobid}, apt.PathLocale.wsl, apt.Platform.posix);
       [st,res] = obj.runBatchCommandOutsideContainer_(cmd) ;
         % It uses the docker executable, but it still runs outside the docker
         % container.
@@ -1327,7 +1327,7 @@ classdef DLBackEndClass < handle
       nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
       result = obj.fileExists_(nativeFilePath) ;
     end
-    
+
     function result = fileExists_(obj, nativeFilePath)
       % Returns true iff the named file exists.
       % Should be consolidated with exist(), probably.  Note, though, that probably
@@ -1369,7 +1369,7 @@ classdef DLBackEndClass < handle
       % Return the contents of the named file, as an old-style string.
       % The behavior of this function when the file does not exist is kinda weird.
       % It is the way it is b/c it's designed for giving something helpful to
-      % display in the monitor window.      
+      % display in the monitor window.
       assert(isa(nativeFilePathAsChar, 'char')) ;
       if obj.type == DLBackEnd.AWS ,
         nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
@@ -1409,7 +1409,7 @@ classdef DLBackEndClass < handle
       % compared across backend types.
       assert(isa(nativeFilePathAsChar, 'char')) ;
       if obj.type == DLBackEnd.AWS ,
-        nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;        
+        nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
         wslFilePath = nativeFilePath.asWsl() ;
         result = obj.awsec2.remoteFileModTime(wslFilePath) ;
       else
@@ -1573,7 +1573,9 @@ classdef DLBackEndClass < handle
     function prepareFilesForTracking(backend, toTrackInfo)
       backend.ensureFoldersNeededForTrackingExist_(toTrackInfo) ;
       backend.ensureCacheFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file') ;
-      backend.ensureCacheFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result') ;
+      if ~toTrackInfo.getDoContinue
+        backend.ensureCacheFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result') ;
+      end
       %backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files') ;
     end  % function
 
@@ -1632,11 +1634,11 @@ classdef DLBackEndClass < handle
       else
         error('wslProjectCachePath must be a char, string, or WSL apt.MetaPath');
       end
-      
+
       obj.awsec2.wslProjectCachePath = wslMetaPath;
     end  % function
 
-    function set.nativeProjectCachePath(obj, value) 
+    function set.nativeProjectCachePath(obj, value)
       % Set the local DMC root dir. Accepts either a char or a native MetaPath.
       % Converts to WSL MetaPath before passing to obj.awsec2.
       if ischar(value) || isstring(value)
@@ -1647,7 +1649,7 @@ classdef DLBackEndClass < handle
       else
         error('nativeProjectCachePath must be a char, string, or native apt.MetaPath');
       end
-      
+
       wslMetaPath = nativeMetaPath.asWsl();
       obj.awsec2.wslProjectCachePath = wslMetaPath;
     end  % function
@@ -1778,7 +1780,7 @@ classdef DLBackEndClass < handle
       % Returns true if there is a running job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
       jobidshort = jobid(1:8) ;
-      cmd = apt.ShellCommand({apt.dockercmd(), 'ps', '--filter', sprintf('id=%s', jobidshort)}, apt.PathLocale.wsl, apt.Platform.posix) ;      
+      cmd = apt.ShellCommand({apt.dockercmd(), 'ps', '--filter', sprintf('id=%s', jobidshort)}, apt.PathLocale.wsl, apt.Platform.posix) ;
       [rc, stdouterr] = obj.runBatchCommandOutsideContainer_(cmd) ;
         % It uses the docker executable, but it still runs outside the docker
         % container.
@@ -1823,8 +1825,8 @@ classdef DLBackEndClass < handle
     end  % function
 
 
-    
-    
+
+
   end  % methods
 
   methods
@@ -2031,10 +2033,10 @@ classdef DLBackEndClass < handle
         result = totrackinfo.copy() ;
         return
       end
-      
+
       % Generate all the relocated paths
       result = obj.awsec2.changeToTrackInfoPathsToRemoteFromWsl(totrackinfo) ;
-    end  % function    
+    end  % function
 
     function result = convertWslShellCommandToRemote(obj, inputCommand)
       if isequal(obj.type, DLBackEnd.AWS)
@@ -2078,7 +2080,7 @@ classdef DLBackEndClass < handle
           originalValue = token.value ;
           if isa(originalValue, 'apt.MetaPath')
             newValue = DLBackEndClass.convertWslMetaPathToRemoteForNonAwsStatic_(originalValue) ;
-            result = apt.ShellVariableAssignment(token.identifier, newValue) ;            
+            result = apt.ShellVariableAssignment(token.identifier, newValue) ;
           else
             result = token ;
           end
@@ -2104,7 +2106,7 @@ classdef DLBackEndClass < handle
       % Returns:
       %   apt.MetaPath: MetaPath with WSL prefix replaced by remote equivalent.
       %   (Which for non-AWS backends is just the same.)
-      
+
       assert(isa(inputWslMetaPath, 'apt.MetaPath'), 'wslMetaPath must be an apt.MetaPath');
       assert(inputWslMetaPath.locale == apt.PathLocale.wsl, 'wslMetaPath must have WSL locale');
 
@@ -2113,6 +2115,6 @@ classdef DLBackEndClass < handle
       role = inputWslMetaPath.role ;
       result = apt.MetaPath(path, apt.PathLocale.remote, role) ;
     end  % function
-  end  % methods (Static)  
+  end  % methods (Static)
 end  % classdef
 

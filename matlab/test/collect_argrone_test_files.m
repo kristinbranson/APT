@@ -21,7 +21,6 @@ for i = 1 : numel(pathFromMovieIndex) ,
   copyMovieDir(sourceMoviePath, newDataRoot) ;
 end
 
-
 function copyMovieDir(sourceMoviePath, newDataRoot)
   sourceExpDirPath = fileparts2(sourceMoviePath) ;
   [~,sourceExpDirName] = fileparts2(sourceExpDirPath) ;

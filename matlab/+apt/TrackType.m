@@ -1,11 +1,11 @@
 classdef TrackType
   % Enumeration type for the three types of batch tracking.
   % track: Full tracking (detect + link).
-  % link: Link only.
+  % id_link: ID-based link only.
   % detect: Detect only.
   enumeration
     track
-    link
+    id_link
     detect
   end
 

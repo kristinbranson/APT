@@ -677,7 +677,7 @@ class Tracklet:
     Returns data for the input targets and all frames.
     :param itgts: Scalar, list, or 1-d array of targets.
     :param T: output size in frames. If None, this object's T1+1-T0 = max(endframes)+1-T0, will be used.
-    :param T0: offset to apply to startframes and endframes. Default: 0. Might also want to use self.T0. 
+    :param T0: offset to apply to startframes and endframes. Default: 0. Might also want to use self.T0.
     :return: p: nlandmarks x d x T x len(itgts) with data.
     """
     
@@ -1027,7 +1027,7 @@ class Tracklet:
     return tidx,fidx
 
   def where_all(self,nids):
-    """ 
+    """
     where_all(self,nids)
     Get the indices of all targets and frames for which data is 0:nids
     :param nids: Unique values to look for in the tracklet data.
@@ -1055,6 +1055,7 @@ class Tracklet:
     return tidx,fidx
   
   def unique(self):
+    # Finds the unique values in this tracklet, and returns a new tracklet with the same data but with targets corresponding to unique values. This is only implemented for single-dim tracklets.
     axis_rest = self.axis_rest()
     uniquevals = np.zeros(self.size_rest+(0,),dtype=self.dtype)
     count = 0
@@ -1119,7 +1120,7 @@ class Tracklet:
       for ndx,itgt in enumerate(aa):
         idx1 = bb==ndx
         fs = frmidx[idx1]
-        newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]+T0]
+        newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]]#+self.T0]
         
     self.data = newdata
     self.startframes = newstartframes
@@ -1176,6 +1177,144 @@ class Tracklet:
     self.endframes = self.endframes[[itgt for itgt in range(self.ntargets) if itgt not in itgts]]
     self.ntargets = len(self.data)
 
+  def truncate(self,T0=None,T1=None,reset=False):
+    """
+    truncate(self,T0=None,T1=None)
+    Truncate this tracklet to the input time interval.
+    :param T0: first frame to keep, inclusive. Default: None (keep all).
+    :param T1: last frame to keep, inclusive. Default: None (keep all).
+    :return:
+    """
+
+    if T0 is None:
+      T0 = self.T0
+    if T1 is None:
+      T1 = self.T1
+
+    if T0<self.T0:
+        print('Warning: T0 (%d) is smaller than T0 of tracklet (%d), truncating to T0=%d'%(T0,self.T0,self.T0))
+        T0 = self.T0
+    if T1>self.T1:
+        print('Warning: T1 (%d) is larger than T1 of tracklet (%d), truncating to T1=%d'%(T1,self.T1,self.T1))
+        T1 = self.T1
+
+    if reset:
+      offset = T0
+    else:
+      offset = 0
+    tgts_rem = []
+    for itgt in range(self.ntargets):
+      if self.data[itgt] is None:
+        continue
+      idx = np.logical_and(np.arange(self.startframes[itgt],self.endframes[itgt]+1) >= T0,
+                           np.arange(self.startframes[itgt],self.endframes[itgt]+1) <= T1)
+      self.data[itgt] = self.data[itgt][...,idx]
+      self.startframes[itgt] = max(T0,self.startframes[itgt])-offset
+      self.endframes[itgt] = min(T1,self.endframes[itgt])-offset
+      if ~np.any(idx):
+        tgts_rem.append(itgt)
+
+    self.remove_tgts(tgts_rem)
+
+  def delink(self, ntargets=None):
+    """
+    Delink tracklets by reassigning detections based on detection order rather than tracking.
+    After delinking, each frame's detections are assigned to targets sequentially:
+    - First detection in each frame → target 0
+    - Second detection in each frame → target 1
+    - etc.
+
+    This breaks the temporal consistency of tracking where the same animal
+    is followed across frames.
+
+    :param ntargets: If provided, use this as the number of targets instead of
+      computing from the data. This ensures consistency across fields (e.g. pTrk
+      and pTrkTag) that may have different default values.
+    """
+
+    if self.ntargets == 0 or self.T == 0:
+      return
+
+    if ntargets is None:
+      # Step 1: Find maximum number of detections in any single frame
+      max_detections_per_frame = 0
+
+      for frame_idx in range(self.T0, self.T1 + 1):
+        detections_in_frame = 0
+
+        # Count valid detections in this frame
+        for itgt in range(self.ntargets):
+          if (self.startframes[itgt] <= frame_idx <= self.endframes[itgt]):
+            # Get the frame data for this target
+            local_frame_idx = frame_idx - self.startframes[itgt]
+            if self.data[itgt] is not None:
+              frame_data = self.data[itgt][..., local_frame_idx]
+              if not np.all(equals_nan(frame_data, self.defaultval)):
+                detections_in_frame += 1
+
+        max_detections_per_frame = max(max_detections_per_frame, detections_in_frame)
+
+      new_ntargets = max_detections_per_frame
+    else:
+      new_ntargets = ntargets
+
+    # Step 2: Create new tracklet structure with new_ntargets targets
+    if new_ntargets == 0:
+      return
+
+    # All new tracklets will span the entire time range
+    new_startframes = np.full(new_ntargets, self.T0, dtype=int)
+    new_endframes = np.full(new_ntargets, self.T1, dtype=int)
+
+    # Initialize new data arrays filled with default values
+    new_data = []
+    for itgt in range(new_ntargets):
+      shape = self.size_rest + (self.T,)
+      new_data.append(np.full(shape, self.defaultval, dtype=self.dtype))
+
+    # Step 3: Keep track of how many detections have been added to each frame
+    frame_detection_counts = np.zeros(self.T, dtype=int)
+
+    # Iterate over existing tracklets and fill new tracklets frame by frame
+    for old_itgt in range(self.ntargets):
+      if self.data[old_itgt] is None:
+        continue
+
+      # Get the time span for this old tracklet
+      old_start = self.startframes[old_itgt]
+      old_end = self.endframes[old_itgt]
+
+      # Process each frame in this old tracklet
+      for local_frame_idx in range(old_end - old_start + 1):
+        global_frame_idx = old_start + local_frame_idx
+
+        # Get detection data for this frame
+        frame_data = self.data[old_itgt][..., local_frame_idx]
+
+        # Skip if this is default/invalid data
+        if np.all(equals_nan(frame_data, self.defaultval)):
+          continue
+
+        # Use the counter to determine which new target slot to use
+        new_local_frame_idx = global_frame_idx - self.T0
+        new_target_idx = frame_detection_counts[new_local_frame_idx]
+
+        # Safety check to avoid going beyond available targets
+        if new_target_idx >= new_ntargets:
+          continue  # Skip this detection (shouldn't happen with proper max calculation)
+
+        # Assign this detection to the new target slot
+        new_data[new_target_idx][..., new_local_frame_idx] = frame_data
+
+        # Increment the counter for this frame
+        frame_detection_counts[new_local_frame_idx] += 1
+
+    # Step 4: Update the tracklet structure
+    self.ntargets = new_ntargets
+    self.startframes = new_startframes
+    self.endframes = new_endframes
+    self.data = new_data
+
 class Trk:
   
   @property
@@ -1222,11 +1361,24 @@ class Trk:
     # self.T = sz[2]
     self.ntargets = sz[3]
 
+  def get_max_endframe(self):
+    """
+    Get the maximum value of endframes across all targets.
+
+    Returns:
+        int: Maximum endframe if endframes exist, otherwise 0
+    """
+    if self.endframes is not None:
+      valid_endframes = self.endframes[self.endframes >= 0]
+      if len(valid_endframes) > 0:
+        return int(np.max(valid_endframes))
+    return 0
+
 
   # startframes = None # 1-d array of first frame for each target
   # endframes = None # 1-d array of last frame for each target
   # nframes = None # 1-d array of number of frames for each target
-  
+
   def __init__(self,trkfile=None,p=None,size=None,pTrkTS=None,pTrkTag=None,pTrkConf=None,**kwargs):
     """
     Constructor.
@@ -1386,7 +1538,7 @@ class Trk:
     istracklet = Tracklet.isTracklet(trk)
     self.issparse = istracklet or not isinstance(trk['pTrk'],np.ndarray)
 
-    if 'pTrkFrm' in trk.keys():
+    if 'pTrkFrm' in trk.keys() and trk['pTrkFrm'].size>0:
       assert np.all(np.diff(trk['pTrkFrm'],axis=1)==1),'pTrkFrm should be consecutive frames'
       self.T0 = to_py(int(trk['pTrkFrm'].flatten()[0]))
       T1 = to_py(int(trk['pTrkFrm'].flatten()[-1]))
@@ -2215,8 +2367,61 @@ class Trk:
         self.__dict__[k].del_short(min_len)
     self.ntargets = self.pTrk.ntargets
 
+  def delink(self):
+    """
+    Delink all tracklets by reassigning detections based on detection order rather than tracking.
 
-    
+    This method breaks the temporal tracking consistency across frames by reassigning detections
+    in each frame sequentially (first detection → target 0, second detection → target 1, etc.)
+    regardless of which animal they belong to in previous frames.
+
+    Only works with sparse tracklet format data.
+    """
+    assert self.issparse, 'Delink is only implemented for sparse tracklet format'
+    assert self.pTrk is not None, 'No tracklet data to delink'
+
+    # Delink the main tracking data first to determine ntargets
+    self.pTrk.delink()
+    ntargets = self.pTrk.ntargets
+
+    # Delink all associated tracking fields, forcing same ntargets as pTrk
+    for k in self.trkFields:
+      if self.__dict__[k] is not None:
+        self.__dict__[k].delink(ntargets=ntargets)
+
+    # Update ntargets to match the delinked tracklet structure
+    self.ntargets = ntargets
+
+  def truncate(self,T0=None,T1=None,reset=False):
+    """
+    Truncate the pTrk data to the input T0 and T1.
+    :param T0: First frame to keep, inclusive. Default = None, which means keep all frames.
+    :param T1: Last frame to keep, inclusive. Default = None, which means keep all frames.
+    """
+
+    if self.issparse:
+      self.pTrk.truncate(T0=T0,T1=T1,reset=reset)
+      for k in self.trkFields:
+        if self.__dict__[k] is not None:
+          self.__dict__[k].truncate(T0=T0,T1=T1)
+      self.ntargets = self.pTrk.ntargets
+      self.size = (self.nlandmarks, self.d, self.pTrk.T, self.ntargets)
+      self.pTrkiTgt = np.arange(self.ntargets, dtype=int)
+
+      return
+
+    if T0 is None:
+      T0 = 0
+    if T1 is None:
+      T1 = self.pTrk.shape[2]-1
+
+    self.pTrk = self.pTrk[:,:,T0:T1+1,:]
+    for k in self.trkFields:
+      if self.__dict__[k] is not None:
+        self.__dict__[k] = self.__dict__[k][:,:,T0:T1+1,:]
+
+
+
   def __repr__(self):
     s = '<%s instance at %s\n'%(self.__class__.__name__, id(self))
     s += 'issparse:%s, T0:%s, T1:%s, T:%s, ntargets:%s\n'%(str(self.issparse),str(self.T0),str(self.T1),str(self.T),str(self.ntargets))

@@ -52,6 +52,14 @@ ISPY3 = sys.version_info >= (3, 0)
 SMALLVALUE = -100000
 SMALLVALUETHRESH = -1000
 
+PARALLEL_PREPROCESS = True
+if PARALLEL_PREPROCESS:
+    PARALLEL_PREPROCESS_MAXWORKERS = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else os.cpu_count()
+else:
+    PARALLEL_PREPROCESS_MAXWORKERS = 1
+if PARALLEL_PREPROCESS_MAXWORKERS > 1:
+    from concurrent.futures import ThreadPoolExecutor
+
 # In[ ]:
 
 # not used anymore
@@ -122,6 +130,7 @@ def scale_images(img, locs, scale, conf, mask=None, **kwargs):
     szx_ds = round(sz[2]/scale)
     scaley_actual = sz[1]/szy_ds
     scalex_actual = sz[2]/szx_ds
+    out_sz = (szx_ds, szy_ds) 
 
     nan_valid = np.invert(np.isnan(locs))
     high_valid = locs > SMALLVALUETHRESH  # ridiculosly low values are used for multi animal
@@ -129,25 +138,19 @@ def scale_images(img, locs, scale, conf, mask=None, **kwargs):
 
     simg = np.zeros((sz[0], szy_ds, szx_ds, sz[3]))
     smask = np.zeros((sz[0],szy_ds,szx_ds)) if mask is not None else None
-    for ndx in range(sz[0]):
-        # using skimage transform which is really really slow
-        # use anti_aliasing?
-        # if sz[3] == 1:
-        #     simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3], preserve_range=True, mode='edge', **kwargs)
-        # else:
-        #     simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3], preserve_range= True, mode='edge', **kwargs)
-        # if mask is not None:
-        #     smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0,**kwargs)
-
-        out_sz = simg.shape[1:3][::-1]
-        if sz[3] == 1:
-            simg[ndx, :, :, 0] = cv2.resize(img[ndx, :, :, 0], out_sz, **kwargs)
-        else:
-            simg[ndx, :, :, :] = cv2.resize(img[ndx, :, :, :], out_sz, **kwargs)
+    
+    def _apply_one(ndx):
+        simg[ndx] = cv2.resize(img[ndx], out_sz, **kwargs).reshape(simg.shape[1:])
         if mask is not None:
-            # use skimage transform because it can work on boolean data
-            smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0)#,**kwargs)
-
+            smask[ndx] = transform.resize(mask[ndx],smask.shape[1:3],preserve_range=True,mode='edge',order=0)#,**kwargs)
+    
+    if sz[0] == 1 or (PARALLEL_PREPROCESS_MAXWORKERS <= 1):
+        for ndx in range(sz[0]):
+            _apply_one(ndx)
+    else:
+        with ThreadPoolExecutor(max_workers=PARALLEL_PREPROCESS_MAXWORKERS) as executor:
+            executor.map(_apply_one, range(sz[0]))
+            
     # AL 20190909. see also create_label_images
     # new_locs = new_locs/scale
     new_locs = rescale_points(locs, scalex_actual, scaley_actual)
@@ -180,26 +183,30 @@ def normalize_mean(in_img, conf):
     return xx
 
 def adjust_contrast(in_img, conf):
-    if conf.adjust_contrast:
+    if not conf.adjust_contrast:
+        return in_img
+    simg = np.zeros(in_img.shape)
+    def _apply_one(ndx):
         clahe = cv2.createCLAHE(
             clipLimit=2.0,
             tileGridSize=(conf.clahe_grid_size, conf.clahe_grid_size))
-        simg = np.zeros(in_img.shape)
         if in_img.shape[3] == 1:
-            for ndx in range(in_img.shape[0]):
-                simg[ndx, :, :, 0] = clahe.apply(in_img[ndx,:,:,0 ].astype('uint8')).astype('float')
+            simg[ndx, :, :, 0] = clahe.apply(in_img[ndx,:,:,0 ].astype('uint8')).astype('float')
         else:
-            for ndx in range(in_img.shape[0]):
-                lab = cv2.cvtColor(in_img[ndx,...], cv2.COLOR_RGB2LAB)
-                lab_planes = list(cv2.split(lab))
-                lab_planes[0] = clahe.apply(lab_planes[0])
-                lab = cv2.merge(lab_planes)
-                rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
-                simg[ndx,...] = rgb
-        return simg
+            lab = cv2.cvtColor(in_img[ndx,...], cv2.COLOR_RGB2LAB)
+            lab_planes = list(cv2.split(lab))
+            lab_planes[0] = clahe.apply(lab_planes[0])
+            lab = cv2.merge(lab_planes)
+            rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+            simg[ndx,...] = rgb
+            
+    if in_img.shape[0] == 1 or (PARALLEL_PREPROCESS_MAXWORKERS <= 1):
+        for ndx in range(in_img.shape[0]):
+            _apply_one(ndx)
     else:
-        return in_img
-
+        with ThreadPoolExecutor(max_workers=PARALLEL_PREPROCESS_MAXWORKERS) as executor:
+            executor.map(_apply_one, range(in_img.shape[0]))
+    return simg
 
 # def process_image(frame_in, conf):
 #     #     cropx = (framein.shape[0] - conf.imsz[0])/2
@@ -622,6 +629,7 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
                 ii = copy.deepcopy(orig_im[g,...])
                 ii = cv2.warpAffine(ii, rot_mat, (int(cols), int(rows)),flags=interp_method)
                 # Do not use inter_cubic. Leads to splotches.
+
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -1124,9 +1132,9 @@ def show_stack(im_s,xx,yy,cmap='gray'):
     im_s = im_s.reshape([xx * isz1, yy * isz2])
     plt.figure(); plt.imshow(im_s,cmap=cmap)
     for x in range(1,yy):
-        plt.plot([x*isz2,x*isz2],[1,im_s.shape[0]-1],c=[0.3,0.3,0.3])
+        plt.plot([x*isz2-0.5,x*isz2-0.5],[1,im_s.shape[0]-1],c=[0.3,0.3,0.3])
     for y in range(1,xx):
-        plt.plot([1,im_s.shape[1]-1],[y*isz1,y*isz1],c=[0.3,0.3,0.3])
+        plt.plot([1,im_s.shape[1]-1],[y*isz1-0.5,y*isz1-0.5],c=[0.3,0.3,0.3])
     plt.axis('off')
 
 def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11, hiliteptcolor=None):
@@ -1971,23 +1979,24 @@ def make_vid(mov_file,trk_file,out_file,skel,st,en,x,y,fps=10,cmap='tab20',fig_s
     out.release()
 
 
-def read_coco(json_file):
+def read_coco(json_file,n_pts=None):
     from collections import Counter
 
     A = json_load(json_file)
     ims = [aa['file_name'] for aa in A['images']]
-    n_pts = len(A['categories'][0]['keypoints'])
-    cc = [aa['image_id'] for aa in A['annotations'] if aa['iscrowd'] == 0]
+    im_ids = [aa['id'] for aa in A['images']]
+    n_pts = len(A['categories'][0]['keypoints']) if n_pts is None else n_pts
+    cc = [aa['image_id'] for aa in A['annotations'] if ('iscrowd' not in aa) or (aa['iscrowd'] == 0)]
     im_counts =Counter(cc)
     max_n = max(im_counts.values())
     count = np.zeros([len(ims)]).astype('int')
     kpts = np.ones([len(ims),max_n,n_pts,3])*np.nan
     for aa in A['annotations']:
-        if aa['iscrowd'] == 1:
+        if ('iscrowd' in aa) and (aa['iscrowd'] == 1):
             continue
-        im_id = aa['image_id']
-        kpts[im_id,count[im_id],:] = np.array(aa['keypoints']).reshape([-1,3])
-        count[im_id] += 1
+        im_ndx = im_ids.index(aa['image_id'])
+        kpts[im_ndx,count[im_ndx],:] = np.array(aa['keypoints']).reshape([-1,3])
+        count[im_ndx] += 1
 
     return ims,kpts
 

@@ -43,6 +43,12 @@ function [dout,fp,fn] = find_dist_match(dd,hasMask,elbl,epreds,rois)
     sel1 = any(~isnan(yy),2);
     cmat = yy(sel1,:);
     cmat = cmat(:,sel2);
+    if isempty(cmat)
+      % this should mean there were labels and no predictions
+      fn(:) = 1;
+      return;
+    end
+
     idx_match = matchpairs(cmat,max(cmat(:))*10);
 %     [idx1, idx2] = munkres(cmat);
     sel_ndx1 = find(sel1);

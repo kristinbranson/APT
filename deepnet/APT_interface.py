@@ -1,6 +1,9 @@
 #from __future__ import division
 #from __future__ import print_function
 
+PREFETCH_BATCHES = True
+from concurrent.futures import ThreadPoolExecutor
+
 import logging
 from operator import truediv
 #logging.basicConfig(
@@ -15,13 +18,13 @@ def get_gpu_memory():
     """Get memory info for all GPUs, h/t claude"""
     success = False
     try:
-        result = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'], 
+        result = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'],
                                 capture_output=True, text=True, check=True)
         success = True
         return (success,[int(x.strip()) for x in result.stdout.strip().split('\n')])
     except (subprocess.CalledProcessError, FileNotFoundError):
         return (success,[])
-    
+
 def filter_gpus_by_memory(min_memory_mb=4096):
     """Return GPU indices with at least min_memory_mb MB, h/t claude"""
     if 'CUDA_VISIBLE_DEVICES' in os.environ:
@@ -86,7 +89,7 @@ if ISSB:
     import sb1 as sb
     
 KBDEBUG = False
-    
+
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
 import ast
@@ -433,10 +436,15 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
     coco_info['ndx'] += 1
     imfile = os.path.join(coco_info['imdir'], '{:08d}.png'.format(ndx))
     if cur_im.shape[2] == 1:
-        cv2.imwrite(imfile, cur_im[:, :, 0])
+        im_to_write = cur_im[:, :, 0]
     else:
-        cur_im = cv2.cvtColor(cur_im, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(imfile, cur_im)
+        im_to_write = cv2.cvtColor(cur_im, cv2.COLOR_RGB2BGR)
+        cur_im = im_to_write
+    executor = coco_info.get('executor')
+    if executor is not None:
+        executor.submit(cv2.imwrite, imfile, im_to_write)
+    else:
+        cv2.imwrite(imfile, im_to_write)
 
     ann['images'].append(
         {'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': imfile, 'movid': info[0],
@@ -523,21 +531,33 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
         train_filename = os.path.join(conf.cachedir, conf.trainfilename)
         val_filename = os.path.join(conf.cachedir, conf.valfilename)
 
-    skeleton = [[i, i + 1] for i in range(conf.n_classes - 1)]
-    names = ['pt_{}'.format(i) for i in range(conf.n_classes)]
+    skeleton = [c for c in conf.op_affinity_graph]
+
+    T = PoseTools.json_load(conf.json_trn_file)
+    if 'info' in T.keys():
+        names = T['kpt_info']['keypoint_names']
+    else:
+        names = ['pt_{}'.format(i) for i in range(conf.n_classes)]
+
+    if conf.multi_only_ht: #for the first stage only ht points for 2 stage networks #conf.use_ht_trx or conf.use_bbox_trx:
+        names = [names[i] for i in conf.ht_pts]
+        skeleton = [[0,1],]
+
     categories = [{'id': 1, 'skeleton': skeleton, 'keypoints': names, 'super_category': 'fly', 'name': 'fly'}, {'id': 2, 'super_category': 'neg_box', 'name': 'neg_box'}]
 
     train_ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
-    train_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'train')}
     val_ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
-    val_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'val')}
     os.makedirs(os.path.join(conf.cachedir, 'train'), exist_ok=True)
     os.makedirs(os.path.join(conf.cachedir, 'val'), exist_ok=True)
+    imwrite_executor = ThreadPoolExecutor(max_workers=4)
+    train_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'train'), 'executor': imwrite_executor}
+    val_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'val'), 'executor': imwrite_executor}
 
     out_fns = [lambda data: convert_to_coco(train_info, train_ann, data, conf),
                lambda data: convert_to_coco(val_info, val_ann, data, conf)]
 
     splits, __ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt, trnpack_val_split=trnpack_val_split)
+    imwrite_executor.shutdown(wait=True)
     # if use_cache:
     # else:
     #     splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples, db_dict=db_dict)
@@ -1035,6 +1055,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
             else:
                 try:
                     setattr(conf, k, read_entry(dt_params_flat[k]))
+                    if k in ['mdn_joint_layer_num',]:
+                        conf.mdn_joint_layer_num = int(conf.mdn_joint_layer_num)
                 except TypeError:
                     logging.info('Could not parse parameter %s, ignoring' % k)
 
@@ -1335,6 +1357,10 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     conf.normalize_img_mean = conf.normalize
     delattr(conf,'normalize')
     conf.save_td_step = conf.display_step
+    if conf.is_multi:
+        conf.max_n_animals = int(np.ceil(conf.max_n_animals_user*1.25))
+    else:
+        conf.max_n_animals = 1
 
     assert not (conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
 
@@ -1394,12 +1420,12 @@ def read_trx_file_h5py(trx_file_name):
     """Read trx data from v7.3 MAT file using h5py, return numpy structured array like scipy"""
     with h5py.File(trx_file_name, 'r') as f:
         trx0 = f['trx']
-        
+
         # Determine if this is single or multi-trajectory format
         # Check first field to understand the data structure
         sample_key = list(trx0.keys())[0]
         sample_data = trx0[sample_key]
-        
+
         if sample_data.dtype == object and len(sample_data.shape) == 2:
             # Multi-trajectory: fields contain references to actual data
             n_trx = sample_data.shape[0]
@@ -1423,20 +1449,20 @@ def read_trx_file_h5py(trx_file_name):
                 data = np.array(trx0[k])
                 cur_trx[k] = _process_field_data(k, data)
             trx_list = [cur_trx]
-        
+
         # Convert list of dicts to numpy structured array like scipy does
         if len(trx_list) == 0:
             return np.array([], dtype=object)
-        
+
         # Create structured array with object dtype for each field
         field_names = list(trx_list[0].keys())
         dtype_list = [(name, object) for name in field_names]
-        
+
         trx_structured = np.empty(len(trx_list), dtype=dtype_list)
         for i, trx_dict in enumerate(trx_list):
             for field_name in field_names:
                 trx_structured[i][field_name] = trx_dict[field_name]
-                
+
         return trx_structured
 
 
@@ -1486,22 +1512,22 @@ def _process_field_data(field_name, data):
 
 def normalize_trx_shapes_inplace(trx):
     """Normalize trx field shapes in-place to ensure consistency across mat file versions.
-    
+
     Modifies the input trx array to ensure:
-    - Scalar fields (firstframe, endframe, nframes, id) have shape (1,1)  
+    - Scalar fields (firstframe, endframe, nframes, id) have shape (1,1)
     - Time series fields (x, y, theta, a, b, etc.) have shape (1, n_frames)
     """
     if len(trx) == 0:
         return
-    
+
     for i in range(len(trx)):
         for field_name in trx[i].dtype.names:
             data = trx[i][field_name]
-            
+
             # Skip non-numeric fields
             if isinstance(data, str) or (hasattr(data, 'dtype') and data.dtype.kind in ['U', 'S']):
                 continue
-                
+
             # Scalar fields should be (1,1)
             if field_name in ['firstframe', 'endframe', 'nframes', 'id']:
                 if hasattr(data, 'shape'):
@@ -1509,7 +1535,7 @@ def normalize_trx_shapes_inplace(trx):
                         # Scalar -> (1,1)
                         trx[i][field_name] = np.array([[data.item()]])
                     elif data.shape == (1,):
-                        # (1,) -> (1,1) 
+                        # (1,) -> (1,1)
                         trx[i][field_name] = data.reshape(1, 1)
                     elif len(data.shape) == 2 and data.shape[1] == 1:
                         # (n,1) -> take first element and make (1,1)
@@ -1517,8 +1543,8 @@ def normalize_trx_shapes_inplace(trx):
                     elif len(data.shape) == 2 and data.shape[0] == 1:
                         # (1,n) -> take first element and make (1,1)
                         trx[i][field_name] = np.array([[data[0,0]]])
-            
-            # Time series fields should be (1, n_frames)  
+
+            # Time series fields should be (1, n_frames)
             else:
                 if hasattr(data, 'shape') and len(data.shape) >= 1:
                     if len(data.shape) == 1:
@@ -1532,6 +1558,7 @@ def normalize_trx_shapes_inplace(trx):
 
 def read_trx_file(trx_file):
 
+    trx = []
     if trx_file is None:
         return [], 1
     try:
@@ -1539,11 +1566,11 @@ def read_trx_file(trx_file):
     except NotImplementedError:
         # trx file in v7.3 format
         trx = read_trx_file_h5py(trx_file)
-    
+
     # Normalize field shapes to ensure consistency regardless of mat file version
     # Scalars should be (1,1), time series should be (1, n_frames)
     normalize_trx_shapes_inplace(trx)
-    
+
     n_trx = len(trx)
     return trx, n_trx
 
@@ -1701,14 +1728,16 @@ def setup_ma(conf):
     T = PoseTools.json_load(conf.json_trn_file)
     cur_t = T['locdata'][0]
     pack_dir = os.path.split(conf.json_trn_file)[0]
-    cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
-    if cur_frame.ndim>2:
-        cur_frame = cv2.cvtColor(cur_frame,cv2.COLOR_BGR2RGB)
-    fr_sz = cur_frame.shape[:2]
-    conf.multi_frame_sz = fr_sz
+    # cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
+    # if cur_frame.ndim>2:
+    #     cur_frame = cv2.cvtColor(cur_frame,cv2.COLOR_BGR2RGB)
+    # fr_sz = cur_frame.shape[:2]
+    # conf.multi_frame_sz = fr_sz
+    conf.multi_frame_sz = conf.imsz
+    fr_sz = conf.multi_frame_sz
 
     if not conf.multi_crop_ims:
-        conf.imsz = (fr_sz[0], fr_sz[1])
+        # conf.imsz = (fr_sz[0], fr_sz[1]) # no need to set the image size here.
         logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
         return
 
@@ -1717,8 +1746,10 @@ def setup_ma(conf):
         ntgt = cur_t['ntgt']
         cur_roi = np.array(cur_t['roi']).reshape([conf.nviews, 2, 4, ntgt])
         cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])
-        clusters = get_clusters(cur_roi)
-        n_cluster = len(np.unique(clusters))
+        # clusters = get_clusters(cur_roi)
+        # n_cluster = len(np.unique(clusters))
+        clusters = np.arange(len(cur_roi))
+        n_cluster = len(cur_roi)
         for cndx in range(n_cluster):
             idx = np.where(clusters == cndx)[0]
             cur_rois = cur_roi[idx, ...]
@@ -1770,28 +1801,11 @@ def get_clusters(rois):
 
 def create_mask(roi, sz):
     # sz should be h x w (i.e y first then x)
-    x, y = np.meshgrid(np.arange(sz[1]), np.arange(sz[0]))
-    x = x.flatten()
-    y = y.flatten()
-    pts = np.vstack((x, y)).T
-    grid = None
+    mask = np.zeros(sz, dtype=np.uint8)
     for c in roi:
-        rr = c.tolist()
-        rr.append(rr[0])
-        path = Path(rr)
-        cgrid = path.contains_points(pts)
-        if grid is not None:
-#            logging.warning('Code changed by KB because IDE was showing an error here, let KB know if this breaks!')
-            grid = np.logical_or(grid,cgrid)
-            #grid = grid | cgrid
-        else:
-            grid = cgrid
-
-    if grid is None:
-        mask = np.zeros(sz) > 0.5
-    else:
-        mask = grid.reshape(sz)
-    return mask
+        pts = np.round(c).astype(np.int32)  # (N, 2) array of (x, y)
+        cv2.fillPoly(mask, [pts], color=1)
+    return mask.astype(bool)
 
 
 def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
@@ -1804,18 +1818,28 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         d_x = (conf.imsz[1] - (x_max - x_min)) * 0.9
         r_x = (np.random.rand() - 0.5) * d_x
         x_left = int(round((x_max + x_min) / 2 - conf.imsz[1] / 2 + r_x))
-        x_left = min(x_left, frame.shape[1] - conf.imsz[1])
+        x_left = min(x_left, conf.multi_frame_sz[1] - conf.imsz[1])
         x_left = max(x_left, 0)
         x_right = x_left + conf.imsz[1]
 
         d_y = (conf.imsz[0] - (y_max - y_min)) * 0.9
         r_y = (np.random.rand() - 0.5) * d_y
         y_top = int(round((y_max + y_min) / 2 - conf.imsz[0] / 2 + r_y))
-        y_top = min(y_top, frame.shape[0] - conf.imsz[0])
+        y_top = min(y_top, conf.multi_frame_sz[0] - conf.imsz[0])
         y_top = max(y_top, 0)
         y_bottom = y_top + conf.imsz[0]
 
-        assert (y_top-1) <= round(y_min) and (y_bottom+1) >= round(y_max) and (x_left-1) <= round(x_min) and (x_right+1) >= round(x_max), 'Cropping for cluster is improper'
+        ok = ((y_top-1) <= round(y_min) and (y_bottom+1) >= round(y_max)
+              and (x_left-1) <= round(x_min) and (x_right+1) >= round(x_max))
+        if not ok:
+            logging.warning(
+                'Improper crop (roi not fully contained). '
+                'info=%s roi x=[%g,%g] y=[%g,%g] crop x=[%d,%d] y=[%d,%d] '
+                'imsz=%s multi_frame_sz=%s frame.shape=%s. '
+                'Labels outside crop will be dropped.',
+                info, x_min, x_max, y_min, y_max,
+                x_left, x_right, y_top, y_bottom,
+                conf.imsz, conf.multi_frame_sz, frame.shape)
         return x_left, y_top, x_right, y_bottom
 
     def roi2patch(roi_in, x_left, y_top):
@@ -1831,9 +1855,14 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         return roi_in
 
     def labels_within_mask(curl, mask):
+        # First FInd all the labels that fall within the patch, then find if their centroid falls within the mask. If multi_loss_mask is false, then all labels that fall within the patch are used for loss. If multi_loss_mask is true, then only those labels whose centroid falls within the mask are used for loss.
+
         sel = np.where(np.all( ((curl[..., 0] >= 0) & (curl[..., 1] >= 0) &
                 (curl[..., 0] < conf.imsz[1]) & (curl[..., 1] < conf.imsz[0])) |
                 np.isnan(curl[...,0]), 1))[0]
+        # remove labels that are all NaNs
+        all_nan = np.all(np.isnan(curl[sel,...,0]), axis=1)
+        sel = sel[~all_nan]
         if conf.multi_loss_mask:
             curl = np.nanmean(curl[sel],axis=1)
             cur_mask_pts = np.round(curl).astype('int')
@@ -1843,16 +1872,22 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
             final_sel = sel
         return final_sel
 
-    clusters = get_clusters(roi)
-    n_clusters = len(np.unique(clusters))
+    # clusters = get_clusters(roi)
+    # n_clusters = len(np.unique(clusters))
     all_data = []
     mask_sc = 4
     mask_sz = (conf.multi_frame_sz[0]//mask_sc, conf.multi_frame_sz[1]//mask_sc)
     done_mask = np.zeros(mask_sz) > 1
 
     roi = roi.copy()
+    nan_roi = np.all(np.isnan(roi), axis=(-1,-2))
+    roi = roi[~nan_roi]
     roi[..., 0] = np.clip(roi[..., 0], 0, conf.multi_frame_sz[1])
     roi[..., 1] = np.clip(roi[..., 1], 0, conf.multi_frame_sz[0])
+    n_clusters = len(roi)
+
+    cur_pts = cur_pts.copy()
+    cur_pts = cur_pts[~nan_roi]
 
     if conf.multi_loss_mask or conf.multi_use_mask:
         n_extra_roi = 0 if extra_roi is None else len(extra_roi)
@@ -1875,8 +1910,9 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
     #     frame = np.pad(frame, [[0, 0],[0,pad_x], [0, 0]])
 
     for cndx in range(n_clusters):
-        idx = np.where(clusters == cndx)[0]
-        cur_roi = roi[idx, ...].copy()
+        # idx = np.where(clusters == cndx)[0]
+        # cur_roi = roi[idx, ...].copy()
+        cur_roi = roi[cndx:cndx+1].copy()
 
         x_left, y_top, x_right, y_bottom = random_crop_around_roi(cur_roi)
 
@@ -1913,16 +1949,28 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         all_data.append({'im': curp, 'locs': curl, 'info': [info[0], info[1], cndx], 'occ': cur_occ, 'roi': cur_roi,
                          'extra_roi': cur_eroi, 'x_left': x_left, 'y_top': y_top, 'max_n':conf.max_n_animals})
 
+    if (n_clusters==0) or conf.multi_loss_mask or conf.multi_use_mask:
+        n_clusters = 100
+        # If there are no labels in this image or if masking is on, then sample a large number (50) of background crops
+
+    roi_count = 0
+    roi_sample_ratio = conf.multi_background_sample_ratio
+    roi_coverage_ratio = conf.multi_background_coverage_ratio
+
     if n_extra_roi > 0:
         # bkg_sel_rate = conf.background_mask_sel_rate
 
         done_eroi = np.zeros(n_extra_roi)
-        while np.any(done_eroi < 0.5):
+        while np.any(done_eroi < 0.5) and \
+            (roi_count < n_clusters*roi_sample_ratio):
+            # Add extra rois until we have added roi_sample_ratio times the number of clusters or we have covered at least roi_coverage_ratio area of extra rois
+
+            roi_count += 1
 
             # add examples of background not added earlier.
             for endx in range(n_extra_roi):
                 eroi_mask = create_mask(extra_roi[endx:endx + 1, ...]/mask_sc, mask_sz)
-                if (eroi_mask.sum()<=4) or ((eroi_mask & done_mask).sum() / (eroi_mask.sum())) > 0.5:
+                if (eroi_mask.sum()<=4) or ((eroi_mask & done_mask).sum() / (eroi_mask.sum())) > roi_coverage_ratio:
 
                     done_eroi[endx] = 1.
                     continue
@@ -2551,12 +2599,20 @@ def create_cv_split_files(conf, n_splits=3):
     return all_train, splits, split_files
 
 
-def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True):
+def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True,use_conf_imsz=False):
     if use_bsize:
         bsize = conf.batch_size
     else:
         bsize = len(to_do_list)
-    all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
+
+    if use_conf_imsz or (not conf.is_multi):
+        hh = conf.imsz[0]
+        ww = conf.imsz[1]
+    else:
+        # use video size for multi-animal projects to support videos of different sizes
+        hh = cap.get_height()
+        ww = cap.get_width()
+    all_f = np.zeros((bsize,hh,ww,conf.img_dim,))
     # KB 20200504: sometimes crop_loc might be specified as nans when
     # we want no cropping to happen for reasons. 
     if crop_loc is not None and np.any(np.isnan(np.array(crop_loc))):
@@ -2767,9 +2823,11 @@ def write_n_tracked_part_file(n_done, part_file):
         fh.write("{}".format(n_done))
 
 
-def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False, **kwargs):
+def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False, do_split_preproc=False, **kwargs):
     ''' Returns prediction functions and close functions for different network types
-
+    If do_split_preproc is True and the model supports it (can_split_preproc),
+    returns (preproc_fn, infer_fn, close_fn, model_file).
+    Otherwise returns (pred_fn, close_fn, model_file).
     '''
     if model_type == 'dpk':
         raise RuntimeError('dpk network not implemented')
@@ -2807,11 +2865,18 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
         poser = Pose_multi_mmpose(conf, name=name)
         pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
     else:
-        module_name = 'Pose_{}'.format(model_type)
-        pose_module = __import__(module_name)
-        tf1.reset_default_graph()
-        poser = getattr(pose_module, module_name)(conf, name=name)
-        pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
+        try:
+            module_name = 'Pose_{}'.format(model_type)
+            pose_module = __import__(module_name)
+            tf1.reset_default_graph()
+            poser = getattr(pose_module, module_name)(conf, name=name)
+        except ImportError:
+            raise ImportError(f'Undefined type of network:{model_type}')
+        if do_split_preproc and getattr(poser, 'can_split_preproc', False):
+            preproc_fn, pred_fn, close_fn, model_file = poser.get_pred_fn(model_file, do_split_preproc=True)
+            pred_fn = (preproc_fn, pred_fn)
+        else:
+            pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
 
     return pred_fn, close_fn, model_file
 
@@ -3696,7 +3761,7 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
         tag = np.transpose(pred_occ, [2, 0, 1])
     elif 'conf' in extra_dict:
         # histogram pred_occ
-        pred_occ = extra_dict['conf'] < .5
+        pred_occ = extra_dict['conf'] < .2
         tag = np.transpose(pred_occ, [2, 0, 1])
 
     trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag, pTrkConf=locs_conf,T0=start)
@@ -3742,6 +3807,78 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
     # else:
     #     logging.exception("Did not successfully write output to %s" % out_file_tmp)
 
+def read_trk(part_file, pred_locs, extra_dict, start_frame, end_frame, n_trx,max_n_frames):
+    import TrkFile
+    logging.info(f'Continue tracking enabled. Loading existing data from {part_file}')
+
+    conv_dict = {'pTrkTag':'occ','pTrkConf':'conf'}
+
+    # Load existing tracking data from .part file
+    trk_data = TrkFile.Trk(part_file)
+
+    # Get the maximum endframe to determine where to resume
+    max_tracked_frame = trk_data.get_max_endframe()
+
+    resume_from_frame = start_frame  # Default to start_frame if no existing data
+    if max_tracked_frame > 0:
+        # Resume from the next frame after the last tracked frame
+        resume_from_frame = max_tracked_frame + 1
+        logging.info(
+            f'Found existing tracking data up to frame {max_tracked_frame}. Resuming from frame {resume_from_frame}')
+
+        # Get list of frames that overlap with our tracking range
+        frames_to_load = np.arange(max(trk_data.T0, start_frame), min(max_tracked_frame + 1, end_frame))
+
+        if frames_to_load.size>0:
+            trk_data.delink()
+            # Load existing predictions using getframe with return_extra for all frames at once
+            frame_data, frame_extra = trk_data.getframe(frames_to_load, extra=True)
+
+            if not (frame_data.shape[3] <= pred_locs.shape[1] and frame_data.shape[0] == pred_locs.shape[2]):
+                raise ValueError(
+                    f'Existing tracking data in {part_file} has {frame_data.shape[3]} targets and {frame_data.shape[0]} body parts, but expected {pred_locs.shape[1]} targets and {pred_locs.shape[2]} body parts based on current configuration. Please check your .trk file and configuration.')
+
+            if frame_extra:
+                for key, value in frame_extra.items():
+                    if value is None:
+                        continue
+                    if key not in extra_dict:
+                        assert hasattr(value, 'shape')
+                        # Initialize array-like extra data
+                        if key in conv_dict:
+                            ekey = conv_dict[key]
+                        else:
+                            continue
+                        extra_shape = [max_n_frames, n_trx] + list(value.shape[:-2])
+                        extra_dict[ekey] = np.zeros(extra_shape, dtype=trk_data.dtype_dict[key])
+                        extra_dict[ekey][:] = trk_data.defaultval_dict[key]
+
+            if frame_data is not None and frame_data.size > 0:
+                # frame_data shape: [n_landmarks, 2, n_frames, n_targets]
+                # pred_locs shape: [max_n_frames, n_trx, conf.n_classes, 2]
+
+                idx1 = frames_to_load-start_frame
+                idx2 = np.arange(frame_data.shape[2])
+                sel = (idx1>=0) & (idx1<pred_locs.shape[0]) & (idx2>=0) & (idx2<frame_data.shape[2])
+                idx1 = idx1[sel]
+                idx2 = idx2[sel]
+                pred_locs[idx1, :frame_data.shape[3], :, :] = \
+                    frame_data[:, :, idx2, :].transpose(2, 3,0, 1)
+
+                    # Update extra_dict with extra data
+                for key, value in frame_extra.items():
+                    if key not in conv_dict or value is None:
+                        continue
+                    ekey = conv_dict[key]
+                    transpose_ndx = (1, 2, 0) if value.ndim == 3 else (2, 3, 0, 1)
+                    extra_dict[ekey][idx1, :frame_data.shape[3], :, ...] = value[:, ..., idx2, :].transpose(transpose_ndx)
+            logging.info(
+                f'Loaded existing predictions for {len(frames_to_load)} frames ({frames_to_load[0]} to {frames_to_load[-1]})')
+    else:
+        logging.info(f'Part file exists but no valid tracking data found. Starting from beginning.')
+
+    return pred_locs, extra_dict, resume_from_frame
+
 
 def classify_movie(conf, pred_fn, model_type,
                    mov_file='',
@@ -3756,7 +3893,9 @@ def classify_movie(conf, pred_fn, model_type,
                    nskip_partfile=500,
                    save_hmaps=False,
                    predict_trk_file=None,
-                   crop_loc=[None]):
+                   crop_loc=[None],
+                   continue_tracking=False,
+                   preproc_fn=None):
     ''' Classifies frames in a movie. All animals in a frame are classified before moving to the next frame.'''
 
     if type(crop_loc) == list and crop_loc[0] is None:
@@ -3815,8 +3954,26 @@ def classify_movie(conf, pred_fn, model_type,
     if (not os.path.exists(hmap_out_dir)) and save_hmaps:
         os.mkdir(hmap_out_dir)
 
+    # Handle continue tracking logic
+    resume_from_frame = start_frame
+    if continue_tracking:
+        # First check if final output file already exists
+        if os.path.exists(out_file):
+            logging.info(f'Continue tracking enabled: Final output file {out_file} already exists. Skipping tracking.')
+            return None
+
+        # Check for partial tracking file
+        if os.path.exists(part_file):
+            try:
+                pred_locs,extra_dict, resume_from_frame = read_trk(part_file, pred_locs,extra_dict,start_frame,end_frame,n_trx,max_n_frames)
+            except Exception as e:
+                logging.warning(f'Failed to load existing tracking data from {part_file}: {e}. Starting from beginning.')
+                resume_from_frame = start_frame
+        else:
+            logging.info(f'Continue tracking enabled but no part file found at {part_file}. Starting from beginning.')
+
     to_do_list = []
-    for cur_f in range(start_frame, end_frame,skip_rate):
+    for cur_f in range(resume_from_frame, end_frame,skip_rate):
         for t in range(n_trx):
             if not np.any(trx_ids == t) and len(trx_ids)>0:
                 continue
@@ -3830,11 +3987,31 @@ def classify_movie(conf, pred_fn, model_type,
     n_list = len(to_do_list)
     n_batches = int(math.ceil(float(n_list) / bsize))
     logging.info('Tracking...')
+
+    if PREFETCH_BATCHES:
+        _prefetch_exec = ThreadPoolExecutor(max_workers=1)
+
+        def _load_batch(b):
+            s = b * bsize
+            p = min(n_list - s, bsize)
+            ims = create_batch_ims(to_do_list[s:(s + p)], conf, cap, flipud, T, crop_loc)
+            if preproc_fn is not None:
+                ims = preproc_fn(ims)
+            return ims, p
+
+        _prefetch_future = _prefetch_exec.submit(_load_batch, 0)
+
     for cur_b in tqdm(range(n_batches),**TQDM_PARAMS,unit='batch'):
         cur_start = cur_b * bsize
-        ppe = min(n_list - cur_start, bsize)
-        all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
-
+        if PREFETCH_BATCHES:
+            all_f, ppe = _prefetch_future.result()
+            if cur_b + 1 < n_batches:
+                _prefetch_future = _prefetch_exec.submit(_load_batch, cur_b + 1)
+        else:
+            ppe = min(n_list - cur_start, bsize)
+            all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
+            if preproc_fn is not None:
+                all_f = preproc_fn(all_f)
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict.pop('locs')
         # hmaps = ret_dict.pop('hmaps')
@@ -3858,6 +4035,10 @@ def classify_movie(conf, pred_fn, model_type,
 
             # if save_hmaps:
             #    write_hmaps(hmaps[cur_t, ...], hmap_out_dir, trx_ndx, cur_f)
+
+            for k in extra_dict.keys():
+                if k not in ret_dict:
+                    _ = extra_dict.pop(k) # in case occ got in when loading part file but not in current model
 
             # for everything else that is returned..
             for k in ret_dict.keys():
@@ -3930,6 +4111,11 @@ def link(args, view, view_ndx):
     first_stage = args.stage=='first'
     second_stage = args.stage == 'multi' or args.stage=='second'
     conf = create_conf(args.lbl_file, view, args.name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params,first_stage=first_stage,second_stage=second_stage,config_file=args.trk_config_file)
+
+    # Handle link_id track_type by setting conf.link_id = True
+    if args.track_type == 'link_id':
+        conf.link_id = True
+
     if not do_link(conf): return
 
     # return
@@ -3941,7 +4127,7 @@ def link(args, view, view_ndx):
     raw_files = []
     for mov_ndx in range(nmov):
         raw_files.append(raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx]))
-    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files)
+    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files, id_wts=args.id_wts_file)
     [trk_linked[mov_ndx].save(out_files[mov_ndx], saveformat='tracklet') for mov_ndx in range(nmov)]
 
 
@@ -4017,15 +4203,19 @@ def classify_movie_all(model_type, **kwargs):
     if conf.stage == 'first':
         conf.n_classes = 2
         conf.op_affinity_graph = [[0, 1]]
-    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=train_name)
+    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=train_name, do_split_preproc=True)
+    if isinstance(pred_fn, tuple):
+        preproc_fn, pred_fn = pred_fn
+    else:
+        preproc_fn = None
     no_except = kwargs['no_except']
     del kwargs['no_except']
     with cleaner(close_fn):
         if no_except:
-            trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+            trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, preproc_fn=preproc_fn, **kwargs)
         else:
             try:
-                trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+                trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, preproc_fn=preproc_fn, **kwargs)
             except (IOError, ValueError) as e:
                 trk = None
                 logging.exception('Could not track movie')
@@ -4640,13 +4830,16 @@ def parse_args(argv):
     parser_classify.add_argument('-out', dest='out_files', help='file to save tracking results to. For multi-animal: If track_type is only_predict this will have the raw unlinked predictions. If track_type is predict_link and no predict_trk_files is specified, then the raw unliked predictions will be saved to [out]_raw.trk.', required=True, nargs='+')
     parser_classify.add_argument('-trx_ids', dest='trx_ids', help='only track these animals. For single animal project with trajectories', nargs='*', type=int, default=[], action='append')
     # parser_classify.add_argument('-hmaps', dest='hmaps', help='generate heatmpas', action='store_true')
-    parser_classify.add_argument('-track_type',choices=['predict_link','only_predict','only_link'], default='predict_link', help='for multi-animal. Whether to link the predictions or not or only link. predict_link both predicts and links, only_predict only predicts but does not link, only_link only links existing predictions. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
+    parser_classify.add_argument('-track_type',choices=['predict_link','only_predict','only_link','link_id'], default='predict_link', help='for multi-animal. Whether to link the predictions or not or only link. predict_link both predicts and links, only_predict only predicts but does not link, only_link only links existing predictions, link_id enables identity-based linking. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
     parser_classify.add_argument('-predict_trk_files', help='for multi-animal. When track_type is prdict_link, file to save raw unlinked predictions to. when track_type is only_link, the trk file containing raw unlinked predictions to be used as input for linking', nargs='+', default=None)
     parser_classify.add_argument('-crop_loc', dest='crop_loc', help='crop location given as x_left x_right y_top (low) y_bottom (high) in matlabs 1-index format', nargs='*', type=int, default=None)
     parser_classify.add_argument('-list_file', dest='list_file', help='JSON file with list of movies, targets and frames to track', default=None)
     parser_classify.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the database for list file.')
     parser_classify.add_argument('-config_file', dest='trk_config_file', help='JSON file with parameters related to tracking.', default=None)
     parser_classify.add_argument('-no_except', dest='no_except', action='store_true', help='Call main function without wrapping in try-except.  Useful for debugging.')
+    #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
+    parser_classify.add_argument('-id_wts_file', dest='id_wts_file', help='File path for ID tracking model weights. If file exists, weights are loaded for ID detection. If file does not exist, trained weights are saved to this location.', default=None)
+    parser_classify.add_argument('-continue', dest='continue_tracking', action='store_true', help='Continue tracking from existing .part file. Checks for out_file.part and resumes from the last tracked frame.')
     #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
 
     parser_gt = subparsers.add_parser('gt_classify', help='Classify GT labeled frames')
@@ -4785,7 +4978,8 @@ def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=Fa
                            model_file=args.model_file[view_ndx],
                            train_name=args.train_name,
                            predict_trk_file=args.predict_trk_files[view_ndx][mov_ndx],
-                           no_except=args.no_except
+                           no_except=args.no_except,
+                           continue_tracking=args.continue_tracking
                            )
     else:
         trk = None
@@ -4890,7 +5084,7 @@ def get_raw_config_filename(H):
         return H.file.filename
     else:
         raise ValueError('Could not determine config file name')
-    
+
 def load_config_file(lbl_file,no_json=False):
     """
     H = load_config_file(lbl_file,no_json=False)
@@ -4988,7 +5182,9 @@ def run(args):
         views = [view]
     nviews = len(views)
     check_args(args,nviews)
-        
+
+    print_torch_cuda_info()
+
     print_torch_cuda_info()
 
     if cmd == 'train':
@@ -5066,11 +5262,24 @@ def run(args):
         nmov = len(args.mov[0])
 
         for view_ndx, view in enumerate(views):
-            if not args.track_type == 'only_link':
+            # For link_id, check file existence for each movie and run predictions if needed
+            if args.track_type == 'link_id':
+                for mov_ndx in range(nmov):
+                    if args.predict_trk_files and args.predict_trk_files[view_ndx] and len(args.predict_trk_files[view_ndx]) > mov_ndx:
+                        predict_file = args.predict_trk_files[view_ndx][mov_ndx]
+                        raw_file = raw_predict_file(predict_file, args.out_files[view_ndx][mov_ndx])
+                        if not os.path.exists(raw_file):
+                            logging.info(f'link_id selected but predict file {raw_file} does not exist. Running prediction for movie {mov_ndx}.')
+                            track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
+                    else:
+                        logging.info(f'link_id selected but no predict_trk_file specified for movie {mov_ndx}. Running prediction.')
+                        track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
+            elif not args.track_type == 'only_link':
                 for mov_ndx in range(nmov):
                     track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
 
-            if not args.track_type == 'only_predict':
+            # Link all movies together for this view
+            if args.track_type == 'link_id' or not args.track_type == 'only_predict':
                 link(args, view=view, view_ndx=view_ndx)
             else:
                 #move the _tracklet.trk files to .trk files
@@ -5139,7 +5348,7 @@ def set_up_logging(args):
         err_file = args.err_file
         print('Logging errors to file: {}'.format(err_file))
         errh = logging.FileHandler(err_file, 'w')
-    
+
     errh.setLevel(logging.ERROR)
     errh.setFormatter(err_log_formatter)
     errh.name = "err"
@@ -5248,7 +5457,7 @@ def main(argv):
             logging.exception('APT_interface errored: {e}, {type(e)}')
 
 def remove_local_path():
-    for p in sys.path:
+    for p in sys.path[::-1]:
         if ".local" in p:
             sys.path.remove(p)
 

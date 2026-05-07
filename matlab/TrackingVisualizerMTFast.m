@@ -62,6 +62,10 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
         deleteValidGraphicsHandles(obj.hPred);
         obj.hPred = [];
       end
+      if ~isstruct(obj.hPredOcc) % guard against serialized TVs which have PV structs in .hPred
+        deleteValidGraphicsHandles(obj.hPredOcc);
+        obj.hPredOcc = [];
+      end
       deleteValidGraphicsHandles(obj.hPredTxt);
       obj.hPredTxt = [];
       deleteValidGraphicsHandles(obj.hSkel);
@@ -97,6 +101,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       ipt2View = tvm.ipt2vw ;
       ipt2set = lObj.labeledposIPt2Set ;
       hTmp = gobjects(npts,1);
+      hTmpOcc = gobjects(npts,1);
       hTxt = gobjects(npts,1);
       pfix = tvm.handleTagPfix ;
       for ipt = 1:npts
@@ -107,12 +112,19 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
           'Color',clr,...
           'LineStyle','none',...
           'Tag',sprintf('%s_pred_%d',pfix,ipt));
+        hTmpOcc(ipt) = plot(ax(ivw),nan,nan,markerPVscell{:},...
+          'Color',clr,...
+          'LineStyle','none',...
+          'Tag',sprintf('%s_pred_%d',pfix,ipt));
         hTxt(ipt) = text(nan,nan,num2str(ptset),...
           'Parent',ax(ivw),...
           'Color',clr,textPVscell{:},...
           'Tag',sprintf('%s_PrdRedTxt_%d',pfix,ipt));
       end
       obj.hPred = hTmp;
+      set(obj.hPred,'marker',obj.mrkrReg);
+      obj.hPredOcc = hTmpOcc;
+      set(obj.hPredOcc,'marker',obj.mrkrOcc);
       obj.hPredTxt = hTxt;
 
       nvw = lObj.nview ;
@@ -155,6 +167,20 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       % Set hSkel.XData/.YData per xy
 
       [linestyle,alpha,linewidth] = myparse(varargin,'linestyle','-','alpha',0.5, 'linewidth',0.5);
+
+      if isempty(xy)
+        cc = get(hSkel(1),'Color');
+        if numel(cc) == 3
+          cc(end+1) = alpha;
+        else
+          cc(end) = alpha;
+        end
+
+        set(hSkel,'XData',nan,'YData',nan,'LineStyle',linestyle,...
+          'linewidth',linewidth,'Color',cc);
+        return;
+      end
+      
 
       se = skelEdges;
       k = size(se,1);
@@ -284,6 +310,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
 
       if isempty(xy)
         set(h,'XData',nan,'YData',nan);
+        set(h_occ,'XData',nan,'YData',nan);
       else
         npt = obj.nPts;
         for ipt=1:npt
@@ -332,7 +359,10 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       tvm = obj.tvm_ ;
       if nargin < 3
         [npts,~,ntgts] = size(xy);
+      if nargin < 3
         tfeo = false(npts,ntgts);
+      end
+      if nargin < 4
         xyITgts = (1:ntgts)';
       end
 
@@ -368,6 +398,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       for iPt=1:npts
         clr = ptsClrs(iPt,:);
         set(obj.hPred(iPt),'Color',clr);
+        set(obj.hPredOcc(iPt),'Color',clr);
         set(obj.hPredTxt(iPt),'Color',clr);
       end
     end
