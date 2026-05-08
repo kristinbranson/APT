@@ -20,6 +20,13 @@ classdef MovieManagerController < handle
     pbChangePath  % uibutton: "Change Path..."
     menuFile  % uimenu: "File"
     menuFileAddMoviesFromTextFile  % uimenu under File
+
+    % Path-display feature: dynamic truncation of long movie/trx paths.
+    % Backing state (showPathEnds, original*) lives on the MovieManagerModel
+    % owned by the Labeler; the controller only owns the graphics handles.
+    bgPath_  % uibuttongroup hosting the path-display toggle buttons
+    tbPathStarts_  % uitogglebutton: show path starts
+    tbPathEnds_  % uitogglebutton: show path ends
   end
 
   methods    
@@ -40,7 +47,9 @@ classdef MovieManagerController < handle
       
       obj.hFig = uifigure('Units','pixels', ...
                           'Position',[951 1400 733 436], ...
-                          'Name','Manage Movies') ;
+                          'Name','Manage Movies', ...
+                          'AutoResizeChildren','off', ...
+                          'SizeChangedFcn',@(src,evt) obj.figureResizeCallback_(src,evt)) ;
       %obj.hFig.CloseRequestFcn = @(hObject,eventdata) obj.CloseRequestFcn(hObject,eventdata);
 
       obj.gl = uigridlayout(obj.hFig,[4,1],'RowHeight',obj.getGridLayoutRowHeights_(),'tag','gl');
@@ -63,7 +72,42 @@ classdef MovieManagerController < handle
         'RowName',rownames,'Visible',onIff(lObj.nview > 1),...
         'CellSelectionCallback',@(src,evt) obj.selectionChangedTblMovieSet(src,evt));
 
-      obj.glButtons = uigridlayout(obj.gl,[1,5],'Padding',[0,0,0,0],'tag','gl_buttons');
+      obj.glButtons = uigridlayout(obj.gl,[1,6],'Padding',[0,0,0,0],'tag','gl_buttons');
+
+      % Path-display toggle group (first cell of glButtons).  The buttongroup
+      % positions its child togglebuttons absolutely; updateToggleButtonPositions_
+      % re-computes those on figure resize.
+      mmModel = lObj.movieManagerModel ;
+      obj.bgPath_ = uibuttongroup(obj.glButtons,...
+        'BackgroundColor',[0.94 0.94 0.94],...
+        'BorderType','none',...
+        'SelectionChangedFcn',@(src,evt) obj.pathToggleChanged_(src,evt));
+
+      utilDir = fullfile(fileparts(mfilename('fullpath')), 'util') ;
+      leftAlignIcon = imread(fullfile(utilDir, 'align_left.png')) ;
+      rightAlignIcon = imread(fullfile(utilDir, 'align_right.png')) ;
+      if ndims(leftAlignIcon) == 2  %#ok<ISMAT>
+        leftAlignIcon = repmat(leftAlignIcon, [1 1 3]) ;
+      end
+      if ndims(rightAlignIcon) == 2  %#ok<ISMAT>
+        rightAlignIcon = repmat(rightAlignIcon, [1 1 3]) ;
+      end
+      obj.tbPathStarts_ = uitogglebutton(obj.bgPath_,...
+        'Text','',...
+        'Icon',leftAlignIcon,...
+        'Tooltip','Show path starts',...
+        'FontColor','k','BackgroundColor',[1,1,1],...
+        'FontWeight','bold',...
+        'Value',~mmModel.showPathEnds,...
+        'Tag','togglebutton_path_starts');
+      obj.tbPathEnds_ = uitogglebutton(obj.bgPath_,...
+        'Text','',...
+        'Icon',rightAlignIcon,...
+        'Tooltip','Show path ends',...
+        'FontColor','k','BackgroundColor',[1,1,1],...
+        'FontWeight','bold',...
+        'Value',mmModel.showPathEnds,...
+        'Tag','togglebutton_path_ends');
 
       obj.pbSwitch = uibutton(obj.glButtons,...
                               'Tag', 'pbSwitch', ...
@@ -100,8 +144,10 @@ classdef MovieManagerController < handle
       listenerObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAllGT',@(s,e)(obj.update()));
       listenerObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)(obj.update()));
       listenerObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)(obj.update()));
-      listenerObjs{end+1,1} = addlistener(lObj,'didSetMoviesSelected',...
+      listenerObjs{end+1,1} = addlistener(mmModel,'didSetMoviesSelected',...
                                           @(s,e)(obj.didSetMoviesSelected()));
+      listenerObjs{end+1,1} = addlistener(mmModel,'didSetShowPathEnds',...
+                                          @(s,e)(obj.didSetShowPathEnds_()));
 
       obj.listeners = listenerObjs;
       obj.hFig.DeleteFcn = @obj.lclDeleteFig;
@@ -148,7 +194,7 @@ classdef MovieManagerController < handle
       % The selected column is pure view state (not in the model), so we
       % refresh the Change Path enablement directly --- no didSet*
       % notification will drive it for us.
-      obj.labeler.moviesSelected = obj.getSelectedMovies_() ;
+      obj.labeler.movieManagerModel.moviesSelected = obj.getSelectedMovies_() ;
       obj.updateChangePathButtonEnablement_() ;
     end
 
@@ -334,9 +380,9 @@ classdef MovieManagerController < handle
     end
     
     function updateTableSelection_(obj)
-      % Sync tblMain.Selection to labeler.moviesSelected, preserving
+      % Sync tblMain.Selection to movieManagerModel.moviesSelected, preserving
       % each row's currently-selected column where possible.
-      selectedMovies = obj.labeler.moviesSelected ;
+      selectedMovies = obj.labeler.movieManagerModel.moviesSelected ;
       if isempty(selectedMovies) || isempty(obj.tblMain.Data)
         obj.tblMain.Selection = zeros(0,2) ;
       else
@@ -352,7 +398,7 @@ classdef MovieManagerController < handle
     end
 
     function didSetMoviesSelected(obj)
-      % Listener callaback for didSetMoviesSelected event in the Labeler.
+      % Listener callback for didSetMoviesSelected event on the MovieManagerModel.
       obj.updateTableSelection_() ;
       obj.updateMovieSetDetails_() ;
       obj.updateChangePathButtonEnablement_() ;
@@ -360,12 +406,13 @@ classdef MovieManagerController < handle
 
     function updateMovieSetDetails_(obj)
       % Sync per-view detail pane (obj.tblView and obj.labelSet) to
-      % labeler.moviesSelected.
+      % movieManagerModel.moviesSelected.
       lObj = obj.labeler ;
-      rows = lObj.moviesSelected ;
+      rows = lObj.movieManagerModel.moviesSelected ;
       isMultiView = lObj.nview > 1 ;
       if isMultiView && numel(rows) == 1 && obj.isLabelerOutOfInitAndHasProject_()
-        obj.tblView.Data = lObj.movieFilesAllGTaware(rows,:)' ;
+        movieSetData = lObj.movieFilesAllGTaware(rows,:)' ;
+        obj.tblView.Data = obj.truncateMovieSetPaths_(movieSetData) ;
         obj.labelSet.Text = sprintf('Selected movieset %d', rows) ;
       else
         obj.tblView.Data = cell(0,1) ;
@@ -396,32 +443,92 @@ classdef MovieManagerController < handle
         movsHaveLbls = false(0,1) ;
       end
 
-      % In multiview projects each row represents a movieset (n movies,
-      % one per view); in single-view it's just one movie per row.
+      % Cache untruncated values on the model so resize/toggle can
+      % re-truncate without re-querying.
+      lObj.movieManagerModel.setOriginalNames(movNames, trxNames, movsHaveLbls) ;
+      obj.updateTruncatedTableData_() ;
+      obj.updateMovieFileExistenceStyles_() ;
+    end
+
+    function [args, isMultiView, tfTrx] = mainTableProps_(obj)
+      % Build the ColumnName/ColumnWidth args for tblMain based on the
+      % current Labeler/model state.
+      lObj = obj.labeler ;
+      mmModel = lObj.movieManagerModel ;
+      isMultiView = (lObj.nview > 1) ;
       movieColumnHeader = fif(isMultiView, 'Movieset', 'Movie') ;
-      JTABLEPROPS_NOTRX = {'ColumnName',{movieColumnHeader 'Num Labels'},...
-                           'ColumnWidth',{'1x',250}};
-      JTABLEPROPS_TRX = {'ColumnName',{movieColumnHeader 'Trx' 'Num Labels'},...
-                         'ColumnWidth',{'2x','1x',100}};
-      
-      if isequal(size(movNames,1),size(trxNames,1),numel(movsHaveLbls))
-        movSetNames = movNames(:,1) ;
-        trxSetNames = trxNames(:,1) ;
-        tfTrx = any(cellfun(@(x)~isempty(x),trxNames(:))) ;
-        if tfTrx
-          tableData = [movSetNames trxSetNames num2cell(int64(movsHaveLbls))] ;
-          args = JTABLEPROPS_TRX ;
-        else
-          tableData = [movSetNames num2cell(int64(movsHaveLbls))] ;
-          args = JTABLEPROPS_NOTRX ;
-        end
+      trxNames = mmModel.originalTrxNames ;
+      tfTrx = lObj.hasTrx && any(cellfun(@(x)~isempty(x), trxNames(:))) ;
+      if tfTrx
+        args = {'ColumnName', {movieColumnHeader 'Trx' 'Num Labels'}, ...
+                'ColumnWidth', {'2x', '1x', 100}} ;
       else
+        args = {'ColumnName', {movieColumnHeader 'Num Labels'}, ...
+                'ColumnWidth', {'1x', 250}} ;
+      end
+    end
+
+    function updateTruncatedTableData_(obj)
+      % Render obj.tblMain by reading cached originals from the model and
+      % applying path truncation per model.showPathEnds.  Safe to call on
+      % resize, on toggle change, and from updateMovieData_.
+      mmModel = obj.labeler.movieManagerModel ;
+      movNames = mmModel.originalMovNames ;
+      trxNames = mmModel.originalTrxNames ;
+      movsHaveLbls = mmModel.originalMovsHaveLbls ;
+
+      [args, ~, tfTrx] = obj.mainTableProps_() ;
+
+      if ~isequal(size(movNames,1), size(trxNames,1), numel(movsHaveLbls))
         % Model is mid-mutation; render empty until next event arrives.
-        tableData = cell(0,2) ;
-        args = JTABLEPROPS_NOTRX ;
+        set(obj.tblMain, args{:}, 'Data', cell(0,2)) ;
+        return
+      end
+
+      movSetNames = movNames(:,1) ;
+      trxSetNames = trxNames(:,1) ;
+      if mmModel.showPathEnds
+        movColumnWidthPx = obj.calculateMovieColumnWidth_() ;
+        movSetNames = cellfun(@(x) PathTruncationUtils.truncateFilePath(x, ...
+          'maxLength', PathTruncationUtils.calculateMaxCharsForFieldWidth(movColumnWidthPx, 12), ...
+          'startFraction', 0), ...
+          movSetNames, 'UniformOutput', false) ;
+        if tfTrx
+          trxSetNames = cellfun(@(x) PathTruncationUtils.truncateFilePath(x, ...
+            'maxLength', PathTruncationUtils.calculateMaxCharsForFieldWidth(movColumnWidthPx/2, 12), ...
+            'startFraction', 0), ...
+            trxSetNames, 'UniformOutput', false) ;
+        end
+      end
+
+      if tfTrx
+        tableData = [movSetNames trxSetNames num2cell(int64(movsHaveLbls))] ;
+      else
+        tableData = [movSetNames num2cell(int64(movsHaveLbls))] ;
       end
       set(obj.tblMain, args{:}, 'Data', tableData) ;
-      obj.updateMovieFileExistenceStyles_() ;
+    end
+
+    function w = calculateMovieColumnWidth_(obj)
+      % Pixel width of the movie-name column in tblMain.  Mirrors how the
+      % uitable resolves '1x'/'2x' against the table's pixel width minus
+      % the fixed-width 'Num Labels' column.
+      try
+        tablePos = obj.tblMain.Position ;
+        tableWidthPx = tablePos(3) ;
+        [~, ~, tfTrx] = obj.mainTableProps_() ;
+        if tfTrx
+          % Movie=2x, Trx=1x, NumLabels=100px (constant); 20px margin.
+          availableWidth = tableWidthPx - 100 - 20 ;
+          flexUnit = availableWidth / 3 ;
+          w = 2 * flexUnit ;
+        else
+          % Movie=1x, NumLabels=250px (constant); 20px margin.
+          w = tableWidthPx - 250 - 20 ;
+        end
+      catch
+        w = 300 ;  % fallback
+      end
     end
 
     function updateMovieFileExistenceStyles_(obj)
@@ -570,7 +677,7 @@ classdef MovieManagerController < handle
           return
         end
         iView = sel(1, 1) ;
-        mvSel = obj.labeler.moviesSelected ;
+        mvSel = obj.labeler.movieManagerModel.moviesSelected ;
         if numel(mvSel) ~= 1
           errMsg = 'Select exactly one movieset first.' ;
           return
@@ -599,6 +706,73 @@ classdef MovieManagerController < handle
           break;
         end
       end
-    end  % function    
-  end  % methods (Hidden)  
+    end  % function
+
+    function truncatedData = truncateMovieSetPaths_(obj, movieSetData)
+      % Truncate paths in the multiview detail table per the model's
+      % showPathEnds setting; pass through unchanged if showing starts.
+      if isempty(movieSetData) || ~obj.labeler.movieManagerModel.showPathEnds
+        truncatedData = movieSetData ;
+        return
+      end
+      try
+        tableWidthPx = obj.tblView.Position(3) - 20 ;  % minus margin
+        try
+          origFontUnits = get(obj.tblView, 'FontUnits') ;
+          set(obj.tblView, 'FontUnits', 'pixels') ;
+          fontSize = get(obj.tblView, 'FontSize') ;
+          set(obj.tblView, 'FontUnits', origFontUnits) ;
+        catch
+          fontSize = 14 ;
+        end
+        truncatedData = cellfun(@(x) PathTruncationUtils.truncateFilePath(x, ...
+          'maxLength', PathTruncationUtils.calculateMaxCharsForFieldWidth(tableWidthPx, fontSize), ...
+          'startFraction', 0), ...
+          movieSetData, 'UniformOutput', false) ;
+      catch
+        truncatedData = movieSetData ;
+      end
+    end  % function
+
+    function figureResizeCallback_(obj, ~, ~)
+      % Re-truncate table data and reposition toggle buttons on resize.
+      mmModel = obj.labeler.movieManagerModel ;
+      if ~isempty(mmModel.originalMovNames)
+        obj.updateTruncatedTableData_() ;
+      end
+      obj.updateToggleButtonPositions_() ;
+      obj.updateMovieSetDetails_() ;
+    end  % function
+
+    function updateToggleButtonPositions_(obj)
+      % Reposition the start/end togglebuttons inside the (auto-sized)
+      % bg_path button group.  Children of a buttongroup are not
+      % automatically laid out so we drive this from SizeChangedFcn.
+      if isempty(obj.bgPath_) || ~isvalid(obj.bgPath_)
+        return
+      end
+      bgPos = obj.bgPath_.Position ;
+      buttonWidth = (bgPos(3) - 4) / 2 ;
+      buttonHeight = bgPos(4) - 4 ;
+      if ~isempty(obj.tbPathStarts_) && isvalid(obj.tbPathStarts_)
+        obj.tbPathStarts_.Position = [2, 2, buttonWidth, buttonHeight] ;
+      end
+      if ~isempty(obj.tbPathEnds_) && isvalid(obj.tbPathEnds_)
+        obj.tbPathEnds_.Position = [buttonWidth + 4, 2, buttonWidth, buttonHeight] ;
+      end
+    end  % function
+
+    function pathToggleChanged_(obj, ~, evt)
+      % Actuation: user toggled the path-display button group.  Mutate
+      % the model; the model's didSetShowPathEnds event drives the redraw.
+      newShowEnds = strcmp(evt.NewValue.Tag, 'togglebutton_path_ends') ;
+      obj.labeler.movieManagerModel.showPathEnds = newShowEnds ;
+    end  % function
+
+    function didSetShowPathEnds_(obj)
+      % Listener for model.didSetShowPathEnds: re-render both tables.
+      obj.updateTruncatedTableData_() ;
+      obj.updateMovieSetDetails_() ;
+    end  % function
+  end  % methods (Hidden)
 end  % classdef

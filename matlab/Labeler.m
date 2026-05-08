@@ -115,7 +115,6 @@ classdef Labeler < handle
     didSetMovieFilesAllGT
     didSetMovieFilesAllHaveLbls
     didSetMovieFilesAllGTHaveLbls
-    didSetMoviesSelected
 
     didSetMovieCenterOnTarget
     didSetMovieRotateTargetUp
@@ -226,10 +225,12 @@ classdef Labeler < handle
     projFSInfo            % filesystem info
     projTempDir           % temp dir name to save the raw label file
     infoTimelineModel_     % InfoTimelineModel object for timeline selection state
+    movieManagerModel_     % MovieManagerModel object for MovieManager view state
   end
 
   properties (Dependent)
     infoTimelineModel     % InfoTimelineModel object for timeline selection state
+    movieManagerModel     % MovieManagerModel object for MovieManager view state
   end
 
   properties
@@ -402,7 +403,6 @@ classdef Labeler < handle
     % I don't see where either of these are ever changed -- ALT, 2023-05-14
     movieCenterOnTargetLandmark = false  % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
     movieCenterOnTargetIpt = []  % scalar point index, used if movieCenterOnTargetLandmark=true. Transient, unmanaged
-    moviesSelected_ = []  % [nSel] vector of movie indices currently selected in MovieManager. Set by MovieManagerController.
   end
 
   properties (Transient)
@@ -473,10 +473,9 @@ classdef Labeler < handle
     movienc  % [nview]. always equal to numCols in .movieroi
     movieroi  % [nview x 4]. Each row is [xlo xhi ylo yhi]. If no crop present, then this is just [1 nc 1 nr].
     movieroictr  % [nview x 2]. Each row is [xc yc] center of current roi in that view.
-    nmovies 
-    nmoviesGT 
-    nmoviesGTaware 
-    moviesSelected  % [nSel] vector of MovieIndices currently selected in MovieManager. GT mode ok.
+    nmovies
+    nmoviesGT
+    nmoviesGTaware
     doesNeedSave
   end
   
@@ -869,6 +868,7 @@ classdef Labeler < handle
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter(obj) ;
       obj.infoTimelineModel_ = InfoTimelineModel(obj.hasTrx);
+      obj.movieManagerModel_ = MovieManagerModel() ;
       obj.uncertainFramesModel_ = UncertainFramesModel(obj) ;
       % if ~isgui ,
       %   % If a GUI is attached, this is done by the controller, after it has
@@ -1355,17 +1355,6 @@ classdef Labeler < handle
 %       mr.close();
     end    
     
-    function v = get.moviesSelected(obj)
-      % Get the currently selected movies.
-      v = obj.moviesSelected_ ;
-    end  % function
-
-    function set.moviesSelected(obj, v)
-      % Set the currently selected movies.
-      obj.moviesSelected_ = v ;
-      obj.notify_('didSetMoviesSelected') ;
-    end  % function
-
     function v = get.hasTrx(obj)
       v = ~isempty(obj.trx);
     end
@@ -13452,7 +13441,7 @@ classdef Labeler < handle
       result.nmoviesGTaware = obj.nmoviesGTaware ;
       result.gtIsGTMode = obj.gtIsGTMode ;
       result.currMovIdx = obj.currMovIdx ;
-      result.moviesSelected = obj.moviesSelected ;
+      result.moviesSelected = obj.movieManagerModel_.moviesSelected ;
       result.nmovies = obj.nmovies ;
       result.nmoviesGT = obj.nmoviesGT ;
       result.hasMovie = obj.hasMovie ;
@@ -14019,6 +14008,10 @@ classdef Labeler < handle
 
     function result = get.infoTimelineModel(obj)
       result = obj.infoTimelineModel_ ;
+    end
+
+    function result = get.movieManagerModel(obj)
+      result = obj.movieManagerModel_ ;
     end
 
     function result = get.viewConfig(obj)
