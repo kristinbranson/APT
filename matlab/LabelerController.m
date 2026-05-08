@@ -5195,7 +5195,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      labeler.labelExportTrk_(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
+      labeler.labelExportTrk(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
     end
 
     function menu_file_export_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5996,7 +5996,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      labeler.trackExportResults_(iMov,'rawtrkname',rawtrkname);
+      labeler.trackExportResults(iMov,'rawtrkname',rawtrkname);
     end
 
 

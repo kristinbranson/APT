@@ -8304,7 +8304,7 @@ classdef Labeler < handle
       tfok = true;
     end  % function
 
-    function trackExportResults_(obj,iMovs,varargin)
+    function trackExportResults(obj,iMovs,varargin)
       % Export tracking results to trk files.
       %
       % iMovs: [nMov] vector of movie(set)s whose tracking should be
@@ -8356,7 +8356,7 @@ classdef Labeler < handle
       end
     end  % function
 
-    function labelExportTrk_(obj,iMovs,varargin)
+    function labelExportTrk(obj,iMovs,varargin)
       % Export label data to trk files.
       %
       % iMov: optional, indices into (rows of) .movieFilesAllGTaware to
