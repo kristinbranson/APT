@@ -18,6 +18,7 @@ classdef LabelerProjectTester < handle
       [obj.labeler, obj.controller] = StartAPT() ;
       % Set the labeler to silent mode for batch operation
       obj.labeler.silent = true ;
+      obj.labeler.isInBatchMode = true ;
       % Load the named project
       obj.labeler.projLoad(project_file_path, 'replace_path', replace_path) ;
     end
@@ -235,7 +236,7 @@ classdef LabelerProjectTester < handle
 
       % Use a distinct trkfile rawname to avoid conflicting with any existing trkfiles
       rawname = [labeler.defaultExportTrkRawname() '_id_test'] ;
-      [tfok, trkfiles] = controller.getTrkFileNamesForExport(toTrack.movfiles, rawname, 'noUI', true) ;
+      [tfok, trkfiles] = labeler.getTrkFileNamesForExport(toTrack.movfiles, rawname) ;
       if tfok ,
         toTrack.trkfiles = trkfiles ;
       end

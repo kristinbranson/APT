@@ -7263,7 +7263,7 @@ classdef LabelerController < handle
       end
 
       rawname = lObj.defaultExportTrkRawname();
-      [tfok,trkfiles] = obj.getTrkFileNamesForExport(toTrack.movfiles,rawname,'noUI',true);
+      [tfok,trkfiles] = lObj.getTrkFileNamesForExport(toTrack.movfiles,rawname);
       if tfok,
         toTrack.trkfiles = trkfiles;
         if lObj.maIsMA
@@ -7420,7 +7420,7 @@ classdef LabelerController < handle
     end  % function
 
     function [tfok,trkfiles] = resolveTrkfilesVsTrkRawname_(obj,iMovs,...
-        trkfiles,rawname,defaultRawNameArgs,varargin)
+        trkfiles,rawname,defaultRawNameArgs)
       % Ugly, input arg helper. Methods that export a trkfile must have
       % either i) the trkfilenames directly supplied, ii) a raw/base
       % trkname supplied, or iii) nothing supplied.
@@ -7444,16 +7444,13 @@ classdef LabelerController < handle
       % This call can also throw.
 
       lObj = obj.labeler_;
-      noUI = myparse(varargin,...
-        'noUI',false);
 
       movfiles = lObj.movieFilesAllFullGTaware(iMovs,:);
       if isempty(trkfiles)
         if isempty(rawname)
           rawname = lObj.defaultExportTrkRawname(defaultRawNameArgs{:});
         end
-        [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,...
-          rawname,'noUI',noUI);
+        [tfok,trkfiles] = lObj.getTrkFileNamesForExport(movfiles,rawname);
         if ~tfok
           return;
         end
@@ -7472,20 +7469,6 @@ classdef LabelerController < handle
       end
 
       tfok = true;
-    end  % function
-
-    function [tfok,trkfiles] = getTrkFileNamesForExport(obj,movfiles,...
-        rawname,varargin)
-      % Concretize a raw trkfilename, then check for conflicts etc.
-
-      lObj = obj.labeler_;
-      noUI = myparse(varargin,...
-        'noUI',false);
-
-      sMacro = lObj.baseTrkFileMacros();
-      trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname,sMacro,x),...
-        movfiles,'uni',0);
-      [tfok,trkfiles] = checkTrkFileNamesForExportGUI(trkfiles,'noUI',noUI);
     end  % function
 
     function hFgs = labelOverlayMontage_(obj,varargin)

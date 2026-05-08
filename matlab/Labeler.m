@@ -8070,7 +8070,43 @@ classdef Labeler < handle
       
       rawname = fullfile('$movdir',basename);
     end
-    
+
+    function [tfok, trkfiles] = getTrkFileNamesForExport(obj, movfiles, rawname)
+      % Concretize a raw trkfilename, then check for conflicts etc.
+      sMacro = obj.baseTrkFileMacros() ;
+      trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname, sMacro, x), ...
+                         movfiles, 'uni', 0) ;
+
+      tfexist = cellfun(@(x)(logical(exist(x, 'file'))), trkfiles(:)) ;
+      tfok = true ;
+      if any(tfexist)
+        iExist = find(tfexist, 1) ;
+        queststr = sprintf('One or more .trk files already exist, eg: %s.', trkfiles{iExist}) ;
+        if obj.isInBatchMode
+          response = 'Add datetime to filenames' ;
+          warningNoTrace('Labeler:trkFileNamesForExport', ...
+                         'One or more .trk files already exist. Adding datetime to trk filenames.') ;
+        else
+          response = obj.questionUser_(queststr, ...
+                                       'Files exist', ...
+                                       {'Overwrite', 'Add datetime to filenames', 'Cancel'}, ...
+                                       'Add datetime to filenames') ;
+        end
+        switch response
+          case 'Overwrite'
+            % use trkfiles as-is
+          case 'Add datetime to filenames'
+            nowstr = datestr(now, 'yyyymmddTHHMMSS') ;
+            [trkP, trkF] = cellfun(@fileparts, trkfiles, 'uni', 0) ;
+            trkfiles = cellfun(@(x,y)(fullfile(x, [y '_' nowstr '.trk'])), ...
+                               trkP, trkF, 'uni', 0) ;
+          otherwise
+            tfok = false ;
+            trkfiles = [] ;
+        end
+      end
+    end  % function
+
     function fname = getDefaultFilenameExport(obj,lblstr,ext,varargin)
       includedate = myparse(varargin,'includedate',false);
       rawdir = '$projdir';
