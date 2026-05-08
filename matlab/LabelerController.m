@@ -5961,7 +5961,7 @@ classdef LabelerController < handle
     function menu_track_all_movies_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       mIdx = labeler.allMovIdx();
-      toTrackIn = obj.mIdx2TrackList_(mIdx);
+      toTrackIn = obj.mIdx2TrackList(mIdx);
       tbobj = TrackBatchGUI(labeler, obj.mainFigure_, 'toTrack', toTrackIn);
       % [toTrackOut] = tbobj.run();
       tbobj.run();
@@ -5974,7 +5974,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       mainFigure = obj.mainFigure_ ;
       mIdx = labeler.currMovIdx;
-      toTrackIn = obj.mIdx2TrackList_(mIdx);
+      toTrackIn = obj.mIdx2TrackList(mIdx);
       mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
       [toTrackOut,dostore] = mdobj.run();
       if ~dostore,
@@ -7226,7 +7226,7 @@ classdef LabelerController < handle
       end
     end
 
-    function toTrack = mIdx2TrackList_(obj, mIdx)
+    function toTrack = mIdx2TrackList(obj, mIdx)
       % Make a toTrack struct from selected movies in the project, suitable for
       % use with TrackBatchGUI
       lObj = obj.labeler_;
@@ -7263,7 +7263,7 @@ classdef LabelerController < handle
       end
 
       rawname = lObj.defaultExportTrkRawname();
-      [tfok,trkfiles] = obj.getTrkFileNamesForExport_(toTrack.movfiles,rawname,'noUI',true);
+      [tfok,trkfiles] = obj.getTrkFileNamesForExport(toTrack.movfiles,rawname,'noUI',true);
       if tfok,
         toTrack.trkfiles = trkfiles;
         if lObj.maIsMA
@@ -7452,7 +7452,7 @@ classdef LabelerController < handle
         if isempty(rawname)
           rawname = lObj.defaultExportTrkRawname(defaultRawNameArgs{:});
         end
-        [tfok,trkfiles] = obj.getTrkFileNamesForExport_(movfiles,...
+        [tfok,trkfiles] = obj.getTrkFileNamesForExport(movfiles,...
           rawname,'noUI',noUI);
         if ~tfok
           return;
@@ -7474,7 +7474,7 @@ classdef LabelerController < handle
       tfok = true;
     end  % function
 
-    function [tfok,trkfiles] = getTrkFileNamesForExport_(obj,movfiles,...
+    function [tfok,trkfiles] = getTrkFileNamesForExport(obj,movfiles,...
         rawname,varargin)
       % Concretize a raw trkfilename, then check for conflicts etc.
 
@@ -7485,7 +7485,7 @@ classdef LabelerController < handle
       sMacro = lObj.baseTrkFileMacros();
       trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname,sMacro,x),...
         movfiles,'uni',0);
-      [tfok,trkfiles] = checkTrkFileNamesForExport(trkfiles,'noUI',noUI);
+      [tfok,trkfiles] = checkTrkFileNamesForExportGUI(trkfiles,'noUI',noUI);
     end  % function
 
     function hFgs = labelOverlayMontage_(obj,varargin)

@@ -1,4 +1,4 @@
-function [tfok, trkfiles] = checkTrkFileNamesForExport(trkfiles, varargin)
+function [tfok, trkfiles] = checkTrkFileNamesForExportGUI(trkfiles, varargin)
   % Check/confirm trkfile names for export. If any trkfiles exist, ask
   % whether overwriting is ok; alternatively trkfiles may be
   % modified/uniqueified using datetimestamps.
@@ -14,7 +14,7 @@ function [tfok, trkfiles] = checkTrkFileNamesForExport(trkfiles, varargin)
   noUI = myparse(varargin, ...
                  'noUI', false) ;
 
-  tfexist = cellfun(@(x)(exist(x, 'file')>0), trkfiles(:)) ;
+  tfexist = cellfun(@(x)(logical(exist(x, 'file'))), trkfiles(:)) ;
   tfok = true ;
   if any(tfexist)
     iExist = find(tfexist, 1) ;
