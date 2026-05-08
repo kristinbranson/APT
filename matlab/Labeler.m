@@ -840,9 +840,8 @@ classdef Labeler < handle
     currIm = []             % [nview] cell vec of image data. init: C
     currImRoi = []
     % selectedFrames_ = []     % vector of frames currently selected frames; typically t0:t1
-    drag = false 
-    drag_pt = [] 
-    silent_ = false  % Don't open dialogs. Use defaults. For testing and debugging
+    drag = false
+    drag_pt = []
   end
 
   properties (SetAccess=private)
@@ -852,7 +851,6 @@ classdef Labeler < handle
   properties (Dependent)
     currFrame
     currTarget
-    silent
   end
 
   properties (Transient)
@@ -13580,15 +13578,7 @@ classdef Labeler < handle
       end
     end  % function
     
-    function result = get.silent(obj)        
-      result = obj.silent_ ;
-    end  % function
-    
-    function set.silent(obj, newValue)        
-      obj.silent_ = newValue ;
-    end  % function
-    
-    function result = get.progressMeter(obj) 
+    function result = get.progressMeter(obj)
       result = obj.progressMeter_ ;
     end
 

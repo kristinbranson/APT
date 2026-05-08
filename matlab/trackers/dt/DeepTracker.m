@@ -923,7 +923,7 @@ classdef DeepTracker < LabelTracker
       % Check if user is ok with their tracking results being deleted, if there are
       % any.
       if obj.isTrkFiles() ,
-        if ~obj.lObj.silent
+        if ~obj.lObj.isInBatchMode
           res = obj.lObj.questionUser_( ...
             ['Tracking results exist for previous deep trackers. ' ...
              'When training stops, these will be deleted. Continue training?'], ...
@@ -2025,7 +2025,7 @@ classdef DeepTracker < LabelTracker
       obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;  % make sure up-to-date
       isCurr = obj.checkTrackingResultsCurrent_();
       if willLoad && ~isCurr,
-        if ~obj.lObj.silent
+        if ~obj.lObj.isInBatchMode
           res = obj.lObj.questionUser_( ...
             'Tracking results exist for previous deep trackers. Delete these or retrack these frames?', ...
             'Previous tracking results exist', ...
@@ -3983,7 +3983,7 @@ classdef DeepTracker < LabelTracker
       
       % Get a few things out out of obj
       modelChainID0 = obj.trnName ;
-      skip_dlgs = obj.lObj.silent ;
+      skip_dlgs = obj.lObj.isInBatchMode ;
 
       % Do the work
       tfDoProceed = true ;

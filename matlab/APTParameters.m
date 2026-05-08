@@ -606,7 +606,7 @@ classdef APTParameters
     function [tPrm,canceled,do_update] = ...
         autosetparamsGUI(tPrm, lobj, mainFigurePosition)
       
-      silent = lobj.silent ;
+      silent = lobj.isInBatchMode ;
       
       if lobj.maIsMA && lobj.trackerIsTwoStage  && ~lobj.trackerIsObjDet
           % Using head-tail for the first stage

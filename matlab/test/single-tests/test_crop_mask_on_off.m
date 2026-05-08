@@ -59,7 +59,7 @@ function test_crop_mask_on_off_helper(doCrop, doMask)
   labeler.trackSetTrainingParams(training_params);
 
   % Want labeler to do its thing quietly
-  labeler.silent = true;
+  labeler.isInBatchMode = true;
 
   % Train!
   labeler.train();      

@@ -16,8 +16,7 @@ classdef LabelerProjectTester < handle
         % replace_path is useful when running on Windows, where paths to movies may
         % differ from what they are on Linux.
       [obj.labeler, obj.controller] = StartAPT() ;
-      % Set the labeler to silent mode for batch operation
-      obj.labeler.silent = true ;
+      % Put the labeler in batch mode so prompts use defaults
       obj.labeler.isInBatchMode = true ;
       % Load the named project
       obj.labeler.projLoad(project_file_path, 'replace_path', replace_path) ;

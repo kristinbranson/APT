@@ -2894,7 +2894,7 @@ classdef LabelerController < handle
 
     function cbkTrackerTrainEnd(obj)
       labeler = obj.labeler_ ;
-      if ~labeler.silent ,
+      if ~labeler.isInBatchMode ,
         obj.raiseTrainingEndedDialog_() ;
       end
       obj.update() ;
@@ -2906,7 +2906,7 @@ classdef LabelerController < handle
 
     function cbkTrackerEnd(obj)
       labeler = obj.labeler_ ;
-      if ~labeler.silent ,
+      if ~labeler.isInBatchMode ,
         obj.raiseTrackingEndedDialog_() ;
       end
       obj.update() ;
@@ -7029,7 +7029,7 @@ classdef LabelerController < handle
       % Check for a GPU, and check the GPU memory against an estimate of the
       % required GPU memory.
       lObj = obj.labeler_;
-      silent = myparse(varargin,'silent',false) || lObj.silent;
+      silent = myparse(varargin,'silent',false) || lObj.isInBatchMode;
       dotrain = true;
       sPrm = lObj.trackGetTrainingParams();
       [is_ma,is2stage,is_ma_net] = ParameterVisualizationMemory.getStage(lObj,'');
