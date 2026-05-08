@@ -7226,9 +7226,9 @@ classdef LabelerController < handle
       end
     end
 
-    function toTrack = mIdx2TrackList_(obj,mIdx)
-      % make a toTrack struct from selected movies in the project amenable to
-      % TrackBatchGUI
+    function toTrack = mIdx2TrackList_(obj, mIdx)
+      % Make a toTrack struct from selected movies in the project, suitable for
+      % use with TrackBatchGUI
       lObj = obj.labeler_;
 
       if nargin < 2 || isempty(mIdx),
@@ -7485,7 +7485,7 @@ classdef LabelerController < handle
       sMacro = lObj.baseTrkFileMacros();
       trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname,sMacro,x),...
         movfiles,'uni',0);
-      [tfok,trkfiles] = LabelerController.checkTrkFileNamesExport_(trkfiles,'noUI',noUI);
+      [tfok,trkfiles] = checkTrkFileNamesForExport(trkfiles,'noUI',noUI);
     end  % function
 
     function hFgs = labelOverlayMontage_(obj,varargin)
@@ -7903,56 +7903,6 @@ classdef LabelerController < handle
       sz = hLns(1).MarkerSize;
       sz = max(sz+dSz,1);
       [hLns.MarkerSize] = deal(sz);
-    end  % function
-
-  end  % methods
-
-  methods (Static)
-
-    function [tfok,trkfiles] = checkTrkFileNamesExport_(trkfiles,varargin)
-      % Check/confirm trkfile names for export. If any trkfiles exist, ask
-      % whether overwriting is ok; alternatively trkfiles may be
-      % modified/uniqueified using datetimestamps.
-      %
-      % trkfiles (input): cellstr of proposed trkfile names (full paths).
-      % Can be an array.
-      %
-      % tfok: if true, trkfiles (output) is valid, and user has said it is
-      % ok to write to those files even if it is an overwrite.
-      % trkfiles (output): cellstr, same size as trkfiles. .trk filenames
-      % that are okay to write/overwrite to. Will match input if possible.
-
-      noUI = myparse(varargin,...
-        'noUI',false);
-
-      tfexist = cellfun(@(x)exist(x,'file')>0,trkfiles(:));
-      tfok = true;
-      if any(tfexist)
-        iExist = find(tfexist,1);
-        queststr = sprintf('One or more .trk files already exist, eg: %s.',trkfiles{iExist});
-        if noUI
-          btn = 'Add datetime to filenames';
-          warningNoTrace('Labeler:trkFileNamesForExport',...
-            'One or more .trk files already exist. Adding datetime to trk filenames.');
-        else
-          btn = questdlg(queststr,'Files exist','Overwrite','Add datetime to filenames',...
-            'Cancel','Add datetime to filenames');
-        end
-        if isempty(btn)
-          btn = 'Cancel';
-        end
-        switch btn
-          case 'Overwrite'
-            % none; use trkfiles as-is
-          case 'Add datetime to filenames'
-            nowstr = datestr(now,'yyyymmddTHHMMSS');
-            [trkP,trkF] = cellfun(@fileparts,trkfiles,'uni',0);
-            trkfiles = cellfun(@(x,y)fullfile(x,[y '_' nowstr '.trk']),trkP,trkF,'uni',0);
-          otherwise
-            tfok = false;
-            trkfiles = [];
-        end
-      end
     end  % function
 
   end  % methods
