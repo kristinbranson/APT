@@ -4,7 +4,7 @@ classdef MovieManagerModel < handle
   % MMC open/close cycles, and so batch code can mutate it without
   % a controller present.
 
-  properties
+  properties (Access=private)
     showPathEnds_ = true
       % logical scalar.  When true, the main table's Movie/Trx
       % columns truncate from the start (showing the file-name end);

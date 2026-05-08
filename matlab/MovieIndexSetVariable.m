@@ -53,7 +53,7 @@ mIdx = lObj.currMovIdx;
 end
 
 function mIdx = lclSelMovieGetMovieIndexHook(lObj)
-mIdx = lObj.movieManagerModel.moviesSelected;
+mIdx = lObj.moviesSelected;
 end
 
 function mIdx = lclAllNonGTMoviesGetMovieIndexHook(lObj)

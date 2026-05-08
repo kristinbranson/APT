@@ -476,6 +476,7 @@ classdef Labeler < handle
     nmovies
     nmoviesGT
     nmoviesGTaware
+    moviesSelected  % [nSel] read-only shim onto movieManagerModel.moviesSelected
     doesNeedSave
   end
   
@@ -14012,6 +14013,13 @@ classdef Labeler < handle
 
     function result = get.movieManagerModel(obj)
       result = obj.movieManagerModel_ ;
+    end
+
+    function v = get.moviesSelected(obj)
+      % Read-only shim onto movieManagerModel.moviesSelected.  No setter:
+      % callers wanting to mutate selection should go through the model
+      % directly, since selection is a MovieManager-view concern.
+      v = obj.movieManagerModel_.moviesSelected ;
     end
 
     function result = get.viewConfig(obj)
