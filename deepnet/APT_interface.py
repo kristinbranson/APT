@@ -1764,8 +1764,9 @@ def setup_ma(conf):
         logging.warning(f'Crop sz computed in front-end {conf.multi_crop_im_sz} does not match crop size computed locally {max_sz}. Using back end computed size')
 
     logging.info(f'--- Using crops of size {max_sz} for multi-animal training.  ---')
-    y_sz = min(fr_sz[0],max_sz)
-    x_sz = min(fr_sz[1],max_sz)
+    y_sz = int(min( np.ceil(fr_sz[0]/32)*32,max_sz))
+    x_sz = int(min( np.ceil(fr_sz[1]/32)*32,max_sz))
+
     conf.imsz = (y_sz,x_sz)
 
 

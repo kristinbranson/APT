@@ -131,7 +131,7 @@ function autoparams = compute_auto_params(lobj)
   else
     crop_radius = nanmax(l_span_pc);
   end
-  crop_radius = ceil(crop_radius/16)*16;
+  crop_radius = ceil(crop_radius/32)*32;
 
   autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
   if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
@@ -231,7 +231,8 @@ function autoparams = compute_auto_params(lobj)
       % If we are cropping the images then use animal trange.
       crop_sz = lobj.trackParams.ROOT.MultiAnimal.multi_crop_im_sz;
       trange_crop = crop_sz/10;
-      trange_top = min(trange_pair,trange_crop);
+      trange_top = trange_crop;
+      % trange_top = min(trange_pair,trange_crop);
     else
       trange_top = trange_frame;
     end

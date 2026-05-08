@@ -2,7 +2,7 @@ function hdlg = JRCBackEndSettingsDialog(obj)
 
 lObj = obj.labeler_;
 
-nrows = 5 + 2;
+nrows = 6 + 2;
 h = 30;
 W = 500;
 H = h*(nrows+1);
@@ -23,7 +23,7 @@ nbuttons = 3;
 ycurr = H-3*h/2;
 
 res = struct;
-fns = {'jrcnslots','jrcnslotstrack','jrcAdditionalBsubArgs','jrcgpuqueue','singularity_image_path'};
+fns = {'jrcnslots','jrcnslotstrack','jrcJobDuration','jrcAdditionalBsubArgs','jrcgpuqueue','singularity_image_path'};
 for i = 1:numel(fns),
   res.(fns{i})= lObj.get_backend_property(fns{i});
 end
@@ -58,6 +58,21 @@ hs.jrcnslotstrack = uicontrol('Parent',hdlg,...
   'Position',[xborder+wquest+xsep,ycurr,wans,h*(1-yseprel)],...
   'String',num2str(res.jrcnslotstrack),...
   'Callback',@(src,evt) ValidateSetNSlots(src,evt,'jrcnslotstrack')...
+  );
+
+ycurr = ycurr - h;
+
+uicontrol('Parent',hdlg,...
+  'Style','text',...
+  'Position',[xborder,ycurr,wquest,h*(1-yseprel)],...
+  'String','Job duration (minutes):',...
+  'HorizontalAlignment','right');
+
+hs.jrcJobDuration = uicontrol('Parent',hdlg,...
+  'Style','edit',...
+  'Position',[xborder+wquest+xsep,ycurr,wans,h*(1-yseprel)],...
+  'String',num2str(res.jrcJobDuration),...
+  'Callback',@(src,evt) ValidateSetJobDuration(src,evt)...
   );
 
 ycurr = ycurr - h;
@@ -152,6 +167,16 @@ centerOnParentFigure(hdlg,obj.mainFigure_);
       res.(fn) = val;
     end
 
+  end
+
+  function ValidateSetJobDuration(src,evt)
+    val = str2double(src.String);
+    if isnan(val) || val <= 0
+      src.String = num2str(res.jrcJobDuration);
+      warndlg('Job duration must be a number greater than 0 (minutes)','Bad value','modal');
+    else
+      res.jrcJobDuration = val;
+    end
   end
 
   function ValidateSetBsubArgs(src,evt)

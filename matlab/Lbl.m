@@ -130,8 +130,10 @@ classdef Lbl
       end
       if isfield(s,'movieInfoAll'),
         for ivw=1:size(mia,2)
-          j.MovieInfo(ivw).NumRows = max([mia(:,ivw).NumRows]);
-          j.MovieInfo(ivw).NumCols = max([mia(:,ivw).NumCols]);
+          nr = max([mia(:,ivw).NumRows]);
+          nc = max([mia(:,ivw).NumCols]);
+          j.MovieInfo(ivw).NumRows = ceil(nr/32)*32;
+          j.MovieInfo(ivw).NumCols = ceil(nc/32)*32;
         end
         %j.MovieInfo = mia(1,:);
       end

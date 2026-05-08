@@ -52,6 +52,7 @@ classdef DLBackEndClass < handle
     default_jrcgpuqueue = 'gpu_a100'
     default_jrcnslots_train = 4
     default_jrcnslots_track = 4
+    default_jrcJobDuration = 2880  % in minutes; 2880 = 48 hours
 
     default_conda_env = 'apt-20250626-tf215-pytorch21-hopper'
     DEFAULT_SINGULARITY_IMAGE_PATH = apt.MetaPath('/groups/branson/bransonlab/apt/sif/apt-20250626-tf215-pytorch21-hopper.sif', 'wsl', 'universal')
@@ -89,10 +90,11 @@ classdef DLBackEndClass < handle
 
     gpuids = []  % for now used by docker/conda
     
-    jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
-    jrcgpuqueue 
-    jrcnslots 
+    jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'
+    jrcgpuqueue
+    jrcnslots
     jrcnslotstrack
+    jrcJobDuration  % job wall-clock time limit in minutes, passed as -W to bsub
 
     % condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
 
@@ -176,7 +178,10 @@ classdef DLBackEndClass < handle
       end
       if isempty(obj.jrcnslotstrack) ,
         obj.jrcnslotstrack = DLBackEndClass.default_jrcnslots_track ;
-      end      
+      end
+      if isempty(obj.jrcJobDuration) ,
+        obj.jrcJobDuration = DLBackEndClass.default_jrcJobDuration ;
+      end
 
       % Just populate this now, whether or not we end up using it      
       obj.awsec2 = AWSec2() ;
@@ -259,10 +264,19 @@ classdef DLBackEndClass < handle
         % all is well
       else
         error('APT:invalidValue', 'Invalid value for the JRC addition bsub arguments');
-      end        
+      end
       % Actually set the value
       obj.jrcAdditionalBsubArgs = new_value ;
-    end    
+    end
+
+    function set.jrcJobDuration(obj, new_value)
+      if isnumeric(new_value) && isscalar(new_value) && new_value > 0 ,
+        % all is well
+      else
+        error('APT:invalidValue', 'Job duration must be a positive number (minutes)');
+      end
+      obj.jrcJobDuration = new_value ;
+    end
 
     % function set.condaEnv(obj, new_value)
     %   % Check for crazy values
