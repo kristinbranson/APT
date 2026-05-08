@@ -2155,7 +2155,7 @@ classdef LabelerController < handle
           if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
             obj.movieManagerController_.setVisible(true);
           else
-            obj.movieManagerController_ = MovieManagerController(obj, obj.labeler_);
+            obj.movieManagerController_ = MovieManagerController(obj, obj.labeler_, obj.labeler_.movieManagerModel);
           end
         end  
       end
@@ -5083,7 +5083,7 @@ classdef LabelerController < handle
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
         obj.movieManagerController_.setVisible(true) ;
       else
-        obj.movieManagerController_ = MovieManagerController(obj, obj.labeler_) ;
+        obj.movieManagerController_ = MovieManagerController(obj, obj.labeler_, obj.labeler_.movieManagerModel) ;
       end
     end  % function
 

@@ -4,6 +4,7 @@ classdef MovieManagerController < handle
     hFig % scalar handle to MovieManager fig
 
     labeler % scalar labeler Obj
+    mmm_  % scalar MovieManagerModel ref; weak by convention (Labeler owns it)
     listeners % cell array of listener objs
 
     tblMain  % the main table
@@ -36,14 +37,16 @@ classdef MovieManagerController < handle
     % 3. MMC Tables can set current movie in Labeler based on user action
     % 4. MMC buttons can add/rm labeler movies
 
-    function obj = MovieManagerController(labelerController, labeler)
+    function obj = MovieManagerController(labelerController, labeler, mmm)
       % Construct the MMC: build the UI and wire up Labeler listeners.
       assert(isa(labelerController, 'LabelerController'));
       assert(isa(labeler, 'Labeler'));
+      assert(isa(mmm, 'MovieManagerModel'));
       obj.parent_ = labelerController;
       lObj = labeler;
       %obj.hFig = MovieManager(obj);
       obj.labeler = lObj;
+      obj.mmm_ = mmm;
       
       obj.hFig = uifigure('Units','pixels', ...
                           'Position',[951 1400 733 436], ...
@@ -77,7 +80,7 @@ classdef MovieManagerController < handle
       % Path-display toggle group (first cell of glButtons).  The buttongroup
       % positions its child togglebuttons absolutely; updateToggleButtonPositions_
       % re-computes those on figure resize.
-      mmModel = lObj.movieManagerModel ;
+      mmModel = obj.mmm_ ;
       obj.bgPath_ = uibuttongroup(obj.glButtons,...
         'BackgroundColor',[0.94 0.94 0.94],...
         'BorderType','none',...
@@ -194,7 +197,7 @@ classdef MovieManagerController < handle
       % The selected column is pure view state (not in the model), so we
       % refresh the Change Path enablement directly --- no didSet*
       % notification will drive it for us.
-      obj.labeler.movieManagerModel.moviesSelected = obj.getSelectedMovies_() ;
+      obj.mmm_.moviesSelected = obj.getSelectedMovies_() ;
       obj.updateChangePathButtonEnablement_() ;
     end
 
@@ -382,7 +385,7 @@ classdef MovieManagerController < handle
     function updateTableSelection_(obj)
       % Sync tblMain.Selection to movieManagerModel.moviesSelected, preserving
       % each row's currently-selected column where possible.
-      selectedMovies = obj.labeler.movieManagerModel.moviesSelected ;
+      selectedMovies = obj.mmm_.moviesSelected ;
       if isempty(selectedMovies) || isempty(obj.tblMain.Data)
         obj.tblMain.Selection = zeros(0,2) ;
       else
@@ -408,7 +411,7 @@ classdef MovieManagerController < handle
       % Sync per-view detail pane (obj.tblView and obj.labelSet) to
       % movieManagerModel.moviesSelected.
       lObj = obj.labeler ;
-      rows = lObj.movieManagerModel.moviesSelected ;
+      rows = obj.mmm_.moviesSelected ;
       isMultiView = lObj.nview > 1 ;
       if isMultiView && numel(rows) == 1 && obj.isLabelerOutOfInitAndHasProject_()
         movieSetData = lObj.movieFilesAllGTaware(rows,:)' ;
@@ -445,7 +448,7 @@ classdef MovieManagerController < handle
 
       % Cache untruncated values on the model so resize/toggle can
       % re-truncate without re-querying.
-      lObj.movieManagerModel.setOriginalNames(movNames, trxNames, movsHaveLbls) ;
+      obj.mmm_.setOriginalNames(movNames, trxNames, movsHaveLbls) ;
       obj.updateTruncatedTableData_() ;
       obj.updateMovieFileExistenceStyles_() ;
     end
@@ -454,7 +457,7 @@ classdef MovieManagerController < handle
       % Build the ColumnName/ColumnWidth args for tblMain based on the
       % current Labeler/model state.
       lObj = obj.labeler ;
-      mmModel = lObj.movieManagerModel ;
+      mmModel = obj.mmm_ ;
       isMultiView = (lObj.nview > 1) ;
       movieColumnHeader = fif(isMultiView, 'Movieset', 'Movie') ;
       trxNames = mmModel.originalTrxNames ;
@@ -472,7 +475,7 @@ classdef MovieManagerController < handle
       % Render obj.tblMain by reading cached originals from the model and
       % applying path truncation per model.showPathEnds.  Safe to call on
       % resize, on toggle change, and from updateMovieData_.
-      mmModel = obj.labeler.movieManagerModel ;
+      mmModel = obj.mmm_ ;
       movNames = mmModel.originalMovNames ;
       trxNames = mmModel.originalTrxNames ;
       movsHaveLbls = mmModel.originalMovsHaveLbls ;
@@ -677,7 +680,7 @@ classdef MovieManagerController < handle
           return
         end
         iView = sel(1, 1) ;
-        mvSel = obj.labeler.movieManagerModel.moviesSelected ;
+        mvSel = obj.mmm_.moviesSelected ;
         if numel(mvSel) ~= 1
           errMsg = 'Select exactly one movieset first.' ;
           return
@@ -711,7 +714,7 @@ classdef MovieManagerController < handle
     function truncatedData = truncateMovieSetPaths_(obj, movieSetData)
       % Truncate paths in the multiview detail table per the model's
       % showPathEnds setting; pass through unchanged if showing starts.
-      if isempty(movieSetData) || ~obj.labeler.movieManagerModel.showPathEnds
+      if isempty(movieSetData) || ~obj.mmm_.showPathEnds
         truncatedData = movieSetData ;
         return
       end
@@ -736,7 +739,7 @@ classdef MovieManagerController < handle
 
     function figureResizeCallback_(obj, ~, ~)
       % Re-truncate table data and reposition toggle buttons on resize.
-      mmModel = obj.labeler.movieManagerModel ;
+      mmModel = obj.mmm_ ;
       if ~isempty(mmModel.originalMovNames)
         obj.updateTruncatedTableData_() ;
       end
@@ -766,7 +769,7 @@ classdef MovieManagerController < handle
       % Actuation: user toggled the path-display button group.  Mutate
       % the model; the model's didSetShowPathEnds event drives the redraw.
       newShowEnds = strcmp(evt.NewValue.Tag, 'togglebutton_path_ends') ;
-      obj.labeler.movieManagerModel.showPathEnds = newShowEnds ;
+      obj.mmm_.showPathEnds = newShowEnds ;
     end  % function
 
     function didSetShowPathEnds_(obj)
