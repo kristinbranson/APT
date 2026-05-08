@@ -17,7 +17,10 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
 
     hPred; % [npts] plot handles for tracking results, current
                % frame. hPred(ipt) shows landmark ipt across all
-               % targets, primary or otherwise
+               % targets, primary or otherwise.  Used for the points
+               % that are not estimated-occluded.
+    hPredOcc; % [npts] parallel to hPred, but for the
+              % estimated-occluded subset of points.  See updatePreds.
     hPredTxt; % [nPts] handle vec, text labels for hPred
               % currently showing only for primary
 
@@ -62,7 +65,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
         deleteValidGraphicsHandles(obj.hPred);
         obj.hPred = [];
       end
-      if ~isstruct(obj.hPredOcc) % guard against serialized TVs which have PV structs in .hPred
+      if ~isstruct(obj.hPredOcc)  % guard against serialized TVs which have PV structs in .hPred
         deleteValidGraphicsHandles(obj.hPredOcc);
         obj.hPredOcc = [];
       end
@@ -122,9 +125,9 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
           'Tag',sprintf('%s_PrdRedTxt_%d',pfix,ipt));
       end
       obj.hPred = hTmp;
-      set(obj.hPred,'marker',obj.mrkrReg);
+      set(obj.hPred,'marker',obj.tvm_.mrkrReg);
       obj.hPredOcc = hTmpOcc;
-      set(obj.hPredOcc,'marker',obj.mrkrOcc);
+      set(obj.hPredOcc,'marker',obj.tvm_.mrkrOcc);
       obj.hPredTxt = hTxt;
 
       nvw = lObj.nview ;
@@ -279,6 +282,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       if ~isempty(obj.hPred)
         onoffViz = onIff(~tvm.tfHideViz);
         set(obj.hPred,'Visible',onoffViz);
+        set(obj.hPredOcc,'Visible',onoffViz);
         onoffTxt = onIff(~tvm.tfHideViz && ~tvm.tfHideTxt);
         set(obj.hPredTxt,'Visible',onoffTxt);
         obj.updatePreds();
@@ -293,7 +297,8 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
     end
 
     function updatePreds(obj)
-      % set obj.hPred .XData, .YData appropriately
+      % Set XData/YData on obj.hPred and obj.hPredOcc appropriately,
+      % splitting points by per-target occlusion (.tvm_.occCurr).
 
       tvm = obj.tvm_ ;
       if tvm.tfHideViz
@@ -301,22 +306,38 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       end
 
       xy = tvm.xyCurr ;
+      tfeo = tvm.occCurr ;
       if tvm.tfShowOnlyPrimary
         tf = tvm.iTgtPrimary == tvm.xyCurrITgts ;
         xy = xy(:,:,tf);
+        if ~isempty(tfeo)
+          tfeo = tfeo(:,tf) ;
+        end
       end
 
       h = obj.hPred;
+      h_occ = obj.hPredOcc;
 
       if isempty(xy)
         set(h,'XData',nan,'YData',nan);
         set(h_occ,'XData',nan,'YData',nan);
       else
         npt = obj.nPts;
+        ntgt = size(xy,3);
         for ipt=1:npt
-          xdata = xy(ipt,1,:);
-          ydata = xy(ipt,2,:);
-          set(h(ipt),'XData',xdata(:),'YData',ydata(:));
+          if ~isempty(tfeo)
+            occpts = tfeo(ipt,:);
+            regpts = ~tfeo(ipt,:);
+          else
+            occpts = false(1,ntgt);
+            regpts = true(1,ntgt);
+          end
+          xdata_reg = xy(ipt,1,regpts);
+          ydata_reg = xy(ipt,2,regpts);
+          set(h(ipt),'XData',xdata_reg(:),'YData',ydata_reg(:));
+          xdata_occ = xy(ipt,1,occpts);
+          ydata_occ = xy(ipt,2,occpts);
+          set(h_occ(ipt),'XData',xdata_occ(:),'YData',ydata_occ(:));
         end
       end
     end
@@ -359,7 +380,6 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       tvm = obj.tvm_ ;
       if nargin < 3
         [npts,~,ntgts] = size(xy);
-      if nargin < 3
         tfeo = false(npts,ntgts);
       end
       if nargin < 4
@@ -407,6 +427,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       if isstruct(pvargs)
         pvargs = TrackingVisualizerMTFast.convertLabelerMarkerPVs(pvargs);
         arrayfun(@(x)set(x,pvargs),obj.hPred);
+        arrayfun(@(x)set(x,pvargs),obj.hPredOcc);
         obj.tvm_.mrkrReg = pvargs.Marker ;
       else
         assert(false);
