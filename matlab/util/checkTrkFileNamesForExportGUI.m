@@ -20,17 +20,17 @@ function [tfok, trkfiles] = checkTrkFileNamesForExportGUI(trkfiles, varargin)
     iExist = find(tfexist, 1) ;
     queststr = sprintf('One or more .trk files already exist, eg: %s.', trkfiles{iExist}) ;
     if noUI
-      btn = 'Add datetime to filenames' ;
+      response = 'Add datetime to filenames' ;
       warningNoTrace('Labeler:trkFileNamesForExport', ...
                      'One or more .trk files already exist. Adding datetime to trk filenames.') ;
     else
-      btn = questdlg(queststr, 'Files exist', 'Overwrite', 'Add datetime to filenames', ...
+      response = questdlg(queststr, 'Files exist', 'Overwrite', 'Add datetime to filenames', ...
                      'Cancel', 'Add datetime to filenames') ;
     end
-    if isempty(btn)
-      btn = 'Cancel' ;
+    if isempty(response)
+      response = 'Cancel' ;
     end
-    switch btn
+    switch response
       case 'Overwrite'
         % none; use trkfiles as-is
       case 'Add datetime to filenames'
