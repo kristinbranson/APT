@@ -300,7 +300,7 @@ classdef LabelerController < handle
       oc = onCleanup(@()(obj.deleteSpashScreenFigureIfItExists_())) ;
 
       % % Create the labeler, tell it there will be a GUI attached
-      % labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode,  'isInAwsDebugMode', isInAwsDebugMode) ;  
+      % labeler = Labeler('isInInteractiveMode', true, 'isInDebugMode', isInDebugMode,  'isInAwsDebugMode', isInAwsDebugMode) ;
 
       % Bring the splash screen to the foreground
       figure(obj.splashScreenFigure_);

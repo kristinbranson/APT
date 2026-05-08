@@ -21,7 +21,7 @@ end
                   'isInAwsDebugMode',false) ;
 
 % Create the labeler, tell it there will be a GUI attached
-labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode,  'isInAwsDebugMode', isInAwsDebugMode) ;  
+labeler = Labeler('isInInteractiveMode', true, 'isInDebugMode', isInDebugMode,  'isInAwsDebugMode', isInAwsDebugMode) ;
 
 % Create the LabelerController
 labelerController = LabelerController(labeler, args{:}) ;

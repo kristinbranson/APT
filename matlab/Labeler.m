@@ -281,7 +281,6 @@ classdef Labeler < handle
     
     projVerbose = 0  % transient, unmanaged
     
-    isgui = false  % whether there is a GUI
     isInDebugMode = false  % whether the Labeler is in debug mode.  Controls e.g. whether the Debug menu is shown.
     isInAwsDebugMode = false  % whether the Labeler is in AWS debug mode.  Controls e.g. whether AWS is shutdown at exit.
     unTarLoc = ''  % location that project has most recently been untarred to
@@ -292,9 +291,18 @@ classdef Labeler < handle
     currentTrackerIndexInTrackersAll_
   end
 
+  properties (Access=private)
+    isInInteractiveMode_ = false  % whether the Labeler is in interactive mode (vs. batch)
+  end
+
+  properties (Dependent)
+    isInInteractiveMode    % scalar logical, whether the Labeler is in interactive mode (vs. batch)
+    isInBatchMode          % scalar logical, whether the Labeler is in batch mode (vs. interactive); inverse of isInInteractiveMode
+  end
+
   properties (Dependent)
     hasProject             % scalar logical
-    projectfile            % Full path to current project 
+    projectfile            % Full path to current project
     projectroot            % Parent dir of projectfile, if it exists
     bgTrnIsRunning         % True iff background training is running
     bgTrkIsRunning         % True iff background tracking is running
@@ -859,35 +867,41 @@ classdef Labeler < handle
   methods 
     function obj = Labeler(varargin)
       obj.rc = RC();
-      [isgui, isInDebugMode, isInAwsDebugMode] = ...
+      [isInInteractiveModeRaw, isInBatchModeRaw, isInDebugMode, isInAwsDebugMode] = ...
         myparse_nocheck(varargin, ...
-                        'isgui', false, ...
+                        'isInInteractiveMode', [], ...
+                        'isInBatchMode', [], ...
                         'isInDebugMode', false, ...
                         'isInAwsDebugMode', false) ;
-      obj.isgui = isgui ;
       obj.isInDebugMode = isInDebugMode ;
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter(obj) ;
       obj.infoTimelineModel_ = InfoTimelineModel(obj.hasTrx);
       obj.movieManagerModel_ = MovieManagerModel() ;
       obj.uncertainFramesModel_ = UncertainFramesModel(obj) ;
-      % if ~isgui ,
-      %   % If a GUI is attached, this is done by the controller, after it has
-      %   % registered itself with the Labeler.
-      %   % If no GUI attached, we do it ourselves.
-      %   obj.handleCreationTimeAdditionalArguments_(varargin{:}) ;
-      % end
-    end
-
-    % function handleCreationTimeAdditionalArguments_(obj, varargin)
-    %   [projfile, replace_path] = ...
-    %     myparse_nocheck(varargin, ...
-    %                     'projfile',[], ...
-    %                     'replace_path',{'',''}) ;
-    %   if projfile ,
-    %     obj.projLoad(projfile, 'replace_path', replace_path) ;
-    %   end      
-    % end
+      % Set obj.isInInteractiveMode_ based on isInInteractiveModeRaw and
+      % isInBatchModeRaw, treating an empty as "look at the other one" and
+      % complaining if they are both nonempty and disagree.
+      if isempty(isInInteractiveModeRaw)
+        if isempty(isInBatchModeRaw)
+          isInInteractiveMode = false ;
+        else
+          isInInteractiveMode = ~isInBatchModeRaw ;
+        end
+      else
+        if isempty(isInBatchModeRaw)
+          isInInteractiveMode = isInInteractiveModeRaw ;
+        else
+          if isequal(isInInteractiveModeRaw, ~isInBatchModeRaw)
+            % They agree
+            isInInteractiveMode = isInInteractiveModeRaw ;
+          else
+            error('isInInteractiveMode and isInBatchMode optional arguments are in conflict---generally only one or the other should be passed')
+          end
+        end
+      end
+      obj.isInInteractiveMode_ = isInInteractiveMode ;
+    end  % function
 
     function delete(obj)
       if ~isempty(obj.projTempDir) 
@@ -1460,6 +1474,40 @@ classdef Labeler < handle
     function v = get.targetZoomRadiusDefault(obj)
       v = obj.projPrefs.Trx.ZoomFactorDefault;
     end
+
+    function v = get.isInInteractiveMode(obj)
+      % Getter for isInInteractiveMode.
+      v = obj.isInInteractiveMode_ ;
+    end  % function
+
+    function set.isInInteractiveMode(obj, newValue)
+      % Setter for isInInteractiveMode.
+      isValid = islogical(newValue) && isscalar(newValue) ;
+      if isValid
+        obj.isInInteractiveMode_ = newValue ;
+      end
+      if ~isValid
+        error('APT:invalidPropertyValue', ...
+              'isInInteractiveMode must be a scalar logical') ;
+      end
+    end  % function
+
+    function v = get.isInBatchMode(obj)
+      % Getter for isInBatchMode.
+      v = ~obj.isInInteractiveMode_ ;
+    end  % function
+
+    function set.isInBatchMode(obj, newValue)
+      % Setter for isInBatchMode.
+      isValid = islogical(newValue) && isscalar(newValue) ;
+      if isValid
+        obj.isInInteractiveMode_ = ~newValue ;
+      end
+      if ~isValid
+        error('APT:invalidPropertyValue', ...
+              'isInBatchMode must be a scalar logical') ;
+      end
+    end  % function
 
     function v = get.hasProject(obj)
       % AL 20160710: debateable utility/correctness, but if you try to do
@@ -2060,7 +2108,7 @@ classdef Labeler < handle
       % maybe useful to clear/reinit and shouldn't hurt
       obj.trxCache = containers.Map();
       
-      if obj.isgui,
+      if obj.isInInteractiveMode
         obj.rcSaveProp('lastProjectConfig',obj.getCurrentConfig());
       end
       
@@ -4278,7 +4326,7 @@ classdef Labeler < handle
       oc = onCleanup(@()(obj.popBusyStatus()));
       
       [offerMacroization,gt] = myparse(varargin,...
-        'offerMacroization',~isdeployed&&obj.isgui, ... % If true, look for matches with existing macros
+        'offerMacroization',~isdeployed&&obj.isInInteractiveMode, ... % If true, look for matches with existing macros
         'gt',obj.gtIsGTMode ... % If true, add moviefile/trxfile to GT lists. Could be a separate method, but there is a lot of shared code/logic.
         );
       istrxfile = exist('trxfile','var');
@@ -14154,7 +14202,7 @@ classdef Labeler < handle
       if ~exist('title', 'var') ,
         title = 'Message' ;
       end
-      if obj.isgui
+      if obj.isInInteractiveMode
         obj.dialogLaunchPad_ = struct('text', text, 'title', title) ;
         obj.notify_('requestMessageBox') ;
       else
@@ -14164,8 +14212,8 @@ classdef Labeler < handle
 
     function answer = questionUser_(obj, text, title, buttons, default)
       % Ask the user a question via the controller, or return the default if
-      % no controller is present.
-      if obj.isgui
+      % no controller is present, or if obj is in batch mode.
+      if obj.isInInteractiveMode
         obj.dialogLaunchPad_ = struct('text', text, ...
                                       'title', title, ...
                                       'buttons', {buttons}, ...
