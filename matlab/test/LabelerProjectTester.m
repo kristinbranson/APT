@@ -241,7 +241,7 @@ classdef LabelerProjectTester < handle
       end
 
       % Run ID tracking
-      labeler.trackBatch('toTrack', toTrack) ;
+      labeler.trackBatch(toTrack) ;
 
       % Block, waiting for tracking to finish
       pause(2) ;
