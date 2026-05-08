@@ -214,6 +214,7 @@ classdef LabelerProjectTester < handle
                 'id_niters', 200) ;
 
       labeler = obj.labeler ;
+      controller = obj.controller ;
 
       % Set the ID training iterations
       sPrm = labeler.trackGetTrackParams();
@@ -225,7 +226,7 @@ classdef LabelerProjectTester < handle
 
       % Build toTrack struct for the current movie only
       mIdx = labeler.currMovIdx ;
-      toTrack = labeler.mIdx2TrackListGUI(mIdx) ;
+      toTrack = controller.mIdx2TrackList_(mIdx) ;
       toTrack.link_type = 'identity' ;
       toTrack.id_maintain_identity = true ;
       toTrack.docontinue = false ;
@@ -234,7 +235,7 @@ classdef LabelerProjectTester < handle
 
       % Use a distinct trkfile rawname to avoid conflicting with any existing trkfiles
       rawname = [labeler.defaultExportTrkRawname() '_id_test'] ;
-      [tfok, trkfiles] = labeler.getTrkFileNamesForExportGUI(toTrack.movfiles, rawname, 'noUI', true) ;
+      [tfok, trkfiles] = controller.getTrkFileNamesForExport_(toTrack.movfiles, rawname, 'noUI', true) ;
       if tfok ,
         toTrack.trkfiles = trkfiles ;
       end
