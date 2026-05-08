@@ -5195,7 +5195,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      obj.labelExportTrk_(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
+      labeler.labelExportTrk_(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
     end
 
     function menu_file_export_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5961,7 +5961,7 @@ classdef LabelerController < handle
     function menu_track_all_movies_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       mIdx = labeler.allMovIdx();
-      toTrackIn = obj.mIdx2TrackList(mIdx);
+      toTrackIn = labeler.mIdx2TrackList(mIdx);
       tbobj = TrackBatchGUI(labeler, obj.mainFigure_, 'toTrack', toTrackIn);
       % [toTrackOut] = tbobj.run();
       tbobj.run();
@@ -5974,7 +5974,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       mainFigure = obj.mainFigure_ ;
       mIdx = labeler.currMovIdx;
-      toTrackIn = obj.mIdx2TrackList(mIdx);
+      toTrackIn = labeler.mIdx2TrackList(mIdx);
       mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
       [toTrackOut,dostore] = mdobj.run();
       if ~dostore,
@@ -5996,7 +5996,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      obj.trackExportResults_(iMov,'rawtrkname',rawtrkname);
+      labeler.trackExportResults_(iMov,'rawtrkname',rawtrkname);
     end
 
 
@@ -7107,88 +7107,6 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function trackExportResults_(obj,iMovs,varargin)
-      % Export tracking results to trk files.
-      %
-      % iMovs: [nMov] vector of movie(set)s whose tracking should be
-      % exported. iMovs are indexed into .movieFilesAllGTAware
-      %
-      % If a movie has no current tracking results, a warning is thrown and
-      % no trkfile is created.
-      lObj = obj.labeler_;
-
-      [trkfiles,rawtrkname] = myparse(varargin,...
-        'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
-        'rawtrkname',[]... % string, basename to apply over iMovs to generate trkfiles
-        );
-
-      tObj = lObj.tracker;
-      if isempty(tObj)
-        error('Labeler:track','No tracker set.');
-      end
-
-      [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname_(iMovs,trkfiles,...
-        rawtrkname,{});
-      if ~tfok
-        return;
-      end
-
-      movfiles = lObj.movieFilesAllFullGTaware(iMovs,:);
-      gt = lObj.gtIsGTMode;
-      mIdx = MovieIndex(iMovs,gt);
-      [trkFileObjs,tfHasRes] = tObj.getTrackingResults(mIdx);
-      nMov = numel(iMovs);
-      nVw = lObj.nview;
-      szassert(trkFileObjs,[nMov nVw]);
-      szassert(trkfiles,[nMov nVw]);
-      for iMv=1:nMov
-        if tfHasRes(iMv)
-          for iVw=1:nVw
-            tfo = trkFileObjs{iMv,iVw};
-            tfile = trkfiles{iMv,iVw};
-            tfo.save(tfile);
-            fprintf('Saved %s.\n',trkfiles{iMv,iVw});
-          end
-        else
-          if lObj.isMultiView
-            moviestr = 'movieset';
-          else
-            moviestr = 'movie';
-          end
-          warningNoTrace('Labeler:noRes','No current tracking results for %s %s.',...
-            moviestr,MFTable.formMultiMovieID(movfiles(iMv,:)));
-        end
-      end
-    end  % function
-
-    function labelExportTrk_(obj,iMovs,varargin)
-      % Export label data to trk files.
-      %
-      % iMov: optional, indices into (rows of) .movieFilesAllGTaware to
-      %   export. Defaults to 1:obj.nmoviesGTaware.
-      lObj = obj.labeler_;
-
-      lObj.pushBusyStatus('Exporting tracking results...');
-      oc = onCleanup(@()(lObj.popBusyStatus()));
-
-      [trkfiles,rawtrkname] = myparse(varargin,...
-        'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
-        'rawtrkname',[]... % string, rawname to apply over iMovs to generate trkfiles
-        );
-
-      if ~exist('iMovs','var')
-        iMovs = 1:lObj.nmoviesGTaware;
-      end
-
-      [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname_(iMovs,trkfiles,...
-        rawtrkname,{'labels' true});
-      if ~tfok
-        return;
-      end
-
-      lObj.labelExportTrkGeneric(iMovs,trkfiles);
-    end
-
     function viewCalSetProjWide_(obj,crObj,varargin)
       % Set project-wide calibration object.
       %
@@ -7225,52 +7143,6 @@ classdef LabelerController < handle
         warning('Labeler:viewCal','Current labeling mode does not utilize view calibration.');
       end
     end
-
-    function toTrack = mIdx2TrackList(obj, mIdx)
-      % Make a toTrack struct from selected movies in the project, suitable for
-      % use with TrackBatchGUI
-      lObj = obj.labeler_;
-
-      if nargin < 2 || isempty(mIdx),
-        mIdx = lObj.allMovIdx();
-      end
-      nget = numel(mIdx);
-      toTrack = struct(...
-        'movfiles', {cell(nget,lObj.nview)},...
-        'trkfiles', {cell(nget,lObj.nview)},...
-        'detectfiles', {cell(nget,lObj.nview)},...
-        'trxfiles', {cell(nget,lObj.nview)},...
-        'cropRois', {cell(nget,lObj.nview)},...
-        'calibrationfiles', {cell(nget,1)},... %        'calibrationdata',{cell(nget,1)},...
-        'targets', {cell(nget,1)},...
-        'f0s', {cell(nget,1)},...
-        'f1s', {cell(nget,1)});
-      toTrack.movfiles = lObj.getMovieFilesAllFullMovIdx(mIdx);
-      toTrack.trxfiles = lObj.getTrxFilesAllFullMovIdx(mIdx);
-      for i = 1:nget,
-        if lObj.cropProjHasCrops,
-          [tfhascrop,roi] = lObj.cropGetCropMovieIdx(mIdx(i));
-          if tfhascrop,
-            for j = 1:lObj.nview,
-              toTrack.cropRois{i,j} = roi(j,:);
-            end
-          end
-        end
-        vcd = lObj.getViewCalibrationDataMovIdx(mIdx(i));
-        if ~isempty(vcd),
-          toTrack.calibrationfiles{i} = vcd.sourceFile;
-        end
-      end
-
-      rawname = lObj.defaultExportTrkRawname();
-      [tfok,trkfiles] = lObj.getTrkFileNamesForExport(toTrack.movfiles,rawname);
-      if tfok,
-        toTrack.trkfiles = trkfiles;
-        if lObj.maIsMA
-          toTrack.detectfiles = strrep(trkfiles,'.trk','_tracklet.trk');
-        end
-      end
-    end  % function
 
     function tfSetOccurred = setFrameProtected(obj, frm, varargin)
       % Protected set against frm being out-of-bounds for current target.
@@ -7417,58 +7289,6 @@ classdef LabelerController < handle
         ME.rethrow();
       end
       vr.close();
-    end  % function
-
-    function [tfok,trkfiles] = resolveTrkfilesVsTrkRawname_(obj,iMovs,...
-        trkfiles,rawname,defaultRawNameArgs)
-      % Ugly, input arg helper. Methods that export a trkfile must have
-      % either i) the trkfilenames directly supplied, ii) a raw/base
-      % trkname supplied, or iii) nothing supplied.
-      %
-      % If i), check the sizes.
-      % If ii), generate the trkfilenames from the rawname.
-      % If iii), first generate the rawname, then generate the
-      % trkfilenames.
-      %
-      % Cases ii) and iii), are also UI/prompt if there are
-      % existing/conflicting filenames already on disk.
-      %
-      % defaultRawNameArgs: cell of PVs to pass to defaultExportTrkRawname.
-      %
-      % iMovs: vector, indices into .movieFilesAllGTAware
-      %
-      % tfok: scalar, if true then trkfiles is usable; if false then user
-      %   canceled or similar.
-      % trkfiles: [iMovs] cellstr, trkfiles (full paths) to export to
-      %
-      % This call can also throw.
-
-      lObj = obj.labeler_;
-
-      movfiles = lObj.movieFilesAllFullGTaware(iMovs,:);
-      if isempty(trkfiles)
-        if isempty(rawname)
-          rawname = lObj.defaultExportTrkRawname(defaultRawNameArgs{:});
-        end
-        [tfok,trkfiles] = lObj.getTrkFileNamesForExport(movfiles,rawname);
-        if ~tfok
-          return;
-        end
-      end
-
-      nMov = numel(iMovs);
-      nView = lObj.nview;
-      if size(trkfiles,1)~=nMov
-        error('Labeler:argSize',...
-          'Numbers of movies and trkfiles supplied must be equal.');
-      end
-      if size(trkfiles,2)~=nView
-        error('Labeler:argSize',...
-          'Number of columns in trkfiles (%d) must equal number of views in project (%d).',...
-          size(trkfiles,2),nView);
-      end
-
-      tfok = true;
     end  % function
 
     function hFgs = labelOverlayMontage_(obj,varargin)

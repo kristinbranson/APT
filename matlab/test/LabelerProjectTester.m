@@ -214,7 +214,6 @@ classdef LabelerProjectTester < handle
                 'id_niters', 200) ;
 
       labeler = obj.labeler ;
-      controller = obj.controller ;
 
       % Set the ID training iterations
       sPrm = labeler.trackGetTrackParams();
@@ -226,7 +225,7 @@ classdef LabelerProjectTester < handle
 
       % Build toTrack struct for the current movie only
       mIdx = labeler.currMovIdx ;
-      toTrack = controller.mIdx2TrackList(mIdx) ;
+      toTrack = labeler.mIdx2TrackList(mIdx) ;
       toTrack.link_type = 'identity' ;
       toTrack.id_maintain_identity = true ;
       toTrack.docontinue = false ;
