@@ -1277,10 +1277,17 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None):
         movs2link.append(movs[n])
         out_files2link.append(out_files[n])
     linked_trks_simple = simple_linking(trks2link_simple,conf)
-    if conf.link_id_motion_link:
+
+    if conf.link_id_method == 'graph_cut':
+      link_method = 'graph_cut'
+    elif conf.link_id_method == 'motion':
       link_method = 'motion'
     else:
       link_method = 'no_motion'
+    # if conf.link_id_motion_link:
+    #   link_method = 'motion'
+    # else:
+    #   link_method = 'no_motion'
     linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link, id_wts=id_wts, link_method=link_method)
 
     out_trks= []
@@ -1730,7 +1737,7 @@ def pred_ims_par(trx, trk_info, mov_file, conf, net, rescale,debug):
           preds = cur_pred
         else:
           preds = np.concatenate((preds,cur_pred),axis=0)
-      tgt_id.extend([d[1] for d in dat])
+        tgt_id.extend([d[1] for d in dat])
       if debug:
         debug_data.extend(dat)
 
@@ -1906,12 +1913,16 @@ class tracklet_pred_dataset(Dataset):
 
 def tracklet_pred(ims, net, conf, rescale):
     dataset = tracklet_pred_dataset(ims, conf, rescale, False)
-    # num_workers=0 since images are already in memory -- GPU is the bottleneck, not data loading.
-    # Workers would just add spawn overhead (and were previously unsafe with fork+CUDA).
-    loader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
+    batch_size = min(8, len(ims))
+    loader = DataLoader(dataset, batch_size=batch_size, pin_memory=True, num_workers=0)
     preds = []
     for pims in loader:
-      preds.append(do_pred(pims[0],net))
+      # pims: [B, n_ex, C, H, W] — flatten tracklets into one batch for the GPU
+      B, n_ex, C, H, W = pims.shape
+      out = do_pred(pims.view(B * n_ex, C, H, W), net)  # [B*n_ex, emb_dim]
+      out = out.reshape(B, n_ex, -1)                    # [B, n_ex, emb_dim]
+      for b in range(B):
+        preds.append(out[b])
 
     del loader
     preds = np.array(preds)
@@ -2313,7 +2324,7 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
   return net, loss_history
 
 from tqdm import tqdm
-def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug):
+def get_id_embeddings(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug):
 
 
   net.eval()
@@ -2338,10 +2349,14 @@ def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_sele
     logging.info(f'Sampling images from {len(sel_tgt)} tracklets to assign identity to the tracklets ...')
     start_t = time.time()
 
-    preds,tgt_id, debug_data = pred_ims_par(trx,trk_info,mov_file,conf,net, rescale,ndx)
+    cur_preds, tgt_id, debug_data = pred_ims_par(trx,trk_info,mov_file,conf,net, rescale,False)
 
     logging.info(f'Predicting on images took {round((time.time()-start_t)/60)} minutes')
 
+    if preds is None:
+      preds = cur_preds
+    else:
+      preds = np.concatenate([preds, cur_preds], axis=0)
 
     # pred_map keeps track of which sample belongs to which trajectory
     pred_map.extend([[ndx,tt] for tt in tgt_id])
@@ -2350,8 +2365,7 @@ def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_sele
 
   pred_map = np.array(pred_map)
 
-  dist_mat = get_id_dist_mat(preds)
-  return dist_mat, pred_map,all_data, preds
+  return preds, pred_map,all_data
 
 def get_id_dist_xmat_old(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug):
 
@@ -3064,19 +3078,36 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   :return: list of id linked tracklets
   '''
 
+  preds, pred_map, all_data  = get_id_embeddings(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
 
-  dist_mat, pred_map, all_data,preds  = get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
-  close_thresh, far_thresh = get_id_thresh(dist_mat,pred_map,all_data)
+  # dist_mat, pred_map, all_data,preds  = get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
+  if link_method == 'graph_cut':
+    # For graph_cut we only need the diagonal (intra-tracklet distances) to compute close_thresh.
+    # The full N×N dist_mat is not needed here; get_id_cluster_centers computes only the
+    # relevant submatrix internally.
+    dist_diag = get_id_dist_mat_diag(preds)
+    thresh_perc = 5
+    close_thresh = max(0.5, np.percentile(dist_diag, 100 - thresh_perc))
+    far_thresh = None
+  else:
+    dist_mat = get_id_dist_mat(preds)
+    close_thresh, far_thresh = get_id_thresh(dist_mat, pred_map, all_data)
 
   if out_file is not None:
-    var_list = ['dist_mat','pred_map','all_data','close_thresh','far_thresh','conf','preds']
+    if link_method == 'graph_cut':
+      var_list = ['preds', 'pred_map', 'all_data', 'conf', 'mov_files', 'dist_diag', 'close_thresh']
+    else:
+      var_list = ['preds', 'pred_map', 'all_data', 'conf', 'mov_files', 'dist_mat', 'close_thresh', 'far_thresh']
     out_dict = {}
     for vv in var_list:
       exec(f'out_dict["{vv}"]={vv}')
     import pickle
-    with open(out_file,'wb') as out_file_:
+    with open(out_file, 'wb') as out_file_:
+      pickle.dump(out_dict, out_file_)
 
-      pickle.dump(out_dict,out_file_)
+
+
+  logging.info('Stitching tracklets based on identity ...')
 
   maxcosts_all = []
   params = get_default_params(conf)
@@ -3091,18 +3122,11 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
     link_costs_arr.append(link_costs)
 
   # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
-  logging.info('Stitching tracklets based on identity ...')
-  if debug and out_file is not None:
-    dict_keys = ['dist_mat', 'pred_map', 'all_data', 'close_thresh', 'far_thresh', 'conf', 'preds']
-    A = dict()
-    for kk in dict_keys:
-      exec(f"A['{kk}']={kk}")
-
-    with open(out_file.replace('.p','_iddata.pkl'),'wb') as f:
-      pickle.dump(A, f)
-
   pred_map_orig = pred_map.copy()
-  if link_method=='motion':
+  if link_method == 'graph_cut':
+    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all)
+    debug_data = []
+  elif link_method=='motion':
     groups,pred_map,debug_data = group_tracklets_motion_all(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select)
   else:
     groups,pred_map,debug_data = group_tracklets(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select,preds)
@@ -3613,7 +3637,7 @@ def get_link_costs(tt, st, en, params):
 def embed_dist(xx,yy):
   ddm = np.zeros([xx.shape[0],yy.shape[0]])
   for ix in range(xx.shape[0]):
-   ddm[ix, :] = np.median(np.linalg.norm(xx[ix:ix+1] - yy, axis=-1), axis=(1, 2))
+   ddm[ix, :] = np.mean(np.linalg.norm(xx[ix:ix+1] - yy, axis=-1), axis=(1, 2))
   return ddm
 
 def get_id_dist_mat(embed):
@@ -3624,6 +3648,17 @@ def get_id_dist_mat(embed):
     processed_dist = merge_parallel(processed_dist)
     processed_dist =np.array(processed_dist)
   return processed_dist
+
+def get_id_dist_mat_diag(embed):
+  """Compute only the diagonal of the embedding distance matrix (intra-tracklet distances).
+  dist_mat[i,i] is the mean pairwise distance between different crops of tracklet i,
+  measuring internal consistency. This is O(N*n_ex^2) vs O(N^2*n_ex^2) for the full matrix."""
+  n_tr = embed.shape[0]
+  diag = np.zeros(n_tr)
+  for i in range(n_tr):
+    e = embed[i]  # (n_ex, embed_dim)
+    diag[i] = np.mean(np.linalg.norm(e[:, None, :] - e[None, :, :], axis=-1))
+  return diag
 
 def get_largest_cluster(dist_mat, thresh, t_info, pred_map,preds):
   distArray = ssd.squareform( dist_mat)
@@ -3735,6 +3770,578 @@ def cluster_tracklets_id(embed, pred_map, t_info, min_len):
 
   return groups
 
+# Graph cut based linking of tracklets
+
+def get_motion_links(trk, maxcosts,max_ov=50,max_fr_gap=200):
+  ss, ee = trk.get_startendframes()
+  n_trk = trk.ntargets
+
+  m_mat = np.ones([n_trk, n_trk]) * np.inf  # motion cost matrix
+  tlen = ee - ss + 1
+  d_norm = maxcosts[0] * 2
+
+  for n in tqdm(range(n_trk)):
+    n_close = 0
+    sel_m = np.where(~((ss > (ee[n] + max_fr_gap)) | (ee < (ss[n] - max_fr_gap))))[0]
+    sel_m = sel_m[sel_m > n]
+    for m in sel_m:
+
+      overlap = max(0, min(ee[n] + 1, ee[m] + 1) - max(ss[n], ss[m]))
+      ov_val = max(overlap / min(tlen[n], tlen[m]), overlap / max_ov)
+      n_close = n_close + 1
+      if overlap == 0:
+
+        if ee[n] < ss[m]:
+          before_ndx = n
+          after_ndx = m
+          frame_gap = ss[m] - ee[n]
+        else:
+          before_ndx = m
+          after_ndx = n
+          frame_gap = ss[n] - ee[m]
+
+
+        if tlen[before_ndx] > 1 and tlen[after_ndx] > 1:
+          pred_before = fwd_motion_estimate(trk.pTrk.data[before_ndx][..., -2:], frame_gap/2)
+          pred_after =  bwd_motion_estimate(trk.pTrk.data[after_ndx][..., :2], frame_gap/2)
+        elif tlen[before_ndx] > 1:
+          pred_before = fwd_motion_estimate(trk.pTrk.data[before_ndx][..., -2:],frame_gap)
+          pred_after = trk.pTrk.data[after_ndx][..., 0]
+        elif tlen[after_ndx] > 1:
+          pred_before = trk.pTrk.data[before_ndx][..., 0]
+          pred_after = bwd_motion_estimate(trk.pTrk.data[after_ndx][..., :2],frame_gap)
+        else:
+          pred_before = trk.pTrk.data[before_ndx][..., -1]
+          pred_after = trk.pTrk.data[after_ndx][..., 0]
+
+        spatial_dist = np.linalg.norm(pred_before - pred_after, axis=-1).mean()
+        m_mat[n, m] = spatial_dist / d_norm / frame_gap + (frame_gap - 1) / 5.0
+        m_mat[m, n] = m_mat[n, m]
+
+      elif ov_val < 0.1:
+        # if overlapping, see how close the poses are in the overlapping region. If they are close then give them a low cost to be linked.
+        ov_frames = np.arange(max(ss[n], ss[m]), min(ee[n], ee[m]))
+        last_pos_n = trk.pTrk.data[n][..., ov_frames - ss[n]]
+        first_pos_m = trk.pTrk.data[m][..., ov_frames - ss[m]]
+        spatial_dists = np.linalg.norm(last_pos_n - first_pos_m, axis=-1).mean()
+        m_mat[n, m] = spatial_dists / d_norm + ov_val * 10.0
+        m_mat[m, n] = m_mat[n, m]
+      else:
+        m_mat[n, m] = np.inf
+        m_mat[m, n] = np.inf
+
+  # Refine costs using intermediate tracklets: for each pair (a, b), find all tracklets c
+  # that lie strictly between a and b temporally. Add 0.5 * min_c(orig_cost(a,c) + orig_cost(c,b))
+  # to the original cost. Always uses original (unrefined) costs to avoid propagating updates.
+  m_mat_orig = m_mat.copy()
+  m_mat_refined = m_mat_orig.copy()
+
+  for a in range(n_trk):
+    sel_m = np.where(~((ss > (ee[a] + max_fr_gap)) | (ee < (ss[a] - max_fr_gap))))[0]
+    sel_m = sel_m[sel_m > a]
+    for b in sel_m:
+      if not (ee[a] < ss[b]):
+        continue
+      # tracklets strictly between a and b in time
+      between = np.where((ss > ee[a]) & (ee < ss[b]))[0]
+      if len(between) == 0:
+        continue
+      path_costs = m_mat_orig[a, between] + m_mat_orig[between, b]
+      min_path = np.nansum(path_costs)
+      if np.isfinite(min_path):
+        m_mat_refined[a, b] += 0.25 * min_path
+        m_mat_refined[b, a] = m_mat_refined[a, b]
+
+  m_mat = m_mat_refined
+
+  # for each tracklet find the top 10 best matches that come after it and top 10 best matches that come before it. We will only consider these matches for graph cut. This is because considering all matches is very computationally expensive and most of the matches are very bad anyway.
+
+  # We also only consider symmetric links. If tracklet A has tracklet B in its top matches and tracklet B has tracklet A in its top matches then we consider the link between A and B for graph cut. This is because if the link is not symmetric then it is likely a bad link and we want to avoid it.
+
+  all_fm = [] # all forward matches
+  all_rm = [] # all reverse matches
+  for n in range(m_mat.shape[0]):
+    cur_ord = np.argsort(m_mat[n, :])
+    f_sel_ndx = ss[cur_ord] > ee[n]
+    f_sel = cur_ord[f_sel_ndx][:10]
+    all_fm.append([f_sel, m_mat[n, f_sel]])
+
+    r_sel_ndx = ee[cur_ord] < ss[n]
+    r_sel = cur_ord[r_sel_ndx][:10]
+    all_rm.append([r_sel, m_mat[n, r_sel]])
+
+  match_rm = [[] for _ in range(m_mat.shape[0])]
+  match_fm = [[] for _ in range(m_mat.shape[0])]
+
+  for n in range(m_mat.shape[0]):
+    for mf, mfv in zip(*all_fm[n]):
+      if n in all_rm[mf][0]:
+        match_fm[n].append((mf, mfv))
+
+    for mr, mrv in zip(*all_rm[n]):
+      if n in all_fm[mr][0]:
+        match_rm[n].append((mr, mrv))
+
+  for n in range(m_mat.shape[0]):
+    for ix, curm in enumerate(match_fm[n]):
+      mf, mfv = curm[:]
+      for jx, curr in enumerate(match_rm[mf]):
+        rf,  rfv = curr[:3]
+        if rf == n:
+          match_fm[n][ix] = (mf, mfv, ix - jx)
+          # we also keep track of how well the matches align in their order i.e, ix-jx. We don't want to link tracklets that are very good matches but are very misaligned in their order because that is likely a bad link.
+
+  return match_fm, match_rm, m_mat
+
+def fwd_motion_estimate(last_pos,frame_gap):
+  return last_pos[..., -1] + np.diff(last_pos, axis=-1)[..., 0] * frame_gap
+
+def bwd_motion_estimate(first_pos,frame_gap):
+    return first_pos[..., 0] - np.diff(first_pos, axis=-1)[..., 0] * frame_gap
+
+
+def k_way_graph_cut(unary_costs, pairwise_similarity, n_labels,init_labels=None,label_wt=None):
+    """
+    unary_costs: n x k matrix, cost of assigning node i to label k
+    pairwise_similarity: n x n matrix
+    n_labels: number of labels/segments
+    """
+
+    from gco import cut_general_graph
+
+    n = unary_costs.shape[0]
+
+    # Build edge list from similarity matrix
+    edges = []
+    edge_weights = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            if pairwise_similarity[i, j] != 0:
+                edges.append((i, j))
+                edge_weights.append(pairwise_similarity[i, j])
+
+    edges = np.array(edges, dtype=np.int32)
+    edge_weights = np.array(edge_weights, dtype=np.float64)
+
+    # Pairwise label cost (Potts model: 0 if same label, 1 if different)
+    # This gets multiplied by edge weights
+    if label_wt is None:
+        label_cost = (1 - np.eye(n_labels)).astype(np.float64)
+    else:
+        label_cost = label_wt
+
+    # Unary must be int32 for pygco, scale up
+    unary_int = (unary_costs * 1000).astype(np.int32)
+    edge_weights_int = (edge_weights * 1000).astype(np.int32)
+    label_cost_int = (label_cost * 1) #.astype(np.int32)  # Already 0/1
+
+    labels = cut_general_graph(
+        edges,
+        edge_weights,
+        unary_costs,
+        label_cost_int,
+        #down_weight_factor=10,
+        init_labels=init_labels,
+        algorithm='expansion' #'expansion'  # or 'swap'
+    )
+
+    return labels
+
+
+# Module-level state shared with worker processes via Pool initializer.
+_overlap_trk = None
+
+def _init_overlap_worker(trk):
+  global _overlap_trk
+  _overlap_trk = trk
+
+def _frame_overlaps(fr):
+  """Compute per-target max pairwise bbox overlap for one frame.
+  Returns (valid_indices, max_overlap_per_valid_target).
+  Designed to run in a Pool worker; uses _overlap_trk set by _init_overlap_worker."""
+  trk = _overlap_trk
+  curg = trk.getframe(fr)
+  valid = np.where(~np.all(np.isnan(curg[:, 0, 0, :]), axis=0))[0]
+  if len(valid) == 0:
+    return valid, np.zeros(0)
+
+  curg = curg[:, :, 0, valid]
+  x_min, y_min = np.nanmin(curg, axis=0)
+  x_max, y_max = np.nanmax(curg, axis=0)
+  x_len = x_max - x_min
+  y_len = y_max - y_min
+  x_min = x_min - x_len * 0.1
+  x_max = x_max + x_len * 0.1
+  y_min = y_min - y_len * 0.1
+  y_max = y_max + y_len * 0.1
+  bboxes = np.array([x_min, x_max, y_min, y_max]).T  # (n_valid, 4)
+
+  # Vectorized pairwise IoU using broadcasting — replaces the O(n^2) Python loop.
+  int_x_min = np.maximum(bboxes[:, 0:1], bboxes[:, 0])  # (n, n)
+  int_x_max = np.minimum(bboxes[:, 1:2], bboxes[:, 1])
+  int_y_min = np.maximum(bboxes[:, 2:3], bboxes[:, 2])
+  int_y_max = np.minimum(bboxes[:, 3:4], bboxes[:, 3])
+  int_area = np.maximum(0, int_x_max - int_x_min) * np.maximum(0, int_y_max - int_y_min)
+
+  areas = (bboxes[:, 1] - bboxes[:, 0]) * (bboxes[:, 3] - bboxes[:, 2])
+  min_area = np.minimum(areas[:, np.newaxis], areas[np.newaxis, :])  # (n, n)
+
+  overlaps_ = np.where(min_area > 0, int_area / min_area, 0.0)
+  np.fill_diagonal(overlaps_, 0.0)  # exclude self-overlap
+
+  return valid, overlaps_.max(axis=1)
+
+
+def get_overlap_value(trk, n_workers=None):
+  """Compute mean per-target pairwise bbox overlap across all frames.
+  n_workers: number of parallel processes (default: mp.cpu_count()).
+             Pass 1 to disable multiprocessing."""
+  if n_workers is None:
+    n_workers = mp.cpu_count()
+
+  ss, ee = trk.get_startendframes()
+  n_trk = trk.ntargets
+  frames = range(min(ss), max(ee))
+
+  overlaps = [[] for _ in range(n_trk)]
+
+  if n_workers == 1:
+    # Single-process path — avoids Pool overhead for small inputs.
+    global _overlap_trk
+    _overlap_trk = trk
+    for fr in frames:
+      valid, max_ov = _frame_overlaps(fr)
+      for i, tgt in enumerate(valid):
+        overlaps[tgt].append(max_ov[i])
+  else:
+    with mp.Pool(n_workers, initializer=_init_overlap_worker, initargs=(trk,)) as pool:
+      for valid, max_ov in pool.imap_unordered(_frame_overlaps, frames, chunksize=50):
+        for i, tgt in enumerate(valid):
+          overlaps[tgt].append(max_ov[i])
+
+  return np.array([np.mean(o) if o else np.nan for o in overlaps])
+
+def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh):
+  # compute the centers of the clusters of tracklets that we will use for graph cut. We want to find clusters of tracklets that are close in the embedding space and have low overlap and low occlusion. We will use these clusters to compute the unary component for graph-cut
+
+  tlen_sel = np.zeros(len(pred_map))
+  oa_sel = np.zeros(len(pred_map))
+  occ_sel = np.zeros(len(pred_map))
+
+  len_mov = []
+  for ndx, trk in enumerate(linked_trks):
+    ss, ee = trk.get_startendframes()
+    overlaps = get_overlap_value(trk)
+    len_mov.append(max(ee) - min(ss))
+    n_trk = trk.ntargets
+    tlen = ee - ss + 1
+
+    cur_pred_sel = pred_map[:, 0] == ndx
+
+    occ_counts = []
+    conf_counts = []
+    for tndx in range(trk.ntargets):
+      occ_frac = np.mean(trk.pTrkTag.data[tndx])
+      occ_counts.append(occ_frac)
+      conf_counts.append(np.mean(trk.pTrkConf.data[tndx]))
+
+    occ_counts = np.array(occ_counts)
+
+    tlen_sel[cur_pred_sel] = tlen[pred_map[cur_pred_sel, 1]]
+    oa_sel[cur_pred_sel] = overlaps[pred_map[cur_pred_sel, 1]]
+    occ_sel[cur_pred_sel] = occ_counts[pred_map[cur_pred_sel, 1]]
+
+
+  # Use the pre-computed diagonal (dist_diag) to filter tracklets, then compute the
+  # distance matrix only for the selected subset instead of the full N×N matrix.
+  t_sel = np.where((tlen_sel > 50) & (oa_sel < 0.4) & (occ_sel < 0.2) & (dist_diag < close_thresh))[0]
+
+  dist_mat_sub = get_id_dist_mat(preds[t_sel])
+  np.fill_diagonal(dist_mat_sub, 0)
+  distArray = ssd.squareform(dist_mat_sub)
+  Z = linkage(distArray, 'average')
+  # plt.figure(); dn = dendrogram(Z); xde = plt.xticks(fontsize=8)
+
+  F = fcluster(Z, t=1.0, criterion='distance')
+
+  g_sz = []
+  gr_occ = []
+  for rf in range(max(F)):
+    gs = np.where(F == (rf + 1))[0]
+    cur_sz = 0
+    cur_occ = 0
+    for gxx in gs:
+      cur_sz += tlen_sel[t_sel[gxx]]
+      cur_occ += occ_counts[pred_map[t_sel[gxx], 1]] * tlen_sel[t_sel[gxx]]
+    g_sz.append(cur_sz)
+    gr_occ.append(cur_occ / cur_sz)
+
+  g_sz = np.array(g_sz)
+
+  cluster_centers = []
+  sel_clus = []
+  for i in range(1, np.max(F) + 1):
+    if g_sz[i - 1] / sum(len_mov) < 0.05:
+      # small cluster, ignore
+      continue
+    cur_sel = t_sel[np.where(F == i)[0]]  # np.where(F==i)[0] #
+    curm = np.zeros(preds.shape[2])
+    tot_len = 0
+    for cc in cur_sel:
+      cur_m, cur_t = pred_map[cc, :]
+      frac_occ = np.mean(linked_trks[cur_m].pTrkTag.data[cur_t])
+      curm += preds[cc].mean(axis=0) * tlen_sel[cc] * frac_occ
+      tot_len += tlen_sel[cc] * frac_occ
+    curm /= tot_len
+    cluster_centers.append(curm)
+    sel_clus.append([i, np.where(F == i)[0]])
+
+  cluster_centers = np.array(cluster_centers)
+
+  return cluster_centers
+
+
+def get_graph_cut_unary(trk, pred_map, preds, cluster_centers, unary_wt, mov_ndx):
+  # compute the unary costs for graph cut. The unary cost for assigning a tracklet to a cluster is the average distance of the tracklet's embedding to the cluster center. We also add a constant cost for assigning a tracklet to the "outlier" cluster (cluster 0) to avoid assigning everything to the same cluster. The unary cost is also weighted by the fraction of frames in the tracklet that are occluded, so that tracklets that are mostly occluded are more likely to be assigned to the outlier cluster.
+
+  ss, ee = trk.get_startendframes()
+  n_trk = trk.ntargets
+
+  unary_vals = np.zeros((n_trk, len(cluster_centers) + 1))
+  base_unary = np.ones(len(cluster_centers) + 1) + 0.1 / unary_wt
+  base_unary[0] = 1.
+  for n in range(n_trk):
+    n_ndx = np.where(np.all(pred_map == [mov_ndx, n], axis=1))[0]
+    if n_ndx.size > 0:
+      n_ndx = n_ndx[0]
+      for cndx, center in enumerate(cluster_centers):
+        unary_vals[n, cndx + 1] = np.linalg.norm(preds[n_ndx][:, None] - center[None, None, :], axis=-1).mean()
+      unary_vals[n, 0] = 2.
+      occ_frac = np.mean(trk.pTrkTag.data[n])
+      unary_vals[n, :] = unary_vals[n, :] * (1 - occ_frac) + base_unary * occ_frac
+      # unary_vals_low[nndx,:] = unary_vals[nndx,:]*(1-occ_frac) + base_unary_low*occ_frac
+    else:
+      unary_vals[n, :] = base_unary.copy()
+
+  return unary_vals
+
+def get_graph_cut_pairwise(trk, match_fm):
+  n_trk = trk.ntargets
+  ss,ee = trk.get_startendframes()
+  tlen = ee - ss + 1
+  pairwise = np.zeros((n_trk, n_trk))
+  done_count = np.zeros(n_trk)
+  for n in range(n_trk):
+    count = 0
+    for curm in match_fm[n]:
+      if np.abs(curm[2]) > 4:
+        continue
+
+      if count >= 10:  # ideally this shouldn't happen
+        break
+      mndx = curm[0]
+      if done_count[mndx] >= 20:
+        continue
+      min_len = min(tlen[n], tlen[mndx])
+      len_div = min(1, min_len / 3.0)
+      m_val = curm[1] / len_div
+      pairwise[n, mndx] = max(0, 4 - m_val)
+      pairwise[mndx, n] = pairwise[n, mndx]
+      count += 1
+      done_count[mndx] += 1
+
+  return pairwise
+
+def get_graph_cut_group(trk, cluster_centers, pred_map, preds, mov_ndx,maxcosts):
+
+  n_iters = 5
+  unary_wt = 10
+
+  ss, ee = trk.get_startendframes()
+  tlen = ee - ss + 1
+  n_trk = trk.ntargets
+
+  unary_vals = get_graph_cut_unary(trk, pred_map, preds, cluster_centers, unary_wt, mov_ndx)
+
+  match_fm, match_rm, m_mat = get_motion_links(trk, maxcosts=maxcosts)
+  pairwise = get_graph_cut_pairwise(trk, match_fm)
+
+  init_labels = np.argmin(unary_vals, axis=1)
+  nclusters = cluster_centers.shape[0]
+
+  # vv = np.zeros((nclusters + 1, dist_centers.shape[1]))
+  # vv[1:, :] = dist_centers.copy()
+  # lbl_wt = np.linalg.norm(vv[:, None, :] - vv[None, :, :], axis=-1)
+  lbl_wt = None
+
+  all_labels = []
+  labels = k_way_graph_cut(unary_vals * unary_wt, pairwise, nclusters + 1,
+                               init_labels=init_labels, label_wt=lbl_wt)
+  all_labels.append(labels.copy())
+
+  count_neg = np.zeros(n_trk)
+  new_labels = labels.copy()
+  all_moves = []
+  for iter in range(n_iters):
+    # print(f"Iteration {iter}")
+    # print("Skiping cluster 0")
+
+    all_ov = []
+    moves = []
+
+    if iter > 5:
+      # special for i==0, where we try to move as many nodes as possible to other clusters
+      hh = np.where(labels == 0)[0]
+      hh = hh[np.argsort(tlen[hh])[::-1]]  # try to move longer tracklets first
+      for node_to_change in hh[:200]:
+        cluster_order = np.argsort(unary_vals[node_to_change, :])
+        for new_cl in cluster_order:
+          if new_cl == 0:
+            continue
+          hh_new = np.where(labels == new_cl)[0]
+          has_overlap = False
+          for curh in hh_new:
+            m = node_to_change
+            n = curh
+            overlap = max(0, min(ee[m] + 1, ee[n] + 1) - max(ss[m], ss[n]))
+            ov_val = overlap / tlen[m]
+            if overlap > 0.1:
+              has_overlap = True
+              break
+          if not has_overlap:
+            print(
+              f"Moving node {node_to_change} ({tlen[node_to_change]})from cluster {0} to {new_cl}")
+            new_labels[node_to_change] = new_cl
+            break
+
+    # if overlapping tracklets are in the same cluster, then move one of them to a different cluster. We will move the tracklet that has a higher unary cost for the current cluster, because that tracklet is more likely to belong to a different cluster. We will move it to the cluster that has the lowest unary cost for that tracklet and also has no overlap with it. We will only consider moving tracklets that have less than 20 negative pairwise edges, because if a tracklet has too many negative edges then it is likely a bad tracklet and we don't want to move it.
+    for i in range(1, nclusters + 1):
+      hh = np.where(labels == i)[0]
+      ovv = []
+      for curh1 in hh:
+        for curh2 in hh:
+          if curh1 <= curh2:
+            continue
+          m = curh1
+          n = curh2
+          # if m in pred_map_orig[:,1] and n in pred_map_orig[:,1]:
+          overlap = max(0, min(ee[m] + 1, ee[n] + 1) - max(ss[m], ss[n]))
+          ov_val = overlap / min(tlen[m], tlen[n])  # max(overlap/min(tlen[m],tlen[n]),overlap/max_ov)
+          if ov_val > 0.05 and pairwise[curh1, curh2] >= 0:
+            ovv.append((curh1, curh2, ov_val, min(tlen[m], tlen[n])))
+
+      topk = sorted(ovv, key=lambda x: x[3], reverse=True)
+      count = 0
+      for curh1, curh2, ovv, tl in topk:
+        if (i == 0) and (tlen[curh1] < 2 and tlen[curh2] < 2):
+          continue
+        if count > 20:
+          break
+        min_len = min(tlen[curh1], tlen[curh2])
+        # if 55 in [curh1,curh2]:
+        #     print(f"Removing pair with overlap {ovv} between {curh1} and {curh2}")
+        min_len1 = min(25.0, min_len)
+        pairwise[curh1, curh2] = -min(min_len1, ovv * min_len)
+        pairwise[curh2, curh1] = -min(min_len1, ovv * min_len)
+        count_neg[curh1] += 1
+        count_neg[curh2] += 1
+        count += 1
+
+        if np.mean(trk.pTrkTag.data[curh1]) - np.mean(trk.pTrkTag.data[curh2]) > 0.5:
+          node_to_change = curh1
+        elif np.mean(trk.pTrkTag.data[curh2]) - np.mean(trk.pTrkTag.data[curh1]) > 0.5:
+          node_to_change = curh2
+        else:
+          if unary_vals[curh1, i] < unary_vals[curh2, i]:
+            node_to_change = curh2
+          else:
+            node_to_change = curh1
+        # if i==0:
+        #     # for cluster 0, move the opposite tracklet
+        # node_to_change = curh1+curh2 - node_to_change
+
+        # move node_to_change to a cluster that has no overlap with it
+        cluster_order = np.argsort(unary_vals[node_to_change, :])
+        for new_cl in cluster_order:
+          if new_cl == i:
+            continue
+          hh_new = np.where(labels == new_cl)[0]
+          has_overlap = False
+          for curh in hh_new:
+            m = node_to_change
+            n = curh
+            overlap = max(0, min(ee[m] + 1, ee[n] + 1) - max(ss[m], ss[n]))
+            ov_val = overlap / tlen[m]
+            if overlap > 0.1:
+              has_overlap = True
+              break
+          if not has_overlap:
+            # print(
+            #   f"Moving node {node_to_change} ({tlen[node_to_change]})from cluster {i} to {new_cl} to avoid overlap between {curh1} and {curh2}")
+            new_labels[node_to_change] = new_cl
+            moves.append((node_to_change, i, new_cl))
+            break
+
+      all_ov.append(topk)
+      all_moves.append(moves)
+
+    labels = k_way_graph_cut(unary_vals * unary_wt, pairwise, nclusters + 1,
+                             init_labels=init_labels, label_wt=lbl_wt)
+    all_labels.append(labels.copy())
+
+  return labels
+
+
+def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all):
+
+    cluster_centers = get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh)
+    nclusters = cluster_centers.shape[0]
+
+    all_labels = []
+    groups = [[] for _ in range(nclusters)]
+
+    pred_map_out = []
+    for mov_ndx, trk in enumerate(linked_trks):
+      labels = get_graph_cut_group(trk, cluster_centers, pred_map, preds, mov_ndx, maxcosts_all[mov_ndx])
+      all_labels.append(labels.copy())
+
+      ss, ee = linked_trks[mov_ndx].get_startendframes()
+      tlen = ee - ss + 1
+      no_group = np.where(labels == 0)[0]
+      for i in range(1, nclusters + 1):
+        hh = np.where(labels == i)[0]
+        occ1 = np.zeros(max(ee) + 1)
+        ovv1 = np.zeros(max(ee) + 1)
+        for h in hh:
+          occ1[ss[h]:ee[h] + 1] += 1
+
+        hh = hh[np.argsort(tlen[hh])]  # sort by length, try to keep longer tracklets
+        keep = np.ones(len(hh), dtype=bool)
+
+        for ndxh, curh in enumerate(hh):
+          # select only one for overlapping tracklets
+          if np.all(occ1 <= 1):
+            break
+          m = curh
+          n = np.where(occ1[ss[m]:ee[m] + 1] > 1)[0]
+          if len(n) / tlen[m] > 0.05:
+            print(f"Overlap found in cluster {i} for tracklet {curh} with length {tlen[m]} and overlap {len(n)} frames")
+            occ1[ss[m]:ee[m] + 1][n] -= 1
+            keep[ndxh] = False
+          else:
+            pred_map_out.append([mov_ndx, curh])
+            groups[i-1].append(len(pred_map_out)-1)
+
+        for ndxh2 in range(ndxh, len(hh)):
+          pred_map_out.append([mov_ndx, hh[ndxh2]])
+          groups[i - 1].append(len(pred_map_out) - 1)
+
+        cur_no_group = [curh for curh, kk in zip(hh, keep) if not kk]
+        no_group = np.concatenate((no_group, cur_no_group))
+
+
+    pred_map_out = np.array(pred_map_out)
+    return groups, pred_map_out, all_labels, cluster_centers
 
 def test_assign_ids_data():
   """
@@ -4205,3 +4812,6 @@ if __name__ == '__main__':
   test_recognize_ids()
   # test_estimate_maxcost()
   # test_assign_ids()
+
+##
+
