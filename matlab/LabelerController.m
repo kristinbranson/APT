@@ -510,9 +510,9 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetDoShowLabels',@(s,e)(obj.updateLabelVisibilityAndShowLabelsMenuCheckmark())) ;
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetShowMaRoi',@(s,e)(obj.cbkShowMaRoiChanged(s,e)));
+        addlistener(labeler,'didSetShowMaRoi',@(s,e)(obj.cbkShowMaRoiChanged()));
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetShowMaRoiAux',@(s,e)(obj.cbkShowMaRoiAuxChanged(s,e)));
+        addlistener(labeler,'didSetShowMaRoiAux',@(s,e)(obj.cbkShowMaRoiAuxChanged()));
 
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateHudReadoutFields',@(s,e)(obj.updateHudReadoutFields())) ;
@@ -1032,6 +1032,11 @@ classdef LabelerController < handle
         obj.lblCoreController_.updateLabelCoords() ;
         obj.lblCoreController_.updateLabelVisibility() ;
         obj.lblCoreController_.updateState() ;
+        % Also sync ROI graphics and ROI button visibility to the current
+        % labeler.showMaRoi / labeler.showMaRoiAux.
+        obj.updateViewMenu() ;
+        obj.updateLabelCoreControllerShowPches_() ;
+        obj.updateRoiSetShowInLabelCoreController_() ;
       end
       obj.updateLabelMenu() ;
       obj.updatePrevAxesLabels() ;
@@ -1710,8 +1715,8 @@ classdef LabelerController < handle
         % Note that isMA implies isSingleView
       % nLabelPointsAdd = labeler.nLabelPointsAdd ;
       isInCropMode = labeler.cropIsCropMode ;
-      hasTracker = ~isempty(labeler.tracker);
-        % Note that hasTracker implies hasProject
+      % hasTracker = ~isempty(labeler.tracker);
+      %   % Note that hasTracker implies hasProject
         
       %
       % Update the enablement of the controls, depending on various aspects of the
@@ -3876,10 +3881,16 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function cbkShowMaRoiChanged(obj, src, evt)  %#ok<INUSD>
+    function cbkShowMaRoiChanged(obj)
       % Respond to showMaRoi changing.
-      labeler = obj.labeler_ ;
       obj.updateViewMenu() ;
+      obj.updateLabelCoreControllerShowPches_() ;
+    end  % function
+
+    function updateLabelCoreControllerShowPches_(obj)
+      % Update what I assume is whether or not to show the Pacific Coast Highway
+      % in the LabelCoreController.
+      labeler = obj.labeler_ ;
       if labeler.labelMode == LabelMode.MULTIANIMAL
         if ~isempty(obj.lblCoreController_)
           obj.lblCoreController_.tv_.setShowPches(labeler.showMaRoi) ;
@@ -3887,16 +3898,23 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function cbkShowMaRoiAuxChanged(obj, src, evt)  %#ok<INUSD>
+    function cbkShowMaRoiAuxChanged(obj)
+      % Respond to showMaRoiAux changing.
+      obj.updateViewMenu() ;
+      obj.updateRoiSetShowInLabelCoreController_() ;
+    end  % function
+
+    function updateRoiSetShowInLabelCoreController_(obj)
       % Respond to showMaRoiAux changing.
       labeler = obj.labeler_ ;
-      obj.updateViewMenu() ;
       if labeler.labelMode == LabelMode.MULTIANIMAL
         if ~isempty(obj.lblCoreController_)
           obj.lblCoreController_.roiSetShow(labeler.showMaRoiAux) ;
         end
       end
     end  % function
+
+
     
     function layoutMainFigure_(obj)
       % Set the positions of all main-figure controls based on the current figure size.

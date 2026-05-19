@@ -6353,10 +6353,6 @@ classdef Labeler < handle
 
       % Send the notification(s)
       obj.notify_('didInitLblCore') ;
-      % Re-fire the showMaRoi* events so the (newly-created) label core
-      % controller syncs its ROI graphics and button visibility.
-      obj.notify_('didSetShowMaRoi') ;
-      obj.notify_('didSetShowMaRoiAux') ;
     end  % function
     
     function labelingInitTemplate_(obj)
