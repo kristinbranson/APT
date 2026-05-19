@@ -1753,25 +1753,26 @@ classdef LabelerController < handle
       set(obj.popupmenu_prevmode,'Enable',onIff(hasProject));
       set(obj.pushbutton_freezetemplate,'Enable',onIff(hasProject));
       %set(obj.toolbar,'Visible',onIff(hasProject)) ;
-      
-      obj.pumTrack.Enable = onIff(hasTracker) ;
     end  % function
 
     function updateBigButtonBlock(obj)
       % Update the Enable and Visible properties of the big buttons
       % (Train, Track, Clear, Accept) and the tracker popup.
       labeler = obj.labeler_ ;
-      % hasProject = labeler.hasProject ;
-      hasMovie = labeler.hasMovie ;
+      hasMovie = labeler.hasMovie ;  % Note that .hasMovie implies .hasProject
       hasTracker = ~isempty(labeler.tracker) ;
-      isReady = labeler.isReady ;
-      isMALabelMode = ~isempty(labeler.labelMode) && (labeler.labelMode == LabelMode.MULTIANIMAL) ;
+      isPostInit = ~labeler.isinit ;
+      isInMALabelMode = ~isempty(labeler.labelMode) && (labeler.labelMode == LabelMode.MULTIANIMAL) ;
       isInCropMode = ~isempty(labeler.cropIsCropMode) && labeler.cropIsCropMode ;
-      set(obj.pbClear, 'Enable', hasMovie, 'Visible', ~isMALabelMode && ~isInCropMode) ;
-      set(obj.tbAccept, 'Enable', hasMovie, 'Visible', ~isMALabelMode && ~isInCropMode) ;
-      set(obj.pbTrain, 'Enable', hasTracker && isReady, 'Visible', ~isInCropMode) ;
-      set(obj.pbTrack, 'Enable', hasTracker && isReady, 'Visible', ~isInCropMode) ;
-      set(obj.pumTrack, 'Visible', ~isInCropMode) ;
+      % Only pbClear/tbAccept have a Visible toggle, because
+      % LabelCoreSeqMAController places ROI buttons directly on top of them.
+      % Crop mode does not actually overlap any of these controls, so it
+      % only disables, never hides.
+      set(obj.pbClear, 'Visible', ~isInMALabelMode, 'Enable', isPostInit &&hasMovie && ~isInCropMode && ~isInMALabelMode) ;
+      set(obj.tbAccept, 'Visible', ~isInMALabelMode, 'Enable', isPostInit &&hasMovie && ~isInCropMode && ~isInMALabelMode) ;
+      obj.pbTrain.Enable  = hasTracker && isPostInit && hasMovie && ~isInCropMode ;
+      obj.pbTrack.Enable  = hasTracker && isPostInit && hasMovie && ~isInCropMode ;
+      obj.pumTrack.Enable = hasTracker && isPostInit && hasMovie && ~isInCropMode ;
     end  % function
 
     function update_text_trackerinfo(obj)
