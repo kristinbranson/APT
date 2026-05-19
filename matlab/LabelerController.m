@@ -1760,9 +1760,9 @@ classdef LabelerController < handle
       hasMovie = labeler.hasMovie ;
       hasTracker = ~isempty(labeler.tracker) ;
       isReady = labeler.isReady ;
-      visibleIfNotMA = onIff(~labeler.maIsMA) ;
-      set(obj.pbClear, 'Enable', onIff(hasMovie), 'Visible', visibleIfNotMA) ;
-      set(obj.tbAccept, 'Enable', onIff(hasMovie), 'Visible', visibleIfNotMA) ;
+      isVisible = onIff(~labeler.maIsMA && ~labeler.cropIsCropMode) ;
+      set(obj.pbClear, 'Enable', onIff(hasMovie), 'Visible', isVisible) ;
+      set(obj.tbAccept, 'Enable', onIff(hasMovie), 'Visible', isVisible) ;
       obj.pbTrain.Enable = onIff(hasTracker && isReady) ;
       obj.pbTrack.Enable = onIff(hasTracker && isReady) ;
     end  % function
@@ -4089,8 +4089,6 @@ classdef LabelerController < handle
       end
 
       REGCONTROLS = {
-        'pbClear'
-        'tbAccept'
         'pbTrain'
         'pbTrack'
         'pumTrack'};
@@ -4103,6 +4101,10 @@ classdef LabelerController < handle
       set(obj.text_trackerinfo,'Visible',offIfIsInCropMode);
 
       cellfun(@(x)set(obj.(x),'Visible',offIfIsInCropMode),REGCONTROLS);
+
+      % pbClear and tbAccept visibility depends on both crop mode and MA mode,
+      % so defer to updateBigButtonBlock as the single source of truth.
+      obj.updateBigButtonBlock() ;
 
       obj.updateFileMenu() ;
       obj.cropUpdateCropHRects_() ;
