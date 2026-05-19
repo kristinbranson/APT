@@ -1768,11 +1768,11 @@ classdef LabelerController < handle
       % LabelCoreSeqMAController places ROI buttons directly on top of them.
       % Crop mode does not actually overlap any of these controls, so it
       % only disables, never hides.
-      set(obj.pbClear, 'Visible', ~isInMALabelMode, 'Enable', isPostInit &&hasMovie && ~isInCropMode && ~isInMALabelMode) ;
-      set(obj.tbAccept, 'Visible', ~isInMALabelMode, 'Enable', isPostInit &&hasMovie && ~isInCropMode && ~isInMALabelMode) ;
-      obj.pbTrain.Enable  = hasTracker && isPostInit && hasMovie && ~isInCropMode ;
-      obj.pbTrack.Enable  = hasTracker && isPostInit && hasMovie && ~isInCropMode ;
-      obj.pumTrack.Enable = hasTracker && isPostInit && hasMovie && ~isInCropMode ;
+      set(obj.pbClear, 'Visible', ~isInMALabelMode, 'Enable', onIff(isPostInit && hasMovie && ~isInCropMode && ~isInMALabelMode)) ;
+      set(obj.tbAccept, 'Visible', ~isInMALabelMode, 'Enable', onIff(isPostInit && hasMovie && ~isInCropMode && ~isInMALabelMode)) ;
+      obj.pbTrain.Enable  = onIff(hasTracker && isPostInit && hasMovie && ~isInCropMode) ;
+      obj.pbTrack.Enable  = onIff(hasTracker && isPostInit && hasMovie && ~isInCropMode) ;
+      obj.pumTrack.Enable = onIff(hasTracker && isPostInit && hasMovie && ~isInCropMode) ;
     end  % function
 
     function update_text_trackerinfo(obj)
