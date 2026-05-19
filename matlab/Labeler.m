@@ -6347,15 +6347,16 @@ classdef Labeler < handle
       end
       obj.labelMode_ = lblmode;
       
-      obj.setShowMaRoi(obj.showMaRoi);
-      obj.setShowMaRoiAux(obj.showMaRoiAux);
-      
       % Sometimes labelcore need this kick to get properly set up
       % Me no like this.  -- ALT, 2026-03-17
       obj.syncLabelsToCurrFrame_(true) ;
 
       % Send the notification(s)
       obj.notify_('didInitLblCore') ;
+      % Re-fire the showMaRoi* events so the (newly-created) label core
+      % controller syncs its ROI graphics and button visibility.
+      obj.notify_('didSetShowMaRoi') ;
+      obj.notify_('didSetShowMaRoiAux') ;
     end  % function
     
     function labelingInitTemplate_(obj)
