@@ -1035,6 +1035,10 @@ classdef LabelerController < handle
       end
       obj.updateLabelMenu() ;
       obj.updatePrevAxesLabels() ;
+      % pbClear/tbAccept visibility depends on whether the active label core
+      % is LabelCoreSeqMAController (which overlays ROI buttons on top of
+      % them), so re-sync after any label-core swap.
+      obj.updateBigButtonBlock() ;
     end
 
     function updateLabelVisibilityAndShowLabelsMenuCheckmark(obj)
@@ -1757,17 +1761,17 @@ classdef LabelerController < handle
       % Update the Enable and Visible properties of the big buttons
       % (Train, Track, Clear, Accept) and the tracker popup.
       labeler = obj.labeler_ ;
+      % hasProject = labeler.hasProject ;
       hasMovie = labeler.hasMovie ;
       hasTracker = ~isempty(labeler.tracker) ;
       isReady = labeler.isReady ;
-      isInCropMode = labeler.cropIsCropMode ;
-      trainTrackWidgetVisibility = onIff(~isInCropMode) ;
-      clearAndAcceptVisibility = onIff(~labeler.maIsMA && ~isInCropMode) ;
-      set(obj.pbClear, 'Enable', onIff(hasMovie), 'Visible', clearAndAcceptVisibility) ;
-      set(obj.tbAccept, 'Enable', onIff(hasMovie), 'Visible', clearAndAcceptVisibility) ;
-      set(obj.pbTrain, 'Enable', onIff(hasTracker && isReady), 'Visible', trainTrackWidgetVisibility) ;
-      set(obj.pbTrack, 'Enable', onIff(hasTracker && isReady), 'Visible', trainTrackWidgetVisibility) ;
-      set(obj.pumTrack, 'Visible', trainTrackWidgetVisibility) ;
+      isMALabelMode = ~isempty(labeler.labelMode) && (labeler.labelMode == LabelMode.MULTIANIMAL) ;
+      isInCropMode = ~isempty(labeler.cropIsCropMode) && labeler.cropIsCropMode ;
+      set(obj.pbClear, 'Enable', hasMovie, 'Visible', ~isMALabelMode && ~isInCropMode) ;
+      set(obj.tbAccept, 'Enable', hasMovie, 'Visible', ~isMALabelMode && ~isInCropMode) ;
+      set(obj.pbTrain, 'Enable', hasTracker && isReady, 'Visible', ~isInCropMode) ;
+      set(obj.pbTrack, 'Enable', hasTracker && isReady, 'Visible', ~isInCropMode) ;
+      set(obj.pumTrack, 'Visible', ~isInCropMode) ;
     end  % function
 
     function update_text_trackerinfo(obj)
