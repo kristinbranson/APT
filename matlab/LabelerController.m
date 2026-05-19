@@ -1754,17 +1754,20 @@ classdef LabelerController < handle
     end  % function
 
     function updateBigButtonBlock(obj)
-      % Update the Enable and Visible properties of the four big buttons
-      % (Train, Track, Clear, Accept).
+      % Update the Enable and Visible properties of the big buttons
+      % (Train, Track, Clear, Accept) and the tracker popup.
       labeler = obj.labeler_ ;
       hasMovie = labeler.hasMovie ;
       hasTracker = ~isempty(labeler.tracker) ;
       isReady = labeler.isReady ;
-      isVisible = onIff(~labeler.maIsMA && ~labeler.cropIsCropMode) ;
-      set(obj.pbClear, 'Enable', onIff(hasMovie), 'Visible', isVisible) ;
-      set(obj.tbAccept, 'Enable', onIff(hasMovie), 'Visible', isVisible) ;
-      obj.pbTrain.Enable = onIff(hasTracker && isReady) ;
-      obj.pbTrack.Enable = onIff(hasTracker && isReady) ;
+      isInCropMode = labeler.cropIsCropMode ;
+      trainTrackWidgetVisibility = onIff(~isInCropMode) ;
+      clearAndAcceptVisibility = onIff(~labeler.maIsMA && ~isInCropMode) ;
+      set(obj.pbClear, 'Enable', onIff(hasMovie), 'Visible', clearAndAcceptVisibility) ;
+      set(obj.tbAccept, 'Enable', onIff(hasMovie), 'Visible', clearAndAcceptVisibility) ;
+      set(obj.pbTrain, 'Enable', onIff(hasTracker && isReady), 'Visible', trainTrackWidgetVisibility) ;
+      set(obj.pbTrack, 'Enable', onIff(hasTracker && isReady), 'Visible', trainTrackWidgetVisibility) ;
+      set(obj.pumTrack, 'Visible', trainTrackWidgetVisibility) ;
     end  % function
 
     function update_text_trackerinfo(obj)
@@ -4088,22 +4091,14 @@ classdef LabelerController < handle
         return
       end
 
-      REGCONTROLS = {
-        'pbTrain'
-        'pbTrack'
-        'pumTrack'};
-
       onIfIsInCropMode = onIff(isInCropMode);
       offIfIsInCropMode = onIff(~isInCropMode);
 
-      %cellfun(@(x)set(obj.(x),'Visible',onIfTrue),CROPCONTROLS);
       set(obj.uipanel_cropcontrols,'Visible',onIfIsInCropMode);
       set(obj.text_trackerinfo,'Visible',offIfIsInCropMode);
 
-      cellfun(@(x)set(obj.(x),'Visible',offIfIsInCropMode),REGCONTROLS);
-
-      % pbClear and tbAccept visibility depends on both crop mode and MA mode,
-      % so defer to updateBigButtonBlock as the single source of truth.
+      % The big-button block (Clear/Accept/Train/Track/pumTrack) hides itself
+      % in crop mode; updateBigButtonBlock is the single source of truth.
       obj.updateBigButtonBlock() ;
 
       obj.updateFileMenu() ;
