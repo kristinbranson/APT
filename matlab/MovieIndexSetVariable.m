@@ -5,6 +5,7 @@ classdef MovieIndexSetVariable < MovieIndexSet
     id
     getMovieIndicesHook % fcn with sig mIdx = fcn(labeler)
   end
+
   methods
     function obj = MovieIndexSetVariable(ps,cps,fcn,id)
       obj.prettyString = ps;
@@ -14,12 +15,15 @@ classdef MovieIndexSetVariable < MovieIndexSet
         id = 'custom';
       end
     end
+
     function str = getPrettyString(obj)
       str = obj.prettyString;
     end
+
     function str = getPrettyCompactString(obj)
       str = obj.prettyCompactString;
     end
+
     function mIdx = getMovieIndices(obj,lObj)
       if ~lObj.hasMovie
         mIdx = MovieIndex(zeros(1,0));
@@ -43,16 +47,20 @@ function mIdx = lclAllMoviesGetMovieIndexHook(lObj)
 nmov = lObj.nmoviesGTaware;
 mIdx = MovieIndex(1:nmov,lObj.gtIsGTMode);
 end
+
 function mIdx = lclCurrMovieGetMovieIndexHook(lObj)
 mIdx = lObj.currMovIdx;
 end
+
 function mIdx = lclSelMovieGetMovieIndexHook(lObj)
 mIdx = lObj.moviesSelected;
 end
+
 function mIdx = lclAllNonGTMoviesGetMovieIndexHook(lObj)
 iMovs = 1:lObj.nmovies;
 mIdx = MovieIndex(iMovs);
 end
+
 function mIdx = lclAllGTMoviesGetMovieIndexHook(lObj)
 iMovs = 1:lObj.nmoviesGT;
 mIdx = MovieIndex(-iMovs);

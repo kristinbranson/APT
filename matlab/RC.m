@@ -82,6 +82,7 @@ classdef RC
       end
       obj.rcmatfile = matfile(RC.FILE,'Writable',true);
     end
+
     function v = get(obj,name)
       v = [];
       try
@@ -90,6 +91,7 @@ classdef RC
         % just ignore
       end
     end
+
     function set(obj,name,v)
       obj.rcmatfile.(name) = v;
     end

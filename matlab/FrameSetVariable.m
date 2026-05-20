@@ -11,6 +11,7 @@ classdef FrameSetVariable < FrameSet
     avoidTbl % MFTtable of frames to avoid
     avoidRadius % avoidance radius-- 1=>avoidrow frame itself is avoided, but adjacent frame is not. 0=>no avoidance
   end
+
   methods
     function obj = FrameSetVariable(psFcn,pcsFun,frmfcn,varargin)
       [avdTbl,avdRad,id] = myparse(varargin,...
@@ -29,10 +30,12 @@ classdef FrameSetVariable < FrameSet
       obj.avoidTbl = avdTbl;
       obj.avoidRadius = avdRad;
     end
+
     function str = getPrettyString(obj,labelerObj)
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       str = obj.prettyStringHook(labelerObj);
     end
+
     function str = getPrettyCompactString(obj,labelerObj)
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       str = obj.prettyCompactStringHook(labelerObj);
@@ -126,6 +129,7 @@ classdef FrameSetVariable < FrameSet
     function frms = allFrmGetFrms(lObj,mIdx,nfrm,iTgt)
       frms = 1:nfrm;
     end
+
     function frms = labeledFrmGetFrms(lObj,mIdx,nfrm,iTgt)
       frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,false);
     end
@@ -139,6 +143,7 @@ else
   str = sprintf('Within %d frames of current frame',lObj.trackNFramesNear);
 end
 end
+
 function str = lclWithinCurrFrmPrettyStrLarge(lObj)
 if isunix && ~ismac
   str = sprintf('Nearest %d frames',2*lObj.trackNFramesNear*5);
@@ -146,9 +151,11 @@ else
   str = sprintf('Within %d frames of current frame',lObj.trackNFramesNear*5);
 end
 end
+
 function str = lclWithinCurrFrmPrettyCompactStr(lObj)
 str = sprintf('+/-%d fr',lObj.trackNFramesNear);
 end
+
 function str = lclWithinCurrFrmPrettyCompactStrLarge(lObj)
 str = sprintf('+/-%d fr',5*lObj.trackNFramesNear);
 end
@@ -159,6 +166,7 @@ function frms = lclSelFrmGetFrms(lObj,mIdx,nfrm,iTgt)
 % 100-300"
 frms = lObj.selectedFrames;
 end
+
 function frms = lclWithinCurrFrmGetFrms(lObj,mIdx,nfrm,iTgt)
 currFrm = lObj.currFrame; % Note currentMovie~=iMov in general
 df = lObj.trackNFramesNear;
@@ -166,6 +174,7 @@ frm0 = max(currFrm-df,1);
 frm1 = min(currFrm+df,nfrm);
 frms = frm0:frm1;
 end
+
 function frms = lclWithinCurrFrmGetFrmsLarge(lObj,mIdx,nfrm,iTgt)
 currFrm = lObj.currFrame; % Note currentMovie~=iMov in general
 df = lObj.trackNFramesNear*5;
@@ -173,9 +182,11 @@ frm0 = max(currFrm-df,1);
 frm1 = min(currFrm+df,nfrm);
 frms = frm0:frm1;
 end
+
 function frms = lclLabeledFrmGetFrms2(lObj,mIdx,nfrm,iTgt)
 frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,true);
 end
+
 function frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,tfLbls2)
 % iTgt=nan <=> "any target MA"
 if tfLbls2 && (~lObj.maIsMA)

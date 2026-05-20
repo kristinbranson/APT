@@ -35,6 +35,7 @@ classdef GTSetNumFramesType
       end
     end
   end
+
   methods (Static)
     function isamp = balancedsamp(gC,nsamp,catname)
       % gC: categorical grouping vector

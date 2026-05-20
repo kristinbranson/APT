@@ -1,4 +1,4 @@
-function about(lObj)
+function h = about(labelerController)
 
 %%
 PURPLE = [0.147058823529412 0.033333333333333 0.245098039215686];
@@ -6,11 +6,12 @@ WDTH = 900;
 HGHT = 420;
 h = uifigure(...
   'Position',[1000 1078 WDTH HGHT],...
-  'Name','About' ...
+  'Name','About APT' ...
   );
 
-if ~isempty(lObj)
-  centerOnParentFigure(h,lObj.hFig,'setParentFixUnitsPx',true);
+if ~isempty(labelerController)
+  mainFigurePosition = labelerController.mainFigurePixelPosition() ;
+  centerOnOtherFigureGivenPositionBang(h, mainFigurePosition) ;
 end
 
 ht = uitextarea(h,...
@@ -44,3 +45,7 @@ set(ht,...
   'Value',s,...
   'FontSize',14,...
   'FontColor',[1 1 1]);
+
+drawnow('nocallbacks') ;  % Allegedly blocks until uifigure is actually showing, but doesn't seem to work.
+
+end  % function

@@ -1,4 +1,4 @@
-function label_outlier_gui(lobj)
+function fig = label_outlier_gui(lobj)
 
   if ~lobj.hasMovie ,
     error('Need to have at least one movie in order to label outliers')
@@ -65,13 +65,13 @@ function label_outlier_gui(lobj)
       qstr = sprintf('Switch to movie %d?',newmov);
       res = questdlg(qstr,'Switch Movie');
       if strcmp(res, 'Yes')
-        h1.lobj.movieSetGUI(newmov);
+        h1.lobj.movieSet(newmov);
       else
         return
       end
     end
     lobj = h1.lobj;
-    lobj.setFrameGUI(tdat.('Frm')(id));
+    lobj.setFrame(tdat.('Frm')(id));
     lobj.setTarget(tdat.('Lbl')(id));
 
   end

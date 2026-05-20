@@ -31,13 +31,12 @@ end
 
 FLDS = {'movieInfoAll' 'movieFilesAll' 'movieFilesAllHaveLbls'...
   'trxFilesAll'...
-  'labeledpos' 'labeledposTS' 'labeledpostag' ... % 'labeledposMarked' 
-  'labeledpos2'}; 
+  'labeledpos' 'labeledposTS' 'labeledpostag'};
 for f=FLDS,f=f{1}; %#ok<FXSET>
   lObj.(f) = lObj.(f)(p,:);
 end
 
 if ~lObj.gtIsGTMode  
   iMovNew = find(p==iMov0);
-  lObj.movieSetGUI(iMovNew);
+  lObj.movieSet(iMovNew);
 end

@@ -1,9 +1,0 @@
-function test_quick(proj_file,varargin)
-
-[backend,net,backend_params] = myparse(varargin,...
-  'backend','docker',...
-  'net','mdn',...
-  'backend_params',struct());
-
-testObj = TestAPT('name','dummy');
-testObj.test_quick(proj_file, net, backend, backend_params) ;

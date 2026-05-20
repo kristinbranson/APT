@@ -32,11 +32,11 @@ end
 
 % Process optional arguments
 dmc = totrackinfo.trainDMC ;
-[track_type,...
+[trackType,...
  aptRootNativeAsChar,...
  ignore_local] = ...
   myparse(varargin,...
-          'track_type','track',...  % track_type should be one of {'track', 'link', 'detect'}
+          'trackType', apt.TrackType.track,...
           'nativeaptroot',APT.Root,...
           'ignore_local',[]... % whether to remove local python modules from the path
           );
@@ -144,21 +144,19 @@ command9 = command8.append('-cache', cacheRootDirWslPath);
 command10 = command9.append('track');
 command11 = command10.append('-config_file', configFileWslPath);
 
-switch track_type
-  % case 'link'
-    % command12 = command11.append('-track_type', 'only_link'); 
-  case 'detect'
-    command12 = command11.append('-track_type', 'only_predict'); 
-  case 'id_link'
-    command12 = command11.append('-track_type','link_id').append('-id_wts_file',totrackinfo.idmodelfile);
-  case 'track'
-    if strcmp(totrackinfo(1).link_type,'simple')
-      command12 = command11.append('-track_type', 'only_predict'); 
+switch trackType
+  case apt.TrackType.detect
+    command12 = command11.append('-track_type', 'only_predict');
+  case apt.TrackType.id_link
+    command12 = command11.append('-track_type', 'link_id').append('-id_wts_file', totrackinfo.idmodelfile);
+  case apt.TrackType.track
+    if strcmp(totrackinfo(1).link_type, 'simple')
+      command12 = command11.append('-track_type', 'only_predict');
     else
       command12 = command11;
     end
   otherwise
-    error('track_type must be either ''track'', ''id_link'', or ''detect''') ;
+    error('trackType must be an apt.TrackType value') ;
 end
 
 [movidx,frm0,frm1,trxids,nextra] = totrackinfo.getIntervals();

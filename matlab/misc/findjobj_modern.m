@@ -3432,6 +3432,7 @@ function jControl = findjobj_fast(hControl, jContainer)
     try jControl.setToolTipText(oldTooltip); catch, end
     try jControl = jControl.getParent.getView.getParent.getParent; catch, end  % return JScrollPane if exists
 end
+
 function jControl = findTooltipIn(jContainer, specialTooltipStr)
     try
         jControl = [];  % Fix suggested by H. Koch 11/4/2017

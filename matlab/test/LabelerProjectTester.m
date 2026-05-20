@@ -16,10 +16,10 @@ classdef LabelerProjectTester < handle
         % replace_path is useful when running on Windows, where paths to movies may
         % differ from what they are on Linux.
       [obj.labeler, obj.controller] = StartAPT() ;
-      % Set the labeler to silent mode for batch operation
-      obj.labeler.silent = true ;
+      % Put the labeler in batch mode so prompts use defaults
+      obj.labeler.isInBatchMode = true ;
       % Load the named project
-      obj.labeler.projLoadGUI(project_file_path, 'replace_path', replace_path) ;
+      obj.labeler.projLoad(project_file_path, 'replace_path', replace_path) ;
     end
     
     function delete(obj)
@@ -225,7 +225,7 @@ classdef LabelerProjectTester < handle
 
       % Build toTrack struct for the current movie only
       mIdx = labeler.currMovIdx ;
-      toTrack = labeler.mIdx2TrackListGUI(mIdx) ;
+      toTrack = labeler.mIdx2TrackList(mIdx) ;
       toTrack.link_type = 'identity' ;
       toTrack.id_maintain_identity = true ;
       toTrack.docontinue = false ;
@@ -234,13 +234,13 @@ classdef LabelerProjectTester < handle
 
       % Use a distinct trkfile rawname to avoid conflicting with any existing trkfiles
       rawname = [labeler.defaultExportTrkRawname() '_id_test'] ;
-      [tfok, trkfiles] = labeler.getTrkFileNamesForExportGUI(toTrack.movfiles, rawname, 'noUI', true) ;
+      [tfok, trkfiles] = labeler.getTrkFileNamesForExport(toTrack.movfiles, rawname) ;
       if tfok ,
         toTrack.trkfiles = trkfiles ;
       end
 
       % Run ID tracking
-      labeler.trackBatch('toTrack', toTrack) ;
+      labeler.trackBatch(toTrack) ;
 
       % Block, waiting for tracking to finish
       pause(2) ;

@@ -1,0 +1,211 @@
+classdef UncertainFramesController < handle
+  % Owns the figure and listbox for displaying uncertain frames.
+
+  properties (Access=private, Transient)  % private by convention
+    labelerController_  % parent controller
+    labeler_  % Labeler
+    model_  % UncertainFramesModel
+    figure_  % figure handle
+    checkbox_  % uicontrol checkbox for confidence-is-lack-thereof
+    thresholdLabel_  % uicontrol text label for threshold
+    thresholdEdit_  % uicontrol edit box for threshold
+    thresholdHint_  % uicontrol text label showing min/max when listbox is empty
+    listbox_  % uicontrol listbox handle
+  end
+
+  properties (Dependent, Access=private)
+    hasValidFigure_  % checks figure_ handle validity
+  end
+
+  methods
+    function obj = UncertainFramesController(model, labelerController, labeler)
+      % Create an UncertainFramesController.  The figure is not created
+      % until it is first made visible.
+      obj.model_ = model ;
+      obj.labelerController_ = labelerController ;
+      obj.labeler_ = labeler ;
+    end  % function
+
+    function result = get.hasValidFigure_(obj)
+      % Return whether the figure handle is valid.
+      result = ~isempty(obj.figure_) && ishghandle(obj.figure_) ;
+    end  % function
+
+    function update(obj)
+      % Sync the listbox and title to the model state.
+      model = obj.model_ ;
+      isVisible = model.isVisible ;
+      if ~isVisible
+        if obj.hasValidFigure_
+          obj.figure_.Visible = 'off' ;
+        end
+        % No need to update if not visible
+        return
+      end
+      if ~obj.hasValidFigure_
+        obj.createFigure_() ;
+      end
+      obj.checkbox_.Value = model.isConfidenceLackThereof ;
+      obj.thresholdEdit_.String = sprintf('%g', model.quantileConfidenceThreshold) ;
+      absoluteThreshold = model.absoluteConfidenceThreshold ;
+      if isfinite(absoluteThreshold)
+        obj.thresholdHint_.String = sprintf('(%g)', absoluteThreshold) ;
+        obj.thresholdHint_.Visible = 'on' ;
+      else
+        obj.thresholdHint_.Visible = 'off' ;
+      end
+      if model.isLaden
+        strings = model.displayStringFromBoutIndex ;
+        nEntries = numel(strings) ;
+        obj.listbox_.String = strings ;
+        obj.listbox_.Value = max(1, min(obj.listbox_.Value, nEntries)) ;
+        obj.listbox_.Enable = 'on' ;
+      else
+        obj.listbox_.String = {} ;
+        obj.listbox_.Value = 1 ;
+        obj.listbox_.Enable = 'off' ;
+      end
+      % Make visible at end to reduced flickering
+      obj.figure_.Visible = 'on' ;
+    end  % function
+
+    function delete(obj)
+      % Delete the figure.
+      if obj.hasValidFigure_
+        delete(obj.figure_) ;
+      end
+    end  % function
+  end  % methods
+
+  methods
+    function hideRequested(obj)
+      % Handle figure close request by hiding instead of deleting.
+      obj.model_.isVisible = false ;
+    end  % function
+
+    function uncertain_frames_confidence_lack_thereof_checkbox_actuated_(obj, src)
+      % Handle checkbox toggle for confidence-is-lack-thereof.
+      obj.model_.isConfidenceLackThereof = logical(src.Value) ;
+    end  % function
+
+    function uncertain_frames_threshold_edit_actuated_(obj, src)
+      % Handle threshold edit box change.
+      newValue = str2double(src.String) ;
+      obj.model_.quantileConfidenceThreshold = newValue ;
+    end  % function
+
+    function resizeFigure(obj)
+      % Adjust child positions when figure is resized.
+      %
+      % Layout is top-to-bottom:
+      %   1. Checkbox (full width)
+      %   2. Threshold row: label + edit box side by side
+      %   3. Listbox (fills remaining space)
+      if ~obj.hasValidFigure_
+        return
+      end
+      % All sizes are in pixels.
+      figPos = obj.figure_.Position ;
+      figWidth = figPos(3) ;
+      figHeight = figPos(4) ;
+      pad = 10 ;  % inset from figure edges on all sides
+      checkboxHeight = 20 ;
+      thresholdRowHeight = 22 ;  % height of the threshold label+edit row
+      gap = 5 ;  % vertical space between rows
+      labelWidth = 64 ;
+      editWidth = 80 ;
+      editGap = 5 ;  % horizontal space between label and edit box
+
+      % Checkbox spans the full width at the top
+      obj.checkbox_.Position = ...
+        [pad, figHeight - pad - checkboxHeight, figWidth - 2*pad, checkboxHeight] ;
+
+      % Threshold row sits below the checkbox.  The label is shorter than
+      % the edit box, so we vertically center it within the row height.
+      thresholdRowTop = figHeight - pad - checkboxHeight - gap ;
+      labelHeight = 16 ;
+      labelBottom = thresholdRowTop - thresholdRowHeight + (thresholdRowHeight - labelHeight) / 2 - 1 ;
+        % - 1 is a fudge factor to make it look visually centered
+      obj.thresholdLabel_.Position = ...
+        [pad, labelBottom, labelWidth, labelHeight] ;
+      editLeft = pad + labelWidth + editGap ;
+      obj.thresholdEdit_.Position = ...
+        [editLeft, thresholdRowTop - thresholdRowHeight, editWidth, thresholdRowHeight] ;
+
+      % Hint label sits to the right of the threshold edit box, vertically centered
+      hintLeft = editLeft + editWidth + editGap ;
+      hintWidth = figWidth - hintLeft - pad ;
+      obj.thresholdHint_.Position = ...
+        [hintLeft, labelBottom, max(hintWidth, 1), labelHeight] ;
+
+      % Listbox fills everything below the threshold row
+      listboxTop = thresholdRowTop - thresholdRowHeight - gap ;
+      obj.listbox_.Position = [pad, pad, figWidth - 2*pad, listboxTop - pad] ;
+    end  % function
+  end  % methods
+
+  methods (Access=private)
+    function createFigure_(obj)
+      % Create the figure and all child controls.
+      figurePosition = [200 200 400 500] ;
+      obj.figure_ = figure(...
+        'Name', 'Uncertain Frames', ...
+        'NumberTitle', 'off', ...
+        'MenuBar', 'none', ...
+        'ToolBar', 'none', ...
+        'Position', figurePosition, ...
+        'Tag', 'uncertain_frames_figure', ...
+        'Visible', 'off', ...
+        'CloseRequestFcn', @(src, evt)(obj.hideRequested())) ;
+
+      obj.checkbox_ = uicontrol(...
+        'Parent', obj.figure_, ...
+        'Style', 'checkbox', ...
+        'String', '"Confidence" is lack thereof', ...
+        'Value', 0, ...
+        'Tag', 'uncertain_frames_confidence_lack_thereof_checkbox') ;
+
+      obj.thresholdLabel_ = uicontrol(...
+        'Parent', obj.figure_, ...
+        'Style', 'text', ...
+        'String', 'Threshold:', ...
+        'HorizontalAlignment', 'right', ...
+        'Tag', 'uncertain_frames_threshold_label') ;
+
+      obj.thresholdEdit_ = uicontrol(...
+        'Parent', obj.figure_, ...
+        'Style', 'edit', ...
+        'String', '1', ...
+        'HorizontalAlignment', 'right', ...
+        'Tag', 'uncertain_frames_threshold_edit') ;
+
+      obj.thresholdHint_ = uicontrol(...
+        'Parent', obj.figure_, ...
+        'Style', 'text', ...
+        'String', '', ...
+        'FontAngle', 'italic', ...
+        'HorizontalAlignment', 'left', ...
+        'Visible', 'off', ...
+        'Tag', 'uncertain_frames_threshold_hint') ;
+
+      obj.listbox_ = uicontrol(...
+        'Parent', obj.figure_, ...
+        'Style', 'listbox', ...
+        'String', {}, ...
+        'Tag', 'uncertain_frames_listbox') ;
+
+      % Set up callbacks using tags to determine the method name
+      visit_children(obj.figure_, @set_standard_callback_if_none_bang, obj.labelerController_) ;
+
+      % Set up resize behavior
+      obj.figure_.SizeChangedFcn = @(src, evt)(obj.resizeFigure()) ;
+
+      % Resize to lay out properly
+      obj.resizeFigure() ;
+
+      % Center on the main APT figure
+      mainFigurePosition = obj.labelerController_.mainFigurePixelPosition() ;
+      centerOnOtherFigureGivenPositionBang(obj.figure_, mainFigurePosition) ;
+    end  % function
+  end  % methods
+end  % classdef

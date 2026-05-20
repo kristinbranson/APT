@@ -72,10 +72,10 @@ lObj.projLoad(lblfile);
 % markers = {'o','s','d','^'};
 %binedges(end) = inf;
 
-freezeInfo = lObj.prevAxesModeInfo;
-lpos = lObj.labeledpos{freezeInfo.iMov}(:,:,freezeInfo.frm,freezeInfo.iTgt);
-if freezeInfo.isrotated,
-  lpos = [lpos,ones(size(lpos,1),1)]*freezeInfo.A;
+freezeSpec = lObj.prevAxesModeTargetSpec;
+lpos = lObj.labeledpos{freezeSpec.iMov}(:,:,freezeSpec.frm,freezeSpec.iTgt);
+if freezeSpec.isrotated,
+  lpos = [lpos,ones(size(lpos,1),1)]*freezeSpec.A;
   lpos = lpos(:,1:2);
 end
 assert(all(~isnan(lpos(:))));

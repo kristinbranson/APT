@@ -1728,6 +1728,7 @@ for jj=1:length(output)
   end
 end
 end  % updateOriginalVarNames
+
 function [flag, index] = CheckStringForBrackets(str)
 index = [];
 flag = strcmp(str(1),'(') && strcmp(str(end),')');

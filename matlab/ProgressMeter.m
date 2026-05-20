@@ -3,6 +3,7 @@ classdef ProgressMeter < handle
   % (optionaly) a LabelerController.
 
   properties
+    labeler_
     title_ = ''
     message_ = ''
     denominator_ = nan
@@ -26,8 +27,19 @@ classdef ProgressMeter < handle
   end
 
   methods
-    function obj = ProgressMeter()
-    end
+    function obj = ProgressMeter(labeler)
+      % Construct a ProgressMeter owned by the given Labeler.
+      obj.labeler_ = labeler ;
+    end  % function
+
+    function notify_(obj, eventName, varargin)
+      % Like notify(), but suppressed when the parent Labeler's notifications are disabled.
+      % See comments at Labeler.degreeOfNotificationEnablement_ declaration for more
+      % details.
+      if obj.labeler_.degreeOfNotificationEnablement_ > 0
+        obj.notify(eventName, varargin{:}) ;
+      end
+    end  % function
 
     function delete(~)
     end
@@ -43,7 +55,7 @@ classdef ProgressMeter < handle
       obj.numerator_ = nan ;
       obj.isActive_ = false ;
       obj.wasCanceled_ = false ;      
-      obj.notify('didArm') ;
+      obj.notify_('didArm') ;
     end
 
     function start(obj, varargin)
@@ -60,23 +72,23 @@ classdef ProgressMeter < handle
       obj.denominator_ = denominator ;
       obj.wasCanceled_ = false ;
       obj.isActive_ = true ;
-      obj.notify('update') ;
+      obj.notify_('update') ;
     end  % function
     
     function bump(obj, numerator)
       obj.numerator_ = numerator ;
-      obj.notify('update') ;
+      obj.notify_('update') ;
     end  % function
 
     function finish(obj)
       obj.isActive_ = false ;
-      obj.notify('update') ;
+      obj.notify_('update') ;
     end  % function
 
     function cancel(obj)
       obj.isActive_ = false ;
       obj.wasCanceled_ = true ;
-      obj.notify('update') ;
+      obj.notify_('update') ;
     end
 
     function disarm(obj, varargin)
@@ -86,7 +98,7 @@ classdef ProgressMeter < handle
       obj.numerator_ = nan ;
       obj.isActive_ = false ;
       obj.wasCanceled_ = false ;      
-      obj.notify('update') ;
+      obj.notify_('update') ;
     end
     
     function result = get.fraction(obj) 

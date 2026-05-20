@@ -13,6 +13,7 @@ classdef DataAugMontage < handle
   methods
     function obj = DataAugMontage
     end
+
     function init(obj,mat)
       if ischar(mat)
         mat = load(mat);
@@ -26,6 +27,7 @@ classdef DataAugMontage < handle
         obj.locs = permute(obj.locs,[1 3 4 2]);
       end
     end
+
     function hfig = show(obj,montageargs,varargin)
       hfig = myparse(varargin,'hfig',[]);
       

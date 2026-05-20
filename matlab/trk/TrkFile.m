@@ -1,5 +1,12 @@
 classdef TrkFile < dynamicprops
-  
+  % Represents the contents of a .trk file, which stores tracking results
+  % (predicted positions, confidence scores, timestamps, etc.) for one or
+  % more targets across frames of a movie.  Inherits from dynamicprops
+  % (and therefore handle) because .trk files produced by the Python
+  % backends can contain variable sets of fields that are not known a
+  % priori.  Dynamic properties allow these extra fields to be absorbed at
+  % load time and round-tripped through save without data loss.
+
   properties (Constant,Hidden)
     unsetVal = '__UNSET__';
     listfile_fns = {'pred_locs','to_track','pred_tag','list_file',...
@@ -49,6 +56,7 @@ classdef TrkFile < dynamicprops
     
     trkfldsextra = {}; % extra fields added
   end
+
   properties (Dependent)
     ntracklets
     %ntlts  % Wasn't used anywhere
@@ -663,6 +671,7 @@ classdef TrkFile < dynamicprops
     function v = isValidLoadFullMatrix(s)
       v = isfield(s,'pTrk');
     end
+
     function v = isValidSparse(s)
       v = all(isfield(s,{'p','frm','tgt'}));
     end
@@ -1534,22 +1543,22 @@ classdef TrkFile < dynamicprops
 %       end
 %     end
     
-    function trackletViz(obj,ax,varargin)
-      plotargs = myparse(varargin,...
-        'plotargs',{'linewidth',2} ...
-        );
-      
-      axes(ax);
-      hold on;
-      %ntrx = numel(obj.pTrk);
-      for i=1:obj.ntracklets
-        t = obj.startframes(i):obj.endframes(i);
-        p1 = squeeze(obj.pTrk{i}(1,1,:));
-        plot(t,p1,plotargs{:});
-      end
-      grid on;
-    end
-  end
+    % function trackletViz(obj,ax,varargin)
+    %   plotargs = myparse(varargin,...
+    %     'plotargs',{'linewidth',2} ...
+    %     );
+    % 
+    %   axes(ax);
+    %   hold on;
+    %   %ntrx = numel(obj.pTrk);
+    %   for i=1:obj.ntracklets
+    %     t = obj.startframes(i):obj.endframes(i);
+    %     p1 = squeeze(obj.pTrk{i}(1,1,:));
+    %     plot(t,p1,plotargs{:});
+    %   end
+    %   grid on;
+    % end
+  end  % methods
 
   methods (Static)
     function v = isAliveHelper(xy)
@@ -1992,7 +2001,8 @@ classdef TrkFile < dynamicprops
       propsDim1Only = {'pTrkFull'};
       
       props = properties(obj);
-      for p=props(:)',p=p{1};
+      for i = 1 : numel(props)
+        p = props{i} ;
         
         v = obj.(p);
         szv = size(v);

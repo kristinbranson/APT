@@ -29,6 +29,7 @@ classdef NavigationTreeTable < handle
     fcnDataRowNaved % fcnhandle, fcnDataRowNaved(iData)
     navOnSingleClick % If true, navigate on single click; otherwise require double-click
   end
+
   properties (Dependent)
     isEmpty
     nData % height(.treeTblData)
@@ -47,9 +48,11 @@ classdef NavigationTreeTable < handle
     function tf = get.isEmpty(obj)
       tf = isempty(obj.treeTblData);
     end
+
     function v = get.nData(obj)
       v = size(obj.treeTblData,1);
     end
+
     function v = get.fields(obj)
       tblDat = obj.treeTblData;
       if isempty(tblDat)
@@ -58,6 +61,7 @@ classdef NavigationTreeTable < handle
         v = tblDat.Properties.VariableNames;
       end
     end
+
     function v = get.groupFieldPrettyName(obj)
       pHdrs = obj.treeTblDataPrettyHeaders;
       if isempty(pHdrs)
@@ -66,6 +70,7 @@ classdef NavigationTreeTable < handle
         v = pHdrs{1};
       end
     end      
+
     function v = get.groupTreeTblRowREPat(obj)
       v = sprintf('%s: (?<set>.+)$',obj.groupFieldPrettyName);
     end

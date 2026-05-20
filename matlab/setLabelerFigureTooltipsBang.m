@@ -55,11 +55,8 @@ end
 if isfield(handles,'menu_file_import_labels_trk_curr_mov'),
   SetTooltip(handles.menu_file_import_labels_trk_curr_mov,'Import predictions from .trk file as LABELS for current movie',jobjs,jobjnames);
 end
-if isfield(handles,'menu_file_import_labels2_trk_curr_mov'),
-  SetTooltip(handles.menu_file_import_labels2_trk_curr_mov,'Import predictions from .trk file for current movie',jobjs,jobjnames);
-end
-if isfield(handles,'menu_file_export_labels2_trk_curr_mov'),
-  SetTooltip(handles.menu_file_export_labels2_trk_curr_mov,'Export predictions to .trk file for current movie',jobjs,jobjnames);
+if isfield(handles,'menu_file_import_tracking_results'),
+  SetTooltip(handles.menu_file_import_tracking_results,'Import tracking results from .trk file for current movie',jobjs,jobjnames);
 end
 if isfield(handles,'menu_file_export_labels_trks'),
   SetTooltip(handles.menu_file_export_labels_trks,'Export LABELS to .trk files for all movies',jobjs,jobjnames);
@@ -88,9 +85,9 @@ end
 if isfield(handles,'menu_view_flip_fliplr'),
   SetTooltip(handles.menu_view_flip_fliplr,'Horizontally flip both the movie and labels in the display',jobjs,jobjnames);
 end
-if isfield(handles,'menu_view_flip_flipud_movie_only'),
-  SetTooltip(handles.menu_view_flip_flipud_movie_only,'Vertically flip only the movie in the display',jobjs,jobjnames);
-end
+% if isfield(handles,'menu_view_flip_flipud_movie_only'),
+%   SetTooltip(handles.menu_view_flip_flipud_movie_only,'Vertically flip only the movie in the display',jobjs,jobjnames);
+% end
 
 if isfield(handles,'menu_view_reset_views'),
   SetTooltip(handles.menu_view_reset_views,'Reset zoom so that entire video frames are displayed',jobjs,jobjnames);
@@ -103,24 +100,21 @@ if isfield(handles,'menu_view_trajectories_centervideoontarget'),
   SetTooltip(handles.menu_view_trajectories_centervideoontarget,'When checked, axes will be rotated so that current target is facing up',jobjs,jobjnames);
 end
 
-if isfield(handles,'menu_setup_sequential_mode'),
-  SetTooltip(handles.menu_setup_sequential_mode,'Sequential labeling: Click landmark locations in order',jobjs,jobjnames);
+if isfield(handles,'menu_label_sequential_mode'),
+  SetTooltip(handles.menu_label_sequential_mode,'Sequential labeling: Click landmark locations in order',jobjs,jobjnames);
 end
-if isfield(handles,'menu_setup_template_mode'),
-  SetTooltip(handles.menu_setup_template_mode,'Template labeling: Move around initial landmark locations',jobjs,jobjnames);
+if isfield(handles,'menu_label_template_mode'),
+  SetTooltip(handles.menu_label_template_mode,'Template labeling: Move around initial landmark locations',jobjs,jobjnames);
 end
-if isfield(handles,'menu_setup_highthroughput_mode'),
-  SetTooltip(handles.menu_setup_highthroughput_mode,'High-throughput labeling: Label one landmark at a time in a series of frames',jobjs,jobjnames);
-end
-if isfield(handles,'menu_setup_multiview_calibrated_mode_2'),
-  SetTooltip(handles.menu_setup_multiview_calibrated_mode_2,'Multi-view calibrated mode: Show epipolar line after labeling in one view',jobjs,jobjnames);
+if isfield(handles,'menu_label_multiview_mode'),
+  SetTooltip(handles.menu_label_multiview_mode,'Multi-view calibrated mode: Show epipolar line after labeling in one view',jobjs,jobjnames);
 end
 
-if isfield(handles,'menu_setup_label_overlay_montage'),
-  SetTooltip(handles.menu_setup_label_overlay_montage,'Plot all labels on one frame to see label distribution',jobjs,jobjnames);
+if isfield(handles,'menu_label_overlay_montage'),
+  SetTooltip(handles.menu_label_overlay_montage,'Plot all labels on one frame to see label distribution',jobjs,jobjnames);
 end
-if isfield(handles,'menu_setup_label_overlay_montage_trx_centered'),
-  SetTooltip(handles.menu_setup_label_overlay_montage_trx_centered,'Plot all trajectory-aligned labels on one frame to see label distribution',jobjs,jobjnames);
+if isfield(handles,'menu_label_overlay_montage_trx_centered'),
+  SetTooltip(handles.menu_label_overlay_montage_trx_centered,'Plot all trajectory-aligned labels on one frame to see label distribution',jobjs,jobjnames);
 end
 
 % go menu
@@ -140,11 +134,11 @@ end
 %   SetTooltip(handles.menu_track_track_and_export,'Track current selection of videos, targets, and frames, and export results to .trk files.',jobjs,jobjnames);
 % end
 if isfield(handles,'menu_track_clear_tracking_results'),
-  SetTooltip(handles.menu_track_clear_tracking_results,'Remove all tracking results from the current project.',jobjs,jobjnames);
+  SetTooltip(handles.menu_track_clear_tracking_results,'Remove tracking results for the current tracker, for all movies',jobjs,jobjnames);
 end
 
-if isfield(handles,'menu_track_set_labels'),
-  SetTooltip(handles.menu_track_set_labels,'Set labels to predictions for current frame',jobjs,jobjnames);
+if isfield(handles,'menu_label_set_labels'),
+  SetTooltip(handles.menu_label_set_labels,'Set labels to predictions for current frame',jobjs,jobjnames);
 end
 
 % h = findjobj_modern(handles.pbClear);

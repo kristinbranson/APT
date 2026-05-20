@@ -68,14 +68,14 @@ classdef MetaPath < apt.ShellToken
         path = rawPath ;  % assume it's already an apt.Path object
       end
 
-      % Validate that pathObj is an apt.Path object
+      % Validate that path is an apt.Path object
       if ~isa(path, 'apt.Path')
         error('apt:MetaPath:InvalidPath', 'First argument must be an apt.Path object');
       end
 
       % Validate that the path is absolute
       if ~path.tfIsAbsolute()
-        error('apt:MetaPath:RelativePath', 'MetaPath requires an absolute path');
+        error('apt:MetaPath:RelativePath', 'MetaPath requires an absolute path, but "%s" is not an absolute path', char(path));
       end
 
       obj.path = path;

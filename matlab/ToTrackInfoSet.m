@@ -124,18 +124,21 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
         logFiles{i} = obj.ttis(i).getLogFile();
       end
     end
+
     function errFiles = getErrFiles(obj)
       errFiles = cell(numel(obj.ttis),1);
       for i = 1:numel(obj.ttis),
         errFiles{i} = obj.ttis(i).getErrfile();
       end
     end
+
     function killFiles = getKillfiles(obj)
       killFiles = cell(numel(obj.ttis),1);
       for i = 1:numel(obj.ttis),
         killFiles{i} = obj.ttis(i).getKillfile();
       end
     end
+
     function listoutfiles = getListOutfiles(obj)
       listoutfiles = {};
       for i = 1:numel(obj.ttis)        

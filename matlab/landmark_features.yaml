@@ -8,6 +8,10 @@ FeatureClasses:
     TransTypes: [none,mean,median,std,min,max]
 
 Features:
+  velmag:
+    FeatureClass: NonNegative
+    CoordSystem: Global
+    
   x:
     FeatureClass: NonNegative
     CoordSystem: Global
@@ -39,10 +43,6 @@ Features:
   dy_body:
     FeatureClass: SignedSymmetric
     CoordSystem: Body
-
-  velmag:
-    FeatureClass: NonNegative
-    CoordSystem: Global
 
 
 ...

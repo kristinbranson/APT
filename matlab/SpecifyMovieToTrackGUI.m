@@ -78,7 +78,19 @@ classdef SpecifyMovieToTrackGUI < handle
       movdata = obj.movdata;
       dostore = obj.dostore;
     end
-    
+
+    function delete(obj)
+      % Clean up figures if they still exist.
+      if ~isempty(obj.gdata)
+        if isfield(obj.gdata, 'crop') && isfield(obj.gdata.crop, 'fig')
+          deleteValidGraphicsHandles(obj.gdata.crop.fig) ;
+        end
+        if isfield(obj.gdata, 'fig')
+          deleteValidGraphicsHandles(obj.gdata.fig) ;
+        end
+      end
+    end  % function
+
     function initMovData(obj,movdata)
       
       obj.movdata = movdata;
@@ -809,7 +821,6 @@ classdef SpecifyMovieToTrackGUI < handle
       if isempty(obj.movieReader) || numel(obj.movieReader) < iview || ...
           isempty(obj.movieReader{iview}),
         obj.movieReader{iview} = MovieReader;
-        obj.movieReader{iview}.flipVert = obj.lObj.movieInvert(iview);
         obj.movieReader{iview}.forceGrayscale = obj.lObj.movieForceGrayscale;
         obj.movieReader{iview}.open(obj.movdata.movfiles{iview});
       end

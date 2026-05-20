@@ -286,9 +286,11 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
 
     end
+
     function setTblMFT(obj,tblMFT1)
       obj.tblMFT = MFTable.sortCanonical(tblMFT1);
     end
+
     function obj = consolidateTblMFT(obj)
       if ~obj.tblMFTIsSet,
         return;
@@ -361,6 +363,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('frm0',varargin{:});
       v = obj.frm0(idx);
     end
+
     function setFrm0(obj,v,varargin)
       v = round(v);
       v(isnan(v)) = 1;
@@ -377,6 +380,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       obj.frm0(idx) = v;
     end
+
     function v = getFrm1(obj,varargin)
       if isempty(varargin) || isempty(obj.frm1),
         v = obj.frm1;
@@ -385,6 +389,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('frm1',varargin{:});
       v = obj.frm1(idx);
     end
+
     function setFrm1(obj,v,varargin)
       v = round(v);
       v(isnan(v)) = inf;
@@ -401,6 +406,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       obj.frm1(idx) = v;
     end
+
     function v = getFrmlist(obj,varargin)
       if isempty(varargin) || isempty(obj.frmlist),
         v = obj.frmlist;
@@ -409,6 +415,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('frmlist',varargin{:});
       v = obj.frmlist(idx);
     end
+
     function setFrmlist(obj,v,varargin)
       if isempty(varargin),
         obj.frmlist = v;
@@ -423,29 +430,37 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('frmlist',varargin{:});
       obj.frmlist(idx) = ToTrackInfo.setCellStrHelper(idx,v);
     end
+
     function v = getErrfile(obj)
       v = obj.errfile;
     end
+
     function setErrfile(obj,v)
       obj.errfile = v;
     end
+
     function v = getLogFile(obj)
       v = obj.logfile;
     end
+
     function setLogfile(obj,v)
       obj.logfile = v;
     end
+
     function v = getKillfile(obj)
       v = obj.killfile;
     end
+
     function setKillfile(obj,v)
       obj.killfile = v;
     end    function v = getCmdfile(obj)
       v = obj.cmdfile;
     end
+
     function setCmdfile(obj,v)
       obj.cmdfile = v;
     end
+
     function [v,idx] = getTrkFiles(obj,varargin)
       if isempty(varargin),
         v = obj.trkfiles;
@@ -522,6 +537,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function setJobid(obj,v)
       obj.jobid = v;
     end
+
     function v = getJobid(obj)
       v = obj.jobid;
     end
@@ -529,6 +545,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function setTrackid(obj,v)
       obj.trackid = v;
     end
+
     function v = getTrackid(obj)
       v = obj.trackid;
     end
@@ -692,6 +709,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       obj.killfile = [obj.getDefaultOutfile,'.KILLED'];
 
     end
+
     function setDefaultCmdfile(obj)
       obj.cmdfile = [obj.getDefaultOutfile,'.cmd'];
     end
@@ -787,6 +805,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('movidx',varargin{:});
       v = obj.movidx(idx);
     end
+
     function v = getMovfiles(obj,varargin)
       if isempty(varargin),
         v = obj.movfiles;
@@ -795,6 +814,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('movfiles',varargin{:});
       v = obj.movfiles(idx);
     end
+
     function setMovfiles(obj,v,varargin)
       if isempty(varargin),
         obj.movfiles = v;
@@ -810,6 +830,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
 
     end
+
     function v = getTrxFiles(obj,varargin)
       if isempty(obj.trxfiles) || isempty(varargin),
         v = obj.trxfiles;
@@ -818,6 +839,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('trxfiles',varargin{:});
       v = obj.trxfiles(idx);
     end
+
     function setTrxFiles(obj,v,varargin)
       if isempty(varargin),
         obj.trxfiles = v;
@@ -835,6 +857,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       obj.trxfiles(idx) = ToTrackInfo.setCellStrHelper(idx,v);
     end
+
     function v = getTrxids(obj,varargin)
       if isempty(obj.trxids) || isempty(varargin),
         v = obj.trxids;
@@ -843,6 +866,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('trxids',varargin{:});
       v = obj.trxids(idx);
     end
+
     function setTrxids(obj,v,varargin)
       if isempty(varargin),
         obj.trxids = v;
@@ -863,6 +887,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       assert(numel(v)==n);
       obj.trxids(idx) = v;
     end
+
     function v = getCroprois(obj,varargin)
       if isempty(varargin) || isempty(obj.croprois),
         v = obj.croprois;
@@ -874,6 +899,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('croprois',varargin{:});
       v = obj.croprois(idx);
     end
+
     function setCroprois(obj,v,varargin)
       if isempty(varargin),
         obj.croprois = v;
@@ -895,6 +921,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       assert(numel(v)==n);
       obj.croprois(idx) = v;
     end
+
     function v = getCalibrationfiles(obj,varargin)
       if isempty(obj.calibrationfiles) || isempty(varargin),
         v = obj.calibrationfiles;
@@ -903,6 +930,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('calibrationfiles',varargin{:});
       v = obj.calibrationfiles(idx);
     end
+
     function setCalibrationfiles(obj,v,varargin)
       if isempty(varargin),
         obj.calibrationfiles = v;
@@ -917,6 +945,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       obj.calibrationfiles(idx) = ToTrackInfo.setCellStrHelper(idx,v);
     end
+
     function v = getCalibrationdata(obj,varargin)
       if isempty(obj.calibrationdata) || isempty(varargin),
         v = obj.calibrationdata;
@@ -925,6 +954,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('calibrationdata',varargin{:});
       v = obj.calibrationdata(idx);
     end
+
     function setCalibrationdata(obj,v,varargin)
       if isempty(varargin),
         obj.calibrationdata= v;
@@ -958,10 +988,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
     function setDetectTrk(obj,v,varargin)
       if isempty(varargin),
-        obj.detecttrks= v;
+        obj.detecttrks = v;
         return;
       end
-      if isempty(obj.detect_trk),
+      if isempty(obj.detecttrks),
         obj.detecttrks = repmat({''},[obj.nmovies,obj.nviews]);
       end
       idx = obj.select('detecttrks',varargin{:});
@@ -974,7 +1004,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         v = repmat({v},[n,1]);
       end
       obj.detecttrks(idx) = v;
-      
+
     end
     function v = getDetectTrk(obj,varargin)
       if isempty(obj.detecttrks) || isempty(varargin),
@@ -1359,6 +1389,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function v = propSet(obj,prop)
       v = ~isempty(obj.(prop)) && ~all(cellfun(@isempty,obj.(prop)(:)));
     end
+
     function v = hasTrxfiles(obj)
       v = obj.propSet('trxfiles');
     end

@@ -8,9 +8,11 @@ classdef NavigationTable < handle
     navOnSingleClick % If true, navigate on single click; otherwise require double-click
     data % data in table form. jtable has it in cell form as well
   end
+
   properties (Dependent)
     height % height of jtable
   end
+
   methods
     function v = get.height(obj)
       jt = obj.jtable;
@@ -41,6 +43,7 @@ classdef NavigationTable < handle
       obj.fcnRowSelected = cbkSelectRow;
       obj.navOnSingleClick = false;
     end
+
     function initColFormatAPTJava(obj,colfmt)
       % Initialize column cellrenderers based on colfmt. Optionally call 
       % this immediately after construction and before setting data.
@@ -64,6 +67,7 @@ classdef NavigationTable < handle
       jt.Foreground = java.awt.Color.WHITE;
       jt.repaint;
     end
+
     function delete(obj)
       delete(obj.jtable);
       obj.jtable = [];
@@ -72,6 +76,7 @@ classdef NavigationTable < handle
       obj.data = [];
     end
   end
+
   methods
     
     % tbl: [nxnFld] table
