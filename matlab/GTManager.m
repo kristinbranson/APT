@@ -121,7 +121,7 @@ set(hFig,'Visible','on');
 centerfig(handles.figure1,controller.mainFigure_);
 
 function columnnames = getTblFrameColumnNames(handles)
-if handles.labeler.hasTrx,
+if handles.labeler.projectHasTrx,
   columnnames = {'Frame','Target','Labeled','Error'};
 else
   columnnames = {'Frame','Has Labels','Error'};
@@ -173,15 +173,15 @@ else
   if ~doupdate || strcmpi(fn,'frm'),
     data(:,1) = num2cell(handles.tbl.frm(idx));
   end
-  if handles.labeler.hasTrx && (~doupdate || strcmpi(fn,'iTgt')),
+  if handles.labeler.projectHasTrx && (~doupdate || strcmpi(fn,'iTgt')),
     data(:,2) = num2cell(handles.tbl.iTgt(idx));
   end
   if ~doupdate || strcmp(fn,'hasLbl'),
-    col = double(handles.labeler.hasTrx) + 2;
+    col = double(handles.labeler.projectHasTrx) + 2;
     data(:,col) = num2cell(handles.hasLbl(idx));
   end
   if ~doupdate || strcmp(fn,'err'),
-    col = double(handles.labeler.hasTrx) + 3;    
+    col = double(handles.labeler.projectHasTrx) + 3;    
     if any(~isnan(handles.err)),
       data(:,col) = num2cell(handles.err(idx));
     else
@@ -347,7 +347,7 @@ if ~isequal(newrow,oldrow),
 end
 
 data = handles.tblFrame.Data;
-if lObj.hasTrx,
+if lObj.projectHasTrx,
   newrow = find(cell2mat(data(:,1))==frm & cell2mat(data(:,2))==iTgt);
 else
   newrow = find(cell2mat(data(:,1))==frm);
@@ -393,7 +393,7 @@ if isempty(handles.tblFrame.Data),
 
 end
 ft = double(cell2mat(handles.tblFrame.Data(ftrow,1)));
-if lObj.hasTrx,
+if lObj.projectHasTrx,
   ft = [ft,double(cell2mat(handles.tblFrame.Data(ftrow,2)))];
 end
 mov = handles.iMovUn(movrow);

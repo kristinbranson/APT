@@ -52,7 +52,7 @@ classdef InfoTimelineModel < handle
   end
 
   methods
-    function obj = InfoTimelineModel(hasTrx)
+    function obj = InfoTimelineModel()
       obj.selectOn_ = false;
       obj.selectOnStartFrm_ = [];
       obj.curprop_ = 1;
@@ -63,7 +63,7 @@ classdef InfoTimelineModel < handle
       obj.statThresh_ = [];
       obj.isStatThreshVisible_ = false;
       obj.trackerAuxiliaryProps_ = EmptyLandmarkFeatureArray();
-      obj.initializePropsEtc_(hasTrx);  % fires no events
+      obj.initializePropsEtc_(false, false);  % fires no events
     end
     
     function v = get.selectOn(obj)
@@ -163,7 +163,7 @@ classdef InfoTimelineModel < handle
       result = obj.tldata_;
     end
     
-    function initializePropsEtc_(obj, hasTrx)
+    function initializePropsEtc_(obj, hasMovie, hasTrx)
       % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
 
       % Read the TL props from the .yaml file
@@ -173,9 +173,13 @@ classdef InfoTimelineModel < handle
       props = ReadLandmarkFeatureFile(tlpropfile);      
 
       % remove body features if no body tracking
-      if ~isempty(hasTrx) && ~hasTrx ,
+      if hasMovie && ~hasTrx
         idxremove = strcmpi({props.coordsystem},'Body');
         props(idxremove) = [];
+      else
+        % ~hasMovie || hasTrx
+        % If there's no movie then none of this stuff should be touched anyway.
+        % If the movie has trx then we want to leave the body coords in there.
       end
       obj.props_ = props;      
       obj.props_tracker_ = cat(1,obj.trackerAuxiliaryProps_,obj.props);
@@ -252,7 +256,7 @@ classdef InfoTimelineModel < handle
       end
       obj.clearSelection(nframes) ;
       obj.custom_data_ = [];
-      obj.initializePropsEtc_(hasTrx) ;  % fires no events
+      obj.initializePropsEtc_(hasMovie, hasTrx) ;  % fires no events
       if obj.getCurPropTypeIsAllFrames()
         obj.curproptype_ = 1 ;
         obj.curprop_ = 1 ;

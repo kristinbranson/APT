@@ -229,7 +229,7 @@ classdef APTParameters
           netsUsed = labelerObj.trackerNetsUsed;
         end
         if isempty(hasTrx),
-          hasTrx = labelerObj.hasTrx;
+          hasTrx = labelerObj.projectHasTrx;
         end
         if isempty(trackerIsDL),
           trackerIsDL = labelerObj.trackerIsDL;

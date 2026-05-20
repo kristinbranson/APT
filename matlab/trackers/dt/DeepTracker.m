@@ -1102,7 +1102,7 @@ classdef DeepTracker < LabelTracker
         
         sPrmAllLabeler = obj.lObj.trackGetTrainingParams();
         sPrmAllAsSet = obj.massageParamsIfNec(sPrmAllLabeler,'throwwarnings',false);
-        args = {'netsUsed',obj.getNetsUsed(),'hasTrx',obj.lObj.hasTrx,'trackerIsDL',true};
+        args = {'netsUsed',obj.getNetsUsed(),'hasTrx',obj.lObj.projectHasTrx,'trackerIsDL',true};
         
         if isempty(obj.sPrmAll),
           isParamChange = true;
