@@ -906,7 +906,7 @@ classdef TrackBatchGUI < handle
       partIndex = nviews + 1;
 
       % Handle trx files if project requires them
-      if obj.lObj.hasTrx
+      if obj.lObj.projectHasTrx
         if length(parts) >= partIndex + nviews - 1
           % Trx files specified for each view
           trxFiles = parts(partIndex:partIndex + nviews - 1);
@@ -1135,7 +1135,7 @@ classdef TrackBatchGUI < handle
         trk = obj.genTrkfile(movie,defaulttrk);
       end
       defaulttrx = obj.defaulttrxpat;
-      tfgentrx = obj.lObj.hasTrx && ~isempty(defaulttrx);
+      tfgentrx = obj.lObj.projectHasTrx && ~isempty(defaulttrx);
       if tfgentrx
         trx = obj.genTrkfile(movie,defaulttrx,'enforceExt',false);
       end
