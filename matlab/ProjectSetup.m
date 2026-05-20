@@ -1,26 +1,46 @@
 function varargout = ProjectSetup(varargin)
-% New project creation
+% Project setup dialog. Returns a project configuration struct, or []
+% if the user cancels.
+%
+%   cfg = ProjectSetup()            % default position
+%   cfg = ProjectSetup(hParentFig)  % centered on hParentFig
+%
+% Also acts as the dispatcher for widget callbacks: the figure built by
+% createProjectSetupFigure wires each callback as
+%   ProjectSetup('xxx_Callback', hObject, eventdata, handles)
+% and this function forwards to the local subfunction of that name.
 
-% Last Modified by GUIDE v2.5 03-Oct-2020 10:16:05
-
-% Begin initialization code - DO NOT EDIT
-gui_Singleton = 0;
-gui_State = struct('gui_Name',       mfilename, ...
-                   'gui_Singleton',  gui_Singleton, ...
-                   'gui_OpeningFcn', @ProjectSetup_OpeningFcn, ...
-                   'gui_OutputFcn',  @ProjectSetup_OutputFcn, ...
-                   'gui_LayoutFcn',  [] , ...
-                   'gui_Callback',   []);
-if nargin && ischar(varargin{1})
-    gui_State.gui_Callback = str2func(varargin{1});
+if nargin >= 1 && ischar(varargin{1})
+  % Callback dispatch from createProjectSetupFigure.
+  if nargout
+    [varargout{1:nargout}] = feval(varargin{1}, varargin{2:end});
+  else
+    feval(varargin{1}, varargin{2:end});
+  end
+  return
 end
 
+% Fresh launch. ProjectSetup_OpeningFcn calls uiwait internally and
+% returns once Cancel/Create/close-X has fired uiresume.
+hFig = createProjectSetupFigure();
+handles = guihandles(hFig);
+guidata(hFig, handles);
+ProjectSetup_OpeningFcn(hFig, [], handles, varargin{:});
+
+% The figure is still alive at this point (Cancel/Create/close-X all
+% route through figure1_CloseRequestFcn -> uiresume, not delete). Read
+% .output off the handles, then destroy the figure.
+output = [];
+if ishghandle(hFig)
+  handles = guidata(hFig);
+  if isfield(handles, 'output')
+    output = handles.output;
+  end
+  delete(hFig);
+end
 if nargout
-    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
-else
-    gui_mainfcn(gui_State, varargin{:});
+  varargout{1} = output;
 end
-% End initialization code - DO NOT EDIT
 
 % PROJECT CONFIGURATION/SETUP NOTES
 % 20160815
@@ -113,10 +133,6 @@ guidata(hObject, handles);
 
 % UIWAIT makes ProjectSetup wait for user response (see UIRESUME)
 uiwait(handles.figure1);
-
-function varargout = ProjectSetup_OutputFcn(hObject, eventdata, handles) 
-varargout{1} = handles.output;
-delete(handles.figure1);
 
 function cfg = genCurrentConfig(handles)
 % Generate config from the current UI state
