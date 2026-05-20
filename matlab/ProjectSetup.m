@@ -316,23 +316,6 @@ else
   delete(hObject);
 end
 
-function s = structLeavesStr2Double(s,flds)
-% flds: cellstr of fieldnames
-%
-% Convert nonempty leaf nodes that are strs to doubles
-for f=flds(:)',f=f{1}; %#ok<FXSET>
-  val = s.(f);
-  if isstruct(val)
-    s.(f) = structLeavesStr2Double(s.(f),fieldnames(s.(f)));
-  elseif ~isempty(val)
-    if ischar(val)
-      s.(f) = str2double(val);
-    end
-  else
-    % none, empty
-  end
-end
-
 function cbHasTrx_Callback(hObject, eventdata, handles)
 % none
 function cbMA_Callback(hObject, eventdata, handles)
