@@ -874,7 +874,7 @@ classdef Labeler < handle
       obj.isInDebugMode = isInDebugMode ;
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter(obj) ;
-      obj.infoTimelineModel_ = InfoTimelineModel(obj.hasTrx);
+      obj.infoTimelineModel_ = InfoTimelineModel();
       obj.movieManagerModel_ = MovieManagerModel() ;
       obj.uncertainFramesModel_ = UncertainFramesModel(obj) ;
       % Set obj.isInInteractiveMode_ based on isInInteractiveModeRaw and
