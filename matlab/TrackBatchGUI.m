@@ -146,7 +146,7 @@ classdef TrackBatchGUI < handle
       rowys = coltitley - (rowh+rowborder)*(1:obj.nmovies_per_page);
  
       macroedity = rowys(end) - 1.5*(rowh+rowborder);
-      hasTrx = obj.lObj.hasTrx;
+      hasTrx = obj.lObj.projectHasTrx;
       obj.hasTrx = hasTrx;
       if hasTrx
         macroedity(2) = macroedity - (rowh+rowborder);

@@ -465,7 +465,7 @@ classdef MovieManagerController < handle
       isMultiView = (lObj.nview > 1) ;
       movieColumnHeader = fif(isMultiView, 'Movieset', 'Movie') ;
       trxNames = mmModel.originalTrxNames ;
-      tfTrx = lObj.hasTrx && any(cellfun(@(x)~isempty(x), trxNames(:))) ;
+      tfTrx = lObj.projectHasTrx && any(cellfun(@(x)~isempty(x), trxNames(:))) ;
       if tfTrx
         args = {'ColumnName', {movieColumnHeader 'Trx' 'Num Labels'}, ...
                 'ColumnWidth', {'2x', '1x', 100}} ;

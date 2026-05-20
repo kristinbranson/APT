@@ -11372,7 +11372,7 @@ classdef Labeler < handle
         error('Number of channels differs across views.');
       end
       s.cfg.NumChans = nchan; % see below, we change this again
-      s.cfg.HasTrx = obj.hasTrx;
+      s.cfg.HasTrx = obj.projectHasTrx;
 %       if nchan>1
 %         warningNoTrace('Images have %d channels. Typically grayscale images are preferred; select View>Convert to grayscale.',nchan);
 %       end
