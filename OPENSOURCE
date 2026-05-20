@@ -32,11 +32,7 @@ We thank the open source community for making this project possible. APT contain
 * matlab/propertiesGUI
   http://undocumentedmatlab.com/articles/propertiesgui
   Yair M. Altman: altmany(at)gmail.com
-  
-* matlab/treeTable
-  http://undocumentedmatlab.com/articles/treetable
-  Yair M. Altman: altmany(at)gmail.com
-  
+
 * matlab/YAMLMatlab_0.4.3, matlab/+yaml
   https://code.google.com/archive/p/yamlmatlab/
   https://github.com/ewiger/yamlmatlab
