@@ -15,13 +15,8 @@ function h1 = createProjectSetupFigure()
 % FIG-files.
 
 
-load('createProjectSetupFigure.mat', 'mat') ;
-
-
 appdata = [];
-appdata.GUIDEOptions = mat{1};
 appdata.lastValidTag = 'figure1';
-appdata.GUIDELayoutEditor = mat{2};
 
 h1 = figure(...
 'PaperUnits',get(0,'defaultfigurePaperUnits'),...
