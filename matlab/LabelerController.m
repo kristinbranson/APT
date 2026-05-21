@@ -2163,6 +2163,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
         app = ProjectSetup(obj.mainFigure_) ;  % launches the project setup window
+        uiwait(app.fig) ;
         cfg = app.output ;
         delete(app) ;
         if ~isempty(cfg)

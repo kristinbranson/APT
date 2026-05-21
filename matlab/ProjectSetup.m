@@ -2,7 +2,7 @@ classdef ProjectSetup < matlab.apps.AppBase
 
   % Widget properties (emitted by App Designer Migration Tool)
   properties (Access = public)
-    figure1                       matlab.ui.Figure
+    fig                           matlab.ui.Figure
     text16                        matlab.ui.control.Label
     text_multianimal_description  matlab.ui.control.Label
     text_nviews_description       matlab.ui.control.Label
@@ -28,7 +28,7 @@ classdef ProjectSetup < matlab.apps.AppBase
   end
 
   % Non-widget state (private in spirit; underscore suffix marks the intent)
-  properties (Access = public, Transient)
+  properties (Access = private, Transient)
     viewCount_  = 1
     pointCount_ = 1
     advancedOn_ = false
@@ -52,28 +52,25 @@ classdef ProjectSetup < matlab.apps.AppBase
   methods (Access = public)
     function app = ProjectSetup(varargin)
       % Build and show the ProjectSetup dialog; block until the user closes it.
-      createComponents(app) ;
-      registerApp(app, app.figure1) ;
-      opening_(app, varargin{:}) ;
-      if nargout == 0
-        clear app
-      end
+      app.createComponents() ;
+      app.registerApp(app.fig) ;
+      app.opening_(varargin{:}) ;
     end  % function
 
     function delete(app)
       % Delete the underlying figure when the app is deleted.
-      delete(app.figure1) ;
+      delete(app.fig) ;
     end  % function
 
     function advModeCollapse_(app)
       % Collapse the dialog so the advanced-properties panel is hidden.
-      h1 = findall(app.figure1, '-property', 'Units') ;
+      h1 = findall(app.fig, '-property', 'Units') ;
       set(h1, 'Units', 'pixels') ;
       posMid = app.landmarkMid.Position ;
       posMid = posMid(1) + posMid(3)/2 ;
-      pos = app.figure1.Position ;
+      pos = app.fig.Position ;
       pos(3) = posMid ;
-      app.figure1.Position = pos ;
+      app.fig.Position = pos ;
       set(h1, 'Units', 'normalized') ;
       app.advancedOn_ = false ;
       app.pbAdvanced.Text = 'Advanced >' ;
@@ -81,13 +78,13 @@ classdef ProjectSetup < matlab.apps.AppBase
 
     function advModeExpand_(app)
       % Expand the dialog so the advanced-properties panel is visible.
-      h1 = findall(app.figure1, '-property', 'Units') ;
+      h1 = findall(app.fig, '-property', 'Units') ;
       set(h1, 'Units', 'pixels') ;
       posRight = app.landmarkRight.Position ;
       posRight = posRight(1) + posRight(3) ;
-      pos = app.figure1.Position ;
+      pos = app.fig.Position ;
       pos(3) = posRight ;
-      app.figure1.Position = pos ;
+      app.fig.Position = pos ;
       set(h1, 'Units', 'normalized') ;
       app.advancedOn_ = true ;
       app.pbAdvanced.Text = '< Basic' ;
@@ -162,28 +159,26 @@ classdef ProjectSetup < matlab.apps.AppBase
 
   methods (Access = private)
     function opening_(app, varargin)
-      % Initialize dialog state and block until the user closes it.
-      %
-      % Modal dialog.  Generates a project configuration struct.
+      % Initialize dialog state.  Returns once the figure is shown and
+      % populated; the caller is responsible for blocking (e.g. via
+      % uiwait(app.fig)) and for reading app.output afterwards.
       %
       %   app = ProjectSetup() ;
       %   app = ProjectSetup(hParentFig) ;  % centered on hParentFig
-      movegui(app.figure1, 'onscreen') ;
-      set(findall(app.figure1, '-property', 'Units'), 'Units', 'normalized') ;
+      movegui(app.fig, 'onscreen') ;
+      set(findall(app.fig, '-property', 'Units'), 'Units', 'normalized') ;
 
       if numel(varargin) >= 1
         hParentFig = varargin{1} ;
         if ~ishandle(hParentFig)
           error('ProjectSetup:arg', 'Expected argument to be a figure handle.') ;
         end
-        centerOnParentFigure(app.figure1, hParentFig) ;
+        centerOnParentFigure(app.fig, hParentFig) ;
       end
 
       cfg = Labeler.cfgGetLastProjectConfigNoView() ;
       app.setCurrentConfig_(cfg) ;
       app.advModeCollapse_() ;
-
-      uiwait(app.figure1) ;
     end  % function
 
     % Value-changed handler for the keypoint-count edit field.
@@ -231,11 +226,11 @@ classdef ProjectSetup < matlab.apps.AppBase
 
     % Close-request function for the main figure.
     function figure1_CloseRequestFcn(app, ~)
-      if isequal(get(app.figure1, 'waitstatus'), 'waiting')
+      if isequal(get(app.fig, 'waitstatus'), 'waiting')
         % The dialog is still in uiwait; release it.
-        uiresume(app.figure1) ;
+        uiresume(app.fig) ;
       else
-        delete(app.figure1) ;
+        delete(app.fig) ;
       end
     end  % function
 
@@ -247,7 +242,7 @@ classdef ProjectSetup < matlab.apps.AppBase
     % Button-pushed function for the Cancel button.
     function pbCancel_Callback(app, ~)
       app.output_ = [] ;
-      close(app.figure1) ;
+      close(app.fig) ;
     end  % function
 
     % Button-pushed function for the Copy Settings From... button.
@@ -271,7 +266,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       cfg = app.genCurrentConfig_() ;
       cfg.ProjectName = app.etProjectName.Value ;
       app.output_ = cfg ;
-      close(app.figure1) ;
+      close(app.fig) ;
     end  % function
   end  % methods (Access = private)
 
@@ -282,16 +277,16 @@ classdef ProjectSetup < matlab.apps.AppBase
     function createComponents(app)
 
       % Create figure1 and hide until all components are created
-      app.figure1 = uifigure('Visible', 'off');
-      app.figure1.Color = [0 0.243 0.365];
-      app.figure1.Position = [680 889 854 621];
-      app.figure1.Name = 'Project Setup';
-      app.figure1.CloseRequestFcn = createCallbackFcn(app, @figure1_CloseRequestFcn, true);
-      app.figure1.HandleVisibility = 'callback';
-      app.figure1.Tag = 'figure1';
+      app.fig = uifigure('Visible', 'off');
+      app.fig.Color = [0 0.243 0.365];
+      app.fig.Position = [680 889 854 621];
+      app.fig.Name = 'Project Setup';
+      app.fig.CloseRequestFcn = app.createCallbackFcn(@figure1_CloseRequestFcn, true);
+      app.fig.HandleVisibility = 'callback';
+      app.fig.Tag = 'figure1';
 
       % Create text2
-      app.text2 = uilabel(app.figure1);
+      app.text2 = uilabel(app.fig);
       app.text2.Tag = 'text2';
       app.text2.BackgroundColor = [0 0.243 0.365];
       app.text2.VerticalAlignment = 'top';
@@ -302,7 +297,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text2.Text = 'Project Name';
 
       % Create text3
-      app.text3 = uilabel(app.figure1);
+      app.text3 = uilabel(app.fig);
       app.text3.Tag = 'text3';
       app.text3.BackgroundColor = [0 0.243 0.365];
       app.text3.VerticalAlignment = 'top';
@@ -313,7 +308,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text3.Text = 'Number of Keypoints';
 
       % Create text4
-      app.text4 = uilabel(app.figure1);
+      app.text4 = uilabel(app.fig);
       app.text4.Tag = 'text4';
       app.text4.BackgroundColor = [0 0.243 0.365];
       app.text4.VerticalAlignment = 'top';
@@ -324,8 +319,8 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text4.Text = 'Number of Views';
 
       % Create etProjectName
-      app.etProjectName = uieditfield(app.figure1, 'text');
-      app.etProjectName.ValueChangedFcn = createCallbackFcn(app, @etProjectName_Callback, true);
+      app.etProjectName = uieditfield(app.fig, 'text');
+      app.etProjectName.ValueChangedFcn = app.createCallbackFcn(@etProjectName_Callback, true);
       app.etProjectName.Tag = 'etProjectName';
       app.etProjectName.FontSize = 20;
       app.etProjectName.FontColor = [0 0.980392156862745 0.819607843137255];
@@ -333,8 +328,8 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.etProjectName.Position = [186 555 250 32];
 
       % Create etNumberOfPoints
-      app.etNumberOfPoints = uieditfield(app.figure1, 'text');
-      app.etNumberOfPoints.ValueChangedFcn = createCallbackFcn(app, @etNumberOfPoints_Callback, true);
+      app.etNumberOfPoints = uieditfield(app.fig, 'text');
+      app.etNumberOfPoints.ValueChangedFcn = app.createCallbackFcn(@etNumberOfPoints_Callback, true);
       app.etNumberOfPoints.Tag = 'etNumberOfPoints';
       app.etNumberOfPoints.HorizontalAlignment = 'center';
       app.etNumberOfPoints.FontSize = 20;
@@ -344,8 +339,8 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.etNumberOfPoints.Value = '12';
 
       % Create etNumberOfViews
-      app.etNumberOfViews = uieditfield(app.figure1, 'text');
-      app.etNumberOfViews.ValueChangedFcn = createCallbackFcn(app, @etNumberOfViews_Callback, true);
+      app.etNumberOfViews = uieditfield(app.fig, 'text');
+      app.etNumberOfViews.ValueChangedFcn = app.createCallbackFcn(@etNumberOfViews_Callback, true);
       app.etNumberOfViews.Tag = 'etNumberOfViews';
       app.etNumberOfViews.HorizontalAlignment = 'center';
       app.etNumberOfViews.FontSize = 20;
@@ -355,8 +350,8 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.etNumberOfViews.Value = '1';
 
       % Create pbAdvanced
-      app.pbAdvanced = uibutton(app.figure1, 'push');
-      app.pbAdvanced.ButtonPushedFcn = createCallbackFcn(app, @pbAdvanced_Callback, true);
+      app.pbAdvanced = uibutton(app.fig, 'push');
+      app.pbAdvanced.ButtonPushedFcn = app.createCallbackFcn(@pbAdvanced_Callback, true);
       app.pbAdvanced.Tag = 'pbAdvanced';
       app.pbAdvanced.BackgroundColor = [0 0 0];
       app.pbAdvanced.FontSize = 20;
@@ -366,8 +361,8 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbAdvanced.Text = 'Advanced >';
 
       % Create pbCreateProject
-      app.pbCreateProject = uibutton(app.figure1, 'push');
-      app.pbCreateProject.ButtonPushedFcn = createCallbackFcn(app, @pbCreateProject_Callback, true);
+      app.pbCreateProject = uibutton(app.fig, 'push');
+      app.pbCreateProject.ButtonPushedFcn = app.createCallbackFcn(@pbCreateProject_Callback, true);
       app.pbCreateProject.Tag = 'pbCreateProject';
       app.pbCreateProject.BackgroundColor = [0 0 0];
       app.pbCreateProject.FontSize = 20;
@@ -376,8 +371,8 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCreateProject.Text = 'Create Project';
 
       % Create pbCancel
-      app.pbCancel = uibutton(app.figure1, 'push');
-      app.pbCancel.ButtonPushedFcn = createCallbackFcn(app, @pbCancel_Callback, true);
+      app.pbCancel = uibutton(app.fig, 'push');
+      app.pbCancel.ButtonPushedFcn = app.createCallbackFcn(@pbCancel_Callback, true);
       app.pbCancel.Tag = 'pbCancel';
       app.pbCancel.BackgroundColor = [0 0 0];
       app.pbCancel.FontSize = 20;
@@ -386,7 +381,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCancel.Text = 'Cancel';
 
       % Create pnlAdvanced
-      app.pnlAdvanced = uipanel(app.figure1);
+      app.pnlAdvanced = uipanel(app.fig);
       app.pnlAdvanced.ForegroundColor = [0 1 1];
       app.pnlAdvanced.BorderType = 'none';
       app.pnlAdvanced.BackgroundColor = [0 0.243 0.365];
@@ -395,7 +390,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pnlAdvanced.Position = [457 20 377 551];
 
       % Create text8
-      app.text8 = uilabel(app.figure1);
+      app.text8 = uilabel(app.fig);
       app.text8.Tag = 'text8';
       app.text8.BackgroundColor = [0 0.243 0.365];
       app.text8.VerticalAlignment = 'top';
@@ -407,7 +402,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text8.Text = 'Advanced Properties';
 
       % Create landmarkRight
-      app.landmarkRight = uilabel(app.figure1);
+      app.landmarkRight = uilabel(app.fig);
       app.landmarkRight.Tag = 'landmarkRight';
       app.landmarkRight.HorizontalAlignment = 'center';
       app.landmarkRight.VerticalAlignment = 'top';
@@ -418,8 +413,8 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.landmarkRight.Text = '';
 
       % Create pbCopySettingsFrom
-      app.pbCopySettingsFrom = uibutton(app.figure1, 'push');
-      app.pbCopySettingsFrom.ButtonPushedFcn = createCallbackFcn(app, @pbCopySettingsFrom_Callback, true);
+      app.pbCopySettingsFrom = uibutton(app.fig, 'push');
+      app.pbCopySettingsFrom.ButtonPushedFcn = app.createCallbackFcn(@pbCopySettingsFrom_Callback, true);
       app.pbCopySettingsFrom.Tag = 'pbCopySettingsFrom';
       app.pbCopySettingsFrom.BackgroundColor = [0 0 0];
       app.pbCopySettingsFrom.FontSize = 20;
@@ -429,7 +424,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCopySettingsFrom.Text = 'Copy Settings...';
 
       % Create cbHasTrx
-      app.cbHasTrx = uicheckbox(app.figure1);
+      app.cbHasTrx = uicheckbox(app.fig);
       app.cbHasTrx.Tag = 'cbHasTrx';
       app.cbHasTrx.Text = '';
       app.cbHasTrx.FontSize = 24;
@@ -437,7 +432,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.cbHasTrx.Position = [323 237 24 24];
 
       % Create text_multitarget
-      app.text_multitarget = uilabel(app.figure1);
+      app.text_multitarget = uilabel(app.fig);
       app.text_multitarget.Tag = 'text_multitarget';
       app.text_multitarget.BackgroundColor = [0 0.243 0.365];
       app.text_multitarget.VerticalAlignment = 'top';
@@ -448,7 +443,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text_multitarget.Text = 'Has Body Tracking?';
 
       % Create cbMA
-      app.cbMA = uicheckbox(app.figure1);
+      app.cbMA = uicheckbox(app.fig);
       app.cbMA.Tag = 'cbMA';
       app.cbMA.Text = '';
       app.cbMA.FontSize = 20;
@@ -456,7 +451,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.cbMA.Position = [324 338 14 22];
 
       % Create text12
-      app.text12 = uilabel(app.figure1);
+      app.text12 = uilabel(app.fig);
       app.text12.Tag = 'text12';
       app.text12.BackgroundColor = [0 0.243 0.365];
       app.text12.VerticalAlignment = 'top';
@@ -467,7 +462,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text12.Text = 'Multiple Animals?';
 
       % Create landmarkMid
-      app.landmarkMid = uilabel(app.figure1);
+      app.landmarkMid = uilabel(app.fig);
       app.landmarkMid.Tag = 'landmarkMid';
       app.landmarkMid.HorizontalAlignment = 'center';
       app.landmarkMid.VerticalAlignment = 'top';
@@ -478,7 +473,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.landmarkMid.Text = '';
 
       % Create text_nkeypoints_description
-      app.text_nkeypoints_description = uilabel(app.figure1);
+      app.text_nkeypoints_description = uilabel(app.fig);
       app.text_nkeypoints_description.Tag = 'text_nkeypoints_description';
       app.text_nkeypoints_description.BackgroundColor = [0 0.243 0.365];
       app.text_nkeypoints_description.VerticalAlignment = 'top';
@@ -489,7 +484,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text_nkeypoints_description.Text = 'Number of keypoints to label for each animal';
 
       % Create text_nviews_description
-      app.text_nviews_description = uilabel(app.figure1);
+      app.text_nviews_description = uilabel(app.fig);
       app.text_nviews_description.Tag = 'text_nviews_description';
       app.text_nviews_description.BackgroundColor = [0 0.243 0.365];
       app.text_nviews_description.VerticalAlignment = 'top';
@@ -500,7 +495,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text_nviews_description.Text = 'APT can do 3D labeling and tracking from multiple calibrated cameras. Enter 1 if animals were imaged from just one camera. Otherwise, enter the number of synced cameras recording the animals. ';
 
       % Create text_multianimal_description
-      app.text_multianimal_description = uilabel(app.figure1);
+      app.text_multianimal_description = uilabel(app.fig);
       app.text_multianimal_description.Tag = 'text_multianimal_description';
       app.text_multianimal_description.BackgroundColor = [0 0.243 0.365];
       app.text_multianimal_description.VerticalAlignment = 'top';
@@ -511,7 +506,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text_multianimal_description.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.';
 
       % Create text16
-      app.text16 = uilabel(app.figure1);
+      app.text16 = uilabel(app.fig);
       app.text16.Tag = 'text16';
       app.text16.BackgroundColor = [0 0.243 0.365];
       app.text16.VerticalAlignment = 'top';
@@ -522,7 +517,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text16.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.';
 
       % Show the figure after all components are created
-      app.figure1.Visible = 'on';
+      app.fig.Visible = 'on';
     end  % function
   end  % methods (Access = private)
 end  % classdef
