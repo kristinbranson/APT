@@ -64,28 +64,22 @@ classdef ProjectSetup < matlab.apps.AppBase
 
     function advModeCollapse_(app)
       % Collapse the dialog so the advanced-properties panel is hidden.
-      h1 = findall(app.fig, '-property', 'Units') ;
-      set(h1, 'Units', 'pixels') ;
       posMid = app.landmarkMid.Position ;
       posMid = posMid(1) + posMid(3)/2 ;
       pos = app.fig.Position ;
       pos(3) = posMid ;
       app.fig.Position = pos ;
-      set(h1, 'Units', 'normalized') ;
       app.advancedOn_ = false ;
       app.pbAdvanced.Text = 'Advanced >' ;
     end  % function
 
     function advModeExpand_(app)
       % Expand the dialog so the advanced-properties panel is visible.
-      h1 = findall(app.fig, '-property', 'Units') ;
-      set(h1, 'Units', 'pixels') ;
       posRight = app.landmarkRight.Position ;
       posRight = posRight(1) + posRight(3) ;
       pos = app.fig.Position ;
       pos(3) = posRight ;
       app.fig.Position = pos ;
-      set(h1, 'Units', 'normalized') ;
       app.advancedOn_ = true ;
       app.pbAdvanced.Text = '< Basic' ;
     end  % function
@@ -166,7 +160,6 @@ classdef ProjectSetup < matlab.apps.AppBase
       %   app = ProjectSetup() ;
       %   app = ProjectSetup(hParentFig) ;  % centered on hParentFig
       movegui(app.fig, 'onscreen') ;
-      set(findall(app.fig, '-property', 'Units'), 'Units', 'normalized') ;
 
       if numel(varargin) >= 1
         hParentFig = varargin{1} ;
@@ -278,6 +271,7 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       % Create figure1 and hide until all components are created
       app.fig = uifigure('Visible', 'off');
+      app.fig.AutoResizeChildren = 'off';
       app.fig.Color = [0 0.243 0.365];
       app.fig.Position = [680 889 854 621];
       app.fig.Name = 'Project Setup';
