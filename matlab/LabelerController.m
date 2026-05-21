@@ -1883,24 +1883,24 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function suspComputeUI(obj)
-      labeler = obj.labeler_ ;      
-      tfsucc = labeler.suspCompute();
-      if ~tfsucc
-        return
-      end
-      title = sprintf('Suspicious frames: %s',labeler.suspDiag) ;
-      hF = figure('Name',title);
-      tbl = labeler.suspSelectedMFT ;
-      tblFlds = tbl.Properties.VariableNames;
-      nt = NavigationTable(hF, ...
-                           [0 0 1 1], ...
-                           @(row,rowdata)(obj.controlActuated('susp_frame_table_row', [], [], row, rowdata)),...
-                           'ColumnName',tblFlds);
-      nt.setData(tbl);
-      hF.UserData = nt;
-      obj.suspiciousFramesFigure_ = hF ;
-    end  % function
+    % function suspComputeUI(obj)
+    %   labeler = obj.labeler_ ;      
+    %   tfsucc = labeler.suspCompute();
+    %   if ~tfsucc
+    %     return
+    %   end
+    %   title = sprintf('Suspicious frames: %s',labeler.suspDiag) ;
+    %   hF = figure('Name',title);
+    %   tbl = labeler.suspSelectedMFT ;
+    %   tblFlds = tbl.Properties.VariableNames;
+    %   nt = NavigationTable(hF, ...
+    %                        [0 0 1 1], ...
+    %                        @(row,rowdata)(obj.controlActuated('susp_frame_table_row', [], [], row, rowdata)),...
+    %                        'ColumnName',tblFlds);
+    %   nt.setData(tbl);
+    %   hF.UserData = nt;
+    %   obj.suspiciousFramesFigure_ = hF ;
+    % end  % function
 
     function susp_frame_table_row_actuated_(obj, source, event, row, rowdata)  %#ok<INUSD>
       % Does what needs doing when the suspicious frame table row is selected.
