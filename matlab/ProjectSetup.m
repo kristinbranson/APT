@@ -1,6 +1,6 @@
 classdef ProjectSetup < matlab.apps.AppBase
 
-  % Properties that correspond to app components
+  % Widget properties (emitted by App Designer Migration Tool)
   properties (Access = public)
     figure1                       matlab.ui.Figure
     text16                        matlab.ui.control.Label
@@ -27,345 +27,253 @@ classdef ProjectSetup < matlab.apps.AppBase
     text2                         matlab.ui.control.Label
   end
 
+  % Non-widget state (private in spirit; underscore suffix marks the intent)
+  properties (Access = public, Transient)
+    viewCount_  = 1
+    pointCount_ = 1
+    advancedOn_ = false
+    propsPane_  = []
+    mirror_     = []
+    output_     = []
+  end
+
+  properties (Dependent)
+    output
+  end
+
+  methods
+    function result = get.output(app)
+      % Getter for output: the project-config struct chosen by the user,
+      % or [] if the dialog was cancelled.
+      result = app.output_ ;
+    end  % function
+  end  % methods
+
   methods (Access = public)
-    % Construct app
     function app = ProjectSetup(varargin)
-
-      % Create UIFigure and components
-      createComponents(app)
-
-      % Register the app with App Designer
-      registerApp(app, app.figure1)
-
-      % Execute the startup function
-      runStartupFcn(app, @(app)ProjectSetup_OpeningFcn(app, varargin{:}))
-
+      % Build and show the ProjectSetup dialog; block until the user closes it.
+      createComponents(app) ;
+      registerApp(app, app.figure1) ;
+      opening_(app, varargin{:}) ;
       if nargout == 0
         clear app
       end
-    end
+    end  % function
 
-    % Code that executes before app deletion
     function delete(app)
+      % Delete the underlying figure when the app is deleted.
+      delete(app.figure1) ;
+    end  % function
 
-      % Delete UIFigure when app is deleted
-      delete(app.figure1)
-    end
-  end  % methods (Access=public)
-  
-  methods (Access = private)
-    function handles = advModeCollapse(app, handles)
-      h1 = findall(handles.figure1,'-property','Units');
-      set(h1,'Units','pixels');
-      posMid = handles.landmarkMid.Position;
-      posMid = posMid(1)+posMid(3)/2;
-      pos = handles.figure1.Position;
-      pos(3) = posMid;
-      handles.figure1.Position = pos;
-      set(h1,'Units','normalized');
-      handles.advancedOn = false;
-      handles.pbAdvanced.String = 'Advanced >';
-    end
+    function advModeCollapse_(app)
+      % Collapse the dialog so the advanced-properties panel is hidden.
+      h1 = findall(app.figure1, '-property', 'Units') ;
+      set(h1, 'Units', 'pixels') ;
+      posMid = app.landmarkMid.Position ;
+      posMid = posMid(1) + posMid(3)/2 ;
+      pos = app.figure1.Position ;
+      pos(3) = posMid ;
+      app.figure1.Position = pos ;
+      set(h1, 'Units', 'normalized') ;
+      app.advancedOn_ = false ;
+      app.pbAdvanced.Text = 'Advanced >' ;
+    end  % function
 
-    function handles = advModeExpand(app, handles)
-      h1 = findall(handles.figure1,'-property','Units');
-      set(h1,'Units','pixels');
-      posRight = handles.landmarkRight.Position;
-      posRight = posRight(1)+posRight(3);
-      pos = handles.figure1.Position;
-      pos(3) = posRight;
-      handles.figure1.Position = pos;
-      set(h1,'Units','normalized');
-      handles.advancedOn = true;
-      handles.pbAdvanced.String = '< Basic';
-    end
+    function advModeExpand_(app)
+      % Expand the dialog so the advanced-properties panel is visible.
+      h1 = findall(app.figure1, '-property', 'Units') ;
+      set(h1, 'Units', 'pixels') ;
+      posRight = app.landmarkRight.Position ;
+      posRight = posRight(1) + posRight(3) ;
+      pos = app.figure1.Position ;
+      pos(3) = posRight ;
+      app.figure1.Position = pos ;
+      set(h1, 'Units', 'normalized') ;
+      app.advancedOn_ = true ;
+      app.pbAdvanced.Text = '< Basic' ;
+    end  % function
 
-    function handles = advModeToggle(app, handles)
-      if handles.advancedOn
-        handles = advModeCollapse(app, handles);
+    function advModeToggle_(app)
+      % Toggle the dialog between expanded and collapsed advanced mode.
+      if app.advancedOn_
+        app.advModeCollapse_() ;
       else
-        handles = advModeExpand(app, handles);
+        app.advModeExpand_() ;
       end
-    end
+    end  % function
 
-    function handles = advTableRefresh(app, handles, sMirror)
-      tfRefresh = exist('sMirror','var')==0;
-      if tfRefresh
-        ad = getappdata(handles.figure1);
-        sMirror = ad.mirror;
+    function advTableRefresh_(app, sMirror)
+      % Refresh the advanced-properties table to match the current view and
+      % point counts.  If sMirror is supplied, it replaces the current mirror;
+      % otherwise the existing mirror is reused.
+      if ~exist('sMirror', 'var')
+        sMirror = app.mirror_ ;
       end
-      sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror,'ViewNames','view',handles.nViews);
-      sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror,'LabelPointNames','point',handles.nPoints);
-      sMirror = Labeler.hlpAugmentOrTruncStructField(sMirror,'View',handles.nViews);
-      if ~isempty(handles.propsPane) && ishandle(handles.propsPane)
-        delete(handles.propsPane);
-        handles.propsPane = [];
+      sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror, 'ViewNames', 'view', app.viewCount_) ;
+      sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror, 'LabelPointNames', 'point', app.pointCount_) ;
+      sMirror = Labeler.hlpAugmentOrTruncStructField(sMirror, 'View', app.viewCount_) ;
+      app.mirror_ = sMirror ;
+      if ~isempty(app.propsPane_) && ishandle(app.propsPane_)
+        delete(app.propsPane_) ;
+        app.propsPane_ = [] ;
       end
+      app.propsPane_ = [] ;  % newPropertiesGUI(app.pnlAdvanced, sMirror) when re-enabled
+    end  % function
 
-      handles.propsPane = [] ;
-    end
+    function cfg = genCurrentConfig_(app)
+      % Generate a config struct from the current UI state.
+      cfg = app.mirror_ ;
 
-    function cfg = genCurrentConfig(app, handles)
-      % Generate config from the current UI state
-
-      ad = getappdata(handles.figure1);
-      cfg = ad.mirror;
-
-      assert(numel(fieldnames(cfg.ViewNames))==handles.nViews);
-      assert(numel(fieldnames(cfg.LabelPointNames))==handles.nPoints);
-      cfg.NumViews = handles.nViews;
-      cfg.NumLabelPoints = handles.nPoints;
-      cfg.ViewNames = struct2cell(cfg.ViewNames);
-      cfg.LabelPointNames = struct2cell(cfg.LabelPointNames);
-      cfg.Trx.HasTrx = handles.cbHasTrx.Value;
-      cfg.MultiAnimal = handles.cbMA.Value;
-      isMA = cfg.MultiAnimal && ~cfg.Trx.HasTrx;
-      if isMA
-        cfg.LabelMode = LabelMode.MULTIANIMAL;
+      assert(numel(fieldnames(cfg.ViewNames)) == app.viewCount_) ;
+      assert(numel(fieldnames(cfg.LabelPointNames)) == app.pointCount_) ;
+      cfg.NumViews = app.viewCount_ ;
+      cfg.NumLabelPoints = app.pointCount_ ;
+      cfg.ViewNames = struct2cell(cfg.ViewNames) ;
+      cfg.LabelPointNames = struct2cell(cfg.LabelPointNames) ;
+      cfg.Trx.HasTrx = app.cbHasTrx.Value ;
+      cfg.MultiAnimal = app.cbMA.Value ;
+      isMultiAnimal = cfg.MultiAnimal && ~cfg.Trx.HasTrx ;
+      if isMultiAnimal
+        cfg.LabelMode = LabelMode.MULTIANIMAL ;
       else
-        cfg.LabelMode = LabelMode.SEQUENTIAL;
+        cfg.LabelMode = LabelMode.SEQUENTIAL ;
       end
-      % pumLM = handles.pumLabelingMode;
-      % lmVal = pumLM.Value;
-      % cfg.LabelMode = char(pumLM.UserData(lmVal));
-      % pumTrk = handles.pumTracking;
-      % tracker = pumTrk.String{pumTrk.Value};
-      % cfg.Track.Enable = ~strcmpi(tracker,'none');
-      cfg.Track.Enable = true;
-      % cfg.Track.Type = tracker;
-      % propertiesGUI treats props with empty vals as strings even if they are
-      % subsequently filled with numbers
-      FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim' 'InvertMovie' 'AxFontSize' 'ShowAxTicks' 'ShowGrid'};
-      for i=1:numel(cfg.View)
-        cfg.View(i) = structLeavesStr2Double(cfg.View(i),FIELDS2DOUBLIFY);
+      cfg.Track.Enable = true ;
+      % propertiesGUI treats props with empty values as strings even if they
+      % are subsequently filled with numbers
+      fieldsToDoublify = {'Gamma', 'FigurePos', 'AxisLim', 'InvertMovie', 'AxFontSize', 'ShowAxTicks', 'ShowGrid'} ;
+      for i = 1:numel(cfg.View)
+        cfg.View(i) = structLeavesStr2Double(cfg.View(i), fieldsToDoublify) ;
       end
-    end
+    end  % function
 
-    function handles = setCurrentConfig(app, handles, cfg)
-      % Set given config on controls
+    function setCurrentConfig_(app, cfg)
+      % Set the given config struct on the controls and on internal state.
+      app.viewCount_ = cfg.NumViews ;
+      app.pointCount_ = cfg.NumLabelPoints ;
+      app.etNumberOfViews.Value = num2str(app.viewCount_) ;
+      app.etNumberOfPoints.Value = num2str(app.pointCount_) ;
+      app.cbHasTrx.Value = cfg.Trx.HasTrx ;
+      app.cbMA.Value = cfg.MultiAnimal ;
+      sMirror = Labeler.cfg2mirror(cfg) ;
+      app.advTableRefresh_(sMirror) ;
+    end  % function
+  end  % methods (Access = public)
 
-      % we store these two props on handles in order to be able to revert;
-      % data/model is split between i) primary UIcontrols and ii) adv panel
-      handles.nViews = cfg.NumViews;
-      handles.nPoints = cfg.NumLabelPoints;
-      set(handles.etNumberOfViews,'string',num2str(handles.nViews));
-      set(handles.etNumberOfPoints,'string',num2str(handles.nPoints));
-      set(handles.cbHasTrx,'Value',cfg.Trx.HasTrx);
-      set(handles.cbMA,'Value',cfg.MultiAnimal);
-
-
-      % pumLM = handles.pumLabelingMode;
-      % [tf,val] = ismember(cfg.LabelMode,arrayfun(@char,pumLM.UserData,'uni',0));
-      % if ~tf
-      %   % should never happen
-      %   val = 1; % NONE
-      % end
-      % pumLM.Value = val;
-
-      % pumTrk = handles.pumTracking;
-      % if cfg.Track.Enable
-      %   [tf,val] = ismember(cfg.Track.Type,pumTrk.String);
-      %   if ~tf
-      %     % unexpected but maybe not impossible due to path
-      %     val = 1; % None
-      %   end
-      % else
-      %   val = 1;
-      % end
-      % pumTrk.Value = val;
-
-      sMirror = Labeler.cfg2mirror(cfg);
-      handles = advTableRefresh(app, handles,sMirror);
-    end
-
-  end
-
-
-  % Callbacks that handle component events
   methods (Access = private)
-
-    % Code that executes after component creation
-    function ProjectSetup_OpeningFcn(app, varargin)
-      % --- Executes just before ProjectSetup is made visible.
+    function opening_(app, varargin)
+      % Initialize dialog state and block until the user closes it.
       %
-      % Modal dialog. Generates project configuration struct
+      % Modal dialog.  Generates a project configuration struct.
       %
-      % cfg = ProjectSetup();
-      % cfg = ProjectSetup(hParentFig); % centered on hParentFig
+      %   app = ProjectSetup() ;
+      %   app = ProjectSetup(hParentFig) ;  % centered on hParentFig
+      movegui(app.figure1, 'onscreen') ;
+      set(findall(app.figure1, '-property', 'Units'), 'Units', 'normalized') ;
 
-      % Ensure that the app appears on screen when run
-      movegui(app.figure1, 'onscreen');
-
-      % Create GUIDE-style callback args - Added by Migration Tool
-      [hObject, eventdata, handles] = convertToGUIDECallbackArguments(app); %#ok<ASGLU>
-
-
-      h1 = findall(handles.figure1,'-property','Units');
-      set(h1,'Units','Normalized');
-      set(handles.figure1,'MenuBar','None');
-
-      if numel(varargin)>=1
-        hParentFig = varargin{1};
+      if numel(varargin) >= 1
+        hParentFig = varargin{1} ;
         if ~ishandle(hParentFig)
-          error('ProjectSetup:arg','Expected argument to be a figure handle.');
+          error('ProjectSetup:arg', 'Expected argument to be a figure handle.') ;
         end
-        centerOnParentFigure(hObject,hParentFig);
+        centerOnParentFigure(app.figure1, hParentFig) ;
       end
 
-      handles.output = [];
+      cfg = Labeler.cfgGetLastProjectConfigNoView() ;
+      app.setCurrentConfig_(cfg) ;
+      app.advModeCollapse_() ;
 
-      % init PUMs that depend only on codebase
-      % lms = enumeration('LabelMode');
-      % tfnone = lms==LabelMode.NONE;
-      % lms(tfnone,:) = [];
-      % lmStrs = arrayfun(@(x)x.prettyString,lms,'uni',0);
-      % handles.pumLabelingMode.String = lmStrs;
-      % handles.pumLabelingMode.UserData = lms;
-      % trackers = LabelTracker.findAllSubclasses;
-      % trackers = [{'None'};trackers];
-      % handles.pumTracking.String = trackers;
+      uiwait(app.figure1) ;
+    end  % function
 
-      handles.propsPane = [];
-
-      % init ui state
-      cfg = Labeler.cfgGetLastProjectConfigNoView;
-      handles = setCurrentConfig(app, handles,cfg);
-      handles.propsPane.Position(4) = handles.propsPane.Position(3); % by default table is slightly bigger than panel for some reason
-      handles = advModeCollapse(app, handles);
-
-      guidata(hObject, handles);
-
-      % UIWAIT makes ProjectSetup wait for user response (see UIRESUME)
-      uiwait(handles.figure1);
-    end
-
-    % Value changed function: etNumberOfPoints
-    function etNumberOfPoints_Callback(app, event)
-      % Create GUIDE-style callback args - Added by Migration Tool
-      [hObject, eventdata, handles] = convertToGUIDECallbackArguments(app, event); %#ok<ASGLU>
-
-      %fprintf('etNOP enter');
-      val = str2double(hObject.String);
-      if floor(val)==val && val>=1
-        handles.nPoints = val;
+    % Value-changed handler for the keypoint-count edit field.
+    function etNumberOfPoints_Callback(app, ~)
+      val = str2double(app.etNumberOfPoints.Value) ;
+      if floor(val) == val && val >= 1
+        app.pointCount_ = val ;
       else
-        hObject.String = handles.nPoints;
+        app.etNumberOfPoints.Value = num2str(app.pointCount_) ;
       end
-      handles = advTableRefresh(app, handles);
-      guidata(hObject,handles);
-    end
+      app.advTableRefresh_() ;
+    end  % function
 
-    % Value changed function: etNumberOfViews
-    function etNumberOfViews_Callback(app, event)
-      %fprintf('etNOP end');
-
-      % Create GUIDE-style callback args - Added by Migration Tool
-      [hObject, eventdata, handles] = convertToGUIDECallbackArguments(app, event); %#ok<ASGLU>
-
-      val = str2double(hObject.String);
-      if floor(val)==val && val>=1
-        handles.nViews = val;
+    % Value-changed handler for the view-count edit field.
+    function etNumberOfViews_Callback(app, ~)
+      val = str2double(app.etNumberOfViews.Value) ;
+      if floor(val) == val && val >= 1
+        app.viewCount_ = val ;
       else
-        hObject.String = handles.nViews;
+        app.etNumberOfViews.Value = num2str(app.viewCount_) ;
       end
-      switch handles.nViews
+      switch app.viewCount_
         case 1
-          handles.cbHasTrx.Enable = 'on';
-          handles.cbMA.Enable = 'on';
+          app.cbHasTrx.Enable = 'on' ;
+          app.cbMA.Enable = 'on' ;
         otherwise
-          handles.cbHasTrx.Value = 0;
-          handles.cbMA.Value = 0;
-          handles.cbHasTrx.Enable = 'off';
-          handles.cbMA.Enable = 'off';
+          app.cbHasTrx.Value = false ;
+          app.cbMA.Value = false ;
+          app.cbHasTrx.Enable = 'off' ;
+          app.cbMA.Enable = 'off' ;
       end
-      handles = advTableRefresh(app, handles);
-      guidata(hObject,handles);
-    end
+      app.advTableRefresh_() ;
+    end  % function
 
-    % Value changed function: etProjectName
-    function etProjectName_Callback(app, event)
-      % Create GUIDE-style callback args - Added by Migration Tool
-      [hObject, eventdata, handles] = convertToGUIDECallbackArguments(app, event); %#ok<ASGLU>
-
-      name = hObject.String;
-      if ~all(isstrprop(name,'alphanum'))
-        % This unfortunately invalidates _ also. Checking for it seems more work
-        % than worth. MK 20220913
-        warndlg('Name should have only alphanumberic characters');
-        hObject.String = '';
+    % Value-changed handler for the project-name edit field.
+    function etProjectName_Callback(app, ~)
+      name = app.etProjectName.Value ;
+      if ~all(isstrprop(name, 'alphanum'))
+        % This unfortunately invalidates _ also.  Checking for it seems more
+        % work than worth.  MK 20220913
+        warndlg('Name should have only alphanumeric characters') ;
+        app.etProjectName.Value = '' ;
       end
-    end
+    end  % function
 
-    % Close request function: figure1
-    function figure1_CloseRequestFcn(app, event)
-      % Create GUIDE-style callback args - Added by Migration Tool
-      [hObject, eventdata, handles] = convertToGUIDECallbackArguments(app, event); %#ok<ASGLU>
-
-      if isequal(get(hObject,'waitstatus'),'waiting')
-        % The GUI is still in UIWAIT, us UIRESUME
-        uiresume(hObject);
+    % Close-request function for the main figure.
+    function figure1_CloseRequestFcn(app, ~)
+      if isequal(get(app.figure1, 'waitstatus'), 'waiting')
+        % The dialog is still in uiwait; release it.
+        uiresume(app.figure1) ;
       else
-        delete(hObject);
+        delete(app.figure1) ;
       end
-    end
+    end  % function
 
-    % Button pushed function: pbAdvanced
-    function pbAdvanced_Callback(app, event)
-      % Create GUIDE-style callback args - Added by Migration Tool
-      [hObject, eventdata, handles] = convertToGUIDECallbackArguments(app, event); %#ok<ASGLU>
+    % Button-pushed function for the Advanced/Basic toggle.
+    function pbAdvanced_Callback(app, ~)
+      app.advModeToggle_() ;
+    end  % function
 
-      handles = advModeToggle(app, handles);
-      guidata(handles.figure1,handles);
-    end
+    % Button-pushed function for the Cancel button.
+    function pbCancel_Callback(app, ~)
+      app.output_ = [] ;
+      close(app.figure1) ;
+    end  % function
 
-    % Button pushed function: pbCancel
-    function pbCancel_Callback(app, event)
-      %fprintf('pbCreate end');
-
-      % Create GUIDE-style callback args - Added by Migration Tool
-      [hObject, eventdata, handles] = convertToGUIDECallbackArguments(app, event); %#ok<ASGLU>
-
-      handles.output = [];
-      guidata(handles.figure1,handles);
-      close(handles.figure1);
-    end
-
-    % Button pushed function: pbCopySettingsFrom
-    function pbCopySettingsFrom_Callback(app, event)
-      % Create GUIDE-style callback args - Added by Migration Tool
-      [hObject, eventdata, handles] = convertToGUIDECallbackArguments(app, event); %#ok<ASGLU>
-
-      lastLblFile = RC.getprop('lastLblFile');
+    % Button-pushed function for the Copy Settings From... button.
+    function pbCopySettingsFrom_Callback(app, ~)
+      lastLblFile = RC.getprop('lastLblFile') ;
       if isempty(lastLblFile)
-        lastLblFile = pwd;
+        lastLblFile = pwd ;
       end
-      [fname,pth] = uigetfile('*.lbl','Select project file',lastLblFile);
-      if isequal(fname,0)
-        return;
+      [fname, pth] = uigetfile('*.lbl', 'Select project file', lastLblFile) ;
+      if isequal(fname, 0)
+        return
       end
-      lbl = loadLbl(fullfile(pth,fname));
-      lbl = Labeler.lblModernize(lbl);
-      cfg = lbl.cfg;
-      handles = setCurrentConfig(app, handles,cfg);
-      guidata(handles.figure1,handles);
-    end
+      lbl = loadLbl(fullfile(pth, fname)) ;
+      lbl = Labeler.lblModernize(lbl) ;
+      cfg = lbl.cfg ;
+      app.setCurrentConfig_(cfg) ;
+    end  % function
 
-    % Button pushed function: pbCreateProject
-    function pbCreateProject_Callback(app, event)
-      % function pumLabelingMode_Callback(hObject, eventdata, handles)
-      % function pumTracking_Callback(hObject, eventdata, handles)
-
-      % Create GUIDE-style callback args - Added by Migration Tool
-      [hObject, eventdata, handles] = convertToGUIDECallbackArguments(app, event); %#ok<ASGLU>
-
-      %fprintf('pbCreate start');
-      cfg = genCurrentConfig(app, handles);
-      cfg.ProjectName = handles.etProjectName.String;
-      handles.output = cfg;
-      guidata(handles.figure1,handles);
-      close(handles.figure1);
-    end
-  end
+    % Button-pushed function for the Create Project button.
+    function pbCreateProject_Callback(app, ~)
+      cfg = app.genCurrentConfig_() ;
+      cfg.ProjectName = app.etProjectName.Value ;
+      app.output_ = cfg ;
+      close(app.figure1) ;
+    end  % function
+  end  % methods (Access = private)
 
   % Component initialization
   methods (Access = private)
@@ -615,6 +523,6 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       % Show the figure after all components are created
       app.figure1.Visible = 'on';
-    end
-  end
-end
+    end  % function
+  end  % methods (Access = private)
+end  % classdef

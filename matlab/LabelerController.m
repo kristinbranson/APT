@@ -2162,8 +2162,10 @@ classdef LabelerController < handle
       % Create a new project
       labeler = obj.labeler_ ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
-        cfg = ProjectSetup(obj.mainFigure_);  % launches the project setup window
-        if ~isempty(cfg)    
+        app = ProjectSetup(obj.mainFigure_) ;  % launches the project setup window
+        cfg = app.output ;
+        delete(app) ;
+        if ~isempty(cfg)
           labeler.projNew(cfg);
           if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
             obj.movieManagerController_.setVisible(true);
