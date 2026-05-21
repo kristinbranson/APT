@@ -27,6 +27,32 @@ classdef ProjectSetup < matlab.apps.AppBase
     text2                         matlab.ui.control.Label
   end
 
+  methods (Access = public)
+    % Construct app
+    function app = ProjectSetup(varargin)
+
+      % Create UIFigure and components
+      createComponents(app)
+
+      % Register the app with App Designer
+      registerApp(app, app.figure1)
+
+      % Execute the startup function
+      runStartupFcn(app, @(app)ProjectSetup_OpeningFcn(app, varargin{:}))
+
+      if nargout == 0
+        clear app
+      end
+    end
+
+    % Code that executes before app deletion
+    function delete(app)
+
+      % Delete UIFigure when app is deleted
+      delete(app.figure1)
+    end
+  end  % methods (Access=public)
+  
   methods (Access = private)
     function handles = advModeCollapse(app, handles)
       h1 = findall(handles.figure1,'-property','Units');
@@ -589,34 +615,6 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       % Show the figure after all components are created
       app.figure1.Visible = 'on';
-    end
-  end
-
-  % App creation and deletion
-  methods (Access = public)
-
-    % Construct app
-    function app = ProjectSetup_old_App_exported(varargin)
-
-      % Create UIFigure and components
-      createComponents(app)
-
-      % Register the app with App Designer
-      registerApp(app, app.figure1)
-
-      % Execute the startup function
-      runStartupFcn(app, @(app)ProjectSetup_OpeningFcn(app, varargin{:}))
-
-      if nargout == 0
-        clear app
-      end
-    end
-
-    % Code that executes before app deletion
-    function delete(app)
-
-      % Delete UIFigure when app is deleted
-      delete(app.figure1)
     end
   end
 end
