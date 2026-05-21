@@ -1,24 +1,24 @@
 classdef ProjectSetup < matlab.apps.AppBase
 
   % Widget properties (emitted by App Designer Migration Tool)
-  properties (Access = public)
+  properties (Access = public, Transient)
     fig                           matlab.ui.Figure
     text16                        matlab.ui.control.Label
     text_multianimal_description  matlab.ui.control.Label
     text_nviews_description       matlab.ui.control.Label
     text_nkeypoints_description   matlab.ui.control.Label
-    landmarkMid                   matlab.ui.control.Label
+    % landmarkMid                   matlab.ui.control.Label
     text12                        matlab.ui.control.Label
     cbMA                          matlab.ui.control.CheckBox
     text_multitarget              matlab.ui.control.Label
     cbHasTrx                      matlab.ui.control.CheckBox
     pbCopySettingsFrom            matlab.ui.control.Button
     landmarkRight                 matlab.ui.control.Label
-    text8                         matlab.ui.control.Label
-    pnlAdvanced                   matlab.ui.container.Panel
+    % text8                         matlab.ui.control.Label
+    % pnlAdvanced                   matlab.ui.container.Panel
     pbCancel                      matlab.ui.control.Button
     pbCreateProject               matlab.ui.control.Button
-    pbAdvanced                    matlab.ui.control.Button
+    % pbAdvanced                    matlab.ui.control.Button
     etNumberOfViews               matlab.ui.control.EditField
     etNumberOfPoints              matlab.ui.control.EditField
     etProjectName                 matlab.ui.control.EditField
@@ -31,7 +31,7 @@ classdef ProjectSetup < matlab.apps.AppBase
   properties (Access = private, Transient)
     viewCount_  = 1
     pointCount_ = 1
-    advancedOn_ = false
+    % advancedOn_ = false
     propsPane_  = []
     mirror_     = []
     output_     = []
@@ -49,7 +49,7 @@ classdef ProjectSetup < matlab.apps.AppBase
     end  % function
   end  % methods
 
-  methods (Access = public)
+  methods (Access = public)pbAdvanced
     function app = ProjectSetup(varargin)
       % Build and show the ProjectSetup dialog; block until the user closes it.
       app.createComponents() ;
@@ -62,36 +62,36 @@ classdef ProjectSetup < matlab.apps.AppBase
       delete(app.fig) ;
     end  % function
 
-    function advModeCollapse_(app)
-      % Collapse the dialog so the advanced-properties panel is hidden.
-      posMid = app.landmarkMid.Position ;
-      posMid = posMid(1) + posMid(3)/2 ;
-      pos = app.fig.Position ;
-      pos(3) = posMid ;
-      app.fig.Position = pos ;
-      app.advancedOn_ = false ;
-      app.pbAdvanced.Text = 'Advanced >' ;
-    end  % function
+    % function advModeCollapse_(app)
+    %   % Collapse the dialog so the advanced-properties panel is hidden.
+    %   posMid = app.landmarkMid.Position ;
+    %   posMid = posMid(1) + posMid(3)/2 ;
+    %   pos = app.fig.Position ;
+    %   pos(3) = posMid ;
+    %   app.fig.Position = pos ;
+    %   app.advancedOn_ = false ;
+    %   % app.pbAdvanced.Text = 'Advanced >' ;
+    % end  % function
 
-    function advModeExpand_(app)
-      % Expand the dialog so the advanced-properties panel is visible.
-      posRight = app.landmarkRight.Position ;
-      posRight = posRight(1) + posRight(3) ;
-      pos = app.fig.Position ;
-      pos(3) = posRight ;
-      app.fig.Position = pos ;
-      app.advancedOn_ = true ;
-      app.pbAdvanced.Text = '< Basic' ;
-    end  % function
+    % function advModeExpand_(app)
+    %   % % Expand the dialog so the advanced-properties panel is visible.
+    %   % posRight = app.landmarkRight.Position ;
+    %   % posRight = posRight(1) + posRight(3) ;
+    %   % pos = app.fig.Position ;
+    %   % pos(3) = posRight ;
+    %   % app.fig.Position = pos ;
+    %   % app.advancedOn_ = true ;
+    %   % % app.pbAdvanced.Text = '< Basic' ;
+    % end  % function
 
-    function advModeToggle_(app)
-      % Toggle the dialog between expanded and collapsed advanced mode.
-      if app.advancedOn_
-        app.advModeCollapse_() ;
-      else
-        app.advModeExpand_() ;
-      end
-    end  % function
+    % function advModeToggle_(app)
+    %   % Toggle the dialog between expanded and collapsed advanced mode.
+    %   if app.advancedOn_
+    %     app.advModeCollapse_() ;
+    %   else
+    %     % app.advModeExpand_() ;
+    %   end
+    % end  % function
 
     function advTableRefresh_(app, sMirror)
       % Refresh the advanced-properties table to match the current view and
@@ -171,7 +171,7 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       cfg = Labeler.cfgGetLastProjectConfigNoView() ;
       app.setCurrentConfig_(cfg) ;
-      app.advModeCollapse_() ;
+      % app.advModeCollapse_() ;
     end  % function
 
     % Value-changed handler for the keypoint-count edit field.
@@ -272,8 +272,9 @@ classdef ProjectSetup < matlab.apps.AppBase
       % Create figure1 and hide until all components are created
       app.fig = uifigure('Visible', 'off');
       app.fig.AutoResizeChildren = 'off';
+      app.fig.Resize = 'off';
       app.fig.Color = [0 0.243 0.365];
-      app.fig.Position = [680 889 854 621];
+      app.fig.Position = [680 890 450 620];
       app.fig.Name = 'Project Setup';
       app.fig.CloseRequestFcn = app.createCallbackFcn(@figure1_CloseRequestFcn, true);
       app.fig.HandleVisibility = 'callback';
@@ -343,16 +344,16 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.etNumberOfViews.Position = [282 452 150 32];
       app.etNumberOfViews.Value = '1';
 
-      % Create pbAdvanced
-      app.pbAdvanced = uibutton(app.fig, 'push');
-      app.pbAdvanced.ButtonPushedFcn = app.createCallbackFcn(@pbAdvanced_Callback, true);
-      app.pbAdvanced.Tag = 'pbAdvanced';
-      app.pbAdvanced.BackgroundColor = [0 0 0];
-      app.pbAdvanced.FontSize = 20;
-      app.pbAdvanced.FontColor = [0 1 1];
-      app.pbAdvanced.Tooltip = 'Show advanced options';
-      app.pbAdvanced.Position = [250 64 150 32];
-      app.pbAdvanced.Text = 'Advanced >';
+      % % Create pbAdvanced
+      % app.pbAdvanced = uibutton(app.fig, 'push');
+      % app.pbAdvanced.ButtonPushedFcn = app.createCallbackFcn(@pbAdvanced_Callback, true);
+      % app.pbAdvanced.Tag = 'pbAdvanced';
+      % app.pbAdvanced.BackgroundColor = [0 0 0];
+      % app.pbAdvanced.FontSize = 20;
+      % app.pbAdvanced.FontColor = [0 1 1];
+      % app.pbAdvanced.Tooltip = 'Show advanced options';
+      % app.pbAdvanced.Position = [250 64 150 32];
+      % app.pbAdvanced.Text = 'Advanced >';
 
       % Create pbCreateProject
       app.pbCreateProject = uibutton(app.fig, 'push');
@@ -374,26 +375,26 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCancel.Position = [249 21 150 32];
       app.pbCancel.Text = 'Cancel';
 
-      % Create pnlAdvanced
-      app.pnlAdvanced = uipanel(app.fig);
-      app.pnlAdvanced.ForegroundColor = [0 1 1];
-      app.pnlAdvanced.BorderType = 'none';
-      app.pnlAdvanced.BackgroundColor = [0 0.243 0.365];
-      app.pnlAdvanced.Tag = 'pnlAdvanced';
-      app.pnlAdvanced.FontSize = 13.3333333333333;
-      app.pnlAdvanced.Position = [457 20 377 551];
-
-      % Create text8
-      app.text8 = uilabel(app.fig);
-      app.text8.Tag = 'text8';
-      app.text8.BackgroundColor = [0 0.243 0.365];
-      app.text8.VerticalAlignment = 'top';
-      app.text8.WordWrap = 'on';
-      app.text8.FontSize = 20;
-      app.text8.FontAngle = 'italic';
-      app.text8.FontColor = [0 1 1];
-      app.text8.Position = [458 564 217 24];
-      app.text8.Text = 'Advanced Properties';
+      % % Create pnlAdvanced
+      % app.pnlAdvanced = uipanel(app.fig);
+      % app.pnlAdvanced.ForegroundColor = [0 1 1];
+      % app.pnlAdvanced.BorderType = 'none';
+      % app.pnlAdvanced.BackgroundColor = [0 0.243 0.365];
+      % app.pnlAdvanced.Tag = 'pnlAdvanced';
+      % app.pnlAdvanced.FontSize = 13.3333333333333;
+      % app.pnlAdvanced.Position = [457 20 377 551];
+      % 
+      % % Create text8
+      % app.text8 = uilabel(app.fig);
+      % app.text8.Tag = 'text8';
+      % app.text8.BackgroundColor = [0 0.243 0.365];
+      % app.text8.VerticalAlignment = 'top';
+      % app.text8.WordWrap = 'on';
+      % app.text8.FontSize = 20;
+      % app.text8.FontAngle = 'italic';
+      % app.text8.FontColor = [0 1 1];
+      % app.text8.Position = [458 564 217 24];
+      % app.text8.Text = 'Advanced Properties';
 
       % Create landmarkRight
       app.landmarkRight = uilabel(app.fig);
@@ -455,16 +456,16 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text12.Position = [25 336 202 24];
       app.text12.Text = 'Multiple Animals?';
 
-      % Create landmarkMid
-      app.landmarkMid = uilabel(app.fig);
-      app.landmarkMid.Tag = 'landmarkMid';
-      app.landmarkMid.HorizontalAlignment = 'center';
-      app.landmarkMid.VerticalAlignment = 'top';
-      app.landmarkMid.WordWrap = 'on';
-      app.landmarkMid.FontSize = 10.6666666666667;
-      app.landmarkMid.Visible = 'off';
-      app.landmarkMid.Position = [446 439 13 14];
-      app.landmarkMid.Text = '';
+      % % Create landmarkMid
+      % app.landmarkMid = uilabel(app.fig);
+      % app.landmarkMid.Tag = 'landmarkMid';
+      % app.landmarkMid.HorizontalAlignment = 'center';
+      % app.landmarkMid.VerticalAlignment = 'top';
+      % app.landmarkMid.WordWrap = 'on';
+      % app.landmarkMid.FontSize = 10.6666666666667;
+      % app.landmarkMid.Visible = 'off';
+      % app.landmarkMid.Position = [446 439 13 14];
+      % app.landmarkMid.Text = '';
 
       % Create text_nkeypoints_description
       app.text_nkeypoints_description = uilabel(app.fig);
