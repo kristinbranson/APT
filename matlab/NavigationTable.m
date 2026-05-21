@@ -1,10 +1,9 @@
-classdef NewNavigationTable < handle
-  % Like NavigationTable but built on uitable (in a uifigure parent)
-  % instead of uiextras.jTable.Table.
-  %
-  % The parent passed to the constructor should ultimately be rooted in a
-  % uifigure; the modern uitable properties used here (SelectionType,
-  % Selection, SelectionChangedFcn) require that.
+classdef NavigationTable < handle
+  % A row-selectable table that fires a callback when the user clicks a
+  % row.  Wraps a uitable; the parent passed to the constructor should
+  % ultimately be rooted in a uifigure, since the modern uitable
+  % properties used here (SelectionType, Selection, SelectionChangedFcn)
+  % require that.
 
   properties
     uitable_         % the underlying uitable handle
@@ -29,7 +28,7 @@ classdef NewNavigationTable < handle
   end  % methods
 
   methods
-    function obj = NewNavigationTable(hParent, posn, cbkSelectRow, varargin)
+    function obj = NavigationTable(hParent, posn, cbkSelectRow, varargin)
       % Construct a new navigation table inside hParent.
       %
       % cbkSelectRow: function handle with sig fcnRowSelected(row, rowdata)
@@ -38,9 +37,9 @@ classdef NewNavigationTable < handle
       % varargin: optional name/value pairs.  Recognized:
       %   'ColumnName'           - cellstr of header labels (passed through)
       %   'ColumnPreferredWidth' - numeric vector of column widths in pixels
-      % 'ColumnFormat' is accepted for API compatibility with the old
-      % NavigationTable but is ignored; uitable formats columns by data
-      % type.  Other name/value pairs are passed through to uitable.
+      % 'ColumnFormat' is accepted but ignored; uitable formats columns
+      % by data type.  Other name/value pairs are passed through to
+      % uitable.
 
       assert(isgraphics(hParent) && isscalar(hParent)) ;
       szassert(posn, [1 4]) ;
