@@ -3,17 +3,17 @@ classdef ProjectSetup < matlab.apps.AppBase
   % Widget properties (emitted by App Designer Migration Tool)
   properties (Access = public, Transient)
     fig                           matlab.ui.Figure
-    text16                        matlab.ui.control.Label
+    labelHasBodyTrackingDetails   matlab.ui.control.Label
     text_multianimal_description  matlab.ui.control.Label
     text_nviews_description       matlab.ui.control.Label
     text_nkeypoints_description   matlab.ui.control.Label
     % landmarkMid                   matlab.ui.control.Label
-    text12                        matlab.ui.control.Label
+    labelMultipleAnimals                        matlab.ui.control.Label
     cbMA                          matlab.ui.control.CheckBox
     text_multitarget              matlab.ui.control.Label
     cbHasTrx                      matlab.ui.control.CheckBox
     pbCopySettingsFrom            matlab.ui.control.Button
-    landmarkRight                 matlab.ui.control.Label
+    % landmarkRight                 matlab.ui.control.Label
     % text8                         matlab.ui.control.Label
     % pnlAdvanced                   matlab.ui.container.Panel
     pbCancel                      matlab.ui.control.Button
@@ -22,9 +22,9 @@ classdef ProjectSetup < matlab.apps.AppBase
     etNumberOfViews               matlab.ui.control.EditField
     etNumberOfPoints              matlab.ui.control.EditField
     etProjectName                 matlab.ui.control.EditField
-    text4                         matlab.ui.control.Label
-    text3                         matlab.ui.control.Label
-    text2                         matlab.ui.control.Label
+    labelNumberOfViews            matlab.ui.control.Label
+    labelNumberOfKeypoints        matlab.ui.control.Label
+    labelProjectName              matlab.ui.control.Label
   end
 
   % Non-widget state (private in spirit; underscore suffix marks the intent)
@@ -281,37 +281,37 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.fig.Tag = 'figure1';
 
       % Create text2
-      app.text2 = uilabel(app.fig);
-      app.text2.Tag = 'text2';
-      app.text2.BackgroundColor = [0 0.243 0.365];
-      app.text2.VerticalAlignment = 'top';
-      app.text2.WordWrap = 'on';
-      app.text2.FontSize = 20;
-      app.text2.FontColor = [0 1 1];
-      app.text2.Position = [25 559 137 24];
-      app.text2.Text = 'Project Name';
+      app.labelProjectName = uilabel(app.fig);
+      app.labelProjectName.Tag = 'text2';
+      app.labelProjectName.BackgroundColor = [0 0.243 0.365];
+      app.labelProjectName.VerticalAlignment = 'top';
+      app.labelProjectName.WordWrap = 'on';
+      app.labelProjectName.FontSize = 20;
+      app.labelProjectName.FontColor = [0 1 1];
+      app.labelProjectName.Position = [25 559 137 24];
+      app.labelProjectName.Text = 'Project Name';
 
       % Create text3
-      app.text3 = uilabel(app.fig);
-      app.text3.Tag = 'text3';
-      app.text3.BackgroundColor = [0 0.243 0.365];
-      app.text3.VerticalAlignment = 'top';
-      app.text3.WordWrap = 'on';
-      app.text3.FontSize = 20;
-      app.text3.FontColor = [0 1 1];
-      app.text3.Position = [25 512 220 24];
-      app.text3.Text = 'Number of Keypoints';
+      app.labelNumberOfKeypoints = uilabel(app.fig);
+      app.labelNumberOfKeypoints.Tag = 'text3';
+      app.labelNumberOfKeypoints.BackgroundColor = [0 0.243 0.365];
+      app.labelNumberOfKeypoints.VerticalAlignment = 'top';
+      app.labelNumberOfKeypoints.WordWrap = 'on';
+      app.labelNumberOfKeypoints.FontSize = 20;
+      app.labelNumberOfKeypoints.FontColor = [0 1 1];
+      app.labelNumberOfKeypoints.Position = [25 512 220 24];
+      app.labelNumberOfKeypoints.Text = 'Number of Keypoints';
 
       % Create text4
-      app.text4 = uilabel(app.fig);
-      app.text4.Tag = 'text4';
-      app.text4.BackgroundColor = [0 0.243 0.365];
-      app.text4.VerticalAlignment = 'top';
-      app.text4.WordWrap = 'on';
-      app.text4.FontSize = 20;
-      app.text4.FontColor = [0 1 1];
-      app.text4.Position = [25 450 179 24];
-      app.text4.Text = 'Number of Views';
+      app.labelNumberOfViews = uilabel(app.fig);
+      app.labelNumberOfViews.Tag = 'text4';
+      app.labelNumberOfViews.BackgroundColor = [0 0.243 0.365];
+      app.labelNumberOfViews.VerticalAlignment = 'top';
+      app.labelNumberOfViews.WordWrap = 'on';
+      app.labelNumberOfViews.FontSize = 20;
+      app.labelNumberOfViews.FontColor = [0 1 1];
+      app.labelNumberOfViews.Position = [25 450 179 24];
+      app.labelNumberOfViews.Text = 'Number of Views';
 
       % Create etProjectName
       app.etProjectName = uieditfield(app.fig, 'text');
@@ -330,7 +330,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.etNumberOfPoints.FontSize = 20;
       app.etNumberOfPoints.FontColor = [0 0.980392156862745 0.819607843137255];
       app.etNumberOfPoints.BackgroundColor = [0 0 0];
-      app.etNumberOfPoints.Position = [282 511 150 32];
+      app.etNumberOfPoints.Position = [282 512 150 32];
       app.etNumberOfPoints.Value = '12';
 
       % Create etNumberOfViews
@@ -396,16 +396,16 @@ classdef ProjectSetup < matlab.apps.AppBase
       % app.text8.Position = [458 564 217 24];
       % app.text8.Text = 'Advanced Properties';
 
-      % Create landmarkRight
-      app.landmarkRight = uilabel(app.fig);
-      app.landmarkRight.Tag = 'landmarkRight';
-      app.landmarkRight.HorizontalAlignment = 'center';
-      app.landmarkRight.VerticalAlignment = 'top';
-      app.landmarkRight.WordWrap = 'on';
-      app.landmarkRight.FontSize = 10.6666666666667;
-      app.landmarkRight.Visible = 'off';
-      app.landmarkRight.Position = [825 594 8 8];
-      app.landmarkRight.Text = '';
+      % % Create landmarkRight
+      % app.landmarkRight = uilabel(app.fig);
+      % app.landmarkRight.Tag = 'landmarkRight';
+      % app.landmarkRight.HorizontalAlignment = 'center';
+      % app.landmarkRight.VerticalAlignment = 'top';
+      % app.landmarkRight.WordWrap = 'on';
+      % app.landmarkRight.FontSize = 10.6666666666667;
+      % app.landmarkRight.Visible = 'off';
+      % app.landmarkRight.Position = [825 594 8 8];
+      % app.landmarkRight.Text = '';
 
       % Create pbCopySettingsFrom
       app.pbCopySettingsFrom = uibutton(app.fig, 'push');
@@ -446,15 +446,15 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.cbMA.Position = [324 338 14 22];
 
       % Create text12
-      app.text12 = uilabel(app.fig);
-      app.text12.Tag = 'text12';
-      app.text12.BackgroundColor = [0 0.243 0.365];
-      app.text12.VerticalAlignment = 'top';
-      app.text12.WordWrap = 'on';
-      app.text12.FontSize = 20;
-      app.text12.FontColor = [0 1 1];
-      app.text12.Position = [25 336 202 24];
-      app.text12.Text = 'Multiple Animals?';
+      app.labelMultipleAnimals = uilabel(app.fig);
+      app.labelMultipleAnimals.Tag = 'text12';
+      app.labelMultipleAnimals.BackgroundColor = [0 0.243 0.365];
+      app.labelMultipleAnimals.VerticalAlignment = 'top';
+      app.labelMultipleAnimals.WordWrap = 'on';
+      app.labelMultipleAnimals.FontSize = 20;
+      app.labelMultipleAnimals.FontColor = [0 1 1];
+      app.labelMultipleAnimals.Position = [25 336 202 24];
+      app.labelMultipleAnimals.Text = 'Multiple Animals?';
 
       % % Create landmarkMid
       % app.landmarkMid = uilabel(app.fig);
@@ -501,15 +501,15 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.text_multianimal_description.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.';
 
       % Create text16
-      app.text16 = uilabel(app.fig);
-      app.text16.Tag = 'text16';
-      app.text16.BackgroundColor = [0 0.243 0.365];
-      app.text16.VerticalAlignment = 'top';
-      app.text16.WordWrap = 'on';
-      app.text16.FontSize = 16;
-      app.text16.FontColor = [0 1 1];
-      app.text16.Position = [28 110 400 122];
-      app.text16.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.';
+      app.labelHasBodyTrackingDetails = uilabel(app.fig);
+      app.labelHasBodyTrackingDetails.Tag = 'text16';
+      app.labelHasBodyTrackingDetails.BackgroundColor = [0 0.243 0.365];
+      app.labelHasBodyTrackingDetails.VerticalAlignment = 'top';
+      app.labelHasBodyTrackingDetails.WordWrap = 'on';
+      app.labelHasBodyTrackingDetails.FontSize = 16;
+      app.labelHasBodyTrackingDetails.FontColor = [0 1 1];
+      app.labelHasBodyTrackingDetails.Position = [28 110 400 122];
+      app.labelHasBodyTrackingDetails.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.';
 
       % Show the figure after all components are created
       app.fig.Visible = 'on';
