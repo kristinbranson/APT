@@ -1,4 +1,4 @@
-function [hPropsPane, parameters] = newPropertiesGUI(hParent, parameters)
+function [hTable, parameters] = newPropertiesGUI(hParent, parameters)
 % Display a struct as an editable two-column property table inside hParent.
 %
 % Drop-in replacement for the subset of propertiesGUI() that APT actually
@@ -24,8 +24,6 @@ function [hPropsPane, parameters] = newPropertiesGUI(hParent, parameters)
   pos = getpixelposition(hParent) ;
   innerWidth = max(pos(3) - 10, 50) ;
   innerHeight = max(pos(4) - 10, 50) ;
-  nameColumnWidth = max(round(innerWidth * 0.55), 100) ;
-  valueColumnWidth = max(innerWidth - nameColumnWidth - 30, 80) ;
 
   hTable = uitable(...
     'Parent', hParent, ...
@@ -36,15 +34,24 @@ function [hPropsPane, parameters] = newPropertiesGUI(hParent, parameters)
     'ColumnEditable', [false, true], ...
     'ColumnFormat', {'char', 'char'}, ...
     'RowName', [], ...
-    'ColumnWidth', {nameColumnWidth, valueColumnWidth}, ...
+    'ColumnWidth', {'3x', '2x'}, ...
     'CellEditCallback', @(src, evt) cellEdited_(src, evt, hFig)) ;
   set(hTable, 'Units', 'normalized') ;
+
+  % uitable's ColumnEditable is column-level, so we can't actually make
+  % individual header-row cells non-editable. Style them so they read as
+  % non-interactive (greyed background, bold property name), and rely on
+  % cellEdited_ to silently revert any edit that does get through.
+  headerRowIndices = find(~[rows.isLeaf]) ;
+  if ~isempty(headerRowIndices)
+    headerStyle = uistyle('BackgroundColor', [0.85 0.85 0.85], ...
+                          'FontWeight', 'bold') ;
+    addStyle(hTable, headerStyle, 'row', headerRowIndices) ;
+  end
 
   setappdata(hFig, 'mirror', parameters) ;
   setappdata(hFig, 'newPropsRows', rows) ;
   setappdata(hFig, 'newPropsTable', hTable) ;
-
-  hPropsPane = hTable ;
 end  % function
 
 
@@ -241,13 +248,20 @@ function [newValue, isValid] = stringToValue_(newString, referenceValue)
   end
 
   if isnumeric(referenceValue)
-    parsed = str2num(trimmedString) ;  %#ok<ST2NM> need vector/matrix parsing
-    if isempty(parsed) && ~isempty(trimmedString)
-      newValue = referenceValue ;
-      isValid = false ;
-    else
+    % str2num is used so vectors / matrices parse, but it eval's the input
+    % and will happily return e.g. logical true for 'true' or 'on'. Tighten
+    % by requiring an actually-numeric result, real if the reference is,
+    % and shape-matched (scalars stay scalars, 1x3 stays 1x3, etc.).
+    parsed = str2num(trimmedString) ;  %#ok<ST2NM> needed for vector/matrix parsing
+    isAcceptable = ~isempty(parsed) && isnumeric(parsed) && ...
+                   (~isreal(referenceValue) || isreal(parsed)) && ...
+                   isequal(size(parsed), size(referenceValue)) ;
+    if isAcceptable
       newValue = parsed ;
       isValid = true ;
+    else
+      newValue = referenceValue ;
+      isValid = false ;
     end
     return
   end

@@ -96,18 +96,14 @@ end
 % cfg = ProjectSetup(hParentFig); % centered on hParentFig
 function ProjectSetup_OpeningFcn(hObject, eventdata, handles, varargin)
 
-h1 = findall(handles.figure1,'-property','Units');
-set(h1,'Units','Normalized');
-set(handles.figure1,'MenuBar','None');
-
 if numel(varargin)>=1
   hParentFig = varargin{1};
   if ~ishandle(hParentFig)
     error('ProjectSetup:arg','Expected argument to be a figure handle.');
   end
   centerOnParentFigure(hObject,hParentFig);
-end  
-  
+end
+
 handles.output = [];
 
 % init PUMs that depend only on codebase
@@ -126,7 +122,6 @@ handles.propsPane = [];
 % init ui state
 cfg = Labeler.cfgGetLastProjectConfigNoView;
 handles = setCurrentConfig(handles,cfg);
-handles.propsPane.Position(4) = handles.propsPane.Position(3); % by default table is slightly bigger than panel for some reason
 handles = advModeCollapse(handles);
 
 guidata(hObject, handles);
@@ -172,14 +167,14 @@ end
 function handles = setCurrentConfig(handles,cfg)
 % Set given config on controls
 
-% we store these two props on handles in order to be able to revert; 
-% data/model is split between i) primary UIcontrols and ii) adv panel 
-handles.nViews = cfg.NumViews; 
+% we store these two props on handles in order to be able to revert;
+% data/model is split between i) primary UIcontrols and ii) adv panel
+handles.nViews = cfg.NumViews;
 handles.nPoints = cfg.NumLabelPoints;
-set(handles.etNumberOfViews,'string',num2str(handles.nViews));
-set(handles.etNumberOfPoints,'string',num2str(handles.nPoints));
-set(handles.cbHasTrx,'Value',cfg.Trx.HasTrx);
-set(handles.cbMA,'Value',cfg.MultiAnimal);
+handles.etNumberOfViews.Value = num2str(handles.nViews);
+handles.etNumberOfPoints.Value = num2str(handles.nPoints);
+handles.cbHasTrx.Value = logical(cfg.Trx.HasTrx);
+handles.cbMA.Value = logical(cfg.MultiAnimal);
 
 
 % pumLM = handles.pumLabelingMode;
@@ -219,31 +214,25 @@ if ~isempty(handles.propsPane) && ishandle(handles.propsPane)
   handles.propsPane = [];
 end
   
-handles.propsPane = propertiesGUI(handles.pnlAdvanced,sMirror);
+handles.propsPane = newPropertiesGUI(handles.pnlAdvanced,sMirror);
 
 function handles = advModeExpand(handles)
-h1 = findall(handles.figure1,'-property','Units');
-set(h1,'Units','pixels');
 posRight = handles.landmarkRight.Position;
 posRight = posRight(1)+posRight(3);
 pos = handles.figure1.Position;
 pos(3) = posRight;
 handles.figure1.Position = pos;
-set(h1,'Units','normalized');
 handles.advancedOn = true;
-handles.pbAdvanced.String = '< Basic';
+handles.pbAdvanced.Text = '< Basic';
 
 function handles = advModeCollapse(handles)
-h1 = findall(handles.figure1,'-property','Units');
-set(h1,'Units','pixels');
 posMid = handles.landmarkMid.Position;
 posMid = posMid(1)+posMid(3)/2;
 pos = handles.figure1.Position;
 pos(3) = posMid;
 handles.figure1.Position = pos;
-set(h1,'Units','normalized');
 handles.advancedOn = false;
-handles.pbAdvanced.String = 'Advanced >';
+handles.pbAdvanced.Text = 'Advanced >';
 
 function handles = advModeToggle(handles)
 if handles.advancedOn
@@ -253,39 +242,38 @@ else
 end
 
 function etProjectName_Callback(hObject, eventdata, handles)
-name = hObject.String;
-if ~all(isstrprop(name,'alphanum')) 
+name = hObject.Value;
+if ~all(isstrprop(name,'alphanum'))
   % This unfortunately invalidates _ also. Checking for it seems more work
   % than worth. MK 20220913
   warndlg('Name should have only alphanumberic characters');
-  hObject.String = '';
+  hObject.Value = '';
 end
 
 function etNumberOfPoints_Callback(hObject, eventdata, handles)
-%fprintf('etNOP enter');
-val = str2double(hObject.String);
+val = str2double(hObject.Value);
 if floor(val)==val && val>=1
   handles.nPoints = val;
 else
-  hObject.String = handles.nPoints;
+  hObject.Value = num2str(handles.nPoints);
 end
 handles = advTableRefresh(handles);
 guidata(hObject,handles);
-%fprintf('etNOP end');
+
 function etNumberOfViews_Callback(hObject, eventdata, handles)
-val = str2double(hObject.String);
+val = str2double(hObject.Value);
 if floor(val)==val && val>=1
   handles.nViews = val;
 else
-  hObject.String = handles.nViews;
+  hObject.Value = num2str(handles.nViews);
 end
 switch handles.nViews
   case 1
     handles.cbHasTrx.Enable = 'on';
-    handles.cbMA.Enable = 'on';    
+    handles.cbMA.Enable = 'on';
   otherwise
-    handles.cbHasTrx.Value = 0;
-    handles.cbMA.Value = 0;
+    handles.cbHasTrx.Value = false;
+    handles.cbMA.Value = false;
     handles.cbHasTrx.Enable = 'off';
     handles.cbMA.Enable = 'off';
 end
@@ -294,13 +282,12 @@ guidata(hObject,handles);
 % function pumLabelingMode_Callback(hObject, eventdata, handles)
 % function pumTracking_Callback(hObject, eventdata, handles)
 function pbCreateProject_Callback(hObject, eventdata, handles)
-%fprintf('pbCreate start');
 cfg = genCurrentConfig(handles);
-cfg.ProjectName = handles.etProjectName.String;
+cfg.ProjectName = handles.etProjectName.Value;
 handles.output = cfg;
 guidata(handles.figure1,handles);
 close(handles.figure1);
-%fprintf('pbCreate end');
+
 function pbCancel_Callback(hObject, eventdata, handles)
 handles.output = [];
 guidata(handles.figure1,handles);
