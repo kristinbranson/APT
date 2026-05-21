@@ -24,10 +24,10 @@ set(handles.tbAdjustCropSize, 'TooltipString', 'Toggle on/off whether crop size(
 set(handles.pbClearAllCrops, 'TooltipString', 'Clear cropping information for all videos') ;
 
 % Menu tooltips.  The uimenu Tooltip property was added in R2020b, but on
-% classic figures created with figure() (which is what APT uses) setting
-% it errors with "Functionality not supported with figures created with
-% the figure function" until R2025a (MATLAB 25.1), so skip this section
-% on older releases.
+% classic figures created with figure() (which is what APT current uses for
+% the main figure) setting it errors with "Functionality not supported with
+% figures created with the figure function" until R2025a (MATLAB 25.1), so
+% skip this section on older releases.
 if verLessThan('matlab', '25.1')  %#ok<VERLESSMATLAB>
   return
 end
