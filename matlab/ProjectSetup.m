@@ -1,4 +1,4 @@
-classdef ProjectSetup_App_exported < matlab.apps.AppBase
+classdef ProjectSetup < matlab.apps.AppBase
 
   % Properties that correspond to app components
   properties (Access = public)
@@ -26,7 +26,6 @@ classdef ProjectSetup_App_exported < matlab.apps.AppBase
     text3                         matlab.ui.control.Label
     text2                         matlab.ui.control.Label
   end
-
 
   methods (Access = private)
     function handles = advModeCollapse(app, handles)
@@ -597,7 +596,7 @@ classdef ProjectSetup_App_exported < matlab.apps.AppBase
   methods (Access = public)
 
     % Construct app
-    function app = ProjectSetup_App_exported(varargin)
+    function app = ProjectSetup_old_App_exported(varargin)
 
       % Create UIFigure and components
       createComponents(app)
