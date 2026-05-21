@@ -4,21 +4,16 @@ classdef ProjectSetup < matlab.apps.AppBase
   properties (Access = public, Transient)
     fig                           matlab.ui.Figure
     labelHasBodyTrackingDetails   matlab.ui.control.Label
-    text_multianimal_description  matlab.ui.control.Label
-    text_nviews_description       matlab.ui.control.Label
-    text_nkeypoints_description   matlab.ui.control.Label
-    % landmarkMid                   matlab.ui.control.Label
-    labelMultipleAnimals                        matlab.ui.control.Label
+    labelMultipleAnimalsDetails   matlab.ui.control.Label
+    labelNumberOfViewsDetails     matlab.ui.control.Label
+    labelNumberOfKeypointsDetails matlab.ui.control.Label
+    labelMultipleAnimals          matlab.ui.control.Label
     cbMA                          matlab.ui.control.CheckBox
-    text_multitarget              matlab.ui.control.Label
+    labelHasBodyTracking          matlab.ui.control.Label
     cbHasTrx                      matlab.ui.control.CheckBox
     pbCopySettingsFrom            matlab.ui.control.Button
-    % landmarkRight                 matlab.ui.control.Label
-    % text8                         matlab.ui.control.Label
-    % pnlAdvanced                   matlab.ui.container.Panel
     pbCancel                      matlab.ui.control.Button
     pbCreateProject               matlab.ui.control.Button
-    % pbAdvanced                    matlab.ui.control.Button
     etNumberOfViews               matlab.ui.control.EditField
     etNumberOfPoints              matlab.ui.control.EditField
     etProjectName                 matlab.ui.control.EditField
@@ -31,7 +26,6 @@ classdef ProjectSetup < matlab.apps.AppBase
   properties (Access = private, Transient)
     viewCount_  = 1
     pointCount_ = 1
-    % advancedOn_ = false
     propsPane_  = []
     mirror_     = []
     output_     = []
@@ -426,16 +420,16 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.cbHasTrx.FontColor = [0 1 1];
       app.cbHasTrx.Position = [323 237 24 24];
 
-      % Create text_multitarget
-      app.text_multitarget = uilabel(app.fig);
-      app.text_multitarget.Tag = 'text_multitarget';
-      app.text_multitarget.BackgroundColor = [0 0.243 0.365];
-      app.text_multitarget.VerticalAlignment = 'top';
-      app.text_multitarget.WordWrap = 'on';
-      app.text_multitarget.FontSize = 20;
-      app.text_multitarget.FontColor = [0 1 1];
-      app.text_multitarget.Position = [25 235 206 24];
-      app.text_multitarget.Text = 'Has Body Tracking?';
+      % Create labelHasBodyTracking
+      app.labelHasBodyTracking = uilabel(app.fig);
+      app.labelHasBodyTracking.Tag = 'text_multitarget';
+      app.labelHasBodyTracking.BackgroundColor = [0 0.243 0.365];
+      app.labelHasBodyTracking.VerticalAlignment = 'top';
+      app.labelHasBodyTracking.WordWrap = 'on';
+      app.labelHasBodyTracking.FontSize = 20;
+      app.labelHasBodyTracking.FontColor = [0 1 1];
+      app.labelHasBodyTracking.Position = [25 235 206 24];
+      app.labelHasBodyTracking.Text = 'Has Body Tracking?';
 
       % Create cbMA
       app.cbMA = uicheckbox(app.fig);
@@ -467,38 +461,38 @@ classdef ProjectSetup < matlab.apps.AppBase
       % app.landmarkMid.Position = [446 439 13 14];
       % app.landmarkMid.Text = '';
 
-      % Create text_nkeypoints_description
-      app.text_nkeypoints_description = uilabel(app.fig);
-      app.text_nkeypoints_description.Tag = 'text_nkeypoints_description';
-      app.text_nkeypoints_description.BackgroundColor = [0 0.243 0.365];
-      app.text_nkeypoints_description.VerticalAlignment = 'top';
-      app.text_nkeypoints_description.WordWrap = 'on';
-      app.text_nkeypoints_description.FontSize = 16;
-      app.text_nkeypoints_description.FontColor = [0 1 1];
-      app.text_nkeypoints_description.Position = [27 488 400 24];
-      app.text_nkeypoints_description.Text = 'Number of keypoints to label for each animal';
+      % Create labelNumberOfKeypointsDetails
+      app.labelNumberOfKeypointsDetails = uilabel(app.fig);
+      app.labelNumberOfKeypointsDetails.Tag = 'text_nkeypoints_description';
+      app.labelNumberOfKeypointsDetails.BackgroundColor = [0 0.243 0.365];
+      app.labelNumberOfKeypointsDetails.VerticalAlignment = 'top';
+      app.labelNumberOfKeypointsDetails.WordWrap = 'on';
+      app.labelNumberOfKeypointsDetails.FontSize = 16;
+      app.labelNumberOfKeypointsDetails.FontColor = [0 1 1];
+      app.labelNumberOfKeypointsDetails.Position = [27 488 400 24];
+      app.labelNumberOfKeypointsDetails.Text = 'Number of keypoints to label for each animal';
 
-      % Create text_nviews_description
-      app.text_nviews_description = uilabel(app.fig);
-      app.text_nviews_description.Tag = 'text_nviews_description';
-      app.text_nviews_description.BackgroundColor = [0 0.243 0.365];
-      app.text_nviews_description.VerticalAlignment = 'top';
-      app.text_nviews_description.WordWrap = 'on';
-      app.text_nviews_description.FontSize = 16;
-      app.text_nviews_description.FontColor = [0 1 1];
-      app.text_nviews_description.Position = [26 363 400 85];
-      app.text_nviews_description.Text = 'APT can do 3D labeling and tracking from multiple calibrated cameras. Enter 1 if animals were imaged from just one camera. Otherwise, enter the number of synced cameras recording the animals. ';
+      % Create labelNumberOfViewsDetails
+      app.labelNumberOfViewsDetails = uilabel(app.fig);
+      app.labelNumberOfViewsDetails.Tag = 'text_nviews_description';
+      app.labelNumberOfViewsDetails.BackgroundColor = [0 0.243 0.365];
+      app.labelNumberOfViewsDetails.VerticalAlignment = 'top';
+      app.labelNumberOfViewsDetails.WordWrap = 'on';
+      app.labelNumberOfViewsDetails.FontSize = 16;
+      app.labelNumberOfViewsDetails.FontColor = [0 1 1];
+      app.labelNumberOfViewsDetails.Position = [26 363 400 85];
+      app.labelNumberOfViewsDetails.Text = 'APT can do 3D labeling and tracking from multiple calibrated cameras. Enter 1 if animals were imaged from just one camera. Otherwise, enter the number of synced cameras recording the animals. ';
 
-      % Create text_multianimal_description
-      app.text_multianimal_description = uilabel(app.fig);
-      app.text_multianimal_description.Tag = 'text_multianimal_description';
-      app.text_multianimal_description.BackgroundColor = [0 0.243 0.365];
-      app.text_multianimal_description.VerticalAlignment = 'top';
-      app.text_multianimal_description.WordWrap = 'on';
-      app.text_multianimal_description.FontSize = 16;
-      app.text_multianimal_description.FontColor = [0 1 1];
-      app.text_multianimal_description.Position = [28 265 400 67];
-      app.text_multianimal_description.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.';
+      % Create labelMultipleAnimalsDetails
+      app.labelMultipleAnimalsDetails = uilabel(app.fig);
+      app.labelMultipleAnimalsDetails.Tag = 'text_multianimal_description';
+      app.labelMultipleAnimalsDetails.BackgroundColor = [0 0.243 0.365];
+      app.labelMultipleAnimalsDetails.VerticalAlignment = 'top';
+      app.labelMultipleAnimalsDetails.WordWrap = 'on';
+      app.labelMultipleAnimalsDetails.FontSize = 16;
+      app.labelMultipleAnimalsDetails.FontColor = [0 1 1];
+      app.labelMultipleAnimalsDetails.Position = [28 265 400 67];
+      app.labelMultipleAnimalsDetails.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.';
 
       % Create text16
       app.labelHasBodyTrackingDetails = uilabel(app.fig);
