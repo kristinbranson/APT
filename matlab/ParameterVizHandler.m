@@ -61,6 +61,12 @@ classdef ParameterVizHandler < handle
         obj.addPropExisting(prop,pvObj,pvID);
       else
         try
+          % pvClsname comes from the matlab/**/params_*.yaml files, so a plain
+          % symbol grep won't find these classes. As of this writing, the
+          % referenced classes are: ParameterVisualizationCPR,
+          % ParameterVisualizationCPRInit, ParameterVisualizationFeature,
+          % ParameterVisualizationMemory, ParameterVisualizationTgtCropRadius,
+          % ParameterVisualizationTgtCropRadiusID.
           pvObj = feval(pvClsname);
           assert(isa(pvObj,'ParameterVisualization'),'''%s'' is not a ParameterVisualization.');
         catch ME

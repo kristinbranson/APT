@@ -132,12 +132,7 @@ classdef APT
       campath = campath(~cellfun(@isempty,campath));
      
       p = [aptpath(:);jaabapath(:);dtpath(:);pdolpath(:);campath(:)];
-      
-      % jprel = {...
-      %   fullfile('java','APTJava.jar'); ...
-      %   fullfile('matlab','JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
-      %   fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
-      %   fullfile('matlab','treeTable')};
+
       jprel = {fullfile('java','APTJava.jar')
                fullfile('matlab','JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar')
                fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar')};
