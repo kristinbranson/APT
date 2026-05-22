@@ -282,6 +282,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       createProjectButtonWidth = 200 ;
       cancelButtonWidth = 150 ;
       copySettingsButtonWidth = 180 ;
+      withinSectionRowSpacing = 8 ;  % gap between a section's label-and-control row and its details label
 
       % Create the figure
       app.fig = uifigure('Visible', 'off') ;
@@ -326,7 +327,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       keypointsSection.RowHeight = {'fit', 'fit'} ;
       keypointsSection.ColumnWidth = {'1x'} ;
       keypointsSection.Padding = [0 0 0 0] ;
-      keypointsSection.RowSpacing = 2 ;
+      keypointsSection.RowSpacing = withinSectionRowSpacing ;
       keypointsSection.BackgroundColor = bgColor ;
 
       keypointsRow = uigridlayout(keypointsSection, [1 2]) ;
@@ -363,7 +364,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       viewsSection.RowHeight = {'fit', 'fit'} ;
       viewsSection.ColumnWidth = {'1x'} ;
       viewsSection.Padding = [0 0 0 0] ;
-      viewsSection.RowSpacing = 2 ;
+      viewsSection.RowSpacing = withinSectionRowSpacing ;
       viewsSection.BackgroundColor = bgColor ;
 
       viewsRow = uigridlayout(viewsSection, [1 2]) ;
@@ -400,7 +401,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       multipleAnimalsSection.RowHeight = {'fit', 'fit'} ;
       multipleAnimalsSection.ColumnWidth = {'1x'} ;
       multipleAnimalsSection.Padding = [0 0 0 0] ;
-      multipleAnimalsSection.RowSpacing = 2 ;
+      multipleAnimalsSection.RowSpacing = withinSectionRowSpacing ;
       multipleAnimalsSection.BackgroundColor = bgColor ;
 
       multipleAnimalsRow = uigridlayout(multipleAnimalsSection, [1 2]) ;
@@ -434,7 +435,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       hasBodyTrackingSection.RowHeight = {'fit', 'fit'} ;
       hasBodyTrackingSection.ColumnWidth = {'1x'} ;
       hasBodyTrackingSection.Padding = [0 0 0 0] ;
-      hasBodyTrackingSection.RowSpacing = 2 ;
+      hasBodyTrackingSection.RowSpacing = withinSectionRowSpacing ;
       hasBodyTrackingSection.BackgroundColor = bgColor ;
 
       hasBodyTrackingRow = uigridlayout(hasBodyTrackingSection, [1 2]) ;
