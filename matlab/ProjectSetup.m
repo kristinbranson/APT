@@ -410,7 +410,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       multipleAnimalsSection.BackgroundColor = bgColor ;
 
       multipleAnimalsRow = uigridlayout(multipleAnimalsSection, [1 2]) ;
-      multipleAnimalsRow.ColumnWidth = {'1x', 'fit'} ;
+      multipleAnimalsRow.ColumnWidth = {'1x', numberFieldWidth} ;
       multipleAnimalsRow.RowHeight = {'fit'} ;
       multipleAnimalsRow.Padding = [0 0 0 0] ;
       multipleAnimalsRow.ColumnSpacing = 10 ;
@@ -422,7 +422,17 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelMultipleAnimals.FontColor = labelColor ;
       app.labelMultipleAnimals.BackgroundColor = bgColor ;
 
-      app.cbMA = uicheckbox(multipleAnimalsRow) ;
+      % Center cbMA horizontally within the numberFieldWidth-wide cell so
+      % it aligns with the centered "12" / "1" in the number fields above.
+      cbMACell = uigridlayout(multipleAnimalsRow, [1 3]) ;
+      cbMACell.ColumnWidth = {'1x', 'fit', '1x'} ;
+      cbMACell.RowHeight = {'fit'} ;
+      cbMACell.Padding = [0 0 0 0] ;
+      cbMACell.ColumnSpacing = 0 ;
+      cbMACell.BackgroundColor = bgColor ;
+
+      app.cbMA = uicheckbox(cbMACell) ;
+      app.cbMA.Layout.Column = 2 ;
       app.cbMA.Text = '' ;
       app.cbMA.FontSize = bigFontSize ;
       app.cbMA.FontColor = labelColor ;
@@ -444,7 +454,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       hasBodyTrackingSection.BackgroundColor = bgColor ;
 
       hasBodyTrackingRow = uigridlayout(hasBodyTrackingSection, [1 2]) ;
-      hasBodyTrackingRow.ColumnWidth = {'1x', 'fit'} ;
+      hasBodyTrackingRow.ColumnWidth = {'1x', numberFieldWidth} ;
       hasBodyTrackingRow.RowHeight = {'fit'} ;
       hasBodyTrackingRow.Padding = [0 0 0 0] ;
       hasBodyTrackingRow.ColumnSpacing = 10 ;
@@ -456,7 +466,15 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelHasBodyTracking.FontColor = labelColor ;
       app.labelHasBodyTracking.BackgroundColor = bgColor ;
 
-      app.cbHasTrx = uicheckbox(hasBodyTrackingRow) ;
+      cbHasTrxCell = uigridlayout(hasBodyTrackingRow, [1 3]) ;
+      cbHasTrxCell.ColumnWidth = {'1x', 'fit', '1x'} ;
+      cbHasTrxCell.RowHeight = {'fit'} ;
+      cbHasTrxCell.Padding = [0 0 0 0] ;
+      cbHasTrxCell.ColumnSpacing = 0 ;
+      cbHasTrxCell.BackgroundColor = bgColor ;
+
+      app.cbHasTrx = uicheckbox(cbHasTrxCell) ;
+      app.cbHasTrx.Layout.Column = 2 ;
       app.cbHasTrx.Text = '' ;
       app.cbHasTrx.FontSize = 24 ;
       app.cbHasTrx.FontColor = labelColor ;
