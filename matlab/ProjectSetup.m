@@ -269,10 +269,13 @@ classdef ProjectSetup < matlab.apps.AppBase
       figHeight = 620 ;
       mainColumnMarginWidth = 25 ;
       mainColumnWidth = figWidth - 2*mainColumnMarginWidth ;
+      mainColumnRightX = mainColumnMarginWidth + mainColumnWidth ;
       bigLabelHeight = 24 ;
-      pbCancelRightX = 399 ;  % right edge of the Cancel button; right-align Copy Settings to here
-      bottomMarginHeight = 20 ;
+      bottomMarginHeight = 22 ;
       buttonHeight = 32 ;
+      numberEditWidth = 150 ;
+      editHeight = 32 ;
+      topMarginHeight = 20 ;
 
       % Create figure1 and hide until all components are created
       app.fig = uifigure('Visible', 'off');
@@ -293,7 +296,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelProjectName.WordWrap = 'on';
       app.labelProjectName.FontSize = 20;
       app.labelProjectName.FontColor = [0 1 1];
-      app.labelProjectName.Position = [mainColumnMarginWidth 559 137 bigLabelHeight];
+      app.labelProjectName.Position = [mainColumnMarginWidth 559 134 bigLabelHeight];
       app.labelProjectName.Text = 'Project Name';
 
       % Create etProjectName
@@ -303,7 +306,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.etProjectName.FontSize = 20;
       app.etProjectName.FontColor = [0 0.980392156862745 0.819607843137255];
       app.etProjectName.BackgroundColor = [0 0 0];
-      app.etProjectName.Position = [186 555 250 32];
+      app.etProjectName.Position = [mainColumnRightX-250 555 250 editHeight];
 
       % Create labelNumberOfKeypoints
       app.labelNumberOfKeypoints = uilabel(app.fig);
@@ -324,7 +327,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.etNumberOfPoints.FontSize = 20;
       app.etNumberOfPoints.FontColor = [0 0.980392156862745 0.819607843137255];
       app.etNumberOfPoints.BackgroundColor = [0 0 0];
-      app.etNumberOfPoints.Position = [282 512 150 32];
+      app.etNumberOfPoints.Position = [mainColumnRightX-numberEditWidth 512 numberEditWidth editHeight];
       app.etNumberOfPoints.Value = '12';
 
       % Create labelNumberOfKeypointsDetails
@@ -357,7 +360,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.etNumberOfViews.FontSize = 20;
       app.etNumberOfViews.FontColor = [0 0.980392156862745 0.819607843137255];
       app.etNumberOfViews.BackgroundColor = [0 0 0];
-      app.etNumberOfViews.Position = [282 452 150 32];
+      app.etNumberOfViews.Position = [mainColumnRightX-numberEditWidth 452 numberEditWidth editHeight];
       app.etNumberOfViews.Value = '1';
 
       % Create labelNumberOfViewsDetails
