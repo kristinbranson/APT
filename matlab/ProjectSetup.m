@@ -350,7 +350,7 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       app.etNumberOfPoints = uieditfield(keypointsRow, 'text') ;
       app.etNumberOfPoints.ValueChangedFcn = app.createCallbackFcn(@etNumberOfPoints_Callback, true) ;
-      app.etNumberOfPoints.HorizontalAlignment = 'center' ;
+      app.etNumberOfPoints.HorizontalAlignment = 'right' ;
       app.etNumberOfPoints.FontSize = bigFontSize ;
       app.etNumberOfPoints.FontColor = fieldFontColor ;
       app.etNumberOfPoints.BackgroundColor = fieldBgColor ;
@@ -387,7 +387,7 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       app.etNumberOfViews = uieditfield(viewsRow, 'text') ;
       app.etNumberOfViews.ValueChangedFcn = app.createCallbackFcn(@etNumberOfViews_Callback, true) ;
-      app.etNumberOfViews.HorizontalAlignment = 'center' ;
+      app.etNumberOfViews.HorizontalAlignment = 'right' ;
       app.etNumberOfViews.FontSize = bigFontSize ;
       app.etNumberOfViews.FontColor = fieldFontColor ;
       app.etNumberOfViews.BackgroundColor = fieldBgColor ;
