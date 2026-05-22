@@ -43,7 +43,7 @@ classdef ProjectSetup < matlab.apps.AppBase
     end  % function
   end  % methods
 
-  methods (Access = public)pbAdvanced
+  methods (Access = public)
     function app = ProjectSetup(varargin)
       % Build and show the ProjectSetup dialog; block until the user closes it.
       app.createComponents() ;
@@ -262,224 +262,247 @@ classdef ProjectSetup < matlab.apps.AppBase
 
     % Create UIFigure and components
     function createComponents(app)
-      % Create all the controls.
+      % Create the figure and all its child controls, laid out via
+      % nested uigridlayouts: an outer 7-row column, where each
+      % "Number of X" / question section is itself a 2-row column
+      % (label-and-control row, then details label).
 
-      % Some layout constants
+      % Layout constants
       figWidth = 450 ;
       figHeight = 620 ;
-      mainColumnMarginWidth = 25 ;
-      mainColumnWidth = figWidth - 2*mainColumnMarginWidth ;
-      mainColumnRightX = mainColumnMarginWidth + mainColumnWidth ;
-      bigLabelHeight = 24 ;
-      bottomMarginHeight = 22 ;
-      buttonHeight = 32 ;
+      marginWidth = 25 ;
+      bgColor = [0 0.243 0.365] ;  % close to prussian blue
+      labelColor = [0 1 1] ;  % cyan
+      fieldFontColor = [0 250 209]/255 ;  % close to turqoise
+      fieldBgColor = [0 0 0] ;  % black
+      bigFontSize = 20 ;
+      smallFontSize = 16 ;
+      projectNameEditWidth = 250 ;
       numberEditWidth = 150 ;
-      editHeight = 32 ;
-      topMarginHeight = 20 ;
-
-      % Create figure1 and hide until all components are created
-      app.fig = uifigure('Visible', 'off');
-      app.fig.AutoResizeChildren = 'off';
-      app.fig.Resize = 'off';
-      app.fig.Color = [0 0.243 0.365];
-      app.fig.Position = [100 100 figWidth figHeight];
-      app.fig.Name = 'Project Setup';
-      app.fig.CloseRequestFcn = app.createCallbackFcn(@figure1_CloseRequestFcn, true);
-      app.fig.HandleVisibility = 'callback';
-      app.fig.Tag = 'figure1';
-
-      % Create labelProjectName
-      app.labelProjectName = uilabel(app.fig);
-      app.labelProjectName.Tag = 'text2';
-      app.labelProjectName.BackgroundColor = [0 0.243 0.365];
-      app.labelProjectName.VerticalAlignment = 'top';
-      app.labelProjectName.WordWrap = 'on';
-      app.labelProjectName.FontSize = 20;
-      app.labelProjectName.FontColor = [0 1 1];
-      app.labelProjectName.Position = [mainColumnMarginWidth 559 134 bigLabelHeight];
-      app.labelProjectName.Text = 'Project Name';
-
-      % Create etProjectName
-      app.etProjectName = uieditfield(app.fig, 'text');
-      app.etProjectName.ValueChangedFcn = app.createCallbackFcn(@etProjectName_Callback, true);
-      app.etProjectName.Tag = 'etProjectName';
-      app.etProjectName.FontSize = 20;
-      app.etProjectName.FontColor = [0 0.980392156862745 0.819607843137255];
-      app.etProjectName.BackgroundColor = [0 0 0];
-      app.etProjectName.Position = [mainColumnRightX-250 555 250 editHeight];
-
-      % Create labelNumberOfKeypoints
-      app.labelNumberOfKeypoints = uilabel(app.fig);
-      app.labelNumberOfKeypoints.Tag = 'labelNumberOfKeypoints';
-      app.labelNumberOfKeypoints.BackgroundColor = [0 0.243 0.365];
-      app.labelNumberOfKeypoints.VerticalAlignment = 'top';
-      app.labelNumberOfKeypoints.WordWrap = 'on';
-      app.labelNumberOfKeypoints.FontSize = 20;
-      app.labelNumberOfKeypoints.FontColor = [0 1 1];
-      app.labelNumberOfKeypoints.Position = [mainColumnMarginWidth 512 220 bigLabelHeight];
-      app.labelNumberOfKeypoints.Text = 'Number of Keypoints';
-
-      % Create etNumberOfPoints
-      app.etNumberOfPoints = uieditfield(app.fig, 'text');
-      app.etNumberOfPoints.ValueChangedFcn = app.createCallbackFcn(@etNumberOfPoints_Callback, true);
-      app.etNumberOfPoints.Tag = 'etNumberOfPoints';
-      app.etNumberOfPoints.HorizontalAlignment = 'center';
-      app.etNumberOfPoints.FontSize = 20;
-      app.etNumberOfPoints.FontColor = [0 0.980392156862745 0.819607843137255];
-      app.etNumberOfPoints.BackgroundColor = [0 0 0];
-      app.etNumberOfPoints.Position = [mainColumnRightX-numberEditWidth 512 numberEditWidth editHeight];
-      app.etNumberOfPoints.Value = '12';
-
-      % Create labelNumberOfKeypointsDetails
-      app.labelNumberOfKeypointsDetails = uilabel(app.fig);
-      app.labelNumberOfKeypointsDetails.Tag = 'text_nkeypoints_description';
-      app.labelNumberOfKeypointsDetails.BackgroundColor = [0 0.243 0.365];
-      app.labelNumberOfKeypointsDetails.VerticalAlignment = 'top';
-      app.labelNumberOfKeypointsDetails.WordWrap = 'on';
-      app.labelNumberOfKeypointsDetails.FontSize = 16;
-      app.labelNumberOfKeypointsDetails.FontColor = [0 1 1];
-      app.labelNumberOfKeypointsDetails.Position = [27 488 400 24];
-      app.labelNumberOfKeypointsDetails.Text = 'Number of keypoints to label for each animal';
-
-      % Create labelNumberOfViews
-      app.labelNumberOfViews = uilabel(app.fig);
-      app.labelNumberOfViews.Tag = 'labelNumberOfViews';
-      app.labelNumberOfViews.BackgroundColor = [0 0.243 0.365];
-      app.labelNumberOfViews.VerticalAlignment = 'top';
-      app.labelNumberOfViews.WordWrap = 'on';
-      app.labelNumberOfViews.FontSize = 20;
-      app.labelNumberOfViews.FontColor = [0 1 1];
-      app.labelNumberOfViews.Position = [mainColumnMarginWidth 450 179 bigLabelHeight];
-      app.labelNumberOfViews.Text = 'Number of Views';
-
-      % Create etNumberOfViews
-      app.etNumberOfViews = uieditfield(app.fig, 'text');
-      app.etNumberOfViews.ValueChangedFcn = app.createCallbackFcn(@etNumberOfViews_Callback, true);
-      app.etNumberOfViews.Tag = 'etNumberOfViews';
-      app.etNumberOfViews.HorizontalAlignment = 'center';
-      app.etNumberOfViews.FontSize = 20;
-      app.etNumberOfViews.FontColor = [0 0.980392156862745 0.819607843137255];
-      app.etNumberOfViews.BackgroundColor = [0 0 0];
-      app.etNumberOfViews.Position = [mainColumnRightX-numberEditWidth 452 numberEditWidth editHeight];
-      app.etNumberOfViews.Value = '1';
-
-      % Create labelNumberOfViewsDetails
-      app.labelNumberOfViewsDetails = uilabel(app.fig);
-      app.labelNumberOfViewsDetails.Tag = 'text_nviews_description';
-      app.labelNumberOfViewsDetails.BackgroundColor = [0 0.243 0.365];
-      app.labelNumberOfViewsDetails.VerticalAlignment = 'top';
-      app.labelNumberOfViewsDetails.WordWrap = 'on';
-      app.labelNumberOfViewsDetails.FontSize = 16;
-      app.labelNumberOfViewsDetails.FontColor = [0 1 1];
-      app.labelNumberOfViewsDetails.Position = [mainColumnMarginWidth 363 mainColumnWidth 85];
-      app.labelNumberOfViewsDetails.Text = 'APT can do 3D labeling and tracking from multiple calibrated cameras. Enter 1 if animals were imaged from just one camera. Otherwise, enter the number of synced cameras recording the animals. ';
-
-      % Create labelMultipleAnimals
-      app.labelMultipleAnimals = uilabel(app.fig);
-      app.labelMultipleAnimals.Tag = 'labelMultipleAnimals';
-      app.labelMultipleAnimals.BackgroundColor = [0 0.243 0.365];
-      app.labelMultipleAnimals.VerticalAlignment = 'top';
-      app.labelMultipleAnimals.WordWrap = 'on';
-      app.labelMultipleAnimals.FontSize = 20;
-      app.labelMultipleAnimals.FontColor = [0 1 1];
-      app.labelMultipleAnimals.Position = [mainColumnMarginWidth 336 202 bigLabelHeight];
-      app.labelMultipleAnimals.Text = 'Multiple Animals?';
-
-      % Create cbMA
-      app.cbMA = uicheckbox(app.fig);
-      app.cbMA.Tag = 'cbMA';
-      app.cbMA.Text = '';
-      app.cbMA.FontSize = 20;
-      app.cbMA.FontColor = [0 1 1];
-      app.cbMA.Position = [324 338 14 22];
-
-      % Create labelMultipleAnimalsDetails
-      app.labelMultipleAnimalsDetails = uilabel(app.fig);
-      app.labelMultipleAnimalsDetails.Tag = 'text_multianimal_description';
-      app.labelMultipleAnimalsDetails.BackgroundColor = [0 0.243 0.365];
-      app.labelMultipleAnimalsDetails.VerticalAlignment = 'top';
-      app.labelMultipleAnimalsDetails.WordWrap = 'on';
-      app.labelMultipleAnimalsDetails.FontSize = 16;
-      app.labelMultipleAnimalsDetails.FontColor = [0 1 1];
-      app.labelMultipleAnimalsDetails.Position = [mainColumnMarginWidth 265 mainColumnWidth 67];
-      app.labelMultipleAnimalsDetails.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.';
-
-      % Create labelHasBodyTracking
-      app.labelHasBodyTracking = uilabel(app.fig);
-      app.labelHasBodyTracking.Tag = 'text_multitarget';
-      app.labelHasBodyTracking.BackgroundColor = [0 0.243 0.365];
-      app.labelHasBodyTracking.VerticalAlignment = 'top';
-      app.labelHasBodyTracking.WordWrap = 'on';
-      app.labelHasBodyTracking.FontSize = 20;
-      app.labelHasBodyTracking.FontColor = [0 1 1];
-      app.labelHasBodyTracking.Position = [mainColumnMarginWidth 235 206 bigLabelHeight];
-      app.labelHasBodyTracking.Text = 'Has Body Tracking?';
-
-      % Create cbHasTrx
-      app.cbHasTrx = uicheckbox(app.fig);
-      app.cbHasTrx.Tag = 'cbHasTrx';
-      app.cbHasTrx.Text = '';
-      app.cbHasTrx.FontSize = 24;
-      app.cbHasTrx.FontColor = [0 1 1];
-      app.cbHasTrx.Position = [323 237 24 24];
-
-      % Create labelHasBodyTrackingDetails
-      app.labelHasBodyTrackingDetails = uilabel(app.fig);
-      app.labelHasBodyTrackingDetails.Tag = 'labelHasBodyTrackingDetails';
-      app.labelHasBodyTrackingDetails.BackgroundColor = [0 0.243 0.365];
-      app.labelHasBodyTrackingDetails.VerticalAlignment = 'top';
-      app.labelHasBodyTrackingDetails.WordWrap = 'on';
-      app.labelHasBodyTrackingDetails.FontSize = 16;
-      app.labelHasBodyTrackingDetails.FontColor = [0 1 1];
-      app.labelHasBodyTrackingDetails.Position = [mainColumnMarginWidth 110 mainColumnWidth 122];
-      app.labelHasBodyTrackingDetails.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.';
-
-      % Create pbCopySettingsFrom
-      % Create this after labelHasBodyTrackingDetails so it draws on top of
-      % that label (which it overlaps slightly).
-      app.pbCopySettingsFrom = uibutton(app.fig, 'push');
-      app.pbCopySettingsFrom.ButtonPushedFcn = app.createCallbackFcn(@pbCopySettingsFrom_Callback, true);
-      app.pbCopySettingsFrom.Tag = 'pbCopySettingsFrom';
-      app.pbCopySettingsFrom.BackgroundColor = [0 0 0];
-      app.pbCopySettingsFrom.FontSize = 20;
-      app.pbCopySettingsFrom.FontColor = [0 1 1];
-      app.pbCopySettingsFrom.Tooltip = 'Copy settings from an existing project';
-      pbCopySettingsWidth = 180 ;
-      pbCopySettingsRightX = figWidth - mainColumnMarginWidth ;
-      pbCopySettingsX = pbCopySettingsRightX - pbCopySettingsWidth ;
-      app.pbCopySettingsFrom.Position = [pbCopySettingsX 92 pbCopySettingsWidth buttonHeight];
-      app.pbCopySettingsFrom.Text = 'Copy Settings...';
-
-      % Bottom buttons have fixed widths and a fixed distance between, then that
-      % group is centered in the figure.
       createProjectButtonWidth = 200 ;
-      buttonSpacerWidth = 20 ;
       cancelButtonWidth = 150 ;
-      bottomButtonGroupWidth = createProjectButtonWidth + buttonSpacerWidth + cancelButtonWidth ;
-      bottomButtonGroupX = (figWidth-bottomButtonGroupWidth)/2 ;
-      createProjectButtonX = bottomButtonGroupX ;
-      cancelButtonX = createProjectButtonX + createProjectButtonWidth + buttonSpacerWidth ;      
+      copySettingsButtonWidth = 180 ;
 
-      % Create pbCreateProject
-      app.pbCreateProject = uibutton(app.fig, 'push');
-      app.pbCreateProject.ButtonPushedFcn = app.createCallbackFcn(@pbCreateProject_Callback, true);
-      app.pbCreateProject.Tag = 'pbCreateProject';
-      app.pbCreateProject.BackgroundColor = [0 0 0];
-      app.pbCreateProject.FontSize = 20;
-      app.pbCreateProject.FontColor = [0 0.980392156862745 0.819607843137255];
-      app.pbCreateProject.Position = [createProjectButtonX bottomMarginHeight createProjectButtonWidth buttonHeight];
-      app.pbCreateProject.Text = 'Create Project';
+      % Create the figure
+      app.fig = uifigure('Visible', 'off') ;
+      app.fig.Color = bgColor ;
+      app.fig.Position = [100 100 figWidth figHeight] ;
+      app.fig.Name = 'Project Setup' ;
+      app.fig.Resize = 'off' ;
+      app.fig.CloseRequestFcn = app.createCallbackFcn(@figure1_CloseRequestFcn, true) ;
+      app.fig.HandleVisibility = 'callback' ;
+      app.fig.Tag = 'figure1' ;
 
-      % Create pbCancel
-      app.pbCancel = uibutton(app.fig, 'push');
-      app.pbCancel.ButtonPushedFcn = app.createCallbackFcn(@pbCancel_Callback, true);
-      app.pbCancel.Tag = 'pbCancel';
-      app.pbCancel.BackgroundColor = [0 0 0];
-      app.pbCancel.FontSize = 20;
-      app.pbCancel.FontColor = [0 0.980392156862745 0.819607843137255];
-      app.pbCancel.Position = [cancelButtonX bottomMarginHeight cancelButtonWidth buttonHeight];
-      app.pbCancel.Text = 'Cancel';
-      
+      % Outer column: 7 rows, all stretching to figure width.
+      outerGrid = uigridlayout(app.fig, [7 1]) ;
+      outerGrid.RowHeight = repmat({'fit'}, 1, 7) ;
+      outerGrid.ColumnWidth = {'1x'} ;
+      outerGrid.Padding = [marginWidth marginWidth marginWidth marginWidth] ;
+      outerGrid.RowSpacing = 12 ;
+      outerGrid.BackgroundColor = bgColor ;
+
+      % Row 1: Project Name -----------------------------------------
+      projectNameRow = uigridlayout(outerGrid, [1 2]) ;
+      projectNameRow.ColumnWidth = {'1x', projectNameEditWidth} ;
+      projectNameRow.RowHeight = {'fit'} ;
+      projectNameRow.Padding = [0 0 0 0] ;
+      projectNameRow.ColumnSpacing = 10 ;
+      projectNameRow.BackgroundColor = bgColor ;
+
+      app.labelProjectName = uilabel(projectNameRow) ;
+      app.labelProjectName.Text = 'Project Name' ;
+      app.labelProjectName.FontSize = bigFontSize ;
+      app.labelProjectName.FontColor = labelColor ;
+      app.labelProjectName.BackgroundColor = bgColor ;
+
+      app.etProjectName = uieditfield(projectNameRow, 'text') ;
+      app.etProjectName.ValueChangedFcn = app.createCallbackFcn(@etProjectName_Callback, true) ;
+      app.etProjectName.FontSize = bigFontSize ;
+      app.etProjectName.FontColor = fieldFontColor ;
+      app.etProjectName.BackgroundColor = fieldBgColor ;
+
+      % Row 2: Number of Keypoints ---------------------------------
+      keypointsSection = uigridlayout(outerGrid, [2 1]) ;
+      keypointsSection.RowHeight = {'fit', 'fit'} ;
+      keypointsSection.ColumnWidth = {'1x'} ;
+      keypointsSection.Padding = [0 0 0 0] ;
+      keypointsSection.RowSpacing = 2 ;
+      keypointsSection.BackgroundColor = bgColor ;
+
+      keypointsRow = uigridlayout(keypointsSection, [1 2]) ;
+      keypointsRow.ColumnWidth = {'1x', numberEditWidth} ;
+      keypointsRow.RowHeight = {'fit'} ;
+      keypointsRow.Padding = [0 0 0 0] ;
+      keypointsRow.ColumnSpacing = 10 ;
+      keypointsRow.BackgroundColor = bgColor ;
+
+      app.labelNumberOfKeypoints = uilabel(keypointsRow) ;
+      app.labelNumberOfKeypoints.Text = 'Number of Keypoints' ;
+      app.labelNumberOfKeypoints.FontSize = bigFontSize ;
+      app.labelNumberOfKeypoints.FontColor = labelColor ;
+      app.labelNumberOfKeypoints.BackgroundColor = bgColor ;
+
+      app.etNumberOfPoints = uieditfield(keypointsRow, 'text') ;
+      app.etNumberOfPoints.ValueChangedFcn = app.createCallbackFcn(@etNumberOfPoints_Callback, true) ;
+      app.etNumberOfPoints.HorizontalAlignment = 'center' ;
+      app.etNumberOfPoints.FontSize = bigFontSize ;
+      app.etNumberOfPoints.FontColor = fieldFontColor ;
+      app.etNumberOfPoints.BackgroundColor = fieldBgColor ;
+      app.etNumberOfPoints.Value = '12' ;
+
+      app.labelNumberOfKeypointsDetails = uilabel(keypointsSection) ;
+      app.labelNumberOfKeypointsDetails.Text = 'Number of keypoints to label for each animal' ;
+      app.labelNumberOfKeypointsDetails.WordWrap = 'on' ;
+      app.labelNumberOfKeypointsDetails.VerticalAlignment = 'top' ;
+      app.labelNumberOfKeypointsDetails.FontSize = smallFontSize ;
+      app.labelNumberOfKeypointsDetails.FontColor = labelColor ;
+      app.labelNumberOfKeypointsDetails.BackgroundColor = bgColor ;
+
+      % Row 3: Number of Views -------------------------------------
+      viewsSection = uigridlayout(outerGrid, [2 1]) ;
+      viewsSection.RowHeight = {'fit', 'fit'} ;
+      viewsSection.ColumnWidth = {'1x'} ;
+      viewsSection.Padding = [0 0 0 0] ;
+      viewsSection.RowSpacing = 2 ;
+      viewsSection.BackgroundColor = bgColor ;
+
+      viewsRow = uigridlayout(viewsSection, [1 2]) ;
+      viewsRow.ColumnWidth = {'1x', numberEditWidth} ;
+      viewsRow.RowHeight = {'fit'} ;
+      viewsRow.Padding = [0 0 0 0] ;
+      viewsRow.ColumnSpacing = 10 ;
+      viewsRow.BackgroundColor = bgColor ;
+
+      app.labelNumberOfViews = uilabel(viewsRow) ;
+      app.labelNumberOfViews.Text = 'Number of Views' ;
+      app.labelNumberOfViews.FontSize = bigFontSize ;
+      app.labelNumberOfViews.FontColor = labelColor ;
+      app.labelNumberOfViews.BackgroundColor = bgColor ;
+
+      app.etNumberOfViews = uieditfield(viewsRow, 'text') ;
+      app.etNumberOfViews.ValueChangedFcn = app.createCallbackFcn(@etNumberOfViews_Callback, true) ;
+      app.etNumberOfViews.HorizontalAlignment = 'center' ;
+      app.etNumberOfViews.FontSize = bigFontSize ;
+      app.etNumberOfViews.FontColor = fieldFontColor ;
+      app.etNumberOfViews.BackgroundColor = fieldBgColor ;
+      app.etNumberOfViews.Value = '1' ;
+
+      app.labelNumberOfViewsDetails = uilabel(viewsSection) ;
+      app.labelNumberOfViewsDetails.Text = 'APT can do 3D labeling and tracking from multiple calibrated cameras. Enter 1 if animals were imaged from just one camera. Otherwise, enter the number of synced cameras recording the animals.' ;
+      app.labelNumberOfViewsDetails.WordWrap = 'on' ;
+      app.labelNumberOfViewsDetails.VerticalAlignment = 'top' ;
+      app.labelNumberOfViewsDetails.FontSize = smallFontSize ;
+      app.labelNumberOfViewsDetails.FontColor = labelColor ;
+      app.labelNumberOfViewsDetails.BackgroundColor = bgColor ;
+
+      % Row 4: Multiple Animals ------------------------------------
+      multipleAnimalsSection = uigridlayout(outerGrid, [2 1]) ;
+      multipleAnimalsSection.RowHeight = {'fit', 'fit'} ;
+      multipleAnimalsSection.ColumnWidth = {'1x'} ;
+      multipleAnimalsSection.Padding = [0 0 0 0] ;
+      multipleAnimalsSection.RowSpacing = 2 ;
+      multipleAnimalsSection.BackgroundColor = bgColor ;
+
+      multipleAnimalsRow = uigridlayout(multipleAnimalsSection, [1 2]) ;
+      multipleAnimalsRow.ColumnWidth = {'1x', 'fit'} ;
+      multipleAnimalsRow.RowHeight = {'fit'} ;
+      multipleAnimalsRow.Padding = [0 0 0 0] ;
+      multipleAnimalsRow.ColumnSpacing = 10 ;
+      multipleAnimalsRow.BackgroundColor = bgColor ;
+
+      app.labelMultipleAnimals = uilabel(multipleAnimalsRow) ;
+      app.labelMultipleAnimals.Text = 'Multiple Animals?' ;
+      app.labelMultipleAnimals.FontSize = bigFontSize ;
+      app.labelMultipleAnimals.FontColor = labelColor ;
+      app.labelMultipleAnimals.BackgroundColor = bgColor ;
+
+      app.cbMA = uicheckbox(multipleAnimalsRow) ;
+      app.cbMA.Text = '' ;
+      app.cbMA.FontSize = bigFontSize ;
+      app.cbMA.FontColor = labelColor ;
+
+      app.labelMultipleAnimalsDetails = uilabel(multipleAnimalsSection) ;
+      app.labelMultipleAnimalsDetails.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.' ;
+      app.labelMultipleAnimalsDetails.WordWrap = 'on' ;
+      app.labelMultipleAnimalsDetails.VerticalAlignment = 'top' ;
+      app.labelMultipleAnimalsDetails.FontSize = smallFontSize ;
+      app.labelMultipleAnimalsDetails.FontColor = labelColor ;
+      app.labelMultipleAnimalsDetails.BackgroundColor = bgColor ;
+
+      % Row 5: Has Body Tracking -----------------------------------
+      hasBodyTrackingSection = uigridlayout(outerGrid, [2 1]) ;
+      hasBodyTrackingSection.RowHeight = {'fit', 'fit'} ;
+      hasBodyTrackingSection.ColumnWidth = {'1x'} ;
+      hasBodyTrackingSection.Padding = [0 0 0 0] ;
+      hasBodyTrackingSection.RowSpacing = 2 ;
+      hasBodyTrackingSection.BackgroundColor = bgColor ;
+
+      hasBodyTrackingRow = uigridlayout(hasBodyTrackingSection, [1 2]) ;
+      hasBodyTrackingRow.ColumnWidth = {'1x', 'fit'} ;
+      hasBodyTrackingRow.RowHeight = {'fit'} ;
+      hasBodyTrackingRow.Padding = [0 0 0 0] ;
+      hasBodyTrackingRow.ColumnSpacing = 10 ;
+      hasBodyTrackingRow.BackgroundColor = bgColor ;
+
+      app.labelHasBodyTracking = uilabel(hasBodyTrackingRow) ;
+      app.labelHasBodyTracking.Text = 'Has Body Tracking?' ;
+      app.labelHasBodyTracking.FontSize = bigFontSize ;
+      app.labelHasBodyTracking.FontColor = labelColor ;
+      app.labelHasBodyTracking.BackgroundColor = bgColor ;
+
+      app.cbHasTrx = uicheckbox(hasBodyTrackingRow) ;
+      app.cbHasTrx.Text = '' ;
+      app.cbHasTrx.FontSize = 24 ;
+      app.cbHasTrx.FontColor = labelColor ;
+
+      app.labelHasBodyTrackingDetails = uilabel(hasBodyTrackingSection) ;
+      app.labelHasBodyTrackingDetails.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.' ;
+      app.labelHasBodyTrackingDetails.WordWrap = 'on' ;
+      app.labelHasBodyTrackingDetails.VerticalAlignment = 'top' ;
+      app.labelHasBodyTrackingDetails.FontSize = smallFontSize ;
+      app.labelHasBodyTrackingDetails.FontColor = labelColor ;
+      app.labelHasBodyTrackingDetails.BackgroundColor = bgColor ;
+
+      % Row 6: Copy Settings... button (right-aligned alone) -------
+      copySettingsRow = uigridlayout(outerGrid, [1 2]) ;
+      copySettingsRow.ColumnWidth = {'1x', copySettingsButtonWidth} ;
+      copySettingsRow.RowHeight = {'fit'} ;
+      copySettingsRow.Padding = [0 0 0 0] ;
+      copySettingsRow.BackgroundColor = bgColor ;
+
+      app.pbCopySettingsFrom = uibutton(copySettingsRow, 'push') ;
+      app.pbCopySettingsFrom.Layout.Column = 2 ;
+      app.pbCopySettingsFrom.ButtonPushedFcn = app.createCallbackFcn(@pbCopySettingsFrom_Callback, true) ;
+      app.pbCopySettingsFrom.BackgroundColor = fieldBgColor ;
+      app.pbCopySettingsFrom.FontSize = bigFontSize ;
+      app.pbCopySettingsFrom.FontColor = labelColor ;
+      app.pbCopySettingsFrom.Tooltip = 'Copy settings from an existing project' ;
+      app.pbCopySettingsFrom.Text = 'Copy Settings...' ;
+
+      % Row 7: Bottom buttons (Create Project + Cancel, centered) ---
+      bottomButtonsRow = uigridlayout(outerGrid, [1 4]) ;
+      bottomButtonsRow.ColumnWidth = {'1x', createProjectButtonWidth, cancelButtonWidth, '1x'} ;
+      bottomButtonsRow.RowHeight = {'fit'} ;
+      bottomButtonsRow.Padding = [0 0 0 0] ;
+      bottomButtonsRow.ColumnSpacing = 10 ;
+      bottomButtonsRow.BackgroundColor = bgColor ;
+
+      app.pbCreateProject = uibutton(bottomButtonsRow, 'push') ;
+      app.pbCreateProject.Layout.Column = 2 ;
+      app.pbCreateProject.ButtonPushedFcn = app.createCallbackFcn(@pbCreateProject_Callback, true) ;
+      app.pbCreateProject.BackgroundColor = fieldBgColor ;
+      app.pbCreateProject.FontSize = bigFontSize ;
+      app.pbCreateProject.FontColor = fieldFontColor ;
+      app.pbCreateProject.Text = 'Create Project' ;
+
+      app.pbCancel = uibutton(bottomButtonsRow, 'push') ;
+      app.pbCancel.Layout.Column = 3 ;
+      app.pbCancel.ButtonPushedFcn = app.createCallbackFcn(@pbCancel_Callback, true) ;
+      app.pbCancel.BackgroundColor = fieldBgColor ;
+      app.pbCancel.FontSize = bigFontSize ;
+      app.pbCancel.FontColor = fieldFontColor ;
+      app.pbCancel.Text = 'Cancel' ;
+
       % Show the figure after all components are created
       app.fig.Visible = 'on';
     end  % function
