@@ -262,6 +262,11 @@ classdef ProjectSetup < matlab.apps.AppBase
 
     % Create UIFigure and components
     function createComponents(app)
+      % Create all the controls.
+
+      % Some layout constants
+      marginWidth = 25 ;
+      bigLabelHeight = 24 ;
 
       % Create figure1 and hide until all components are created
       app.fig = uifigure('Visible', 'off');
@@ -282,29 +287,29 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelProjectName.WordWrap = 'on';
       app.labelProjectName.FontSize = 20;
       app.labelProjectName.FontColor = [0 1 1];
-      app.labelProjectName.Position = [25 559 137 24];
+      app.labelProjectName.Position = [marginWidth 559 137 bigLabelHeight];
       app.labelProjectName.Text = 'Project Name';
 
-      % Create text3
+      % Create labelNumberOfKeypoints
       app.labelNumberOfKeypoints = uilabel(app.fig);
-      app.labelNumberOfKeypoints.Tag = 'text3';
+      app.labelNumberOfKeypoints.Tag = 'labelNumberOfKeypoints';
       app.labelNumberOfKeypoints.BackgroundColor = [0 0.243 0.365];
       app.labelNumberOfKeypoints.VerticalAlignment = 'top';
       app.labelNumberOfKeypoints.WordWrap = 'on';
       app.labelNumberOfKeypoints.FontSize = 20;
       app.labelNumberOfKeypoints.FontColor = [0 1 1];
-      app.labelNumberOfKeypoints.Position = [25 512 220 24];
+      app.labelNumberOfKeypoints.Position = [marginWidth 512 220 bigLabelHeight];
       app.labelNumberOfKeypoints.Text = 'Number of Keypoints';
 
-      % Create text4
+      % Create labelNumberOfViews
       app.labelNumberOfViews = uilabel(app.fig);
-      app.labelNumberOfViews.Tag = 'text4';
+      app.labelNumberOfViews.Tag = 'labelNumberOfViews';
       app.labelNumberOfViews.BackgroundColor = [0 0.243 0.365];
       app.labelNumberOfViews.VerticalAlignment = 'top';
       app.labelNumberOfViews.WordWrap = 'on';
       app.labelNumberOfViews.FontSize = 20;
       app.labelNumberOfViews.FontColor = [0 1 1];
-      app.labelNumberOfViews.Position = [25 450 179 24];
+      app.labelNumberOfViews.Position = [marginWidth 450 179 bigLabelHeight];
       app.labelNumberOfViews.Text = 'Number of Views';
 
       % Create etProjectName
@@ -338,17 +343,6 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.etNumberOfViews.Position = [282 452 150 32];
       app.etNumberOfViews.Value = '1';
 
-      % % Create pbAdvanced
-      % app.pbAdvanced = uibutton(app.fig, 'push');
-      % app.pbAdvanced.ButtonPushedFcn = app.createCallbackFcn(@pbAdvanced_Callback, true);
-      % app.pbAdvanced.Tag = 'pbAdvanced';
-      % app.pbAdvanced.BackgroundColor = [0 0 0];
-      % app.pbAdvanced.FontSize = 20;
-      % app.pbAdvanced.FontColor = [0 1 1];
-      % app.pbAdvanced.Tooltip = 'Show advanced options';
-      % app.pbAdvanced.Position = [250 64 150 32];
-      % app.pbAdvanced.Text = 'Advanced >';
-
       % Create pbCreateProject
       app.pbCreateProject = uibutton(app.fig, 'push');
       app.pbCreateProject.ButtonPushedFcn = app.createCallbackFcn(@pbCreateProject_Callback, true);
@@ -369,49 +363,6 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCancel.Position = [249 21 150 32];
       app.pbCancel.Text = 'Cancel';
 
-      % % Create pnlAdvanced
-      % app.pnlAdvanced = uipanel(app.fig);
-      % app.pnlAdvanced.ForegroundColor = [0 1 1];
-      % app.pnlAdvanced.BorderType = 'none';
-      % app.pnlAdvanced.BackgroundColor = [0 0.243 0.365];
-      % app.pnlAdvanced.Tag = 'pnlAdvanced';
-      % app.pnlAdvanced.FontSize = 13.3333333333333;
-      % app.pnlAdvanced.Position = [457 20 377 551];
-      % 
-      % % Create text8
-      % app.text8 = uilabel(app.fig);
-      % app.text8.Tag = 'text8';
-      % app.text8.BackgroundColor = [0 0.243 0.365];
-      % app.text8.VerticalAlignment = 'top';
-      % app.text8.WordWrap = 'on';
-      % app.text8.FontSize = 20;
-      % app.text8.FontAngle = 'italic';
-      % app.text8.FontColor = [0 1 1];
-      % app.text8.Position = [458 564 217 24];
-      % app.text8.Text = 'Advanced Properties';
-
-      % % Create landmarkRight
-      % app.landmarkRight = uilabel(app.fig);
-      % app.landmarkRight.Tag = 'landmarkRight';
-      % app.landmarkRight.HorizontalAlignment = 'center';
-      % app.landmarkRight.VerticalAlignment = 'top';
-      % app.landmarkRight.WordWrap = 'on';
-      % app.landmarkRight.FontSize = 10.6666666666667;
-      % app.landmarkRight.Visible = 'off';
-      % app.landmarkRight.Position = [825 594 8 8];
-      % app.landmarkRight.Text = '';
-
-      % Create pbCopySettingsFrom
-      app.pbCopySettingsFrom = uibutton(app.fig, 'push');
-      app.pbCopySettingsFrom.ButtonPushedFcn = app.createCallbackFcn(@pbCopySettingsFrom_Callback, true);
-      app.pbCopySettingsFrom.Tag = 'pbCopySettingsFrom';
-      app.pbCopySettingsFrom.BackgroundColor = [0 0 0];
-      app.pbCopySettingsFrom.FontSize = 20;
-      app.pbCopySettingsFrom.FontColor = [0 1 1];
-      app.pbCopySettingsFrom.Tooltip = 'Copy settings from an existing project';
-      app.pbCopySettingsFrom.Position = [45 63 200 32];
-      app.pbCopySettingsFrom.Text = 'Copy Settings...';
-
       % Create cbHasTrx
       app.cbHasTrx = uicheckbox(app.fig);
       app.cbHasTrx.Tag = 'cbHasTrx';
@@ -428,7 +379,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelHasBodyTracking.WordWrap = 'on';
       app.labelHasBodyTracking.FontSize = 20;
       app.labelHasBodyTracking.FontColor = [0 1 1];
-      app.labelHasBodyTracking.Position = [25 235 206 24];
+      app.labelHasBodyTracking.Position = [marginWidth 235 206 bigLabelHeight];
       app.labelHasBodyTracking.Text = 'Has Body Tracking?';
 
       % Create cbMA
@@ -439,15 +390,15 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.cbMA.FontColor = [0 1 1];
       app.cbMA.Position = [324 338 14 22];
 
-      % Create text12
+      % Create labelMultipleAnimals
       app.labelMultipleAnimals = uilabel(app.fig);
-      app.labelMultipleAnimals.Tag = 'text12';
+      app.labelMultipleAnimals.Tag = 'labelMultipleAnimals';
       app.labelMultipleAnimals.BackgroundColor = [0 0.243 0.365];
       app.labelMultipleAnimals.VerticalAlignment = 'top';
       app.labelMultipleAnimals.WordWrap = 'on';
       app.labelMultipleAnimals.FontSize = 20;
       app.labelMultipleAnimals.FontColor = [0 1 1];
-      app.labelMultipleAnimals.Position = [25 336 202 24];
+      app.labelMultipleAnimals.Position = [marginWidth 336 202 bigLabelHeight];
       app.labelMultipleAnimals.Text = 'Multiple Animals?';
 
       % % Create landmarkMid
@@ -494,9 +445,9 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelMultipleAnimalsDetails.Position = [28 265 400 67];
       app.labelMultipleAnimalsDetails.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.';
 
-      % Create text16
+      % Create labelHasBodyTrackingDetails
       app.labelHasBodyTrackingDetails = uilabel(app.fig);
-      app.labelHasBodyTrackingDetails.Tag = 'text16';
+      app.labelHasBodyTrackingDetails.Tag = 'labelHasBodyTrackingDetails';
       app.labelHasBodyTrackingDetails.BackgroundColor = [0 0.243 0.365];
       app.labelHasBodyTrackingDetails.VerticalAlignment = 'top';
       app.labelHasBodyTrackingDetails.WordWrap = 'on';
@@ -505,6 +456,24 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelHasBodyTrackingDetails.Position = [28 110 400 122];
       app.labelHasBodyTrackingDetails.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.';
 
+      % Create pbCopySettingsFrom
+      % Do this last so it's on top of the the "Has Body Tracking?" details
+      % label.
+      app.pbCopySettingsFrom = uibutton(app.fig, 'push');
+      app.pbCopySettingsFrom.ButtonPushedFcn = app.createCallbackFcn(@pbCopySettingsFrom_Callback, true);
+      app.pbCopySettingsFrom.Tag = 'pbCopySettingsFrom';
+      app.pbCopySettingsFrom.BackgroundColor = [0 0 0];
+      app.pbCopySettingsFrom.FontSize = 20;
+      app.pbCopySettingsFrom.FontColor = [0 1 1];
+      app.pbCopySettingsFrom.Tooltip = 'Copy settings from an existing project';
+      pbCancelPosition = app.pbCancel.Position ;
+      pbCancelRightX = pbCancelPosition(1) + pbCancelPosition(3) ;
+      pbCopySettingsRightX = pbCancelRightX ;
+      pbCopySettingsWidth = 180 ;
+      pbCopySettingsX = pbCopySettingsRightX - pbCopySettingsWidth ;
+      app.pbCopySettingsFrom.Position = [pbCopySettingsX 92 pbCopySettingsWidth 32];
+      app.pbCopySettingsFrom.Text = 'Copy Settings...';
+      
       % Show the figure after all components are created
       app.fig.Visible = 'on';
     end  % function
