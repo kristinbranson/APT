@@ -267,9 +267,12 @@ classdef ProjectSetup < matlab.apps.AppBase
       % Some layout constants
       figWidth = 450 ;
       figHeight = 620 ;
-      marginWidth = 25 ;
+      mainColumnMarginWidth = 25 ;
+      mainColumnWidth = figWidth - 2*mainColumnMarginWidth ;
       bigLabelHeight = 24 ;
       pbCancelRightX = 399 ;  % right edge of the Cancel button; right-align Copy Settings to here
+      bottomMarginHeight = 20 ;
+      buttonHeight = 32 ;
 
       % Create figure1 and hide until all components are created
       app.fig = uifigure('Visible', 'off');
@@ -290,7 +293,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelProjectName.WordWrap = 'on';
       app.labelProjectName.FontSize = 20;
       app.labelProjectName.FontColor = [0 1 1];
-      app.labelProjectName.Position = [marginWidth 559 137 bigLabelHeight];
+      app.labelProjectName.Position = [mainColumnMarginWidth 559 137 bigLabelHeight];
       app.labelProjectName.Text = 'Project Name';
 
       % Create etProjectName
@@ -310,7 +313,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelNumberOfKeypoints.WordWrap = 'on';
       app.labelNumberOfKeypoints.FontSize = 20;
       app.labelNumberOfKeypoints.FontColor = [0 1 1];
-      app.labelNumberOfKeypoints.Position = [marginWidth 512 220 bigLabelHeight];
+      app.labelNumberOfKeypoints.Position = [mainColumnMarginWidth 512 220 bigLabelHeight];
       app.labelNumberOfKeypoints.Text = 'Number of Keypoints';
 
       % Create etNumberOfPoints
@@ -343,7 +346,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelNumberOfViews.WordWrap = 'on';
       app.labelNumberOfViews.FontSize = 20;
       app.labelNumberOfViews.FontColor = [0 1 1];
-      app.labelNumberOfViews.Position = [marginWidth 450 179 bigLabelHeight];
+      app.labelNumberOfViews.Position = [mainColumnMarginWidth 450 179 bigLabelHeight];
       app.labelNumberOfViews.Text = 'Number of Views';
 
       % Create etNumberOfViews
@@ -365,7 +368,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelNumberOfViewsDetails.WordWrap = 'on';
       app.labelNumberOfViewsDetails.FontSize = 16;
       app.labelNumberOfViewsDetails.FontColor = [0 1 1];
-      app.labelNumberOfViewsDetails.Position = [26 363 400 85];
+      app.labelNumberOfViewsDetails.Position = [mainColumnMarginWidth 363 mainColumnWidth 85];
       app.labelNumberOfViewsDetails.Text = 'APT can do 3D labeling and tracking from multiple calibrated cameras. Enter 1 if animals were imaged from just one camera. Otherwise, enter the number of synced cameras recording the animals. ';
 
       % Create labelMultipleAnimals
@@ -376,7 +379,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelMultipleAnimals.WordWrap = 'on';
       app.labelMultipleAnimals.FontSize = 20;
       app.labelMultipleAnimals.FontColor = [0 1 1];
-      app.labelMultipleAnimals.Position = [marginWidth 336 202 bigLabelHeight];
+      app.labelMultipleAnimals.Position = [mainColumnMarginWidth 336 202 bigLabelHeight];
       app.labelMultipleAnimals.Text = 'Multiple Animals?';
 
       % Create cbMA
@@ -395,7 +398,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelMultipleAnimalsDetails.WordWrap = 'on';
       app.labelMultipleAnimalsDetails.FontSize = 16;
       app.labelMultipleAnimalsDetails.FontColor = [0 1 1];
-      app.labelMultipleAnimalsDetails.Position = [28 265 400 67];
+      app.labelMultipleAnimalsDetails.Position = [mainColumnMarginWidth 265 mainColumnWidth 67];
       app.labelMultipleAnimalsDetails.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.';
 
       % Create labelHasBodyTracking
@@ -406,7 +409,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelHasBodyTracking.WordWrap = 'on';
       app.labelHasBodyTracking.FontSize = 20;
       app.labelHasBodyTracking.FontColor = [0 1 1];
-      app.labelHasBodyTracking.Position = [marginWidth 235 206 bigLabelHeight];
+      app.labelHasBodyTracking.Position = [mainColumnMarginWidth 235 206 bigLabelHeight];
       app.labelHasBodyTracking.Text = 'Has Body Tracking?';
 
       % Create cbHasTrx
@@ -425,7 +428,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelHasBodyTrackingDetails.WordWrap = 'on';
       app.labelHasBodyTrackingDetails.FontSize = 16;
       app.labelHasBodyTrackingDetails.FontColor = [0 1 1];
-      app.labelHasBodyTrackingDetails.Position = [28 110 400 122];
+      app.labelHasBodyTrackingDetails.Position = [mainColumnMarginWidth 110 mainColumnWidth 122];
       app.labelHasBodyTrackingDetails.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.';
 
       % Create pbCopySettingsFrom
@@ -439,9 +442,20 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCopySettingsFrom.FontColor = [0 1 1];
       app.pbCopySettingsFrom.Tooltip = 'Copy settings from an existing project';
       pbCopySettingsWidth = 180 ;
-      pbCopySettingsX = pbCancelRightX - pbCopySettingsWidth ;
-      app.pbCopySettingsFrom.Position = [pbCopySettingsX 92 pbCopySettingsWidth 32];
+      pbCopySettingsRightX = figWidth - mainColumnMarginWidth ;
+      pbCopySettingsX = pbCopySettingsRightX - pbCopySettingsWidth ;
+      app.pbCopySettingsFrom.Position = [pbCopySettingsX 92 pbCopySettingsWidth buttonHeight];
       app.pbCopySettingsFrom.Text = 'Copy Settings...';
+
+      % Bottom buttons have fixed widths and a fixed distance between, then that
+      % group is centered in the figure.
+      createProjectButtonWidth = 200 ;
+      buttonSpacerWidth = 20 ;
+      cancelButtonWidth = 150 ;
+      bottomButtonGroupWidth = createProjectButtonWidth + buttonSpacerWidth + cancelButtonWidth ;
+      bottomButtonGroupX = (figWidth-bottomButtonGroupWidth)/2 ;
+      createProjectButtonX = bottomButtonGroupX ;
+      cancelButtonX = createProjectButtonX + createProjectButtonWidth + buttonSpacerWidth ;      
 
       % Create pbCreateProject
       app.pbCreateProject = uibutton(app.fig, 'push');
@@ -450,7 +464,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCreateProject.BackgroundColor = [0 0 0];
       app.pbCreateProject.FontSize = 20;
       app.pbCreateProject.FontColor = [0 0.980392156862745 0.819607843137255];
-      app.pbCreateProject.Position = [44 21 200 32];
+      app.pbCreateProject.Position = [createProjectButtonX bottomMarginHeight createProjectButtonWidth buttonHeight];
       app.pbCreateProject.Text = 'Create Project';
 
       % Create pbCancel
@@ -460,7 +474,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCancel.BackgroundColor = [0 0 0];
       app.pbCancel.FontSize = 20;
       app.pbCancel.FontColor = [0 0.980392156862745 0.819607843137255];
-      app.pbCancel.Position = [249 21 150 32];
+      app.pbCancel.Position = [cancelButtonX bottomMarginHeight cancelButtonWidth buttonHeight];
       app.pbCancel.Text = 'Cancel';
       
       % Show the figure after all components are created
