@@ -277,8 +277,8 @@ classdef ProjectSetup < matlab.apps.AppBase
       fieldBgColor = [0 0 0] ;  % black
       bigFontSize = 20 ;
       smallFontSize = 16 ;
-      projectNameEditWidth = 250 ;
-      numberEditWidth = 150 ;
+      projectNameFieldWidth = 250 ;
+      numberFieldWidth = 150 ;
       createProjectButtonWidth = 200 ;
       cancelButtonWidth = 150 ;
       copySettingsButtonWidth = 180 ;
@@ -303,7 +303,7 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       % Row 1: Project Name -----------------------------------------
       projectNameRow = uigridlayout(outerGrid, [1 2]) ;
-      projectNameRow.ColumnWidth = {'1x', projectNameEditWidth} ;
+      projectNameRow.ColumnWidth = {'1x', projectNameFieldWidth} ;
       projectNameRow.RowHeight = {'fit'} ;
       projectNameRow.Padding = [0 0 0 0] ;
       projectNameRow.ColumnSpacing = 10 ;
@@ -330,7 +330,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       keypointsSection.BackgroundColor = bgColor ;
 
       keypointsRow = uigridlayout(keypointsSection, [1 2]) ;
-      keypointsRow.ColumnWidth = {'1x', numberEditWidth} ;
+      keypointsRow.ColumnWidth = {'1x', numberFieldWidth} ;
       keypointsRow.RowHeight = {'fit'} ;
       keypointsRow.Padding = [0 0 0 0] ;
       keypointsRow.ColumnSpacing = 10 ;
@@ -367,7 +367,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       viewsSection.BackgroundColor = bgColor ;
 
       viewsRow = uigridlayout(viewsSection, [1 2]) ;
-      viewsRow.ColumnWidth = {'1x', numberEditWidth} ;
+      viewsRow.ColumnWidth = {'1x', numberFieldWidth} ;
       viewsRow.RowHeight = {'fit'} ;
       viewsRow.Padding = [0 0 0 0] ;
       viewsRow.ColumnSpacing = 10 ;
@@ -479,12 +479,14 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCopySettingsFrom.Tooltip = 'Copy settings from an existing project' ;
       app.pbCopySettingsFrom.Text = 'Copy Settings...' ;
 
-      % Row 7: Bottom buttons (Create Project + Cancel, centered) ---
-      bottomButtonsRow = uigridlayout(outerGrid, [1 4]) ;
-      bottomButtonsRow.ColumnWidth = {'1x', createProjectButtonWidth, cancelButtonWidth, '1x'} ;
+      % Row 7: Bottom buttons (Create Project + Cancel, centered, with
+      % an explicit gap between the two buttons) -------------------
+      betweenBottomButtonsWidth = 20 ;
+      bottomButtonsRow = uigridlayout(outerGrid, [1 5]) ;
+      bottomButtonsRow.ColumnWidth = {'1x', createProjectButtonWidth, betweenBottomButtonsWidth, cancelButtonWidth, '1x'} ;
       bottomButtonsRow.RowHeight = {'fit'} ;
       bottomButtonsRow.Padding = [0 0 0 0] ;
-      bottomButtonsRow.ColumnSpacing = 10 ;
+      bottomButtonsRow.ColumnSpacing = 0 ;
       bottomButtonsRow.BackgroundColor = bgColor ;
 
       app.pbCreateProject = uibutton(bottomButtonsRow, 'push') ;
@@ -496,7 +498,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCreateProject.Text = 'Create Project' ;
 
       app.pbCancel = uibutton(bottomButtonsRow, 'push') ;
-      app.pbCancel.Layout.Column = 3 ;
+      app.pbCancel.Layout.Column = 4 ;
       app.pbCancel.ButtonPushedFcn = app.createCallbackFcn(@pbCancel_Callback, true) ;
       app.pbCancel.BackgroundColor = fieldBgColor ;
       app.pbCancel.FontSize = bigFontSize ;
