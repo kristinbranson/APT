@@ -281,7 +281,10 @@ classdef ProjectSetup < matlab.apps.AppBase
       createProjectButtonWidth = 200 ;
       cancelButtonWidth = 150 ;
       copySettingsButtonWidth = 180 ;
+      buttonHeight = 32 ;
       withinSectionRowSpacing = 8 ;  % gap between a section's label-and-control row and its details label
+      outerGridRowSpacing = 12 ;  % gap between outerGrid rows
+      copySettingsOverlapAmount = 6 ;  % how far the Copy Settings button overlaps into the Has Body Tracking details, matches the original GUIDE layout
 
       % Figure height: derived so the column of content fits with no slack.
       % Magic number 620 was the design height when the 4 sections had
@@ -299,12 +302,16 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.fig.HandleVisibility = 'callback' ;
       app.fig.Tag = 'figure1' ;
 
-      % Outer column: 7 rows, all stretching to figure width.
+      % Outer column: 7 rows.  Rows 1-5 are content sections (sized 'fit').
+      % Row 6 is reserved empty space for the Copy Settings button, which is
+      % added as a direct child of the figure (not the grid) so it can
+      % overlap the Has Body Tracking details area above.  Row 7 holds the
+      % bottom buttons.
       outerGrid = uigridlayout(app.fig, [7 1]) ;
-      outerGrid.RowHeight = repmat({'fit'}, 1, 7) ;
+      outerGrid.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', buttonHeight, buttonHeight} ;
       outerGrid.ColumnWidth = {'1x'} ;
       outerGrid.Padding = [marginWidth marginWidth marginWidth marginWidth] ;
-      outerGrid.RowSpacing = 12 ;
+      outerGrid.RowSpacing = outerGridRowSpacing ;
       outerGrid.BackgroundColor = bgColor ;
 
       % Row 1: Project Name -----------------------------------------
@@ -487,21 +494,12 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.labelHasBodyTrackingDetails.FontColor = labelColor ;
       app.labelHasBodyTrackingDetails.BackgroundColor = bgColor ;
 
-      % Row 6: Copy Settings... button (right-aligned alone) -------
-      copySettingsRow = uigridlayout(outerGrid, [1 2]) ;
-      copySettingsRow.ColumnWidth = {'1x', copySettingsButtonWidth} ;
-      copySettingsRow.RowHeight = {'fit'} ;
-      copySettingsRow.Padding = [0 0 0 0] ;
-      copySettingsRow.BackgroundColor = bgColor ;
-
-      app.pbCopySettingsFrom = uibutton(copySettingsRow, 'push') ;
-      app.pbCopySettingsFrom.Layout.Column = 2 ;
-      app.pbCopySettingsFrom.ButtonPushedFcn = app.createCallbackFcn(@pbCopySettingsFrom_Callback, true) ;
-      app.pbCopySettingsFrom.BackgroundColor = fieldBgColor ;
-      app.pbCopySettingsFrom.FontSize = bigFontSize ;
-      app.pbCopySettingsFrom.FontColor = labelColor ;
-      app.pbCopySettingsFrom.Tooltip = 'Copy settings from an existing project' ;
-      app.pbCopySettingsFrom.Text = 'Copy Settings...' ;
+      % Row 6 is reserved empty space; pbCopySettingsFrom is added below as
+      % a direct child of the figure so it can overlap the Has Body Tracking
+      % details area in row 5.
+      emptyRow = uigridlayout(outerGrid, [1 1]) ;
+      emptyRow.Padding = [0 0 0 0] ;
+      emptyRow.BackgroundColor = bgColor ;
 
       % Row 7: Bottom buttons (Create Project + Cancel, centered, with
       % an explicit gap between the two buttons) -------------------
@@ -528,6 +526,25 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCancel.FontSize = bigFontSize ;
       app.pbCancel.FontColor = fieldFontColor ;
       app.pbCancel.Text = 'Cancel' ;
+
+      % Copy Settings... button.  Created as a direct child of the figure
+      % (not inside outerGrid) so it can overlap into the Has Body Tracking
+      % details area above, matching the look of the original GUIDE layout.
+      % Drawn on top of outerGrid because it is created later.
+      app.pbCopySettingsFrom = uibutton(app.fig, 'push') ;
+      app.pbCopySettingsFrom.ButtonPushedFcn = app.createCallbackFcn(@pbCopySettingsFrom_Callback, true) ;
+      app.pbCopySettingsFrom.BackgroundColor = fieldBgColor ;
+      app.pbCopySettingsFrom.FontSize = bigFontSize ;
+      app.pbCopySettingsFrom.FontColor = labelColor ;
+      app.pbCopySettingsFrom.Tooltip = 'Copy settings from an existing project' ;
+      app.pbCopySettingsFrom.Text = 'Copy Settings...' ;
+      % Position derived from the known outerGrid layout.  Bottom of the Has
+      % Body Tracking details label, measured from the figure bottom, is:
+      %   marginWidth + row 7 + spacing + row 6 + spacing
+      detailsBottomY = marginWidth + buttonHeight + outerGridRowSpacing + buttonHeight + outerGridRowSpacing ;
+      copySettingsButtonX = (figWidth - marginWidth) - copySettingsButtonWidth ;
+      copySettingsButtonY = detailsBottomY + copySettingsOverlapAmount - buttonHeight ;
+      app.pbCopySettingsFrom.Position = [copySettingsButtonX, copySettingsButtonY, copySettingsButtonWidth, buttonHeight] ;
 
       % Show the figure after all components are created
       app.fig.Visible = 'on';
