@@ -523,22 +523,9 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCancel.Text = 'Cancel' ;
 
       % Show the figure so uigridlayout resolves to real pixel positions,
-      % then trim the excess.  Layout in uifigure is asynchronous, so poll
-      % until the bottom row's pixel position has resolved (its default
-      % width is 100, the rendered width is 400).
+      % then resize the figure to fit the natural content height.
       app.fig.Visible = 'on' ;
-      pollDeadline = tic() ;
-      while true
-        drawnow() ;
-        bottomRowPosition = getpixelposition(bottomButtonsRow, true) ;
-        if bottomRowPosition(3) > 200 || toc(pollDeadline) > 5
-          break
-        end
-        pause(0.02) ;
-      end
-      excessVerticalSpace = bottomRowPosition(2) - marginWidth ;
-      app.fig.Position(4) = app.fig.Position(4) - excessVerticalSpace ;
-      drawnow() ;
+      shrinkFigureToFitContentBang(app.fig, outerGrid) ;
 
       % Copy Settings... button.  Created as a direct child of the figure
       % (not inside outerGrid) so it can overlap into the Has Body Tracking
