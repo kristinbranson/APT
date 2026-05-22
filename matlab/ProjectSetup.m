@@ -269,7 +269,6 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       % Layout constants
       figWidth = 450 ;
-      figHeight = 620 ;
       marginWidth = 25 ;
       bgColor = [0 0.243 0.365] ;  % close to prussian blue
       labelColor = [0 1 1] ;  % cyan
@@ -283,6 +282,12 @@ classdef ProjectSetup < matlab.apps.AppBase
       cancelButtonWidth = 150 ;
       copySettingsButtonWidth = 180 ;
       withinSectionRowSpacing = 8 ;  % gap between a section's label-and-control row and its details label
+
+      % Figure height: derived so the column of content fits with no slack.
+      % Magic number 620 was the design height when the 4 sections had
+      % RowSpacing = 2; each added pixel of within-section spacing adds 4
+      % pixels of vertical content.
+      figHeight = 620 + 4 * (withinSectionRowSpacing - 2) ;
 
       % Create the figure
       app.fig = uifigure('Visible', 'off') ;
