@@ -269,6 +269,7 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       % Layout constants
       figWidth = 450 ;
+      initialFigHeight = 800 ;  % oversized; shrunk to fit content at the end
       marginWidth = 25 ;
       bgColor = [0 0.243 0.365] ;  % close to prussian blue
       labelColor = [0 1 1] ;  % cyan
@@ -284,18 +285,12 @@ classdef ProjectSetup < matlab.apps.AppBase
       buttonHeight = 32 ;
       withinSectionRowSpacing = 8 ;  % gap between a section's label-and-control row and its details label
       outerGridRowSpacing = 12 ;  % gap between outerGrid rows
-      copySettingsOverlapAmount = 6 ;  % how far the Copy Settings button overlaps into the Has Body Tracking details, matches the original GUIDE layout
-
-      % Figure height: derived so the column of content fits with no slack.
-      % Magic number 620 was the design height when the 4 sections had
-      % RowSpacing = 2; each added pixel of within-section spacing adds 4
-      % pixels of vertical content.
-      figHeight = 620 + 4 * (withinSectionRowSpacing - 2) ;
+      copySettingsOverlapAmount = 6 ;  % how far the Copy Settings button overlaps into the Has Body Tracking details
 
       % Create the figure
       app.fig = uifigure('Visible', 'off') ;
       app.fig.Color = bgColor ;
-      app.fig.Position = [100 100 figWidth figHeight] ;
+      app.fig.Position = [100 100 figWidth initialFigHeight] ;
       app.fig.Name = 'Project Setup' ;
       app.fig.Resize = 'off' ;
       app.fig.CloseRequestFcn = app.createCallbackFcn(@figure1_CloseRequestFcn, true) ;
@@ -527,6 +522,24 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.pbCancel.FontColor = fieldFontColor ;
       app.pbCancel.Text = 'Cancel' ;
 
+      % Show the figure so uigridlayout resolves to real pixel positions,
+      % then trim the excess.  Layout in uifigure is asynchronous, so poll
+      % until the bottom row's pixel position has resolved (its default
+      % width is 100, the rendered width is 400).
+      app.fig.Visible = 'on' ;
+      pollDeadline = tic() ;
+      while true
+        drawnow() ;
+        bottomRowPosition = getpixelposition(bottomButtonsRow, true) ;
+        if bottomRowPosition(3) > 200 || toc(pollDeadline) > 5
+          break
+        end
+        pause(0.02) ;
+      end
+      excessVerticalSpace = bottomRowPosition(2) - marginWidth ;
+      app.fig.Position(4) = app.fig.Position(4) - excessVerticalSpace ;
+      drawnow() ;
+
       % Copy Settings... button.  Created as a direct child of the figure
       % (not inside outerGrid) so it can overlap into the Has Body Tracking
       % details area above, matching the look of the original GUIDE layout.
@@ -545,9 +558,6 @@ classdef ProjectSetup < matlab.apps.AppBase
       copySettingsButtonX = (figWidth - marginWidth) - copySettingsButtonWidth ;
       copySettingsButtonY = detailsBottomY + copySettingsOverlapAmount - buttonHeight ;
       app.pbCopySettingsFrom.Position = [copySettingsButtonX, copySettingsButtonY, copySettingsButtonWidth, buttonHeight] ;
-
-      % Show the figure after all components are created
-      app.fig.Visible = 'on';
     end  % function
   end  % methods (Access = private)
 end  % classdef
