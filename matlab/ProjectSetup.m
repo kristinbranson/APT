@@ -176,7 +176,7 @@ classdef ProjectSetup < handle
 
       % Layout constants
       figWidth = 450 ;
-      initialFigHeight = 800 ;  % oversized; shrunk to fit content at the end
+      initialFigHeight = 700 ;  % oversized; shrunk to fit content at the end
       marginWidth = 25 ;
       bgColor = [0 0.243 0.365] ;  % close to prussian blue
       labelColor = [0 1 1] ;  % cyan
@@ -501,13 +501,7 @@ classdef ProjectSetup < handle
         result.LabelMode = LabelMode.SEQUENTIAL ;
       end
       result.Track.Enable = true ;
-      % propertiesGUI used to leave View fields as empty strings even when
-      % they were meant to be numeric; coerce them back here.
-      fieldsToDoublify = {'Gamma', 'FigurePos', 'AxisLim', 'InvertMovie', 'AxFontSize', 'ShowAxTicks', 'ShowGrid'} ;
-      for i = 1:numel(result.View)
-        result.View(i) = structLeavesStr2Double(result.View(i), fieldsToDoublify) ;
-      end
-      result.ProjectName = projectName ;      
+      result.ProjectName = projectName ;
     end
   end
 end  % classdef
