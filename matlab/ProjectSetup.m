@@ -40,7 +40,7 @@ classdef ProjectSetup < handle
       %
       %   app = ProjectSetup() ;
       %   app = ProjectSetup(hParentFig) ;  % centered on hParentFig
-      app.createAndLayoutComponents() ;
+      app.createAndLayoutComponents_() ;
       movegui(app.fig, 'onscreen') ;
       if numel(varargin) >= 1
         hParentFig = varargin{1} ;
@@ -77,7 +77,7 @@ classdef ProjectSetup < handle
       viewCount = str2double(app.number_of_views_edit.Value) ;
       hasBodyTracking = app.has_body_tracking_checkbox.Value ;
       multipleAnimals = app.multiple_animals_checkbox.Value ;
-      result = ProjectSetup.patchCfg(storedCfg, projectName, keypointCount, viewCount, ...
+      result = ProjectSetup.patchCfg_(storedCfg, projectName, keypointCount, viewCount, ...
                                      hasBodyTracking, multipleAnimals) ;
     end  % function
 
@@ -92,7 +92,7 @@ classdef ProjectSetup < handle
 
 
     % Value-changed handler for the keypoint-count edit field.
-    function number_of_points_edit_Callback(app, event)
+    function number_of_points_edit_Callback_(app, event)
       rawValue = str2double(app.number_of_keypoints_edit.Value) ;
       if ~(floor(rawValue) == rawValue && rawValue >= 1)
         app.number_of_keypoints_edit.Value = event.PreviousValue ;
@@ -100,7 +100,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Value-changed handler for the view-count edit field.
-    function number_of_views_edit_Callback(app, event)
+    function number_of_views_edit_Callback_(app, event)
       rawValue = str2double(app.number_of_views_edit.Value) ;
       if ~(floor(rawValue) == rawValue && rawValue >= 1)
         app.number_of_views_edit.Value = event.PreviousValue ;
@@ -119,7 +119,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Value-changed handler for the project-name edit field.
-    function project_name_edit_Callback(app, event)
+    function project_name_edit_Callback_(app, event)
       name = app.project_name_edit.Value ;
       if ~all(isstrprop(name, 'alphanum'))
         % This unfortunately invalidates _ also.  Checking for it seems more
@@ -130,7 +130,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Close-request function for the main figure.
-    function didRequestClose(app, ~)
+    function didRequestClose_(app, ~)
       % if isequal(get(app.fig, 'waitstatus'), 'waiting')
       %   % The dialog is still in uiwait; release it.
       %   uiresume(app.fig) ;
@@ -142,13 +142,13 @@ classdef ProjectSetup < handle
     end  % function
 
     % Button-pushed function for the Cancel button.
-    function cancel_button_Callback(app, ~)
+    function cancel_button_Callback_(app, ~)
       app.output_ = [] ;
       delete(app.fig) ;
     end  % function
 
     % Button-pushed function for the Copy Settings From... button.
-    function copy_settings_from_button_Callback(app, ~)
+    function copy_settings_from_button_Callback_(app, ~)
       lastLblFile = RC.getprop('lastLblFile') ;
       if isempty(lastLblFile)
         lastLblFile = pwd ;
@@ -164,14 +164,14 @@ classdef ProjectSetup < handle
     end  % function
 
     % Button-pushed function for the Create Project button.
-    function create_project_button_Callback(app, ~)
+    function create_project_button_Callback_(app, ~)
       cfg = app.generateFinalConfig_() ;
       app.output_ = cfg ;
       delete(app.fig) ;
     end  % function
 
     % Create UIFigure and components
-    function createAndLayoutComponents(app)
+    function createAndLayoutComponents_(app)
       % Create the figure and all its child controls, laid out via
       % nested uigridlayouts: an outer 7-row column, where each
       % "Number of X" / question section is itself a 2-row column
@@ -203,7 +203,7 @@ classdef ProjectSetup < handle
       app.fig.Position = [100 100 figWidth initialFigHeight] ;
       app.fig.Name = 'Project Setup' ;
       app.fig.Resize = 'off' ;
-      app.fig.CloseRequestFcn = @(~, evt) app.didRequestClose(evt) ;
+      app.fig.CloseRequestFcn = @(~, evt) app.didRequestClose_(evt) ;
       app.fig.HandleVisibility = 'callback' ;
       app.fig.Tag = 'project_setup_fig' ;
 
@@ -236,7 +236,7 @@ classdef ProjectSetup < handle
 
       app.project_name_edit = uieditfield(projectNameRow, 'text') ;
       app.project_name_edit.Tag = 'project_name_edit' ;
-      app.project_name_edit.ValueChangedFcn = @(~, evt) app.project_name_edit_Callback(evt) ;
+      app.project_name_edit.ValueChangedFcn = @(~, evt) app.project_name_edit_Callback_(evt) ;
       app.project_name_edit.FontSize = bigFontSize ;
       app.project_name_edit.FontColor = fieldFontColor ;
       app.project_name_edit.BackgroundColor = fieldBgColor ;
@@ -265,7 +265,7 @@ classdef ProjectSetup < handle
 
       app.number_of_keypoints_edit = uieditfield(keypointsRow, 'text') ;
       app.number_of_keypoints_edit.Tag = 'number_of_keypoints_edit' ;
-      app.number_of_keypoints_edit.ValueChangedFcn = @(~, evt) app.number_of_points_edit_Callback(evt) ;
+      app.number_of_keypoints_edit.ValueChangedFcn = @(~, evt) app.number_of_points_edit_Callback_(evt) ;
       app.number_of_keypoints_edit.HorizontalAlignment = 'right' ;
       app.number_of_keypoints_edit.FontSize = bigFontSize ;
       app.number_of_keypoints_edit.FontColor = fieldFontColor ;
@@ -305,7 +305,7 @@ classdef ProjectSetup < handle
 
       app.number_of_views_edit = uieditfield(viewsRow, 'text') ;
       app.number_of_views_edit.Tag = 'number_of_views_edit' ;
-      app.number_of_views_edit.ValueChangedFcn = @(~, evt) app.number_of_views_edit_Callback(evt) ;
+      app.number_of_views_edit.ValueChangedFcn = @(~, evt) app.number_of_views_edit_Callback_(evt) ;
       app.number_of_views_edit.HorizontalAlignment = 'right' ;
       app.number_of_views_edit.FontSize = bigFontSize ;
       app.number_of_views_edit.FontColor = fieldFontColor ;
@@ -433,7 +433,7 @@ classdef ProjectSetup < handle
       app.create_project_button = uibutton(bottomButtonsRow, 'push') ;
       app.create_project_button.Tag = 'create_project_button' ;
       app.create_project_button.Layout.Column = 2 ;
-      app.create_project_button.ButtonPushedFcn = @(~, evt) app.create_project_button_Callback(evt) ;
+      app.create_project_button.ButtonPushedFcn = @(~, evt) app.create_project_button_Callback_(evt) ;
       app.create_project_button.BackgroundColor = fieldBgColor ;
       app.create_project_button.FontSize = bigFontSize ;
       app.create_project_button.FontColor = fieldFontColor ;
@@ -442,7 +442,7 @@ classdef ProjectSetup < handle
       app.cancel_button = uibutton(bottomButtonsRow, 'push') ;
       app.cancel_button.Tag = 'cancel_button' ;
       app.cancel_button.Layout.Column = 4 ;
-      app.cancel_button.ButtonPushedFcn = @(~, evt) app.cancel_button_Callback(evt) ;
+      app.cancel_button.ButtonPushedFcn = @(~, evt) app.cancel_button_Callback_(evt) ;
       app.cancel_button.BackgroundColor = fieldBgColor ;
       app.cancel_button.FontSize = bigFontSize ;
       app.cancel_button.FontColor = fieldFontColor ;
@@ -459,7 +459,7 @@ classdef ProjectSetup < handle
       % Drawn on top of outerGrid because it is created later.
       app.copy_settings_from_button = uibutton(app.fig, 'push') ;
       app.copy_settings_from_button.Tag = 'copy_settings_from_button' ;
-      app.copy_settings_from_button.ButtonPushedFcn = @(~, evt) app.copy_settings_from_button_Callback(evt) ;
+      app.copy_settings_from_button.ButtonPushedFcn = @(~, evt) app.copy_settings_from_button_Callback_(evt) ;
       app.copy_settings_from_button.BackgroundColor = fieldBgColor ;
       app.copy_settings_from_button.FontSize = bigFontSize ;
       app.copy_settings_from_button.FontColor = labelColor ;
@@ -476,7 +476,7 @@ classdef ProjectSetup < handle
   end  % methods (Access = private)
 
   methods (Static, Access = private)
-    function result = patchCfg(cfg, projectName, keypointCount, viewCount, hasBodyTracking, multipleAnimals)
+    function result = patchCfg_(cfg, projectName, keypointCount, viewCount, hasBodyTracking, multipleAnimals)
       result = cfg ;
       result.NumViews = viewCount ;
       result.NumLabelPoints = keypointCount ;
