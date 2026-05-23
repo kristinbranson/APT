@@ -94,16 +94,16 @@ classdef ProjectSetup < handle
       obj.multiple_animals_checkbox_.Value = cfg.MultiAnimal ;
     end  % function
 
-    % Value-changed handler for the keypoint-count edit field.
     function number_of_points_edit_actuated_(obj, source, event)  %#ok<INUSD>
+      % Value-changed handler for the keypoint-count edit field.
       rawValue = str2double(obj.number_of_keypoints_edit_.Value) ;
       if ~(floor(rawValue) == rawValue && rawValue >= 1)
         obj.number_of_keypoints_edit_.Value = event.PreviousValue ;
       end
     end  % function
 
-    % Value-changed handler for the view-count edit field.
     function number_of_views_edit_actuated_(obj, source, event)  %#ok<INUSD>
+      % Value-changed handler for the view-count edit field.
       rawValue = str2double(obj.number_of_views_edit_.Value) ;
       if ~(floor(rawValue) == rawValue && rawValue >= 1)
         obj.number_of_views_edit_.Value = event.PreviousValue ;
@@ -121,8 +121,8 @@ classdef ProjectSetup < handle
       end
     end  % function
 
-    % Value-changed handler for the project-name edit field.
     function project_name_edit_actuated_(obj, source, event)  %#ok<INUSD>
+      % Value-changed handler for the project-name edit field.
       name = obj.project_name_edit_.Value ;
       if ~all(isstrprop(name, 'alphanum'))
         % This unfortunately invalidates _ also.  Checking for it seems more
@@ -132,26 +132,20 @@ classdef ProjectSetup < handle
       end
     end  % function
 
-    % Close-request function for the main figure.
     function didRequestClose_(obj, source, event)  %#ok<INUSD>
-      % if isequal(get(obj.fig_, 'waitstatus'), 'waiting')
-      %   % The dialog is still in uiwait; release it.
-      %   uiresume(obj.fig_) ;
-      % else
-      %   delete(obj.fig_) ;
-      % end
+      % Close-request function for the main figure.
       obj.output_ = [] ;
       delete(obj.fig_) ;
     end  % function
 
-    % Button-pushed function for the Cancel button.
     function cancel_button_actuated_(obj, source, event)  %#ok<INUSD>
+      % Button-pushed function for the Cancel button.
       obj.output_ = [] ;
       delete(obj.fig_) ;
     end  % function
 
-    % Button-pushed function for the Copy Settings From... button.
     function copy_settings_from_button_actuated_(obj, source, event)  %#ok<INUSD>
+      % Button-pushed function for the Copy Settings From... button.
       lastLblFile = RC.getprop('lastLblFile') ;
       if isempty(lastLblFile)
         lastLblFile = pwd ;
@@ -166,15 +160,15 @@ classdef ProjectSetup < handle
       obj.setCfg_(cfg) ;
     end  % function
 
-    % Button-pushed function for the Create Project button.
     function create_project_button_actuated_(obj, source, event)  %#ok<INUSD>
+      % Button-pushed function for the Create Project button.
       cfg = obj.generateFinalConfig_() ;
       obj.output_ = cfg ;
       delete(obj.fig_) ;
     end  % function
 
-    % Create UIFigure and components
     function createAndLayoutComponents_(obj)
+      % Create UIFigure and components.
       % Create the figure and all its child controls, laid out via
       % nested uigridlayouts: an outer 7-row column, where each
       % "Number of X" / question section is itself a 2-row column
