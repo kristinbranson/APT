@@ -34,9 +34,23 @@ classdef ProjectSetup < handle
 
   methods
     function app = ProjectSetup(varargin)
-      % Build and show the ProjectSetup dialog; block until the user closes it.
-      app.createComponents() ;
-      app.opening_(varargin{:}) ;
+      % Build and show the ProjectSetup dialog.  Returns once the figure
+      % is shown and populated; the caller is responsible for blocking
+      % (e.g. via uiwait(app.fig)) and for reading app.output afterwards.
+      %
+      %   app = ProjectSetup() ;
+      %   app = ProjectSetup(hParentFig) ;  % centered on hParentFig
+      app.createAndLayoutComponents() ;
+      movegui(app.fig, 'onscreen') ;
+      if numel(varargin) >= 1
+        hParentFig = varargin{1} ;
+        if ~ishandle(hParentFig)
+          error('ProjectSetup:arg', 'Expected argument to be a figure handle.') ;
+        end
+        centerOnParentFigure(app.fig, hParentFig) ;
+      end
+      cfg = Labeler.cfgGetLastProjectConfigNoView() ;
+      app.setCfg_(cfg) ;
     end  % function
 
     function delete(app)
@@ -78,27 +92,6 @@ classdef ProjectSetup < handle
   end  % methods (Access = public)
 
   methods (Access = private)
-    function opening_(app, varargin)
-      % Initialize dialog state.  Returns once the figure is shown and
-      % populated; the caller is responsible for blocking (e.g. via
-      % uiwait(app.fig)) and for reading app.output afterwards.
-      %
-      %   app = ProjectSetup() ;
-      %   app = ProjectSetup(hParentFig) ;  % centered on hParentFig
-      movegui(app.fig, 'onscreen') ;
-
-      if numel(varargin) >= 1
-        hParentFig = varargin{1} ;
-        if ~ishandle(hParentFig)
-          error('ProjectSetup:arg', 'Expected argument to be a figure handle.') ;
-        end
-        centerOnParentFigure(app.fig, hParentFig) ;
-      end
-
-      cfg = Labeler.cfgGetLastProjectConfigNoView() ;
-      app.setCfg_(cfg) ;
-    end  % function
-
     % Value-changed handler for the keypoint-count edit field.
     function number_of_points_edit_Callback(app, event)
       rawValue = str2double(app.number_of_keypoints_edit.Value) ;
@@ -179,7 +172,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Create UIFigure and components
-    function createComponents(app)
+    function createAndLayoutComponents(app)
       % Create the figure and all its child controls, laid out via
       % nested uigridlayouts: an outer 7-row column, where each
       % "Number of X" / question section is itself a 2-row column
