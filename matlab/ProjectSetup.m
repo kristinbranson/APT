@@ -26,7 +26,7 @@ classdef ProjectSetup < matlab.apps.AppBase
   properties (Access = private, Transient)
     viewCount_  = 1
     pointCount_ = 1
-    mirror_     = []
+    cfg_        = []
     output_     = []
   end
 
@@ -55,29 +55,32 @@ classdef ProjectSetup < matlab.apps.AppBase
   end  % methods
   
   methods (Access = public)
-    function syncMirrorCounts_(app, sMirror)
-      % Refresh the advanced-properties table to match the current view and
-      % point counts.  If sMirror is supplied, it replaces the current mirror;
-      % otherwise the existing mirror is reused.
-      if ~exist('sMirror', 'var')
-        sMirror = app.mirror_ ;
+    function syncCfgCounts_(app, cfg)
+      % Extend or truncate the variable-length fields of cfg (the ViewNames
+      % and LabelPointNames cell arrays, and the View struct array) to
+      % match the current view and point counts.
+      viewNameCount = numel(cfg.ViewNames) ;
+      if viewNameCount > app.viewCount_
+        cfg.ViewNames = cfg.ViewNames(1:app.viewCount_) ;
+      elseif viewNameCount < app.viewCount_
+        cfg.ViewNames(viewNameCount+1:app.viewCount_) = {''} ;
       end
-      sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror, 'ViewNames', 'view', app.viewCount_) ;
-      sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror, 'LabelPointNames', 'point', app.pointCount_) ;
-      sMirror = Labeler.hlpAugmentOrTruncStructField(sMirror, 'View', app.viewCount_) ;
-      app.mirror_ = sMirror ;
+      pointNameCount = numel(cfg.LabelPointNames) ;
+      if pointNameCount > app.pointCount_
+        cfg.LabelPointNames = cfg.LabelPointNames(1:app.pointCount_) ;
+      elseif pointNameCount < app.pointCount_
+        cfg.LabelPointNames(pointNameCount+1:app.pointCount_) = {''} ;
+      end
+      cfg.View = augmentOrTruncateVector(cfg.View(:), app.viewCount_) ;
+      app.cfg_ = cfg ;
     end  % function
 
-    function cfg = genCurrentConfig_(app)
-      % Generate a config struct from the current UI state.
-      cfg = app.mirror_ ;
-
-      assert(numel(fieldnames(cfg.ViewNames)) == app.viewCount_) ;
-      assert(numel(fieldnames(cfg.LabelPointNames)) == app.pointCount_) ;
+    function cfg = generateCurrentConfig_(app)
+      % Generate a config struct from the current object state.      
+      % Takes app.cfg_ and overlays the values from the UI.
+      cfg = app.cfg_ ;
       cfg.NumViews = app.viewCount_ ;
       cfg.NumLabelPoints = app.pointCount_ ;
-      cfg.ViewNames = struct2cell(cfg.ViewNames) ;
-      cfg.LabelPointNames = struct2cell(cfg.LabelPointNames) ;
       cfg.Trx.HasTrx = app.has_body_tracking_checkbox.Value ;
       cfg.MultiAnimal = app.multiple_animals_checkbox.Value ;
       isMultiAnimal = cfg.MultiAnimal && ~cfg.Trx.HasTrx ;
@@ -87,8 +90,8 @@ classdef ProjectSetup < matlab.apps.AppBase
         cfg.LabelMode = LabelMode.SEQUENTIAL ;
       end
       cfg.Track.Enable = true ;
-      % propertiesGUI treats props with empty values as strings even if they
-      % are subsequently filled with numbers
+      % propertiesGUI used to leave View fields as empty strings even when
+      % they were meant to be numeric; coerce them back here.
       fieldsToDoublify = {'Gamma', 'FigurePos', 'AxisLim', 'InvertMovie', 'AxFontSize', 'ShowAxTicks', 'ShowGrid'} ;
       for i = 1:numel(cfg.View)
         cfg.View(i) = structLeavesStr2Double(cfg.View(i), fieldsToDoublify) ;
@@ -99,12 +102,11 @@ classdef ProjectSetup < matlab.apps.AppBase
       % Set the given config struct on the controls and on internal state.
       app.viewCount_ = cfg.NumViews ;
       app.pointCount_ = cfg.NumLabelPoints ;
-      app.number_of_views_edit.Value = num2str(app.viewCount_) ;
-      app.number_of_keypoints_edit.Value = num2str(app.pointCount_) ;
+      app.number_of_views_edit.Value = num2str(cfg.NumViews) ;
+      app.number_of_keypoints_edit.Value = num2str(cfg.NumLabelPoints) ;
       app.has_body_tracking_checkbox.Value = cfg.Trx.HasTrx ;
       app.multiple_animals_checkbox.Value = cfg.MultiAnimal ;
-      sMirror = Labeler.cfg2mirror(cfg) ;
-      app.syncMirrorCounts_(sMirror) ;
+      app.syncCfgCounts_(cfg) ;
     end  % function
   end  % methods (Access = public)
 
@@ -138,7 +140,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       else
         app.number_of_keypoints_edit.Value = num2str(app.pointCount_) ;
       end
-      app.syncMirrorCounts_() ;
+      app.syncCfgCounts_(app.cfg_) ;
     end  % function
 
     % Value-changed handler for the view-count edit field.
@@ -159,7 +161,7 @@ classdef ProjectSetup < matlab.apps.AppBase
           app.has_body_tracking_checkbox.Enable = 'off' ;
           app.multiple_animals_checkbox.Enable = 'off' ;
       end
-      app.syncMirrorCounts_() ;
+      app.syncCfgCounts_(app.cfg_) ;
     end  % function
 
     % Value-changed handler for the project-name edit field.
@@ -182,13 +184,13 @@ classdef ProjectSetup < matlab.apps.AppBase
       %   delete(app.fig) ;
       % end
       app.output_ = [] ;
-      close(app.fig) ;
+      delete(app.fig) ;
     end  % function
 
     % Button-pushed function for the Cancel button.
     function cancel_button_Callback(app, ~)
       app.output_ = [] ;
-      close(app.fig) ;
+      delete(app.fig) ;
     end  % function
 
     % Button-pushed function for the Copy Settings From... button.
@@ -209,10 +211,10 @@ classdef ProjectSetup < matlab.apps.AppBase
 
     % Button-pushed function for the Create Project button.
     function create_project_button_Callback(app, ~)
-      cfg = app.genCurrentConfig_() ;
+      cfg = app.generateCurrentConfig_() ;
       cfg.ProjectName = app.project_name_edit.Value ;
       app.output_ = cfg ;
-      close(app.fig) ;
+      delete(app.fig) ;
     end  % function
 
     % Create UIFigure and components
