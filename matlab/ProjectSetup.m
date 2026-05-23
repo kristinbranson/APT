@@ -229,12 +229,14 @@ classdef ProjectSetup < handle
       projectNameRow.BackgroundColor = bgColor ;
 
       app.project_name_label = uilabel(projectNameRow) ;
+      app.project_name_label.Tag = 'project_name_label' ;
       app.project_name_label.Text = 'Project Name' ;
       app.project_name_label.FontSize = bigFontSize ;
       app.project_name_label.FontColor = labelColor ;
       app.project_name_label.BackgroundColor = bgColor ;
 
       app.project_name_edit = uieditfield(projectNameRow, 'text') ;
+      app.project_name_edit.Tag = 'project_name_edit' ;
       app.project_name_edit.ValueChangedFcn = @(~, evt) app.project_name_edit_Callback(evt) ;
       app.project_name_edit.FontSize = bigFontSize ;
       app.project_name_edit.FontColor = fieldFontColor ;
@@ -256,12 +258,14 @@ classdef ProjectSetup < handle
       keypointsRow.BackgroundColor = bgColor ;
 
       app.number_of_keypoints_label = uilabel(keypointsRow) ;
+      app.number_of_keypoints_label.Tag = 'number_of_keypoints_label' ;
       app.number_of_keypoints_label.Text = 'Number of Keypoints' ;
       app.number_of_keypoints_label.FontSize = bigFontSize ;
       app.number_of_keypoints_label.FontColor = labelColor ;
       app.number_of_keypoints_label.BackgroundColor = bgColor ;
 
       app.number_of_keypoints_edit = uieditfield(keypointsRow, 'text') ;
+      app.number_of_keypoints_edit.Tag = 'number_of_keypoints_edit' ;
       app.number_of_keypoints_edit.ValueChangedFcn = @(~, evt) app.number_of_points_edit_Callback(evt) ;
       app.number_of_keypoints_edit.HorizontalAlignment = 'right' ;
       app.number_of_keypoints_edit.FontSize = bigFontSize ;
@@ -270,6 +274,7 @@ classdef ProjectSetup < handle
       app.number_of_keypoints_edit.Value = '12' ;
 
       app.number_of_keypoints_details_label = uilabel(keypointsSection) ;
+      app.number_of_keypoints_details_label.Tag = 'number_of_keypoints_details_label' ;
       app.number_of_keypoints_details_label.Text = 'Number of keypoints to label for each animal' ;
       app.number_of_keypoints_details_label.WordWrap = 'on' ;
       app.number_of_keypoints_details_label.VerticalAlignment = 'top' ;
@@ -293,12 +298,14 @@ classdef ProjectSetup < handle
       viewsRow.BackgroundColor = bgColor ;
 
       app.number_of_views_label = uilabel(viewsRow) ;
+      app.number_of_views_label.Tag = 'number_of_views_label' ;
       app.number_of_views_label.Text = 'Number of Views' ;
       app.number_of_views_label.FontSize = bigFontSize ;
       app.number_of_views_label.FontColor = labelColor ;
       app.number_of_views_label.BackgroundColor = bgColor ;
 
       app.number_of_views_edit = uieditfield(viewsRow, 'text') ;
+      app.number_of_views_edit.Tag = 'number_of_views_edit' ;
       app.number_of_views_edit.ValueChangedFcn = @(~, evt) app.number_of_views_edit_Callback(evt) ;
       app.number_of_views_edit.HorizontalAlignment = 'right' ;
       app.number_of_views_edit.FontSize = bigFontSize ;
@@ -307,6 +314,7 @@ classdef ProjectSetup < handle
       app.number_of_views_edit.Value = '1' ;
 
       app.number_of_views_details_label = uilabel(viewsSection) ;
+      app.number_of_views_details_label.Tag = 'number_of_views_details_label' ;
       app.number_of_views_details_label.Text = 'APT can do 3D labeling and tracking from multiple calibrated cameras. Enter 1 if animals were imaged from just one camera. Otherwise, enter the number of synced cameras recording the animals.' ;
       app.number_of_views_details_label.WordWrap = 'on' ;
       app.number_of_views_details_label.VerticalAlignment = 'top' ;
@@ -330,6 +338,7 @@ classdef ProjectSetup < handle
       multipleAnimalsRow.BackgroundColor = bgColor ;
 
       app.multiple_animals_label = uilabel(multipleAnimalsRow) ;
+      app.multiple_animals_label.Tag = 'multiple_animals_label' ;
       app.multiple_animals_label.Text = 'Multiple Animals?' ;
       app.multiple_animals_label.FontSize = bigFontSize ;
       app.multiple_animals_label.FontColor = labelColor ;
@@ -345,12 +354,14 @@ classdef ProjectSetup < handle
       multiple_animals_checkboxCell.BackgroundColor = bgColor ;
 
       app.multiple_animals_checkbox = uicheckbox(multiple_animals_checkboxCell) ;
+      app.multiple_animals_checkbox.Tag = 'multiple_animals_checkbox' ;
       app.multiple_animals_checkbox.Layout.Column = 2 ;
       app.multiple_animals_checkbox.Text = '' ;
       app.multiple_animals_checkbox.FontSize = bigFontSize ;
       app.multiple_animals_checkbox.FontColor = labelColor ;
 
       app.multiple_animals_details_label = uilabel(multipleAnimalsSection) ;
+      app.multiple_animals_details_label.Tag = 'multiple_animals_details_label' ;
       app.multiple_animals_details_label.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.' ;
       app.multiple_animals_details_label.WordWrap = 'on' ;
       app.multiple_animals_details_label.VerticalAlignment = 'top' ;
@@ -374,6 +385,7 @@ classdef ProjectSetup < handle
       hasBodyTrackingRow.BackgroundColor = bgColor ;
 
       app.has_body_tracking_label = uilabel(hasBodyTrackingRow) ;
+      app.has_body_tracking_label.Tag = 'has_body_tracking_label' ;
       app.has_body_tracking_label.Text = 'Has Body Tracking?' ;
       app.has_body_tracking_label.FontSize = bigFontSize ;
       app.has_body_tracking_label.FontColor = labelColor ;
@@ -387,12 +399,14 @@ classdef ProjectSetup < handle
       has_body_tracking_checkboxCell.BackgroundColor = bgColor ;
 
       app.has_body_tracking_checkbox = uicheckbox(has_body_tracking_checkboxCell) ;
+      app.has_body_tracking_checkbox.Tag = 'has_body_tracking_checkbox' ;
       app.has_body_tracking_checkbox.Layout.Column = 2 ;
       app.has_body_tracking_checkbox.Text = '' ;
       app.has_body_tracking_checkbox.FontSize = 24 ;
       app.has_body_tracking_checkbox.FontColor = labelColor ;
 
       app.has_body_tracking_details_label = uilabel(hasBodyTrackingSection) ;
+      app.has_body_tracking_details_label.Tag = 'has_body_tracking_details_label' ;
       app.has_body_tracking_details_label.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.' ;
       app.has_body_tracking_details_label.WordWrap = 'on' ;
       app.has_body_tracking_details_label.VerticalAlignment = 'top' ;
@@ -418,6 +432,7 @@ classdef ProjectSetup < handle
       bottomButtonsRow.BackgroundColor = bgColor ;
 
       app.create_project_button = uibutton(bottomButtonsRow, 'push') ;
+      app.create_project_button.Tag = 'create_project_button' ;
       app.create_project_button.Layout.Column = 2 ;
       app.create_project_button.ButtonPushedFcn = @(~, evt) app.create_project_button_Callback(evt) ;
       app.create_project_button.BackgroundColor = fieldBgColor ;
@@ -426,6 +441,7 @@ classdef ProjectSetup < handle
       app.create_project_button.Text = 'Create Project' ;
 
       app.cancel_button = uibutton(bottomButtonsRow, 'push') ;
+      app.cancel_button.Tag = 'cancel_button' ;
       app.cancel_button.Layout.Column = 4 ;
       app.cancel_button.ButtonPushedFcn = @(~, evt) app.cancel_button_Callback(evt) ;
       app.cancel_button.BackgroundColor = fieldBgColor ;
@@ -443,6 +459,7 @@ classdef ProjectSetup < handle
       % details area above, matching the look of the original GUIDE layout.
       % Drawn on top of outerGrid because it is created later.
       app.copy_settings_from_button = uibutton(app.fig, 'push') ;
+      app.copy_settings_from_button.Tag = 'copy_settings_from_button' ;
       app.copy_settings_from_button.ButtonPushedFcn = @(~, evt) app.copy_settings_from_button_Callback(evt) ;
       app.copy_settings_from_button.BackgroundColor = fieldBgColor ;
       app.copy_settings_from_button.FontSize = bigFontSize ;
