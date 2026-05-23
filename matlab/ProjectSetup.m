@@ -1,4 +1,4 @@
-classdef ProjectSetup < matlab.apps.AppBase
+classdef ProjectSetup < handle
 
   % Widget properties (emitted by App Designer Migration Tool)
   properties (Access = public, Transient)
@@ -36,7 +36,6 @@ classdef ProjectSetup < matlab.apps.AppBase
     function app = ProjectSetup(varargin)
       % Build and show the ProjectSetup dialog; block until the user closes it.
       app.createComponents() ;
-      app.registerApp(app.fig) ;
       app.opening_(varargin{:}) ;
     end  % function
 
@@ -212,7 +211,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.fig.Position = [100 100 figWidth initialFigHeight] ;
       app.fig.Name = 'Project Setup' ;
       app.fig.Resize = 'off' ;
-      app.fig.CloseRequestFcn = app.createCallbackFcn(@didRequestClose, true) ;
+      app.fig.CloseRequestFcn = @(~, evt) app.didRequestClose(evt) ;
       app.fig.HandleVisibility = 'callback' ;
       app.fig.Tag = 'project_setup_fig' ;
 
@@ -243,7 +242,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.project_name_label.BackgroundColor = bgColor ;
 
       app.project_name_edit = uieditfield(projectNameRow, 'text') ;
-      app.project_name_edit.ValueChangedFcn = app.createCallbackFcn(@project_name_edit_Callback, true) ;
+      app.project_name_edit.ValueChangedFcn = @(~, evt) app.project_name_edit_Callback(evt) ;
       app.project_name_edit.FontSize = bigFontSize ;
       app.project_name_edit.FontColor = fieldFontColor ;
       app.project_name_edit.BackgroundColor = fieldBgColor ;
@@ -270,7 +269,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.number_of_keypoints_label.BackgroundColor = bgColor ;
 
       app.number_of_keypoints_edit = uieditfield(keypointsRow, 'text') ;
-      app.number_of_keypoints_edit.ValueChangedFcn = app.createCallbackFcn(@number_of_points_edit_Callback, true) ;
+      app.number_of_keypoints_edit.ValueChangedFcn = @(~, evt) app.number_of_points_edit_Callback(evt) ;
       app.number_of_keypoints_edit.HorizontalAlignment = 'right' ;
       app.number_of_keypoints_edit.FontSize = bigFontSize ;
       app.number_of_keypoints_edit.FontColor = fieldFontColor ;
@@ -307,7 +306,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.number_of_views_label.BackgroundColor = bgColor ;
 
       app.number_of_views_edit = uieditfield(viewsRow, 'text') ;
-      app.number_of_views_edit.ValueChangedFcn = app.createCallbackFcn(@number_of_views_edit_Callback, true) ;
+      app.number_of_views_edit.ValueChangedFcn = @(~, evt) app.number_of_views_edit_Callback(evt) ;
       app.number_of_views_edit.HorizontalAlignment = 'right' ;
       app.number_of_views_edit.FontSize = bigFontSize ;
       app.number_of_views_edit.FontColor = fieldFontColor ;
@@ -427,7 +426,7 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       app.create_project_button = uibutton(bottomButtonsRow, 'push') ;
       app.create_project_button.Layout.Column = 2 ;
-      app.create_project_button.ButtonPushedFcn = app.createCallbackFcn(@create_project_button_Callback, true) ;
+      app.create_project_button.ButtonPushedFcn = @(~, evt) app.create_project_button_Callback(evt) ;
       app.create_project_button.BackgroundColor = fieldBgColor ;
       app.create_project_button.FontSize = bigFontSize ;
       app.create_project_button.FontColor = fieldFontColor ;
@@ -435,7 +434,7 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       app.cancel_button = uibutton(bottomButtonsRow, 'push') ;
       app.cancel_button.Layout.Column = 4 ;
-      app.cancel_button.ButtonPushedFcn = app.createCallbackFcn(@cancel_button_Callback, true) ;
+      app.cancel_button.ButtonPushedFcn = @(~, evt) app.cancel_button_Callback(evt) ;
       app.cancel_button.BackgroundColor = fieldBgColor ;
       app.cancel_button.FontSize = bigFontSize ;
       app.cancel_button.FontColor = fieldFontColor ;
@@ -451,7 +450,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       % details area above, matching the look of the original GUIDE layout.
       % Drawn on top of outerGrid because it is created later.
       app.copy_settings_from_button = uibutton(app.fig, 'push') ;
-      app.copy_settings_from_button.ButtonPushedFcn = app.createCallbackFcn(@copy_settings_from_button_Callback, true) ;
+      app.copy_settings_from_button.ButtonPushedFcn = @(~, evt) app.copy_settings_from_button_Callback(evt) ;
       app.copy_settings_from_button.BackgroundColor = fieldBgColor ;
       app.copy_settings_from_button.FontSize = bigFontSize ;
       app.copy_settings_from_button.FontColor = labelColor ;
