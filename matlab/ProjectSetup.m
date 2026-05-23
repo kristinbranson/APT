@@ -24,8 +24,6 @@ classdef ProjectSetup < matlab.apps.AppBase
 
   % Non-widget state (private in spirit; underscore suffix marks the intent)
   properties (Access = private, Transient)
-    % viewCount_     = 1
-    % keypointCount_ = 1
     cfg_           = []
     output_        = []
   end
@@ -60,23 +58,25 @@ classdef ProjectSetup < matlab.apps.AppBase
       % app.cfg_ as a base, brings its variable-length fields (ViewNames,
       % LabelPointNames, View) in line with the current view/point counts,
       % then overlays the values from the UI.
+      viewCount = str2double(app.number_of_views_edit.Value) ;
+      keypointCount = str2double(app.number_of_keypoints_edit.Value) ;
       cfg = app.cfg_ ;
-      cfg.NumViews = app.viewCount_ ;
-      cfg.NumLabelPoints = app.keypointCount_ ;
+      cfg.NumViews = viewCount ;
+      cfg.NumLabelPoints = keypointCount ;
 
       viewNameCount = numel(cfg.ViewNames) ;
-      if viewNameCount > app.viewCount_
-        cfg.ViewNames = cfg.ViewNames(1:app.viewCount_) ;
-      elseif viewNameCount < app.viewCount_
-        cfg.ViewNames(viewNameCount+1:app.viewCount_) = {''} ;
+      if viewNameCount > viewCount
+        cfg.ViewNames = cfg.ViewNames(1:viewCount) ;
+      elseif viewNameCount < viewCount
+        cfg.ViewNames(viewNameCount+1:viewCount) = {''} ;
       end
       pointNameCount = numel(cfg.LabelPointNames) ;
-      if pointNameCount > app.keypointCount_
-        cfg.LabelPointNames = cfg.LabelPointNames(1:app.keypointCount_) ;
-      elseif pointNameCount < app.keypointCount_
-        cfg.LabelPointNames(pointNameCount+1:app.keypointCount_) = {''} ;
+      if pointNameCount > keypointCount
+        cfg.LabelPointNames = cfg.LabelPointNames(1:keypointCount) ;
+      elseif pointNameCount < keypointCount
+        cfg.LabelPointNames(pointNameCount+1:keypointCount) = {''} ;
       end
-      cfg.View = augmentOrTruncateVector(cfg.View(:), app.viewCount_) ;
+      cfg.View = augmentOrTruncateVector(cfg.View(:), viewCount) ;
 
       cfg.Trx.HasTrx = app.has_body_tracking_checkbox.Value ;
       cfg.MultiAnimal = app.multiple_animals_checkbox.Value ;
@@ -99,8 +99,6 @@ classdef ProjectSetup < matlab.apps.AppBase
     function setConfig_(app, cfg)
       % Set the given config struct on the controls and on internal state.
       app.cfg_ = cfg ;
-      app.viewCount_ = cfg.NumViews ;
-      app.keypointCount_ = cfg.NumLabelPoints ;
       app.number_of_views_edit.Value = num2str(cfg.NumViews) ;
       app.number_of_keypoints_edit.Value = num2str(cfg.NumLabelPoints) ;
       app.has_body_tracking_checkbox.Value = cfg.Trx.HasTrx ;
@@ -133,10 +131,7 @@ classdef ProjectSetup < matlab.apps.AppBase
     % Value-changed handler for the keypoint-count edit field.
     function number_of_points_edit_Callback(app, event)
       rawValue = str2double(app.number_of_keypoints_edit.Value) ;
-      if floor(rawValue) == rawValue && rawValue >= 1
-        app.keypointCount_ = rawValue ;
-        % do nothing
-      else
+      if ~(floor(rawValue) == rawValue && rawValue >= 1)
         app.number_of_keypoints_edit.Value = event.PreviousValue ;
       end
     end  % function
@@ -144,14 +139,11 @@ classdef ProjectSetup < matlab.apps.AppBase
     % Value-changed handler for the view-count edit field.
     function number_of_views_edit_Callback(app, event)
       rawValue = str2double(app.number_of_views_edit.Value) ;
-      if floor(rawValue) == rawValue && rawValue >= 1
-        app.viewCount_ = rawValue ;
-        value = rawValue ;
-      else
+      if ~(floor(rawValue) == rawValue && rawValue >= 1)
         app.number_of_views_edit.Value = event.PreviousValue ;
-        value = str2double(event.PreviousValue) ;
       end
-      switch value
+      viewCount = str2double(app.number_of_views_edit.Value) ;
+      switch viewCount
         case 1
           app.has_body_tracking_checkbox.Enable = 'on' ;
           app.multiple_animals_checkbox.Enable = 'on' ;
