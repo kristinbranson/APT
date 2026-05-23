@@ -2162,6 +2162,9 @@ classdef LabelerController < handle
       % Create a new project
       labeler = obj.labeler_ ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
+        labeler.pushBusyStatus('Opening Project Setup window...') ;  % Want to do this here, b/c the stuff in this method can take a while
+        oc = onCleanup(@()(labeler.popBusyStatus())) ;
+        drawnow('nocallbacks') ;       
         app = ProjectSetup(obj.mainFigure_) ;  % launches the project setup window
         app.uiwait() ;
         cfg = app.output ;

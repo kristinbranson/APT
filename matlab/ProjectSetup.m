@@ -39,17 +39,18 @@ classdef ProjectSetup < handle
       %
       %   obj = ProjectSetup() ;
       %   obj = ProjectSetup(hParentFig) ;  % centered on hParentFig
-      obj.createAndLayoutComponents_() ;
-      movegui(obj.fig_, 'onscreen') ;
       if numel(varargin) >= 1
         hParentFig = varargin{1} ;
         if ~ishandle(hParentFig)
           error('ProjectSetup:arg', 'Expected argument to be a figure handle.') ;
         end
-        centerOnParentFigure(obj.fig_, hParentFig) ;
+      else
+        hParentFig = [] ;
       end
+      obj.createAndLayoutComponents_(hParentFig) ;
       cfg = Labeler.cfgGetLastProjectConfigNoView() ;
       obj.setCfg_(cfg) ;
+      waitForFigureToSync(obj.fig_) ;  % block until the figure is actually visible
     end  % function
 
     function delete(obj)
@@ -167,7 +168,7 @@ classdef ProjectSetup < handle
       delete(obj.fig_) ;
     end  % function
 
-    function createAndLayoutComponents_(obj)
+    function createAndLayoutComponents_(obj, hParentFig)
       % Create UIFigure and components.
       % Create the figure and all its child controls, laid out via
       % nested uigridlayouts: an outer 7-row column, where each
@@ -203,6 +204,9 @@ classdef ProjectSetup < handle
       obj.fig_.CloseRequestFcn = @(src, evt) obj.didRequestClose_(src, evt) ;
       obj.fig_.HandleVisibility = 'callback' ;
       obj.fig_.Tag = 'project_setup_fig' ;
+      if ~isempty(hParentFig)
+        centerOnParentFigure(obj.fig_, hParentFig) ;
+      end
 
       % Outer column: 7 rows.  Rows 1-5 are content sections (sized 'fit').
       % Row 6 is reserved empty space for the Copy Settings button, which is
@@ -469,6 +473,11 @@ classdef ProjectSetup < handle
       copySettingsButtonX = (figWidth - marginWidth) - copySettingsButtonWidth ;
       copySettingsButtonY = detailsBottomY + copySettingsOverlapAmount - buttonHeight ;
       obj.copy_settings_from_button_.Position = [copySettingsButtonX, copySettingsButtonY, copySettingsButtonWidth, buttonHeight] ;
+
+      % Do a final centering
+      if ~isempty(hParentFig)
+        centerOnParentFigure(obj.fig_, hParentFig) ;
+      end
     end  % function
   end  % methods (Access = private)
 
