@@ -1,6 +1,5 @@
 classdef ProjectSetup < handle
-
-  % Widget properties (emitted by App Designer Migration Tool)
+  % Widget properties
   properties (Access = public, Transient)
     fig                                  matlab.ui.Figure
     project_name_label                   matlab.ui.control.Label
@@ -77,7 +76,7 @@ classdef ProjectSetup < handle
       viewCount = str2double(app.number_of_views_edit.Value) ;
       hasBodyTracking = app.has_body_tracking_checkbox.Value ;
       multipleAnimals = app.multiple_animals_checkbox.Value ;
-      result = ProjectSetup.patchCfg_(storedCfg, projectName, keypointCount, viewCount, ...
+      result = ProjectSetup.patchCfg(storedCfg, projectName, keypointCount, viewCount, ...
                                      hasBodyTracking, multipleAnimals) ;
     end  % function
 
@@ -89,7 +88,6 @@ classdef ProjectSetup < handle
       app.has_body_tracking_checkbox.Value = cfg.Trx.HasTrx ;
       app.multiple_animals_checkbox.Value = cfg.MultiAnimal ;
     end  % function
-
 
     % Value-changed handler for the keypoint-count edit field.
     function number_of_points_edit_Callback_(app, event)
@@ -475,8 +473,8 @@ classdef ProjectSetup < handle
     end  % function
   end  % methods (Access = private)
 
-  methods (Static, Access = private)
-    function result = patchCfg_(cfg, projectName, keypointCount, viewCount, hasBodyTracking, multipleAnimals)
+  methods (Static)
+    function result = patchCfg(cfg, projectName, keypointCount, viewCount, hasBodyTracking, multipleAnimals)
       result = cfg ;
       result.NumViews = viewCount ;
       result.NumLabelPoints = keypointCount ;
