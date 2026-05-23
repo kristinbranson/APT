@@ -24,8 +24,8 @@ classdef ProjectSetup < matlab.apps.AppBase
 
   % Non-widget state (private in spirit; underscore suffix marks the intent)
   properties (Access = private, Transient)
-    cfg_           = []
-    output_        = []
+    cfg_
+    output_
   end
 
   properties (Dependent)
@@ -53,50 +53,22 @@ classdef ProjectSetup < matlab.apps.AppBase
   end  % methods
   
   methods (Access = public)
-    function cfg = generateFinalConfig_(app)
+    function result = generateFinalConfig_(app)
       % Generate a config struct from the current object state.  Takes
       % app.cfg_ as a base, brings its variable-length fields (ViewNames,
       % LabelPointNames, View) in line with the current view/point counts,
       % then overlays the values from the UI.
-      viewCount = str2double(app.number_of_views_edit.Value) ;
+      storedCfg = app.cfg_ ;
+      projectName = app.project_name_edit.Value ;
       keypointCount = str2double(app.number_of_keypoints_edit.Value) ;
-      cfg = app.cfg_ ;
-      cfg.NumViews = viewCount ;
-      cfg.NumLabelPoints = keypointCount ;
-
-      viewNameCount = numel(cfg.ViewNames) ;
-      if viewNameCount > viewCount
-        cfg.ViewNames = cfg.ViewNames(1:viewCount) ;
-      elseif viewNameCount < viewCount
-        cfg.ViewNames(viewNameCount+1:viewCount) = {''} ;
-      end
-      pointNameCount = numel(cfg.LabelPointNames) ;
-      if pointNameCount > keypointCount
-        cfg.LabelPointNames = cfg.LabelPointNames(1:keypointCount) ;
-      elseif pointNameCount < keypointCount
-        cfg.LabelPointNames(pointNameCount+1:keypointCount) = {''} ;
-      end
-      cfg.View = augmentOrTruncateVector(cfg.View(:), viewCount) ;
-
-      cfg.Trx.HasTrx = app.has_body_tracking_checkbox.Value ;
-      cfg.MultiAnimal = app.multiple_animals_checkbox.Value ;
-      isMultiAnimal = cfg.MultiAnimal && ~cfg.Trx.HasTrx ;
-      if isMultiAnimal
-        cfg.LabelMode = LabelMode.MULTIANIMAL ;
-      else
-        cfg.LabelMode = LabelMode.SEQUENTIAL ;
-      end
-      cfg.Track.Enable = true ;
-      % propertiesGUI used to leave View fields as empty strings even when
-      % they were meant to be numeric; coerce them back here.
-      fieldsToDoublify = {'Gamma', 'FigurePos', 'AxisLim', 'InvertMovie', 'AxFontSize', 'ShowAxTicks', 'ShowGrid'} ;
-      for i = 1:numel(cfg.View)
-        cfg.View(i) = structLeavesStr2Double(cfg.View(i), fieldsToDoublify) ;
-      end
-      cfg.ProjectName = app.project_name_edit.Value ;
+      viewCount = str2double(app.number_of_views_edit.Value) ;
+      hasBodyTracking = app.has_body_tracking_checkbox.Value ;
+      multipleAnimals = app.multiple_animals_checkbox.Value ;
+      result = ProjectSetup.patchCfg(storedCfg, projectName, keypointCount, viewCount, ...
+                                     hasBodyTracking, multipleAnimals) ;
     end  % function
 
-    function setConfig_(app, cfg)
+    function setCfg_(app, cfg)
       % Set the given config struct on the controls and on internal state.
       app.cfg_ = cfg ;
       app.number_of_views_edit.Value = num2str(cfg.NumViews) ;
@@ -125,7 +97,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       end
 
       cfg = Labeler.cfgGetLastProjectConfigNoView() ;
-      app.setConfig_(cfg) ;
+      app.setCfg_(cfg) ;
     end  % function
 
     % Value-changed handler for the keypoint-count edit field.
@@ -197,7 +169,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       lbl = loadLbl(fullfile(pth, fname)) ;
       lbl = Labeler.lblModernize(lbl) ;
       cfg = lbl.cfg ;
-      app.setConfig_(cfg) ;
+      app.setCfg_(cfg) ;
     end  % function
 
     % Button-pushed function for the Create Project button.
@@ -494,4 +466,43 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.copy_settings_from_button.Position = [copySettingsButtonX, copySettingsButtonY, copySettingsButtonWidth, buttonHeight] ;
     end  % function
   end  % methods (Access = private)
+
+  methods(Static)
+    function result = patchCfg(cfg, projectName, keypointCount, viewCount, hasBodyTracking, multipleAnimals)
+      result = cfg ;
+      result.NumViews = viewCount ;
+      result.NumLabelPoints = keypointCount ;
+
+      viewNameCount = numel(result.ViewNames) ;
+      if viewNameCount > viewCount
+        result.ViewNames = result.ViewNames(1:viewCount) ;
+      elseif viewNameCount < viewCount
+        result.ViewNames(viewNameCount+1:viewCount) = {''} ;
+      end
+      pointNameCount = numel(result.LabelPointNames) ;
+      if pointNameCount > keypointCount
+        result.LabelPointNames = result.LabelPointNames(1:keypointCount) ;
+      elseif pointNameCount < keypointCount
+        result.LabelPointNames(pointNameCount+1:keypointCount) = {''} ;
+      end
+      result.View = augmentOrTruncateVector(result.View(:), viewCount) ;
+
+      result.Trx.HasTrx = hasBodyTracking ;
+      result.MultiAnimal = multipleAnimals ;
+      isMultiAnimal = result.MultiAnimal && ~result.Trx.HasTrx ;
+      if isMultiAnimal
+        result.LabelMode = LabelMode.MULTIANIMAL ;
+      else
+        result.LabelMode = LabelMode.SEQUENTIAL ;
+      end
+      result.Track.Enable = true ;
+      % propertiesGUI used to leave View fields as empty strings even when
+      % they were meant to be numeric; coerce them back here.
+      fieldsToDoublify = {'Gamma', 'FigurePos', 'AxisLim', 'InvertMovie', 'AxFontSize', 'ShowAxTicks', 'ShowGrid'} ;
+      for i = 1:numel(result.View)
+        result.View(i) = structLeavesStr2Double(result.View(i), fieldsToDoublify) ;
+      end
+      result.ProjectName = projectName ;      
+    end
+  end
 end  % classdef
