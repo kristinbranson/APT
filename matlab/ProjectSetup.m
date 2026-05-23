@@ -65,7 +65,7 @@ classdef ProjectSetup < handle
     end  % function
   end  % methods
   
-  methods (Access = public)
+  methods (Access = private)
     function result = generateFinalConfig_(app)
       % Generate a config struct from the current object state.  Takes
       % app.cfg_ as a base, brings its variable-length fields (ViewNames,
@@ -89,9 +89,8 @@ classdef ProjectSetup < handle
       app.has_body_tracking_checkbox.Value = cfg.Trx.HasTrx ;
       app.multiple_animals_checkbox.Value = cfg.MultiAnimal ;
     end  % function
-  end  % methods (Access = public)
 
-  methods (Access = private)
+
     % Value-changed handler for the keypoint-count edit field.
     function number_of_points_edit_Callback(app, event)
       rawValue = str2double(app.number_of_keypoints_edit.Value) ;
@@ -476,7 +475,7 @@ classdef ProjectSetup < handle
     end  % function
   end  % methods (Access = private)
 
-  methods(Static)
+  methods (Static, Access = private)
     function result = patchCfg(cfg, projectName, keypointCount, viewCount, hasBodyTracking, multipleAnimals)
       result = cfg ;
       result.NumViews = viewCount ;
