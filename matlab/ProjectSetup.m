@@ -3,23 +3,23 @@ classdef ProjectSetup < matlab.apps.AppBase
   % Widget properties (emitted by App Designer Migration Tool)
   properties (Access = public, Transient)
     fig                                  matlab.ui.Figure
-    has_body_tracking_details_label      matlab.ui.control.Label
-    multiple_animals_details_label       matlab.ui.control.Label
-    number_of_views_details_label        matlab.ui.control.Label
+    project_name_label                   matlab.ui.control.Label
+    project_name_edit                    matlab.ui.control.EditField
+    number_of_keypoints_label            matlab.ui.control.Label
+    number_of_keypoints_edit             matlab.ui.control.EditField
     number_of_keypoints_details_label    matlab.ui.control.Label
+    number_of_views_label                matlab.ui.control.Label
+    number_of_views_edit                 matlab.ui.control.EditField
+    number_of_views_details_label        matlab.ui.control.Label
     multiple_animals_label               matlab.ui.control.Label
     multiple_animals_checkbox            matlab.ui.control.CheckBox
+    multiple_animals_details_label       matlab.ui.control.Label
     has_body_tracking_label              matlab.ui.control.Label
     has_body_tracking_checkbox           matlab.ui.control.CheckBox
+    has_body_tracking_details_label      matlab.ui.control.Label
     copy_settings_from_button            matlab.ui.control.Button
-    cancel_button                        matlab.ui.control.Button
     create_project_button                matlab.ui.control.Button
-    number_of_views_edit                 matlab.ui.control.EditField
-    number_of_points_edit                matlab.ui.control.EditField
-    project_name_edit                    matlab.ui.control.EditField
-    number_of_views_label                matlab.ui.control.Label
-    number_of_keypoints_label            matlab.ui.control.Label
-    project_name_label                   matlab.ui.control.Label
+    cancel_button                        matlab.ui.control.Button
   end
 
   % Non-widget state (private in spirit; underscore suffix marks the intent)
@@ -55,37 +55,6 @@ classdef ProjectSetup < matlab.apps.AppBase
       % Delete the underlying figure when the app is deleted.
       delete(app.fig) ;
     end  % function
-
-    % function advModeCollapse_(app)
-    %   % Collapse the dialog so the advanced-properties panel is hidden.
-    %   posMid = app.landmarkMid.Position ;
-    %   posMid = posMid(1) + posMid(3)/2 ;
-    %   pos = app.fig.Position ;
-    %   pos(3) = posMid ;
-    %   app.fig.Position = pos ;
-    %   app.advancedOn_ = false ;
-    %   % app.pbAdvanced.Text = 'Advanced >' ;
-    % end  % function
-
-    % function advModeExpand_(app)
-    %   % % Expand the dialog so the advanced-properties panel is visible.
-    %   % posRight = app.landmarkRight.Position ;
-    %   % posRight = posRight(1) + posRight(3) ;
-    %   % pos = app.fig.Position ;
-    %   % pos(3) = posRight ;
-    %   % app.fig.Position = pos ;
-    %   % app.advancedOn_ = true ;
-    %   % % app.pbAdvanced.Text = '< Basic' ;
-    % end  % function
-
-    % function advModeToggle_(app)
-    %   % Toggle the dialog between expanded and collapsed advanced mode.
-    %   if app.advancedOn_
-    %     app.advModeCollapse_() ;
-    %   else
-    %     % app.advModeExpand_() ;
-    %   end
-    % end  % function
 
     function advTableRefresh_(app, sMirror)
       % Refresh the advanced-properties table to match the current view and
@@ -137,7 +106,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.viewCount_ = cfg.NumViews ;
       app.pointCount_ = cfg.NumLabelPoints ;
       app.number_of_views_edit.Value = num2str(app.viewCount_) ;
-      app.number_of_points_edit.Value = num2str(app.pointCount_) ;
+      app.number_of_keypoints_edit.Value = num2str(app.pointCount_) ;
       app.has_body_tracking_checkbox.Value = cfg.Trx.HasTrx ;
       app.multiple_animals_checkbox.Value = cfg.MultiAnimal ;
       sMirror = Labeler.cfg2mirror(cfg) ;
@@ -165,16 +134,15 @@ classdef ProjectSetup < matlab.apps.AppBase
 
       cfg = Labeler.cfgGetLastProjectConfigNoView() ;
       app.setCurrentConfig_(cfg) ;
-      % app.advModeCollapse_() ;
     end  % function
 
     % Value-changed handler for the keypoint-count edit field.
     function number_of_points_edit_Callback(app, ~)
-      val = str2double(app.number_of_points_edit.Value) ;
+      val = str2double(app.number_of_keypoints_edit.Value) ;
       if floor(val) == val && val >= 1
         app.pointCount_ = val ;
       else
-        app.number_of_points_edit.Value = num2str(app.pointCount_) ;
+        app.number_of_keypoints_edit.Value = num2str(app.pointCount_) ;
       end
       app.advTableRefresh_() ;
     end  % function
@@ -212,18 +180,15 @@ classdef ProjectSetup < matlab.apps.AppBase
     end  % function
 
     % Close-request function for the main figure.
-    function figure1_CloseRequestFcn(app, ~)
-      if isequal(get(app.fig, 'waitstatus'), 'waiting')
-        % The dialog is still in uiwait; release it.
-        uiresume(app.fig) ;
-      else
-        delete(app.fig) ;
-      end
-    end  % function
-
-    % Button-pushed function for the Advanced/Basic toggle.
-    function pbAdvanced_Callback(app, ~)
-      app.advModeToggle_() ;
+    function didRequestClose(app, ~)
+      % if isequal(get(app.fig, 'waitstatus'), 'waiting')
+      %   % The dialog is still in uiwait; release it.
+      %   uiresume(app.fig) ;
+      % else
+      %   delete(app.fig) ;
+      % end
+      app.output_ = [] ;
+      close(app.fig) ;
     end  % function
 
     % Button-pushed function for the Cancel button.
@@ -255,10 +220,6 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.output_ = cfg ;
       close(app.fig) ;
     end  % function
-  end  % methods (Access = private)
-
-  % Component initialization
-  methods (Access = private)
 
     % Create UIFigure and components
     function createComponents(app)
@@ -293,7 +254,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.fig.Position = [100 100 figWidth initialFigHeight] ;
       app.fig.Name = 'Project Setup' ;
       app.fig.Resize = 'off' ;
-      app.fig.CloseRequestFcn = app.createCallbackFcn(@figure1_CloseRequestFcn, true) ;
+      app.fig.CloseRequestFcn = app.createCallbackFcn(@didRequestClose, true) ;
       app.fig.HandleVisibility = 'callback' ;
       app.fig.Tag = 'project_setup_fig' ;
 
@@ -350,13 +311,13 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.number_of_keypoints_label.FontColor = labelColor ;
       app.number_of_keypoints_label.BackgroundColor = bgColor ;
 
-      app.number_of_points_edit = uieditfield(keypointsRow, 'text') ;
-      app.number_of_points_edit.ValueChangedFcn = app.createCallbackFcn(@number_of_points_edit_Callback, true) ;
-      app.number_of_points_edit.HorizontalAlignment = 'right' ;
-      app.number_of_points_edit.FontSize = bigFontSize ;
-      app.number_of_points_edit.FontColor = fieldFontColor ;
-      app.number_of_points_edit.BackgroundColor = fieldBgColor ;
-      app.number_of_points_edit.Value = '12' ;
+      app.number_of_keypoints_edit = uieditfield(keypointsRow, 'text') ;
+      app.number_of_keypoints_edit.ValueChangedFcn = app.createCallbackFcn(@number_of_points_edit_Callback, true) ;
+      app.number_of_keypoints_edit.HorizontalAlignment = 'right' ;
+      app.number_of_keypoints_edit.FontSize = bigFontSize ;
+      app.number_of_keypoints_edit.FontColor = fieldFontColor ;
+      app.number_of_keypoints_edit.BackgroundColor = fieldBgColor ;
+      app.number_of_keypoints_edit.Value = '12' ;
 
       app.number_of_keypoints_details_label = uilabel(keypointsSection) ;
       app.number_of_keypoints_details_label.Text = 'Number of keypoints to label for each animal' ;
