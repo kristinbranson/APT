@@ -95,7 +95,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Value-changed handler for the keypoint-count edit field.
-    function number_of_points_edit_Callback_(obj, source, event)
+    function number_of_points_edit_actuated_(obj, source, event)  %#ok<INUSD>
       rawValue = str2double(obj.number_of_keypoints_edit_.Value) ;
       if ~(floor(rawValue) == rawValue && rawValue >= 1)
         obj.number_of_keypoints_edit_.Value = event.PreviousValue ;
@@ -103,7 +103,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Value-changed handler for the view-count edit field.
-    function number_of_views_edit_Callback_(obj, source, event)
+    function number_of_views_edit_actuated_(obj, source, event)  %#ok<INUSD>
       rawValue = str2double(obj.number_of_views_edit_.Value) ;
       if ~(floor(rawValue) == rawValue && rawValue >= 1)
         obj.number_of_views_edit_.Value = event.PreviousValue ;
@@ -122,7 +122,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Value-changed handler for the project-name edit field.
-    function project_name_edit_Callback_(obj, source, event)
+    function project_name_edit_actuated_(obj, source, event)  %#ok<INUSD>
       name = obj.project_name_edit_.Value ;
       if ~all(isstrprop(name, 'alphanum'))
         % This unfortunately invalidates _ also.  Checking for it seems more
@@ -133,7 +133,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Close-request function for the main figure.
-    function didRequestClose_(obj, source, event)
+    function didRequestClose_(obj, source, event)  %#ok<INUSD>
       % if isequal(get(obj.fig_, 'waitstatus'), 'waiting')
       %   % The dialog is still in uiwait; release it.
       %   uiresume(obj.fig_) ;
@@ -145,13 +145,13 @@ classdef ProjectSetup < handle
     end  % function
 
     % Button-pushed function for the Cancel button.
-    function cancel_button_Callback_(obj, source, event)
+    function cancel_button_actuated_(obj, source, event)  %#ok<INUSD>
       obj.output_ = [] ;
       delete(obj.fig_) ;
     end  % function
 
     % Button-pushed function for the Copy Settings From... button.
-    function copy_settings_from_button_Callback_(obj, source, event)
+    function copy_settings_from_button_actuated_(obj, source, event)  %#ok<INUSD>
       lastLblFile = RC.getprop('lastLblFile') ;
       if isempty(lastLblFile)
         lastLblFile = pwd ;
@@ -167,7 +167,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Button-pushed function for the Create Project button.
-    function create_project_button_Callback_(obj, source, event)
+    function create_project_button_actuated_(obj, source, event)  %#ok<INUSD>
       cfg = obj.generateFinalConfig_() ;
       obj.output_ = cfg ;
       delete(obj.fig_) ;
@@ -239,7 +239,7 @@ classdef ProjectSetup < handle
 
       obj.project_name_edit_ = uieditfield(projectNameRow, 'text') ;
       obj.project_name_edit_.Tag = 'project_name_edit_' ;
-      obj.project_name_edit_.ValueChangedFcn = @(src, evt) obj.project_name_edit_Callback_(src, evt) ;
+      obj.project_name_edit_.ValueChangedFcn = @(src, evt) obj.project_name_edit_actuated_(src, evt) ;
       obj.project_name_edit_.FontSize = bigFontSize ;
       obj.project_name_edit_.FontColor = fieldFontColor ;
       obj.project_name_edit_.BackgroundColor = fieldBgColor ;
@@ -268,7 +268,7 @@ classdef ProjectSetup < handle
 
       obj.number_of_keypoints_edit_ = uieditfield(keypointsRow, 'text') ;
       obj.number_of_keypoints_edit_.Tag = 'number_of_keypoints_edit_' ;
-      obj.number_of_keypoints_edit_.ValueChangedFcn = @(src, evt) obj.number_of_points_edit_Callback_(src, evt) ;
+      obj.number_of_keypoints_edit_.ValueChangedFcn = @(src, evt) obj.number_of_points_edit_actuated_(src, evt) ;
       obj.number_of_keypoints_edit_.HorizontalAlignment = 'right' ;
       obj.number_of_keypoints_edit_.FontSize = bigFontSize ;
       obj.number_of_keypoints_edit_.FontColor = fieldFontColor ;
@@ -308,7 +308,7 @@ classdef ProjectSetup < handle
 
       obj.number_of_views_edit_ = uieditfield(viewsRow, 'text') ;
       obj.number_of_views_edit_.Tag = 'number_of_views_edit_' ;
-      obj.number_of_views_edit_.ValueChangedFcn = @(src, evt) obj.number_of_views_edit_Callback_(src, evt) ;
+      obj.number_of_views_edit_.ValueChangedFcn = @(src, evt) obj.number_of_views_edit_actuated_(src, evt) ;
       obj.number_of_views_edit_.HorizontalAlignment = 'right' ;
       obj.number_of_views_edit_.FontSize = bigFontSize ;
       obj.number_of_views_edit_.FontColor = fieldFontColor ;
@@ -436,7 +436,7 @@ classdef ProjectSetup < handle
       obj.create_project_button_ = uibutton(bottomButtonsRow, 'push') ;
       obj.create_project_button_.Tag = 'create_project_button_' ;
       obj.create_project_button_.Layout.Column = 2 ;
-      obj.create_project_button_.ButtonPushedFcn = @(src, evt) obj.create_project_button_Callback_(src, evt) ;
+      obj.create_project_button_.ButtonPushedFcn = @(src, evt) obj.create_project_button_actuated_(src, evt) ;
       obj.create_project_button_.BackgroundColor = fieldBgColor ;
       obj.create_project_button_.FontSize = bigFontSize ;
       obj.create_project_button_.FontColor = fieldFontColor ;
@@ -445,7 +445,7 @@ classdef ProjectSetup < handle
       obj.cancel_button_ = uibutton(bottomButtonsRow, 'push') ;
       obj.cancel_button_.Tag = 'cancel_button_' ;
       obj.cancel_button_.Layout.Column = 4 ;
-      obj.cancel_button_.ButtonPushedFcn = @(src, evt) obj.cancel_button_Callback_(src, evt) ;
+      obj.cancel_button_.ButtonPushedFcn = @(src, evt) obj.cancel_button_actuated_(src, evt) ;
       obj.cancel_button_.BackgroundColor = fieldBgColor ;
       obj.cancel_button_.FontSize = bigFontSize ;
       obj.cancel_button_.FontColor = fieldFontColor ;
@@ -462,7 +462,7 @@ classdef ProjectSetup < handle
       % Drawn on top of outerGrid because it is created later.
       obj.copy_settings_from_button_ = uibutton(obj.fig_, 'push') ;
       obj.copy_settings_from_button_.Tag = 'copy_settings_from_button_' ;
-      obj.copy_settings_from_button_.ButtonPushedFcn = @(src, evt) obj.copy_settings_from_button_Callback_(src, evt) ;
+      obj.copy_settings_from_button_.ButtonPushedFcn = @(src, evt) obj.copy_settings_from_button_actuated_(src, evt) ;
       obj.copy_settings_from_button_.BackgroundColor = fieldBgColor ;
       obj.copy_settings_from_button_.FontSize = bigFontSize ;
       obj.copy_settings_from_button_.FontColor = labelColor ;
