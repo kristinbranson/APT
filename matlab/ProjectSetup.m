@@ -1,7 +1,7 @@
 classdef ProjectSetup < handle
   % Widget properties
   properties (Access = private, Transient)
-    fig_                                 matlab.ui.Figure
+    fig_                                  matlab.ui.Figure
     project_name_label_                   matlab.ui.control.Label
     project_name_edit_                    matlab.ui.control.EditField
     number_of_keypoints_label_            matlab.ui.control.Label
@@ -95,7 +95,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Value-changed handler for the keypoint-count edit field.
-    function number_of_points_edit_Callback_(app, event)
+    function number_of_points_edit_Callback_(app, source, event)
       rawValue = str2double(app.number_of_keypoints_edit_.Value) ;
       if ~(floor(rawValue) == rawValue && rawValue >= 1)
         app.number_of_keypoints_edit_.Value = event.PreviousValue ;
@@ -103,7 +103,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Value-changed handler for the view-count edit field.
-    function number_of_views_edit_Callback_(app, event)
+    function number_of_views_edit_Callback_(app, source, event)
       rawValue = str2double(app.number_of_views_edit_.Value) ;
       if ~(floor(rawValue) == rawValue && rawValue >= 1)
         app.number_of_views_edit_.Value = event.PreviousValue ;
@@ -122,7 +122,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Value-changed handler for the project-name edit field.
-    function project_name_edit_Callback_(app, event)
+    function project_name_edit_Callback_(app, source, event)
       name = app.project_name_edit_.Value ;
       if ~all(isstrprop(name, 'alphanum'))
         % This unfortunately invalidates _ also.  Checking for it seems more
@@ -133,7 +133,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Close-request function for the main figure.
-    function didRequestClose_(app, ~)
+    function didRequestClose_(app, source, event)
       % if isequal(get(app.fig_, 'waitstatus'), 'waiting')
       %   % The dialog is still in uiwait; release it.
       %   uiresume(app.fig_) ;
@@ -145,13 +145,13 @@ classdef ProjectSetup < handle
     end  % function
 
     % Button-pushed function for the Cancel button.
-    function cancel_button_Callback_(app, ~)
+    function cancel_button_Callback_(app, source, event)
       app.output_ = [] ;
       delete(app.fig_) ;
     end  % function
 
     % Button-pushed function for the Copy Settings From... button.
-    function copy_settings_from_button_Callback_(app, ~)
+    function copy_settings_from_button_Callback_(app, source, event)
       lastLblFile = RC.getprop('lastLblFile') ;
       if isempty(lastLblFile)
         lastLblFile = pwd ;
@@ -167,7 +167,7 @@ classdef ProjectSetup < handle
     end  % function
 
     % Button-pushed function for the Create Project button.
-    function create_project_button_Callback_(app, ~)
+    function create_project_button_Callback_(app, source, event)
       cfg = app.generateFinalConfig_() ;
       app.output_ = cfg ;
       delete(app.fig_) ;
@@ -206,7 +206,7 @@ classdef ProjectSetup < handle
       app.fig_.Position = [100 100 figWidth initialFigHeight] ;
       app.fig_.Name = 'Project Setup' ;
       app.fig_.Resize = 'off' ;
-      app.fig_.CloseRequestFcn = @(~, evt) app.didRequestClose_(evt) ;
+      app.fig_.CloseRequestFcn = @(src, evt) app.didRequestClose_(src, evt) ;
       app.fig_.HandleVisibility = 'callback' ;
       app.fig_.Tag = 'project_setup_fig' ;
 
@@ -239,7 +239,7 @@ classdef ProjectSetup < handle
 
       app.project_name_edit_ = uieditfield(projectNameRow, 'text') ;
       app.project_name_edit_.Tag = 'project_name_edit_' ;
-      app.project_name_edit_.ValueChangedFcn = @(~, evt) app.project_name_edit_Callback_(evt) ;
+      app.project_name_edit_.ValueChangedFcn = @(src, evt) app.project_name_edit_Callback_(src, evt) ;
       app.project_name_edit_.FontSize = bigFontSize ;
       app.project_name_edit_.FontColor = fieldFontColor ;
       app.project_name_edit_.BackgroundColor = fieldBgColor ;
@@ -268,7 +268,7 @@ classdef ProjectSetup < handle
 
       app.number_of_keypoints_edit_ = uieditfield(keypointsRow, 'text') ;
       app.number_of_keypoints_edit_.Tag = 'number_of_keypoints_edit_' ;
-      app.number_of_keypoints_edit_.ValueChangedFcn = @(~, evt) app.number_of_points_edit_Callback_(evt) ;
+      app.number_of_keypoints_edit_.ValueChangedFcn = @(src, evt) app.number_of_points_edit_Callback_(src, evt) ;
       app.number_of_keypoints_edit_.HorizontalAlignment = 'right' ;
       app.number_of_keypoints_edit_.FontSize = bigFontSize ;
       app.number_of_keypoints_edit_.FontColor = fieldFontColor ;
@@ -308,7 +308,7 @@ classdef ProjectSetup < handle
 
       app.number_of_views_edit_ = uieditfield(viewsRow, 'text') ;
       app.number_of_views_edit_.Tag = 'number_of_views_edit_' ;
-      app.number_of_views_edit_.ValueChangedFcn = @(~, evt) app.number_of_views_edit_Callback_(evt) ;
+      app.number_of_views_edit_.ValueChangedFcn = @(src, evt) app.number_of_views_edit_Callback_(src, evt) ;
       app.number_of_views_edit_.HorizontalAlignment = 'right' ;
       app.number_of_views_edit_.FontSize = bigFontSize ;
       app.number_of_views_edit_.FontColor = fieldFontColor ;
@@ -436,7 +436,7 @@ classdef ProjectSetup < handle
       app.create_project_button_ = uibutton(bottomButtonsRow, 'push') ;
       app.create_project_button_.Tag = 'create_project_button_' ;
       app.create_project_button_.Layout.Column = 2 ;
-      app.create_project_button_.ButtonPushedFcn = @(~, evt) app.create_project_button_Callback_(evt) ;
+      app.create_project_button_.ButtonPushedFcn = @(src, evt) app.create_project_button_Callback_(src, evt) ;
       app.create_project_button_.BackgroundColor = fieldBgColor ;
       app.create_project_button_.FontSize = bigFontSize ;
       app.create_project_button_.FontColor = fieldFontColor ;
@@ -445,7 +445,7 @@ classdef ProjectSetup < handle
       app.cancel_button_ = uibutton(bottomButtonsRow, 'push') ;
       app.cancel_button_.Tag = 'cancel_button_' ;
       app.cancel_button_.Layout.Column = 4 ;
-      app.cancel_button_.ButtonPushedFcn = @(~, evt) app.cancel_button_Callback_(evt) ;
+      app.cancel_button_.ButtonPushedFcn = @(src, evt) app.cancel_button_Callback_(src, evt) ;
       app.cancel_button_.BackgroundColor = fieldBgColor ;
       app.cancel_button_.FontSize = bigFontSize ;
       app.cancel_button_.FontColor = fieldFontColor ;
@@ -462,7 +462,7 @@ classdef ProjectSetup < handle
       % Drawn on top of outerGrid because it is created later.
       app.copy_settings_from_button_ = uibutton(app.fig_, 'push') ;
       app.copy_settings_from_button_.Tag = 'copy_settings_from_button_' ;
-      app.copy_settings_from_button_.ButtonPushedFcn = @(~, evt) app.copy_settings_from_button_Callback_(evt) ;
+      app.copy_settings_from_button_.ButtonPushedFcn = @(src, evt) app.copy_settings_from_button_Callback_(src, evt) ;
       app.copy_settings_from_button_.BackgroundColor = fieldBgColor ;
       app.copy_settings_from_button_.FontSize = bigFontSize ;
       app.copy_settings_from_button_.FontColor = labelColor ;
