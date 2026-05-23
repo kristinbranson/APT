@@ -349,7 +349,7 @@ classdef ProjectSetup < handle
       multiple_animals_checkbox_Cell = uigridlayout(multipleAnimalsRow, [1 3]) ;
       multiple_animals_checkbox_Cell.ColumnWidth = {'1x', 'fit', '1x'} ;
       multiple_animals_checkbox_Cell.RowHeight = {'fit'} ;
-      multiple_animals_checkbox_Cell.Padding = [0 0 0 0] ;
+      multiple_animals_checkbox_Cell.Padding = [0 0 0 8] ;  % top-pad to vertically align glyph with the adjacent label text
       multiple_animals_checkbox_Cell.ColumnSpacing = 0 ;
       multiple_animals_checkbox_Cell.BackgroundColor = bgColor ;
 
@@ -394,7 +394,7 @@ classdef ProjectSetup < handle
       has_body_tracking_checkbox_Cell = uigridlayout(hasBodyTrackingRow, [1 3]) ;
       has_body_tracking_checkbox_Cell.ColumnWidth = {'1x', 'fit', '1x'} ;
       has_body_tracking_checkbox_Cell.RowHeight = {'fit'} ;
-      has_body_tracking_checkbox_Cell.Padding = [0 0 0 0] ;
+      has_body_tracking_checkbox_Cell.Padding = [0 0 0 8] ;  % top-pad to vertically align glyph with the adjacent label text
       has_body_tracking_checkbox_Cell.ColumnSpacing = 0 ;
       has_body_tracking_checkbox_Cell.BackgroundColor = bgColor ;
 
