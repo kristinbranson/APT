@@ -24,10 +24,10 @@ classdef ProjectSetup < matlab.apps.AppBase
 
   % Non-widget state (private in spirit; underscore suffix marks the intent)
   properties (Access = private, Transient)
-    viewCount_  = 1
-    pointCount_ = 1
-    cfg_        = []
-    output_     = []
+    % viewCount_     = 1
+    % keypointCount_ = 1
+    cfg_           = []
+    output_        = []
   end
 
   properties (Dependent)
@@ -55,10 +55,15 @@ classdef ProjectSetup < matlab.apps.AppBase
   end  % methods
   
   methods (Access = public)
-    function syncCfgCounts_(app, cfg)
-      % Extend or truncate the variable-length fields of cfg (the ViewNames
-      % and LabelPointNames cell arrays, and the View struct array) to
-      % match the current view and point counts.
+    function cfg = generateFinalConfig_(app)
+      % Generate a config struct from the current object state.  Takes
+      % app.cfg_ as a base, brings its variable-length fields (ViewNames,
+      % LabelPointNames, View) in line with the current view/point counts,
+      % then overlays the values from the UI.
+      cfg = app.cfg_ ;
+      cfg.NumViews = app.viewCount_ ;
+      cfg.NumLabelPoints = app.keypointCount_ ;
+
       viewNameCount = numel(cfg.ViewNames) ;
       if viewNameCount > app.viewCount_
         cfg.ViewNames = cfg.ViewNames(1:app.viewCount_) ;
@@ -66,21 +71,13 @@ classdef ProjectSetup < matlab.apps.AppBase
         cfg.ViewNames(viewNameCount+1:app.viewCount_) = {''} ;
       end
       pointNameCount = numel(cfg.LabelPointNames) ;
-      if pointNameCount > app.pointCount_
-        cfg.LabelPointNames = cfg.LabelPointNames(1:app.pointCount_) ;
-      elseif pointNameCount < app.pointCount_
-        cfg.LabelPointNames(pointNameCount+1:app.pointCount_) = {''} ;
+      if pointNameCount > app.keypointCount_
+        cfg.LabelPointNames = cfg.LabelPointNames(1:app.keypointCount_) ;
+      elseif pointNameCount < app.keypointCount_
+        cfg.LabelPointNames(pointNameCount+1:app.keypointCount_) = {''} ;
       end
       cfg.View = augmentOrTruncateVector(cfg.View(:), app.viewCount_) ;
-      app.cfg_ = cfg ;
-    end  % function
 
-    function cfg = generateCurrentConfig_(app)
-      % Generate a config struct from the current object state.      
-      % Takes app.cfg_ and overlays the values from the UI.
-      cfg = app.cfg_ ;
-      cfg.NumViews = app.viewCount_ ;
-      cfg.NumLabelPoints = app.pointCount_ ;
       cfg.Trx.HasTrx = app.has_body_tracking_checkbox.Value ;
       cfg.MultiAnimal = app.multiple_animals_checkbox.Value ;
       isMultiAnimal = cfg.MultiAnimal && ~cfg.Trx.HasTrx ;
@@ -96,17 +93,18 @@ classdef ProjectSetup < matlab.apps.AppBase
       for i = 1:numel(cfg.View)
         cfg.View(i) = structLeavesStr2Double(cfg.View(i), fieldsToDoublify) ;
       end
+      cfg.ProjectName = app.project_name_edit.Value ;
     end  % function
 
-    function setCurrentConfig_(app, cfg)
+    function setConfig_(app, cfg)
       % Set the given config struct on the controls and on internal state.
+      app.cfg_ = cfg ;
       app.viewCount_ = cfg.NumViews ;
-      app.pointCount_ = cfg.NumLabelPoints ;
+      app.keypointCount_ = cfg.NumLabelPoints ;
       app.number_of_views_edit.Value = num2str(cfg.NumViews) ;
       app.number_of_keypoints_edit.Value = num2str(cfg.NumLabelPoints) ;
       app.has_body_tracking_checkbox.Value = cfg.Trx.HasTrx ;
       app.multiple_animals_checkbox.Value = cfg.MultiAnimal ;
-      app.syncCfgCounts_(cfg) ;
     end  % function
   end  % methods (Access = public)
 
@@ -129,29 +127,31 @@ classdef ProjectSetup < matlab.apps.AppBase
       end
 
       cfg = Labeler.cfgGetLastProjectConfigNoView() ;
-      app.setCurrentConfig_(cfg) ;
+      app.setConfig_(cfg) ;
     end  % function
 
     % Value-changed handler for the keypoint-count edit field.
-    function number_of_points_edit_Callback(app, ~)
-      val = str2double(app.number_of_keypoints_edit.Value) ;
-      if floor(val) == val && val >= 1
-        app.pointCount_ = val ;
+    function number_of_points_edit_Callback(app, event)
+      rawValue = str2double(app.number_of_keypoints_edit.Value) ;
+      if floor(rawValue) == rawValue && rawValue >= 1
+        app.keypointCount_ = rawValue ;
+        % do nothing
       else
-        app.number_of_keypoints_edit.Value = num2str(app.pointCount_) ;
+        app.number_of_keypoints_edit.Value = event.PreviousValue ;
       end
-      app.syncCfgCounts_(app.cfg_) ;
     end  % function
 
     % Value-changed handler for the view-count edit field.
-    function number_of_views_edit_Callback(app, ~)
-      val = str2double(app.number_of_views_edit.Value) ;
-      if floor(val) == val && val >= 1
-        app.viewCount_ = val ;
+    function number_of_views_edit_Callback(app, event)
+      rawValue = str2double(app.number_of_views_edit.Value) ;
+      if floor(rawValue) == rawValue && rawValue >= 1
+        app.viewCount_ = rawValue ;
+        value = rawValue ;
       else
-        app.number_of_views_edit.Value = num2str(app.viewCount_) ;
+        app.number_of_views_edit.Value = event.PreviousValue ;
+        value = str2double(event.PreviousValue) ;
       end
-      switch app.viewCount_
+      switch value
         case 1
           app.has_body_tracking_checkbox.Enable = 'on' ;
           app.multiple_animals_checkbox.Enable = 'on' ;
@@ -161,17 +161,16 @@ classdef ProjectSetup < matlab.apps.AppBase
           app.has_body_tracking_checkbox.Enable = 'off' ;
           app.multiple_animals_checkbox.Enable = 'off' ;
       end
-      app.syncCfgCounts_(app.cfg_) ;
     end  % function
 
     % Value-changed handler for the project-name edit field.
-    function project_name_edit_Callback(app, ~)
+    function project_name_edit_Callback(app, event)
       name = app.project_name_edit.Value ;
       if ~all(isstrprop(name, 'alphanum'))
         % This unfortunately invalidates _ also.  Checking for it seems more
         % work than worth.  MK 20220913
         warndlg('Name should have only alphanumeric characters') ;
-        app.project_name_edit.Value = '' ;
+        app.project_name_edit.Value = event.PreviousValue  ;
       end
     end  % function
 
@@ -206,13 +205,12 @@ classdef ProjectSetup < matlab.apps.AppBase
       lbl = loadLbl(fullfile(pth, fname)) ;
       lbl = Labeler.lblModernize(lbl) ;
       cfg = lbl.cfg ;
-      app.setCurrentConfig_(cfg) ;
+      app.setConfig_(cfg) ;
     end  % function
 
     % Button-pushed function for the Create Project button.
     function create_project_button_Callback(app, ~)
-      cfg = app.generateCurrentConfig_() ;
-      cfg.ProjectName = app.project_name_edit.Value ;
+      cfg = app.generateFinalConfig_() ;
       app.output_ = cfg ;
       delete(app.fig) ;
     end  % function
