@@ -1,24 +1,24 @@
 classdef ProjectSetup < handle
   % Widget properties
-  properties (Access = public, Transient)
-    fig                                  matlab.ui.Figure
-    project_name_label                   matlab.ui.control.Label
-    project_name_edit                    matlab.ui.control.EditField
-    number_of_keypoints_label            matlab.ui.control.Label
-    number_of_keypoints_edit             matlab.ui.control.EditField
-    number_of_keypoints_details_label    matlab.ui.control.Label
-    number_of_views_label                matlab.ui.control.Label
-    number_of_views_edit                 matlab.ui.control.EditField
-    number_of_views_details_label        matlab.ui.control.Label
-    multiple_animals_label               matlab.ui.control.Label
-    multiple_animals_checkbox            matlab.ui.control.CheckBox
-    multiple_animals_details_label       matlab.ui.control.Label
-    has_body_tracking_label              matlab.ui.control.Label
-    has_body_tracking_checkbox           matlab.ui.control.CheckBox
-    has_body_tracking_details_label      matlab.ui.control.Label
-    copy_settings_from_button            matlab.ui.control.Button
-    create_project_button                matlab.ui.control.Button
-    cancel_button                        matlab.ui.control.Button
+  properties (Access = private, Transient)
+    fig_                                 matlab.ui.Figure
+    project_name_label_                   matlab.ui.control.Label
+    project_name_edit_                    matlab.ui.control.EditField
+    number_of_keypoints_label_            matlab.ui.control.Label
+    number_of_keypoints_edit_             matlab.ui.control.EditField
+    number_of_keypoints_details_label_    matlab.ui.control.Label
+    number_of_views_label_                matlab.ui.control.Label
+    number_of_views_edit_                 matlab.ui.control.EditField
+    number_of_views_details_label_        matlab.ui.control.Label
+    multiple_animals_label_               matlab.ui.control.Label
+    multiple_animals_checkbox_            matlab.ui.control.CheckBox
+    multiple_animals_details_label_       matlab.ui.control.Label
+    has_body_tracking_label_              matlab.ui.control.Label
+    has_body_tracking_checkbox_           matlab.ui.control.CheckBox
+    has_body_tracking_details_label_      matlab.ui.control.Label
+    copy_settings_from_button_            matlab.ui.control.Button
+    create_project_button_                matlab.ui.control.Button
+    cancel_button_                        matlab.ui.control.Button
   end
 
   % Non-widget state (private in spirit; underscore suffix marks the intent)
@@ -35,18 +35,18 @@ classdef ProjectSetup < handle
     function app = ProjectSetup(varargin)
       % Build and show the ProjectSetup dialog.  Returns once the figure
       % is shown and populated; the caller is responsible for blocking
-      % (e.g. via uiwait(app.fig)) and for reading app.output afterwards.
+      % (e.g. via uiwait(app.fig_)) and for reading app.output afterwards.
       %
       %   app = ProjectSetup() ;
       %   app = ProjectSetup(hParentFig) ;  % centered on hParentFig
       app.createAndLayoutComponents_() ;
-      movegui(app.fig, 'onscreen') ;
+      movegui(app.fig_, 'onscreen') ;
       if numel(varargin) >= 1
         hParentFig = varargin{1} ;
         if ~ishandle(hParentFig)
           error('ProjectSetup:arg', 'Expected argument to be a figure handle.') ;
         end
-        centerOnParentFigure(app.fig, hParentFig) ;
+        centerOnParentFigure(app.fig_, hParentFig) ;
       end
       cfg = Labeler.cfgGetLastProjectConfigNoView() ;
       app.setCfg_(cfg) ;
@@ -54,13 +54,18 @@ classdef ProjectSetup < handle
 
     function delete(app)
       % Delete the underlying figure when the app is deleted.
-      delete(app.fig) ;
+      delete(app.fig_) ;
     end  % function
     
     function result = get.output(app)
       % Getter for output: the project-config struct chosen by the user,
       % or [] if the dialog was cancelled.
       result = app.output_ ;
+    end  % function
+
+    function uiwait(app)
+      % Block the caller until the dialog is closed.
+      uiwait(app.fig_) ;
     end  % function
   end  % methods
   
@@ -71,11 +76,11 @@ classdef ProjectSetup < handle
       % LabelPointNames, View) in line with the current view/point counts,
       % then overlays the values from the UI.
       storedCfg = app.cfg_ ;
-      projectName = app.project_name_edit.Value ;
-      keypointCount = str2double(app.number_of_keypoints_edit.Value) ;
-      viewCount = str2double(app.number_of_views_edit.Value) ;
-      hasBodyTracking = app.has_body_tracking_checkbox.Value ;
-      multipleAnimals = app.multiple_animals_checkbox.Value ;
+      projectName = app.project_name_edit_.Value ;
+      keypointCount = str2double(app.number_of_keypoints_edit_.Value) ;
+      viewCount = str2double(app.number_of_views_edit_.Value) ;
+      hasBodyTracking = app.has_body_tracking_checkbox_.Value ;
+      multipleAnimals = app.multiple_animals_checkbox_.Value ;
       result = ProjectSetup.patchCfg(storedCfg, projectName, keypointCount, viewCount, ...
                                      hasBodyTracking, multipleAnimals) ;
     end  % function
@@ -83,66 +88,66 @@ classdef ProjectSetup < handle
     function setCfg_(app, cfg)
       % Set the given config struct on the controls and on internal state.
       app.cfg_ = cfg ;
-      app.number_of_views_edit.Value = num2str(cfg.NumViews) ;
-      app.number_of_keypoints_edit.Value = num2str(cfg.NumLabelPoints) ;
-      app.has_body_tracking_checkbox.Value = cfg.Trx.HasTrx ;
-      app.multiple_animals_checkbox.Value = cfg.MultiAnimal ;
+      app.number_of_views_edit_.Value = num2str(cfg.NumViews) ;
+      app.number_of_keypoints_edit_.Value = num2str(cfg.NumLabelPoints) ;
+      app.has_body_tracking_checkbox_.Value = cfg.Trx.HasTrx ;
+      app.multiple_animals_checkbox_.Value = cfg.MultiAnimal ;
     end  % function
 
     % Value-changed handler for the keypoint-count edit field.
     function number_of_points_edit_Callback_(app, event)
-      rawValue = str2double(app.number_of_keypoints_edit.Value) ;
+      rawValue = str2double(app.number_of_keypoints_edit_.Value) ;
       if ~(floor(rawValue) == rawValue && rawValue >= 1)
-        app.number_of_keypoints_edit.Value = event.PreviousValue ;
+        app.number_of_keypoints_edit_.Value = event.PreviousValue ;
       end
     end  % function
 
     % Value-changed handler for the view-count edit field.
     function number_of_views_edit_Callback_(app, event)
-      rawValue = str2double(app.number_of_views_edit.Value) ;
+      rawValue = str2double(app.number_of_views_edit_.Value) ;
       if ~(floor(rawValue) == rawValue && rawValue >= 1)
-        app.number_of_views_edit.Value = event.PreviousValue ;
+        app.number_of_views_edit_.Value = event.PreviousValue ;
       end
-      viewCount = str2double(app.number_of_views_edit.Value) ;
+      viewCount = str2double(app.number_of_views_edit_.Value) ;
       switch viewCount
         case 1
-          app.has_body_tracking_checkbox.Enable = 'on' ;
-          app.multiple_animals_checkbox.Enable = 'on' ;
+          app.has_body_tracking_checkbox_.Enable = 'on' ;
+          app.multiple_animals_checkbox_.Enable = 'on' ;
         otherwise
-          app.has_body_tracking_checkbox.Value = false ;
-          app.multiple_animals_checkbox.Value = false ;
-          app.has_body_tracking_checkbox.Enable = 'off' ;
-          app.multiple_animals_checkbox.Enable = 'off' ;
+          app.has_body_tracking_checkbox_.Value = false ;
+          app.multiple_animals_checkbox_.Value = false ;
+          app.has_body_tracking_checkbox_.Enable = 'off' ;
+          app.multiple_animals_checkbox_.Enable = 'off' ;
       end
     end  % function
 
     % Value-changed handler for the project-name edit field.
     function project_name_edit_Callback_(app, event)
-      name = app.project_name_edit.Value ;
+      name = app.project_name_edit_.Value ;
       if ~all(isstrprop(name, 'alphanum'))
         % This unfortunately invalidates _ also.  Checking for it seems more
         % work than worth.  MK 20220913
         warndlg('Name should have only alphanumeric characters') ;
-        app.project_name_edit.Value = event.PreviousValue  ;
+        app.project_name_edit_.Value = event.PreviousValue  ;
       end
     end  % function
 
     % Close-request function for the main figure.
     function didRequestClose_(app, ~)
-      % if isequal(get(app.fig, 'waitstatus'), 'waiting')
+      % if isequal(get(app.fig_, 'waitstatus'), 'waiting')
       %   % The dialog is still in uiwait; release it.
-      %   uiresume(app.fig) ;
+      %   uiresume(app.fig_) ;
       % else
-      %   delete(app.fig) ;
+      %   delete(app.fig_) ;
       % end
       app.output_ = [] ;
-      delete(app.fig) ;
+      delete(app.fig_) ;
     end  % function
 
     % Button-pushed function for the Cancel button.
     function cancel_button_Callback_(app, ~)
       app.output_ = [] ;
-      delete(app.fig) ;
+      delete(app.fig_) ;
     end  % function
 
     % Button-pushed function for the Copy Settings From... button.
@@ -165,7 +170,7 @@ classdef ProjectSetup < handle
     function create_project_button_Callback_(app, ~)
       cfg = app.generateFinalConfig_() ;
       app.output_ = cfg ;
-      delete(app.fig) ;
+      delete(app.fig_) ;
     end  % function
 
     % Create UIFigure and components
@@ -196,21 +201,21 @@ classdef ProjectSetup < handle
       copySettingsOverlapAmount = 6 ;  % how far the Copy Settings button overlaps into the Has Body Tracking details
 
       % Create the figure
-      app.fig = uifigure('Visible', 'off') ;
-      app.fig.Color = bgColor ;
-      app.fig.Position = [100 100 figWidth initialFigHeight] ;
-      app.fig.Name = 'Project Setup' ;
-      app.fig.Resize = 'off' ;
-      app.fig.CloseRequestFcn = @(~, evt) app.didRequestClose_(evt) ;
-      app.fig.HandleVisibility = 'callback' ;
-      app.fig.Tag = 'project_setup_fig' ;
+      app.fig_ = uifigure('Visible', 'off') ;
+      app.fig_.Color = bgColor ;
+      app.fig_.Position = [100 100 figWidth initialFigHeight] ;
+      app.fig_.Name = 'Project Setup' ;
+      app.fig_.Resize = 'off' ;
+      app.fig_.CloseRequestFcn = @(~, evt) app.didRequestClose_(evt) ;
+      app.fig_.HandleVisibility = 'callback' ;
+      app.fig_.Tag = 'project_setup_fig' ;
 
       % Outer column: 7 rows.  Rows 1-5 are content sections (sized 'fit').
       % Row 6 is reserved empty space for the Copy Settings button, which is
       % added as a direct child of the figure (not the grid) so it can
       % overlap the Has Body Tracking details area above.  Row 7 holds the
       % bottom buttons.
-      outerGrid = uigridlayout(app.fig, [7 1]) ;
+      outerGrid = uigridlayout(app.fig_, [7 1]) ;
       outerGrid.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', buttonHeight, buttonHeight} ;
       outerGrid.ColumnWidth = {'1x'} ;
       outerGrid.Padding = [marginWidth marginWidth marginWidth marginWidth] ;
@@ -225,19 +230,19 @@ classdef ProjectSetup < handle
       projectNameRow.ColumnSpacing = 10 ;
       projectNameRow.BackgroundColor = bgColor ;
 
-      app.project_name_label = uilabel(projectNameRow) ;
-      app.project_name_label.Tag = 'project_name_label' ;
-      app.project_name_label.Text = 'Project Name' ;
-      app.project_name_label.FontSize = bigFontSize ;
-      app.project_name_label.FontColor = labelColor ;
-      app.project_name_label.BackgroundColor = bgColor ;
+      app.project_name_label_ = uilabel(projectNameRow) ;
+      app.project_name_label_.Tag = 'project_name_label_' ;
+      app.project_name_label_.Text = 'Project Name' ;
+      app.project_name_label_.FontSize = bigFontSize ;
+      app.project_name_label_.FontColor = labelColor ;
+      app.project_name_label_.BackgroundColor = bgColor ;
 
-      app.project_name_edit = uieditfield(projectNameRow, 'text') ;
-      app.project_name_edit.Tag = 'project_name_edit' ;
-      app.project_name_edit.ValueChangedFcn = @(~, evt) app.project_name_edit_Callback_(evt) ;
-      app.project_name_edit.FontSize = bigFontSize ;
-      app.project_name_edit.FontColor = fieldFontColor ;
-      app.project_name_edit.BackgroundColor = fieldBgColor ;
+      app.project_name_edit_ = uieditfield(projectNameRow, 'text') ;
+      app.project_name_edit_.Tag = 'project_name_edit_' ;
+      app.project_name_edit_.ValueChangedFcn = @(~, evt) app.project_name_edit_Callback_(evt) ;
+      app.project_name_edit_.FontSize = bigFontSize ;
+      app.project_name_edit_.FontColor = fieldFontColor ;
+      app.project_name_edit_.BackgroundColor = fieldBgColor ;
 
       % Row 2: Number of Keypoints ---------------------------------
       keypointsSection = uigridlayout(outerGrid, [2 1]) ;
@@ -254,30 +259,30 @@ classdef ProjectSetup < handle
       keypointsRow.ColumnSpacing = 10 ;
       keypointsRow.BackgroundColor = bgColor ;
 
-      app.number_of_keypoints_label = uilabel(keypointsRow) ;
-      app.number_of_keypoints_label.Tag = 'number_of_keypoints_label' ;
-      app.number_of_keypoints_label.Text = 'Number of Keypoints' ;
-      app.number_of_keypoints_label.FontSize = bigFontSize ;
-      app.number_of_keypoints_label.FontColor = labelColor ;
-      app.number_of_keypoints_label.BackgroundColor = bgColor ;
+      app.number_of_keypoints_label_ = uilabel(keypointsRow) ;
+      app.number_of_keypoints_label_.Tag = 'number_of_keypoints_label_' ;
+      app.number_of_keypoints_label_.Text = 'Number of Keypoints' ;
+      app.number_of_keypoints_label_.FontSize = bigFontSize ;
+      app.number_of_keypoints_label_.FontColor = labelColor ;
+      app.number_of_keypoints_label_.BackgroundColor = bgColor ;
 
-      app.number_of_keypoints_edit = uieditfield(keypointsRow, 'text') ;
-      app.number_of_keypoints_edit.Tag = 'number_of_keypoints_edit' ;
-      app.number_of_keypoints_edit.ValueChangedFcn = @(~, evt) app.number_of_points_edit_Callback_(evt) ;
-      app.number_of_keypoints_edit.HorizontalAlignment = 'right' ;
-      app.number_of_keypoints_edit.FontSize = bigFontSize ;
-      app.number_of_keypoints_edit.FontColor = fieldFontColor ;
-      app.number_of_keypoints_edit.BackgroundColor = fieldBgColor ;
-      app.number_of_keypoints_edit.Value = '12' ;
+      app.number_of_keypoints_edit_ = uieditfield(keypointsRow, 'text') ;
+      app.number_of_keypoints_edit_.Tag = 'number_of_keypoints_edit_' ;
+      app.number_of_keypoints_edit_.ValueChangedFcn = @(~, evt) app.number_of_points_edit_Callback_(evt) ;
+      app.number_of_keypoints_edit_.HorizontalAlignment = 'right' ;
+      app.number_of_keypoints_edit_.FontSize = bigFontSize ;
+      app.number_of_keypoints_edit_.FontColor = fieldFontColor ;
+      app.number_of_keypoints_edit_.BackgroundColor = fieldBgColor ;
+      app.number_of_keypoints_edit_.Value = '12' ;
 
-      app.number_of_keypoints_details_label = uilabel(keypointsSection) ;
-      app.number_of_keypoints_details_label.Tag = 'number_of_keypoints_details_label' ;
-      app.number_of_keypoints_details_label.Text = 'Number of keypoints to label for each animal' ;
-      app.number_of_keypoints_details_label.WordWrap = 'on' ;
-      app.number_of_keypoints_details_label.VerticalAlignment = 'top' ;
-      app.number_of_keypoints_details_label.FontSize = smallFontSize ;
-      app.number_of_keypoints_details_label.FontColor = labelColor ;
-      app.number_of_keypoints_details_label.BackgroundColor = bgColor ;
+      app.number_of_keypoints_details_label_ = uilabel(keypointsSection) ;
+      app.number_of_keypoints_details_label_.Tag = 'number_of_keypoints_details_label_' ;
+      app.number_of_keypoints_details_label_.Text = 'Number of keypoints to label for each animal' ;
+      app.number_of_keypoints_details_label_.WordWrap = 'on' ;
+      app.number_of_keypoints_details_label_.VerticalAlignment = 'top' ;
+      app.number_of_keypoints_details_label_.FontSize = smallFontSize ;
+      app.number_of_keypoints_details_label_.FontColor = labelColor ;
+      app.number_of_keypoints_details_label_.BackgroundColor = bgColor ;
 
       % Row 3: Number of Views -------------------------------------
       viewsSection = uigridlayout(outerGrid, [2 1]) ;
@@ -294,30 +299,30 @@ classdef ProjectSetup < handle
       viewsRow.ColumnSpacing = 10 ;
       viewsRow.BackgroundColor = bgColor ;
 
-      app.number_of_views_label = uilabel(viewsRow) ;
-      app.number_of_views_label.Tag = 'number_of_views_label' ;
-      app.number_of_views_label.Text = 'Number of Views' ;
-      app.number_of_views_label.FontSize = bigFontSize ;
-      app.number_of_views_label.FontColor = labelColor ;
-      app.number_of_views_label.BackgroundColor = bgColor ;
+      app.number_of_views_label_ = uilabel(viewsRow) ;
+      app.number_of_views_label_.Tag = 'number_of_views_label_' ;
+      app.number_of_views_label_.Text = 'Number of Views' ;
+      app.number_of_views_label_.FontSize = bigFontSize ;
+      app.number_of_views_label_.FontColor = labelColor ;
+      app.number_of_views_label_.BackgroundColor = bgColor ;
 
-      app.number_of_views_edit = uieditfield(viewsRow, 'text') ;
-      app.number_of_views_edit.Tag = 'number_of_views_edit' ;
-      app.number_of_views_edit.ValueChangedFcn = @(~, evt) app.number_of_views_edit_Callback_(evt) ;
-      app.number_of_views_edit.HorizontalAlignment = 'right' ;
-      app.number_of_views_edit.FontSize = bigFontSize ;
-      app.number_of_views_edit.FontColor = fieldFontColor ;
-      app.number_of_views_edit.BackgroundColor = fieldBgColor ;
-      app.number_of_views_edit.Value = '1' ;
+      app.number_of_views_edit_ = uieditfield(viewsRow, 'text') ;
+      app.number_of_views_edit_.Tag = 'number_of_views_edit_' ;
+      app.number_of_views_edit_.ValueChangedFcn = @(~, evt) app.number_of_views_edit_Callback_(evt) ;
+      app.number_of_views_edit_.HorizontalAlignment = 'right' ;
+      app.number_of_views_edit_.FontSize = bigFontSize ;
+      app.number_of_views_edit_.FontColor = fieldFontColor ;
+      app.number_of_views_edit_.BackgroundColor = fieldBgColor ;
+      app.number_of_views_edit_.Value = '1' ;
 
-      app.number_of_views_details_label = uilabel(viewsSection) ;
-      app.number_of_views_details_label.Tag = 'number_of_views_details_label' ;
-      app.number_of_views_details_label.Text = 'APT can do 3D labeling and tracking from multiple calibrated cameras. Enter 1 if animals were imaged from just one camera. Otherwise, enter the number of synced cameras recording the animals.' ;
-      app.number_of_views_details_label.WordWrap = 'on' ;
-      app.number_of_views_details_label.VerticalAlignment = 'top' ;
-      app.number_of_views_details_label.FontSize = smallFontSize ;
-      app.number_of_views_details_label.FontColor = labelColor ;
-      app.number_of_views_details_label.BackgroundColor = bgColor ;
+      app.number_of_views_details_label_ = uilabel(viewsSection) ;
+      app.number_of_views_details_label_.Tag = 'number_of_views_details_label_' ;
+      app.number_of_views_details_label_.Text = 'APT can do 3D labeling and tracking from multiple calibrated cameras. Enter 1 if animals were imaged from just one camera. Otherwise, enter the number of synced cameras recording the animals.' ;
+      app.number_of_views_details_label_.WordWrap = 'on' ;
+      app.number_of_views_details_label_.VerticalAlignment = 'top' ;
+      app.number_of_views_details_label_.FontSize = smallFontSize ;
+      app.number_of_views_details_label_.FontColor = labelColor ;
+      app.number_of_views_details_label_.BackgroundColor = bgColor ;
 
       % Row 4: Multiple Animals ------------------------------------
       multipleAnimalsSection = uigridlayout(outerGrid, [2 1]) ;
@@ -334,37 +339,37 @@ classdef ProjectSetup < handle
       multipleAnimalsRow.ColumnSpacing = 10 ;
       multipleAnimalsRow.BackgroundColor = bgColor ;
 
-      app.multiple_animals_label = uilabel(multipleAnimalsRow) ;
-      app.multiple_animals_label.Tag = 'multiple_animals_label' ;
-      app.multiple_animals_label.Text = 'Multiple Animals?' ;
-      app.multiple_animals_label.FontSize = bigFontSize ;
-      app.multiple_animals_label.FontColor = labelColor ;
-      app.multiple_animals_label.BackgroundColor = bgColor ;
+      app.multiple_animals_label_ = uilabel(multipleAnimalsRow) ;
+      app.multiple_animals_label_.Tag = 'multiple_animals_label_' ;
+      app.multiple_animals_label_.Text = 'Multiple Animals?' ;
+      app.multiple_animals_label_.FontSize = bigFontSize ;
+      app.multiple_animals_label_.FontColor = labelColor ;
+      app.multiple_animals_label_.BackgroundColor = bgColor ;
 
-      % Center multiple_animals_checkbox horizontally within the numberFieldWidth-wide cell so
+      % Center multiple_animals_checkbox_ horizontally within the numberFieldWidth-wide cell so
       % it aligns with the centered "12" / "1" in the number fields above.
-      multiple_animals_checkboxCell = uigridlayout(multipleAnimalsRow, [1 3]) ;
-      multiple_animals_checkboxCell.ColumnWidth = {'1x', 'fit', '1x'} ;
-      multiple_animals_checkboxCell.RowHeight = {'fit'} ;
-      multiple_animals_checkboxCell.Padding = [0 0 0 0] ;
-      multiple_animals_checkboxCell.ColumnSpacing = 0 ;
-      multiple_animals_checkboxCell.BackgroundColor = bgColor ;
+      multiple_animals_checkbox_Cell = uigridlayout(multipleAnimalsRow, [1 3]) ;
+      multiple_animals_checkbox_Cell.ColumnWidth = {'1x', 'fit', '1x'} ;
+      multiple_animals_checkbox_Cell.RowHeight = {'fit'} ;
+      multiple_animals_checkbox_Cell.Padding = [0 0 0 0] ;
+      multiple_animals_checkbox_Cell.ColumnSpacing = 0 ;
+      multiple_animals_checkbox_Cell.BackgroundColor = bgColor ;
 
-      app.multiple_animals_checkbox = uicheckbox(multiple_animals_checkboxCell) ;
-      app.multiple_animals_checkbox.Tag = 'multiple_animals_checkbox' ;
-      app.multiple_animals_checkbox.Layout.Column = 2 ;
-      app.multiple_animals_checkbox.Text = '' ;
-      app.multiple_animals_checkbox.FontSize = bigFontSize ;
-      app.multiple_animals_checkbox.FontColor = labelColor ;
+      app.multiple_animals_checkbox_ = uicheckbox(multiple_animals_checkbox_Cell) ;
+      app.multiple_animals_checkbox_.Tag = 'multiple_animals_checkbox_' ;
+      app.multiple_animals_checkbox_.Layout.Column = 2 ;
+      app.multiple_animals_checkbox_.Text = '' ;
+      app.multiple_animals_checkbox_.FontSize = bigFontSize ;
+      app.multiple_animals_checkbox_.FontColor = labelColor ;
 
-      app.multiple_animals_details_label = uilabel(multipleAnimalsSection) ;
-      app.multiple_animals_details_label.Tag = 'multiple_animals_details_label' ;
-      app.multiple_animals_details_label.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.' ;
-      app.multiple_animals_details_label.WordWrap = 'on' ;
-      app.multiple_animals_details_label.VerticalAlignment = 'top' ;
-      app.multiple_animals_details_label.FontSize = smallFontSize ;
-      app.multiple_animals_details_label.FontColor = labelColor ;
-      app.multiple_animals_details_label.BackgroundColor = bgColor ;
+      app.multiple_animals_details_label_ = uilabel(multipleAnimalsSection) ;
+      app.multiple_animals_details_label_.Tag = 'multiple_animals_details_label_' ;
+      app.multiple_animals_details_label_.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.' ;
+      app.multiple_animals_details_label_.WordWrap = 'on' ;
+      app.multiple_animals_details_label_.VerticalAlignment = 'top' ;
+      app.multiple_animals_details_label_.FontSize = smallFontSize ;
+      app.multiple_animals_details_label_.FontColor = labelColor ;
+      app.multiple_animals_details_label_.BackgroundColor = bgColor ;
 
       % Row 5: Has Body Tracking -----------------------------------
       hasBodyTrackingSection = uigridlayout(outerGrid, [2 1]) ;
@@ -381,37 +386,37 @@ classdef ProjectSetup < handle
       hasBodyTrackingRow.ColumnSpacing = 10 ;
       hasBodyTrackingRow.BackgroundColor = bgColor ;
 
-      app.has_body_tracking_label = uilabel(hasBodyTrackingRow) ;
-      app.has_body_tracking_label.Tag = 'has_body_tracking_label' ;
-      app.has_body_tracking_label.Text = 'Has Body Tracking?' ;
-      app.has_body_tracking_label.FontSize = bigFontSize ;
-      app.has_body_tracking_label.FontColor = labelColor ;
-      app.has_body_tracking_label.BackgroundColor = bgColor ;
+      app.has_body_tracking_label_ = uilabel(hasBodyTrackingRow) ;
+      app.has_body_tracking_label_.Tag = 'has_body_tracking_label_' ;
+      app.has_body_tracking_label_.Text = 'Has Body Tracking?' ;
+      app.has_body_tracking_label_.FontSize = bigFontSize ;
+      app.has_body_tracking_label_.FontColor = labelColor ;
+      app.has_body_tracking_label_.BackgroundColor = bgColor ;
 
-      has_body_tracking_checkboxCell = uigridlayout(hasBodyTrackingRow, [1 3]) ;
-      has_body_tracking_checkboxCell.ColumnWidth = {'1x', 'fit', '1x'} ;
-      has_body_tracking_checkboxCell.RowHeight = {'fit'} ;
-      has_body_tracking_checkboxCell.Padding = [0 0 0 0] ;
-      has_body_tracking_checkboxCell.ColumnSpacing = 0 ;
-      has_body_tracking_checkboxCell.BackgroundColor = bgColor ;
+      has_body_tracking_checkbox_Cell = uigridlayout(hasBodyTrackingRow, [1 3]) ;
+      has_body_tracking_checkbox_Cell.ColumnWidth = {'1x', 'fit', '1x'} ;
+      has_body_tracking_checkbox_Cell.RowHeight = {'fit'} ;
+      has_body_tracking_checkbox_Cell.Padding = [0 0 0 0] ;
+      has_body_tracking_checkbox_Cell.ColumnSpacing = 0 ;
+      has_body_tracking_checkbox_Cell.BackgroundColor = bgColor ;
 
-      app.has_body_tracking_checkbox = uicheckbox(has_body_tracking_checkboxCell) ;
-      app.has_body_tracking_checkbox.Tag = 'has_body_tracking_checkbox' ;
-      app.has_body_tracking_checkbox.Layout.Column = 2 ;
-      app.has_body_tracking_checkbox.Text = '' ;
-      app.has_body_tracking_checkbox.FontSize = 24 ;
-      app.has_body_tracking_checkbox.FontColor = labelColor ;
+      app.has_body_tracking_checkbox_ = uicheckbox(has_body_tracking_checkbox_Cell) ;
+      app.has_body_tracking_checkbox_.Tag = 'has_body_tracking_checkbox_' ;
+      app.has_body_tracking_checkbox_.Layout.Column = 2 ;
+      app.has_body_tracking_checkbox_.Text = '' ;
+      app.has_body_tracking_checkbox_.FontSize = 24 ;
+      app.has_body_tracking_checkbox_.FontColor = labelColor ;
 
-      app.has_body_tracking_details_label = uilabel(hasBodyTrackingSection) ;
-      app.has_body_tracking_details_label.Tag = 'has_body_tracking_details_label' ;
-      app.has_body_tracking_details_label.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.' ;
-      app.has_body_tracking_details_label.WordWrap = 'on' ;
-      app.has_body_tracking_details_label.VerticalAlignment = 'top' ;
-      app.has_body_tracking_details_label.FontSize = smallFontSize ;
-      app.has_body_tracking_details_label.FontColor = labelColor ;
-      app.has_body_tracking_details_label.BackgroundColor = bgColor ;
+      app.has_body_tracking_details_label_ = uilabel(hasBodyTrackingSection) ;
+      app.has_body_tracking_details_label_.Tag = 'has_body_tracking_details_label_' ;
+      app.has_body_tracking_details_label_.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.' ;
+      app.has_body_tracking_details_label_.WordWrap = 'on' ;
+      app.has_body_tracking_details_label_.VerticalAlignment = 'top' ;
+      app.has_body_tracking_details_label_.FontSize = smallFontSize ;
+      app.has_body_tracking_details_label_.FontColor = labelColor ;
+      app.has_body_tracking_details_label_.BackgroundColor = bgColor ;
 
-      % Row 6 is reserved empty space; copy_settings_from_button is added below as
+      % Row 6 is reserved empty space; copy_settings_from_button_ is added below as
       % a direct child of the figure so it can overlap the Has Body Tracking
       % details area in row 5.
       emptyRow = uigridlayout(outerGrid, [1 1]) ;
@@ -428,48 +433,48 @@ classdef ProjectSetup < handle
       bottomButtonsRow.ColumnSpacing = 0 ;
       bottomButtonsRow.BackgroundColor = bgColor ;
 
-      app.create_project_button = uibutton(bottomButtonsRow, 'push') ;
-      app.create_project_button.Tag = 'create_project_button' ;
-      app.create_project_button.Layout.Column = 2 ;
-      app.create_project_button.ButtonPushedFcn = @(~, evt) app.create_project_button_Callback_(evt) ;
-      app.create_project_button.BackgroundColor = fieldBgColor ;
-      app.create_project_button.FontSize = bigFontSize ;
-      app.create_project_button.FontColor = fieldFontColor ;
-      app.create_project_button.Text = 'Create Project' ;
+      app.create_project_button_ = uibutton(bottomButtonsRow, 'push') ;
+      app.create_project_button_.Tag = 'create_project_button_' ;
+      app.create_project_button_.Layout.Column = 2 ;
+      app.create_project_button_.ButtonPushedFcn = @(~, evt) app.create_project_button_Callback_(evt) ;
+      app.create_project_button_.BackgroundColor = fieldBgColor ;
+      app.create_project_button_.FontSize = bigFontSize ;
+      app.create_project_button_.FontColor = fieldFontColor ;
+      app.create_project_button_.Text = 'Create Project' ;
 
-      app.cancel_button = uibutton(bottomButtonsRow, 'push') ;
-      app.cancel_button.Tag = 'cancel_button' ;
-      app.cancel_button.Layout.Column = 4 ;
-      app.cancel_button.ButtonPushedFcn = @(~, evt) app.cancel_button_Callback_(evt) ;
-      app.cancel_button.BackgroundColor = fieldBgColor ;
-      app.cancel_button.FontSize = bigFontSize ;
-      app.cancel_button.FontColor = fieldFontColor ;
-      app.cancel_button.Text = 'Cancel' ;
+      app.cancel_button_ = uibutton(bottomButtonsRow, 'push') ;
+      app.cancel_button_.Tag = 'cancel_button_' ;
+      app.cancel_button_.Layout.Column = 4 ;
+      app.cancel_button_.ButtonPushedFcn = @(~, evt) app.cancel_button_Callback_(evt) ;
+      app.cancel_button_.BackgroundColor = fieldBgColor ;
+      app.cancel_button_.FontSize = bigFontSize ;
+      app.cancel_button_.FontColor = fieldFontColor ;
+      app.cancel_button_.Text = 'Cancel' ;
 
       % Show the figure so uigridlayout resolves to real pixel positions,
       % then resize the figure to fit the natural content height.
-      app.fig.Visible = 'on' ;
-      shrinkFigureToFitContentBang(app.fig, outerGrid) ;
+      app.fig_.Visible = 'on' ;
+      shrinkFigureToFitContentBang(app.fig_, outerGrid) ;
 
       % Copy Settings... button.  Created as a direct child of the figure
       % (not inside outerGrid) so it can overlap into the Has Body Tracking
       % details area above, matching the look of the original GUIDE layout.
       % Drawn on top of outerGrid because it is created later.
-      app.copy_settings_from_button = uibutton(app.fig, 'push') ;
-      app.copy_settings_from_button.Tag = 'copy_settings_from_button' ;
-      app.copy_settings_from_button.ButtonPushedFcn = @(~, evt) app.copy_settings_from_button_Callback_(evt) ;
-      app.copy_settings_from_button.BackgroundColor = fieldBgColor ;
-      app.copy_settings_from_button.FontSize = bigFontSize ;
-      app.copy_settings_from_button.FontColor = labelColor ;
-      app.copy_settings_from_button.Tooltip = 'Copy settings from an existing project' ;
-      app.copy_settings_from_button.Text = 'Copy Settings...' ;
+      app.copy_settings_from_button_ = uibutton(app.fig_, 'push') ;
+      app.copy_settings_from_button_.Tag = 'copy_settings_from_button_' ;
+      app.copy_settings_from_button_.ButtonPushedFcn = @(~, evt) app.copy_settings_from_button_Callback_(evt) ;
+      app.copy_settings_from_button_.BackgroundColor = fieldBgColor ;
+      app.copy_settings_from_button_.FontSize = bigFontSize ;
+      app.copy_settings_from_button_.FontColor = labelColor ;
+      app.copy_settings_from_button_.Tooltip = 'Copy settings from an existing project' ;
+      app.copy_settings_from_button_.Text = 'Copy Settings...' ;
       % Position derived from the known outerGrid layout.  Bottom of the Has
       % Body Tracking details label, measured from the figure bottom, is:
       %   marginWidth + row 7 + spacing + row 6 + spacing
       detailsBottomY = marginWidth + buttonHeight + outerGridRowSpacing + buttonHeight + outerGridRowSpacing ;
       copySettingsButtonX = (figWidth - marginWidth) - copySettingsButtonWidth ;
       copySettingsButtonY = detailsBottomY + copySettingsOverlapAmount - buttonHeight ;
-      app.copy_settings_from_button.Position = [copySettingsButtonX, copySettingsButtonY, copySettingsButtonWidth, buttonHeight] ;
+      app.copy_settings_from_button_.Position = [copySettingsButtonX, copySettingsButtonY, copySettingsButtonWidth, buttonHeight] ;
     end  % function
   end  % methods (Access = private)
 
