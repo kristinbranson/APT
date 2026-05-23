@@ -26,7 +26,6 @@ classdef ProjectSetup < matlab.apps.AppBase
   properties (Access = private, Transient)
     viewCount_  = 1
     pointCount_ = 1
-    propsPane_  = []
     mirror_     = []
     output_     = []
   end
@@ -36,14 +35,6 @@ classdef ProjectSetup < matlab.apps.AppBase
   end
 
   methods
-    function result = get.output(app)
-      % Getter for output: the project-config struct chosen by the user,
-      % or [] if the dialog was cancelled.
-      result = app.output_ ;
-    end  % function
-  end  % methods
-
-  methods (Access = public)
     function app = ProjectSetup(varargin)
       % Build and show the ProjectSetup dialog; block until the user closes it.
       app.createComponents() ;
@@ -55,8 +46,16 @@ classdef ProjectSetup < matlab.apps.AppBase
       % Delete the underlying figure when the app is deleted.
       delete(app.fig) ;
     end  % function
-
-    function advTableRefresh_(app, sMirror)
+    
+    function result = get.output(app)
+      % Getter for output: the project-config struct chosen by the user,
+      % or [] if the dialog was cancelled.
+      result = app.output_ ;
+    end  % function
+  end  % methods
+  
+  methods (Access = public)
+    function syncMirrorCounts_(app, sMirror)
       % Refresh the advanced-properties table to match the current view and
       % point counts.  If sMirror is supplied, it replaces the current mirror;
       % otherwise the existing mirror is reused.
@@ -67,11 +66,6 @@ classdef ProjectSetup < matlab.apps.AppBase
       sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror, 'LabelPointNames', 'point', app.pointCount_) ;
       sMirror = Labeler.hlpAugmentOrTruncStructField(sMirror, 'View', app.viewCount_) ;
       app.mirror_ = sMirror ;
-      if ~isempty(app.propsPane_) && ishandle(app.propsPane_)
-        delete(app.propsPane_) ;
-        app.propsPane_ = [] ;
-      end
-      app.propsPane_ = [] ;  % newPropertiesGUI(app.pnlAdvanced, sMirror) when re-enabled
     end  % function
 
     function cfg = genCurrentConfig_(app)
@@ -110,7 +104,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       app.has_body_tracking_checkbox.Value = cfg.Trx.HasTrx ;
       app.multiple_animals_checkbox.Value = cfg.MultiAnimal ;
       sMirror = Labeler.cfg2mirror(cfg) ;
-      app.advTableRefresh_(sMirror) ;
+      app.syncMirrorCounts_(sMirror) ;
     end  % function
   end  % methods (Access = public)
 
@@ -144,7 +138,7 @@ classdef ProjectSetup < matlab.apps.AppBase
       else
         app.number_of_keypoints_edit.Value = num2str(app.pointCount_) ;
       end
-      app.advTableRefresh_() ;
+      app.syncMirrorCounts_() ;
     end  % function
 
     % Value-changed handler for the view-count edit field.
@@ -165,7 +159,7 @@ classdef ProjectSetup < matlab.apps.AppBase
           app.has_body_tracking_checkbox.Enable = 'off' ;
           app.multiple_animals_checkbox.Enable = 'off' ;
       end
-      app.advTableRefresh_() ;
+      app.syncMirrorCounts_() ;
     end  % function
 
     % Value-changed handler for the project-name edit field.
