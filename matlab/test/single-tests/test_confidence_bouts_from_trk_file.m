@@ -77,7 +77,7 @@ end
 
 % Plot each case for visual inspection.
 f = plotAllCases(caseInfo, resultFromCaseIndex) ;
-cleaner = onCleanup(@()(delete(f))) ;  %#ok<NASGU>
+cleaner = onCleanup(@()(delete(f))) ;
 
 % Second pass: check each case's results against expectations.
 for caseIndex = 1 : numel(caseInfo)
