@@ -2,16 +2,14 @@ function [firstFrameIndexFromSortedBoutIndex, lastFrameIndexFromSortedBoutIndex,
           trackletIndexFromSortedBoutIndex, targetIndexFromSortedBoutIndex, extremalConfFromSortedBoutIndex, ...
           minConf, maxConf, ...
           absoluteThreshold] = ...
-  confidenceBoutsFromTrkFile(trkFile, naiveQuantileThreshold, isConfidenceLackThereof)
-% Find bouts of consecutive frames whose confidence is above a threshold.
+  confidenceBoutsFromTrkFile(trkFile, naiveQuantileThreshold)
+% Find bouts of consecutive frames whose minimum landmark confidence falls
+% at or below a quantile-derived threshold (i.e. uncertain bouts).
 %
 % A bout is a maximal contiguous run of consecutive frames (within a single
-% tracklet) where confidence stays below (or above, in lack-thereof mode)
-% the quantile-derived threshold.  Each bout is represented by the frame
-% achieving the extreme confidence within the run.
-%
-% The quantile threshold is interpreted on per-frame minima in the normal
-% mode and on per-frame maxima in lack-thereof mode.
+% tracklet) where the per-frame minimum landmark confidence stays at or
+% below the quantile-derived threshold.  Each bout is represented by the
+% frame achieving the minimum confidence within the run.
 %
 % Returns empty column vectors and NaN extremes when there are no bouts.
 
@@ -50,19 +48,14 @@ end
 minConf = min(minConfFromPairIndex) ;
 maxConf = max(maxConfFromPairIndex) ;
 
-% Compute the quantile threshold.  The convention is that a higher quantile
-% threshold should result in fewer points 'passing through the filter'.  If
-% "confidence" is actually lack-of-confidence (i.e. uncertainty), then we
-% can just use naiveQuantileThreshold and this works with quantile().  But
-% if "confidence" really is confidence, we need to use
-% 1-naiveQuantileThreshold when we call quantile() to get the desired
-% semantics.
-quantileThreshold = fif(isConfidenceLackThereof, naiveQuantileThreshold, 1-naiveQuantileThreshold) ;
-confFromPairIndex = fif(isConfidenceLackThereof, maxConfFromPairIndex, minConfFromPairIndex) ;
-absoluteThreshold = quantile(confFromPairIndex, quantileThreshold) ;
+% Compute the quantile threshold.  Higher naiveQuantileThreshold should
+% produce fewer (more strictly uncertain) bouts, so we invert to get the
+% per-frame-minimum quantile.
+quantileThreshold = 1 - naiveQuantileThreshold ;
+absoluteThreshold = quantile(minConfFromPairIndex, quantileThreshold) ;
 
 % Build bouts: contiguous runs of consecutive frames (within a single
-% tracklet) that pass the confidence threshold.
+% tracklet) whose minimum landmark confidence is at or below the threshold.
 [firstFrameIndexFromTrackletBoutIndexFromTrackletIndex, ...
  lastFrameIndexFromTrackletBoutIndexFromTrackletIndex, ...
  extremalFrameIndexFromTrackletBoutIndexFromTrackletIndex, ...
@@ -79,8 +72,7 @@ absoluteThreshold = quantile(confFromPairIndex, quantileThreshold) ;
                                           targetIndex, ...
                                           minConfFromTrackletFrameIndex, ...
                                           maxConfFromTrackletFrameIndex, ...
-                                          absoluteThreshold, ...
-                                          isConfidenceLackThereof), ...
+                                          absoluteThreshold), ...
           frameIndexFromTrackletFrameIndexFromTrackletIndex, ...
           trackletIndexFromTrackletIndex, ...
           targetIndexFromTrackletIndex, ...
@@ -97,9 +89,8 @@ targetIndexFromBoutIndex = vertcat(targetIndexFromTrackletBoutIndexFromTrackletI
 extremalConfFromBoutIndex = vertcat(extremalConfFromTrackletBoutIndexFromTrackletIndex{:}) ;
 extremeConfFrameIndexFromBoutIndex = vertcat(extremalFrameIndexFromTrackletBoutIndexFromTrackletIndex{:}) ;
 
-% Sort bouts by extremal confidence.
-sortOrder = fif(isConfidenceLackThereof, 'descend', 'ascend') ;
-[~, boutIndexFromSortedBoutIndex] = sort(extremalConfFromBoutIndex, sortOrder) ;
+% Sort bouts by extremal (minimum) confidence: most uncertain first.
+[~, boutIndexFromSortedBoutIndex] = sort(extremalConfFromBoutIndex, 'ascend') ;
 
 % Sort everything else according to the sort order
 firstFrameIndexFromSortedBoutIndex = firstFrameIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;

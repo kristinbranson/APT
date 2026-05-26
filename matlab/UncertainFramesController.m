@@ -6,7 +6,6 @@ classdef UncertainFramesController < handle
     labeler_  % Labeler
     model_  % UncertainFramesModel
     figure_  % figure handle
-    checkbox_  % uicontrol checkbox for confidence-is-lack-thereof
     thresholdLabel_  % uicontrol text label for threshold
     thresholdEdit_  % uicontrol edit box for threshold
     thresholdHint_  % uicontrol text label showing min/max when listbox is empty
@@ -45,7 +44,6 @@ classdef UncertainFramesController < handle
       if ~obj.hasValidFigure_
         obj.createFigure_() ;
       end
-      obj.checkbox_.Value = model.isConfidenceLackThereof ;
       obj.thresholdEdit_.String = sprintf('%g', model.quantileConfidenceThreshold) ;
       absoluteThreshold = model.absoluteConfidenceThreshold ;
       if isfinite(absoluteThreshold)
@@ -83,11 +81,6 @@ classdef UncertainFramesController < handle
       obj.model_.isVisible = false ;
     end  % function
 
-    function uncertain_frames_confidence_lack_thereof_checkbox_actuated_(obj, src)
-      % Handle checkbox toggle for confidence-is-lack-thereof.
-      obj.model_.isConfidenceLackThereof = logical(src.Value) ;
-    end  % function
-
     function uncertain_frames_threshold_edit_actuated_(obj, src)
       % Handle threshold edit box change.
       newValue = str2double(src.String) ;
@@ -98,9 +91,8 @@ classdef UncertainFramesController < handle
       % Adjust child positions when figure is resized.
       %
       % Layout is top-to-bottom:
-      %   1. Checkbox (full width)
-      %   2. Threshold row: label + edit box side by side
-      %   3. Listbox (fills remaining space)
+      %   1. Threshold row: label + edit box + hint label
+      %   2. Listbox (fills remaining space)
       if ~obj.hasValidFigure_
         return
       end
@@ -109,20 +101,15 @@ classdef UncertainFramesController < handle
       figWidth = figPos(3) ;
       figHeight = figPos(4) ;
       pad = 10 ;  % inset from figure edges on all sides
-      checkboxHeight = 20 ;
       thresholdRowHeight = 22 ;  % height of the threshold label+edit row
       gap = 5 ;  % vertical space between rows
       labelWidth = 64 ;
       editWidth = 80 ;
       editGap = 5 ;  % horizontal space between label and edit box
 
-      % Checkbox spans the full width at the top
-      obj.checkbox_.Position = ...
-        [pad, figHeight - pad - checkboxHeight, figWidth - 2*pad, checkboxHeight] ;
-
-      % Threshold row sits below the checkbox.  The label is shorter than
-      % the edit box, so we vertically center it within the row height.
-      thresholdRowTop = figHeight - pad - checkboxHeight - gap ;
+      % Threshold row sits at the top.  The label is shorter than the edit
+      % box, so vertically center it within the row height.
+      thresholdRowTop = figHeight - pad ;
       labelHeight = 16 ;
       labelBottom = thresholdRowTop - thresholdRowHeight + (thresholdRowHeight - labelHeight) / 2 - 1 ;
         % - 1 is a fudge factor to make it look visually centered
@@ -157,13 +144,6 @@ classdef UncertainFramesController < handle
         'Tag', 'uncertain_frames_figure', ...
         'Visible', 'off', ...
         'CloseRequestFcn', @(src, evt)(obj.hideRequested())) ;
-
-      obj.checkbox_ = uicontrol(...
-        'Parent', obj.figure_, ...
-        'Style', 'checkbox', ...
-        'String', '"Confidence" is lack thereof', ...
-        'Value', 0, ...
-        'Tag', 'uncertain_frames_confidence_lack_thereof_checkbox') ;
 
       obj.thresholdLabel_ = uicontrol(...
         'Parent', obj.figure_, ...

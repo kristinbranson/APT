@@ -14398,7 +14398,10 @@ classdef Labeler < handle
         title = 'Message' ;
       end
       if obj.isInInteractiveMode
-        obj.dialogLaunchPad_ = struct('text', text, 'title', title) ;
+        obj.dialogLaunchPad_ = struct('text', {text}, 'title', {title}) ;
+          % every value wrapped in a cell so struct() always produces a
+          % scalar struct, regardless of whether any field value is a
+          % cell array.
         obj.notify_('requestMessageBox') ;
       else
         fprintf('%s\n', text) ;
@@ -14409,10 +14412,13 @@ classdef Labeler < handle
       % Ask the user a question via the controller, or return the default if
       % no controller is present, or if obj is in batch mode.
       if obj.isInInteractiveMode
-        obj.dialogLaunchPad_ = struct('text', text, ...
-                                      'title', title, ...
+        obj.dialogLaunchPad_ = struct('text', {text}, ...
+                                      'title', {title}, ...
                                       'buttons', {buttons}, ...
-                                      'default', default) ;
+                                      'default', {default}) ;
+          % every value wrapped in a cell so struct() always produces a
+          % scalar struct, regardless of whether any field value is a
+          % cell array.
         obj.dialogLandingPad_ = default ;
         obj.notify_('requestQuestionDialog') ;
         answer = obj.dialogLandingPad_ ;

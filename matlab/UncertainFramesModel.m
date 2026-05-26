@@ -3,9 +3,6 @@ classdef UncertainFramesModel < handle
   % for the current movie.
 
   properties (Access=private)
-    isConfidenceLackThereof_ = false
-      % scalar logical, when true the UI finds high-confidence bouts instead of
-      % low-confidence bouts.
     quantileConfidenceThreshold_ = 0.95
       % scalar double, the quantile threshold (0-1) for filtering bouts.
   end
@@ -32,7 +29,6 @@ classdef UncertainFramesModel < handle
   properties (Dependent)
     isLaden
     isVisible
-    isConfidenceLackThereof
     absoluteConfidenceThreshold
     quantileConfidenceThreshold
     overallMinConfidence
@@ -72,20 +68,6 @@ classdef UncertainFramesModel < handle
       obj.syncFromPredictionsIfStaleAndVisible_() ;
       obj.labeler_.notifyRetrograde('updateUncertainFrames') ;
       obj.labeler_.notifyRetrograde('didSetUncertainFramesIsVisible') ;
-    end  % function
-
-    function result = get.isConfidenceLackThereof(obj)
-      % Return whether confidence values are treated as lack-of-confidence.
-      result = obj.isConfidenceLackThereof_ ;
-    end  % function
-
-    function set.isConfidenceLackThereof(obj, newValue)
-      % Set whether confidence values are treated as lack-of-confidence,
-      % then resync and notify.
-      obj.isConfidenceLackThereof_ = newValue ;
-      obj.isFresh_ = false ;
-      obj.syncFromPredictionsIfStaleAndVisible_() ;
-      obj.labeler_.notifyRetrograde('updateUncertainFrames') ;
     end  % function
 
     function result = get.absoluteConfidenceThreshold(obj)
@@ -260,7 +242,7 @@ classdef UncertainFramesModel < handle
        obj.overallMinConfidence_, ...
        obj.overallMaxConfidence_, ...
        obj.absoluteConfidenceThreshold_] = ...
-        confidenceBoutsFromTrkFile(trkFile, obj.quantileConfidenceThreshold_, obj.isConfidenceLackThereof_) ;
+        confidenceBoutsFromTrkFile(trkFile, obj.quantileConfidenceThreshold_) ;
       obj.isFresh_ = true ;
     end  % function
 
