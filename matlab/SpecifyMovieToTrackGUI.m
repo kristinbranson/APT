@@ -335,51 +335,25 @@ classdef SpecifyMovieToTrackGUI < handle
           'Callback',@(h,e) obj.pb_control_Callback(h,e,controlbuttontags{i}));
       end
 
-      % Add path display toggle buttons to the right
-      pathToggleW = 0.08;
-      pathToggleSpacing = 0.005;
-      pathToggleX1 = 1 - obj.posinfo.border - 2*pathToggleW - pathToggleSpacing;
-
-      % Load icon images
-      leftAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_left.png'));
-      rightAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_right.png'));
-      if ndims(leftAlignIcon)==2
-        leftAlignIcon = repmat(leftAlignIcon,[1 1 3]);
+      % Add path-display popupmenu, right-aligned with the edit fields above
+      pathPopupW = 0.099 ;  % ~60% of the prior toggle-pair width
+      pathPopupX1 = obj.posinfo.editx + obj.posinfo.editw - pathPopupW ;
+      if obj.showPathEnds
+        pathPopupValue = 2;
+      else
+        pathPopupValue = 1;
       end
-      if ndims(rightAlignIcon)==2
-        rightAlignIcon = repmat(rightAlignIcon,[1 1 3]);
-      end
-
-      % Create button group for path toggle buttons
-      obj.gdata.bg_path = uibuttongroup(obj.gdata.fig,...
-        'BackgroundColor',obj.colorinfo.backgroundcolor,...
-        'BorderType','none',...
+      obj.gdata.pum_path = uicontrol(obj.gdata.fig,...
+        'Style','popupmenu',...
         'Units','normalized',...
-        'Position',[pathToggleX1 controlbuttony 2*pathToggleW+pathToggleSpacing obj.posinfo.rowh],...
-        'SelectionChangedFcn',@(src,evt) obj.pathToggleChanged(src,evt));
-
-      % "Starts" toggle button (left side)
-      obj.gdata.tb_path_starts = uitogglebutton(obj.gdata.bg_path,...
-        'Text','',...
-        'Icon',leftAlignIcon,...
-        'Tooltip','Show path starts',...
-        'FontColor','w','BackgroundColor',[1,1,1],...
-        'FontWeight','bold',...
-        'Value',~obj.showPathEnds,...
-        'Tag','togglebutton_path_starts');
-
-      % "Ends" toggle button (right side)
-      obj.gdata.tb_path_ends = uitogglebutton(obj.gdata.bg_path,...
-        'Text','',...
-        'Icon',rightAlignIcon,...
-        'Tooltip','Show path ends',...
-        'FontColor','w','BackgroundColor',[1,1,1],...
-        'FontWeight','bold',...
-        'Value',obj.showPathEnds,...
-        'Tag','togglebutton_path_ends');
-
-      % Position the toggle buttons
-      obj.updatePathTogglePositions();
+        'Position',[pathPopupX1 controlbuttony pathPopupW obj.posinfo.rowh],...
+        'String',{'Show Path Starts','Show Path Ends'},...
+        'Value',pathPopupValue,...
+        'ForegroundColor','w',...
+        'BackgroundColor',obj.colorinfo.editfilecolor,...
+        'TooltipString','Choose whether long paths are truncated to show their start or their end',...
+        'Tag','popupmenu_path',...
+        'Callback',@(src,evt) obj.pathPopupChanged(src,evt));
       
       rowi = 1;
       for i = 1:obj.nview,
@@ -1006,10 +980,6 @@ classdef SpecifyMovieToTrackGUI < handle
       if obj.lObj.maIsMA && isfield(obj.gdata, 'bg_linking') && isvalid(obj.gdata.bg_linking)
         obj.updateLinkingButtonPositions();
       end
-      % Update path toggle button positions on resize
-      if isfield(obj.gdata, 'bg_path') && isvalid(obj.gdata.bg_path)
-        obj.updatePathTogglePositions();
-      end
       % Update path display after resize to adjust truncation to new component sizes
       obj.updatePathDisplay();
     end
@@ -1058,51 +1028,10 @@ classdef SpecifyMovieToTrackGUI < handle
       end
     end
 
-    function pathToggleChanged(obj, src, evt)
-      % Callback for path display toggle button group
-      selectedButton = evt.NewValue;
-
-      % Determine which toggle was selected and update showPathEnds accordingly
-      if selectedButton == obj.gdata.tb_path_starts
-        obj.showPathEnds = false;  % Show path starts
-      elseif selectedButton == obj.gdata.tb_path_ends
-        obj.showPathEnds = true;   % Show path ends
-      end
-
-      % Update all displayed file paths
-      obj.updatePathDisplay();
-    end
-
-    function updatePathTogglePositions(obj)
-      % Update positions of the path toggle buttons
-      if ~isfield(obj.gdata, 'bg_path') || ~isvalid(obj.gdata.bg_path)
-        return;
-      end
-
-      try
-        % Get the button group position in pixels
-        set(obj.gdata.bg_path,'Units','pixels');
-        bgPos = get(obj.gdata.bg_path,'Position');
-        bgWidth = bgPos(3);
-        bgHeight = bgPos(4);
-        set(obj.gdata.bg_path,'Units','normalized');
-
-        % Calculate button dimensions - split the width in half
-        buttonWidth = bgWidth / 2;
-        buttonHeight = max(20, bgHeight - 4);  % Leave small padding
-
-        % Position buttons side by side
-        if isfield(obj.gdata, 'tb_path_starts') && isvalid(obj.gdata.tb_path_starts)
-          obj.gdata.tb_path_starts.Position = [2, 2, buttonWidth-4, buttonHeight];
-        end
-        if isfield(obj.gdata, 'tb_path_ends') && isvalid(obj.gdata.tb_path_ends)
-          obj.gdata.tb_path_ends.Position = [buttonWidth+2, 2, buttonWidth-4, buttonHeight];
-        end
-
-      catch ME
-        % Silently handle errors during positioning
-        warning(ME.identifier,'Error updating path toggle positions: %s', ME.message);
-      end
+    function pathPopupChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the Path Starts / Path Ends popupmenu
+      obj.showPathEnds = ( get(obj.gdata.pum_path, 'Value') == 2 ) ;
+      obj.updatePathDisplay() ;
     end
 
     function updatePathDisplay(obj)
