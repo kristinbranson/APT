@@ -1578,7 +1578,7 @@ classdef LabelerController < handle
           obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
           exceptionMaybe = {} ;
         catch exception
-          obj.labeler_.popBusyStatus() ;
+          % obj.labeler_.popBusyStatus() ;
           if isequal(exception.identifier,'APT:invalidPropertyValue') || isequal(exception.identifier,'APT:cancelled'),
             % ignore completely, don't even pass on to output
             exceptionMaybe = {} ;
@@ -1608,7 +1608,7 @@ classdef LabelerController < handle
           if ismethod(obj,methodName) ,
             obj.(methodName)(source, event, varargin{:});
           end
-        elseif isequal(type,'uicontrol') || isequal(type,'uimenu') ,
+        elseif isequal(type,'uicontrol') || isequal(type,'uimenu') || isequal(type,'uibutton') ,
           methodName=[controlName '_actuated_'] ;
           if ismethod(obj,methodName) ,
             obj.(methodName)(source, event, varargin{:});
@@ -1810,20 +1810,24 @@ classdef LabelerController < handle
       end
       
       tblSumm = labeler.trackGetSummaryTable(tblBig) ;
-      hF = figure('Name','Target Summary (click row to navigate)',...
-                  'MenuBar','none','Visible','off', ...
-                  'Tag', 'target_table_figure'); %#ok<*CPROP>
+      hF = uifigure('Name','Target Summary (click row to navigate)',...
+                    'Visible','off', ...
+                    'Tag', 'target_table_figure'); %#ok<*CPROP>
       hF.Position(3:4) = [1280 500];
       centerfig(hF, main_figure);
-      hPnl = uipanel('Parent',hF,'Position',[0 .08 1 .92],'Tag','uipanel_TargetsTable');
+      hPnl = uipanel('Parent',hF, ...
+                     'Units','normalized', ...
+                     'Position',[0 .08 1 .92], ...
+                     'Tag','uipanel_TargetsTable');
       BTNWIDTH = 100;
       DXY = 4;
       btnHeight = hPnl.Position(2)*hF.Position(4)-2*DXY;
-      btnPos = [hF.Position(3)-BTNWIDTH-DXY DXY BTNWIDTH btnHeight];      
-      hBtn = uicontrol('Style','pushbutton','Parent',hF,...
-                       'Position',btnPos,'String','Update',...
-                       'fontsize',12, ...
-                       'Tag', 'target_table_update_button');
+      btnPos = [hF.Position(3)-BTNWIDTH-DXY DXY BTNWIDTH btnHeight];
+      hBtn = uibutton(hF, 'push', ...
+                      'Position', btnPos, ...
+                      'Text', 'Update', ...
+                      'FontSize', 12, ...
+                      'Tag', 'target_table_update_button');
       FLDINFO = {
         'mov' 'Movie' 'integer' 30
         'iTgt' 'Target' 'integer' 30
@@ -1842,14 +1846,10 @@ classdef LabelerController < handle
                            'ColumnName',FLDINFO(:,2)',...
                            'ColumnFormat',FLDINFO(:,3)',...
                            'ColumnPreferredWidth',cell2mat(FLDINFO(:,4)'));
-      %                    @(row,rowdata)(labeler.setMFT(rowdata.mov,rowdata.frm1,rowdata.iTgt)),...
       nt.setData(tblSumm);
-      
+
       hF.UserData = nt;
-      %hBtn.Callback = @(s,e)labeler.hlpTargetsTableUIupdate(nt);
-      hBtn.Callback = @(source,event)(obj.controlActuated(hBtn.Tag, source, event)) ;
-      hF.Units = 'normalized';
-      hBtn.Units = 'normalized';
+      hBtn.ButtonPushedFcn = @(source,event)(obj.controlActuated(hBtn.Tag, source, event)) ;
       hF.Visible = 'on';
 
       obj.targetSummaryFigure_ = hF ;
@@ -1883,24 +1883,24 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function suspComputeUI(obj)
-      labeler = obj.labeler_ ;      
-      tfsucc = labeler.suspCompute();
-      if ~tfsucc
-        return
-      end
-      title = sprintf('Suspicious frames: %s',labeler.suspDiag) ;
-      hF = figure('Name',title);
-      tbl = labeler.suspSelectedMFT ;
-      tblFlds = tbl.Properties.VariableNames;
-      nt = NavigationTable(hF, ...
-                           [0 0 1 1], ...
-                           @(row,rowdata)(obj.controlActuated('susp_frame_table_row', [], [], row, rowdata)),...
-                           'ColumnName',tblFlds);
-      nt.setData(tbl);
-      hF.UserData = nt;
-      obj.suspiciousFramesFigure_ = hF ;
-    end  % function
+    % function suspComputeUI(obj)
+    %   labeler = obj.labeler_ ;      
+    %   tfsucc = labeler.suspCompute();
+    %   if ~tfsucc
+    %     return
+    %   end
+    %   title = sprintf('Suspicious frames: %s',labeler.suspDiag) ;
+    %   hF = figure('Name',title);
+    %   tbl = labeler.suspSelectedMFT ;
+    %   tblFlds = tbl.Properties.VariableNames;
+    %   nt = NavigationTable(hF, ...
+    %                        [0 0 1 1], ...
+    %                        @(row,rowdata)(obj.controlActuated('susp_frame_table_row', [], [], row, rowdata)),...
+    %                        'ColumnName',tblFlds);
+    %   nt.setData(tbl);
+    %   hF.UserData = nt;
+    %   obj.suspiciousFramesFigure_ = hF ;
+    % end  % function
 
     function susp_frame_table_row_actuated_(obj, source, event, row, rowdata)  %#ok<INUSD>
       % Does what needs doing when the suspicious frame table row is selected.
@@ -2162,8 +2162,14 @@ classdef LabelerController < handle
       % Create a new project
       labeler = obj.labeler_ ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
-        cfg = ProjectSetup(obj.mainFigure_);  % launches the project setup window
-        if ~isempty(cfg)    
+        labeler.pushBusyStatus('Opening Project Setup window...') ;  % Want to do this here, b/c the stuff in this method can take a while
+        oc = onCleanup(@()(labeler.popBusyStatus())) ;
+        drawnow('nocallbacks') ;       
+        app = ProjectSetup(obj.mainFigure_) ;  % launches the project setup window
+        app.uiwait() ;
+        cfg = app.output ;
+        delete(app) ;
+        if ~isempty(cfg)
           labeler.projNew(cfg);
           if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
             obj.movieManagerController_.setVisible(true);

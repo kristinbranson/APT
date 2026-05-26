@@ -1,167 +1,120 @@
 classdef NavigationTable < handle
-  % Generalization of MMTableSingle
-  
+  % A row-selectable table that fires a callback when the user clicks a
+  % row.  Wraps a uitable; the parent passed to the constructor should
+  % ultimately be rooted in a uifigure, since the modern uitable
+  % properties used here (SelectionType, Selection, SelectionChangedFcn)
+  % require that.
+
   properties
-    jtable
-    fcnRowSelected % fcn handle with sig: fcnRowSelected(row,rowdata) 
-      % row is 1-based index into .data; rowdata is .data(row,:)
-    navOnSingleClick % If true, navigate on single click; otherwise require double-click
-    data % data in table form. jtable has it in cell form as well
+    uitable_         % the underlying uitable handle
+    fcnRowSelected   % fcn handle with sig: fcnRowSelected(row, rowdata)
+    data             % last data set via setData(), as a Matlab table
   end
 
   properties (Dependent)
-    height % height of jtable
+    height           % row count of the displayed table
   end
 
   methods
     function v = get.height(obj)
-      jt = obj.jtable;
-      v = size(jt.Data,1);
-    end
-  end
-  
-  methods
-    function obj = NavigationTable(hParent,posn,cbkSelectRow,varargin)
-      % cbkSelectRow: function handle with sig as in .fcnRowSelected
-      % 
-      % varargin: eg {'ColumnName',{'col1' 'col2'},...
-      %   'ColumnPreferredWidth',[100 200]}
-      assert(isgraphics(hParent) && isscalar(hParent));
-      szassert(posn,[1 4]);
-      assert(isa(cbkSelectRow,'function_handle'));
-      
-      jt = uiextras.jTable.Table(...
-        'parent',hParent,...
-        'Position',posn,...
-        'SelectionMode','discontiguous',...
-        'Editable','off',... %        'MouseClickedCallback',@(src,evt)obj.cbkTableClick(src,evt),...
-        'CellSelectionCallback',@(src,evt)obj.cbkCellSelection(src,evt),...
-        varargin{:});
-      jt.ColumnEditable(:) = false;
-      obj.jtable = jt;
-      
-      obj.fcnRowSelected = cbkSelectRow;
-      obj.navOnSingleClick = false;
-    end
-
-    function initColFormatAPTJava(obj,colfmt)
-      % Initialize column cellrenderers based on colfmt. Optionally call 
-      % this immediately after construction and before setting data.
-      
-      jt = obj.jtable.JTable;
-      jcm = obj.jtable.JColumnModel;
-      ncol = jt.ColumnCount;
-      assert(iscellstr(colfmt) && numel(colfmt)==ncol,...
-        'Invalid column format specification.');
-      for icol=0:ncol-1
-        switch colfmt{icol+1}
-          case 'integer'
-            cr = aptjava.StripedIntegerTableCellRenderer;
-          case 'float'
-            cr = aptjava.StripedFloatTableCellRenderer('%.3f');
-          otherwise
-            cr = javax.swing.table.DefaultTableCellRenderer;
-        end
-        jcm.getColumn(icol).setCellRenderer(cr);
+      % Return the number of rows currently displayed.
+      d = obj.uitable_.Data ;
+      if isempty(d)
+        v = 0 ;
+      else
+        v = size(d, 1) ;
       end
-      jt.Foreground = java.awt.Color.WHITE;
-      jt.repaint;
-    end
+    end  % function
+  end  % methods
+
+  methods
+    function obj = NavigationTable(hParent, posn, cbkSelectRow, varargin)
+      % Construct a new navigation table inside hParent.
+      %
+      % cbkSelectRow: function handle with sig fcnRowSelected(row, rowdata)
+      %   row is the 1-based row index into .data; rowdata is .data(row,:).
+      %
+      % varargin: optional name/value pairs.  Recognized:
+      %   'ColumnName'           - cellstr of header labels (passed through)
+      %   'ColumnPreferredWidth' - numeric vector of column widths in pixels
+      % 'ColumnFormat' is accepted but ignored; uitable formats columns
+      % by data type.  Other name/value pairs are passed through to
+      % uitable.
+
+      assert(isgraphics(hParent) && isscalar(hParent)) ;
+      szassert(posn, [1 4]) ;
+      assert(isa(cbkSelectRow, 'function_handle')) ;
+
+      [columnWidths, extra] = ...
+        myparse_nocheck(varargin, 'ColumnPreferredWidth', []) ;
+      [~, extra] = ...
+        myparse_nocheck(extra, 'ColumnFormat', {}) ;
+
+      ut = uitable('Parent', hParent, ...
+                   'Units', 'normalized', ...
+                   'Position', posn, ...
+                   'ColumnEditable', false, ...
+                   'SelectionType', 'row', ...
+                   'Multiselect', 'on', ...
+                   extra{:}) ;
+      if ~isempty(columnWidths)
+        % Use uitable's weighted '<N>x' widths so columns share the
+        % available width proportionally to the requested values, the
+        % way uiextras.jTable.Table's ColumnPreferredWidth did.  If we
+        % set ColumnWidth to a cell of numerics they become exact pixel
+        % widths and the columns no longer fill the table.
+        ut.ColumnWidth = arrayfun(@(w)(sprintf('%gx', w)), ...
+                                  columnWidths, ...
+                                  'UniformOutput', false) ;
+      end
+
+      obj.uitable_ = ut ;
+      obj.fcnRowSelected = cbkSelectRow ;
+      % Wire the selection callback last so it can't fire before
+      % fcnRowSelected and uitable_ are populated.
+      ut.SelectionChangedFcn = @(src,evt)(obj.cbkSelectionChanged_(src, evt)) ;
+    end  % function
 
     function delete(obj)
-      delete(obj.jtable);
-      obj.jtable = [];
-      obj.fcnRowSelected = [];
-      obj.navOnSingleClick = [];
-      obj.data = [];
-    end
-  end
+      % Destructor.  Tears down the underlying uitable.
+      delete(obj.uitable_) ;
+      obj.uitable_ = [] ;
+      obj.fcnRowSelected = [] ;
+      obj.data = [] ;
+    end  % function
 
-  methods
-    
-    % tbl: [nxnFld] table
-    function setData(obj,tbl)
-      jt = obj.jtable;
-      %assert(isequal(jt.ColumnName,tbl.Properties.VariableNames));
-      %newdat = tbl{:,:};
-      newdat = table2cell(tbl);
-      if ~isequal(jt.Data,newdat)
-        jt.Data = newdat;
-        obj.data = tbl;
+    function setData(obj, tbl)
+      % Set the displayed table data.  tbl should be a Matlab table.
+      if ~isequal(obj.data, tbl)
+        obj.uitable_.Data = tbl ;
+        obj.data = tbl ;
       end
-    end
-    
-    % Update currently selected row
-    %
-    % row: 1-based row indices into table. Currently, tables are expected 
-    % never to re-sort by row.
-    function setSelectedRows(obj,rows)
-      jt = obj.jtable;
-      tblnrows = size(jt.Data,1);
-      rows = rows(:);
-      if all(0<rows & rows<=tblnrows)
-        jt.SelectedRows = rows;
+    end  % function
+
+    function setSelectedRows(obj, rows)
+      % Set the currently selected rows by 1-based row index.
+      d = obj.uitable_.Data ;
+      tableRowCount = size(d, 1) ;
+      rows = rows(:) ;
+      if ~isempty(rows) && all(0 < rows & rows <= tableRowCount)
+        obj.uitable_.Selection = rows ;
       else
-        jt.SelectedRows = [];
+        obj.uitable_.Selection = [] ;
       end
-    end
-    
-    function rows = getSelectedRows(obj)
-      % IMPORTANT: currently CANNOT sort table by columns
-      jt = obj.jtable;
-      rows = sort(jt.SelectedRows);
-    end
-        
-  end
-  
-  methods
+    end  % function
 
-%     function navSelected(obj)
-%       rows = obj.getSelectedRows();
-%       if isempty(rows)
-%         % none
-%       else
-%         if numel(rows)>1
-%           warningNoTrace('NavigationTable:rows',...
-%             'Multiple rows selected. Using first row selected.');
-%         end
-%         obj.fcnRowSelected(rows(1));
-%       end
-%     end
-    
-    function cbkCellSelection(obj,src,evt)
-      if isfield(evt,'Indices')
-        rows = evt.Indices;
-        if ~isempty(rows)
-          r = rows(1);
-          obj.fcnRowSelected(r,obj.data(r,:));
-        end
+    function rows = getSelectedRows(obj)
+      % Return the currently selected row indices, sorted ascending.
+      rows = sort(obj.uitable_.Selection) ;
+    end  % function
+
+    function cbkSelectionChanged_(obj, src, evt)  %#ok<INUSD>
+      % Handler for uitable SelectionChangedFcn.
+      sel = evt.Selection ;
+      if ~isempty(sel)
+        r = sel(1) ;
+        obj.fcnRowSelected(r, obj.data(r,:)) ;
       end
-    end
-    
-%     function cbkTableClick(obj,src,evt)
-%       persistent chk
-%       PAUSE_DURATION_CHECK = 0.25;
-%       
-%       if obj.navOnSingleClick
-%         obj.navSelected();
-%         return;
-%       end
-%       
-%       if isempty(chk)
-%         chk = 1;
-%         pause(PAUSE_DURATION_CHECK); %Add a delay to distinguish single click from a double click
-%         if chk==1          
-%           % single-click
-%           chk = [];
-%         end
-%       else
-%         % double-click
-%         chk = [];
-%         obj.navSelected();
-%       end      
-%     end
-    
-  end
-  
-end
+    end  % function
+  end  % methods
+end  % classdef
