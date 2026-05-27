@@ -1,7 +1,7 @@
 function [firstFrameIndexFromSortedBoutIndex, lastFrameIndexFromSortedBoutIndex, minConfFrameIndexFromSortedBoutIndex, ...
           trackletIndexFromSortedBoutIndex, targetIndexFromSortedBoutIndex, minConfFromSortedBoutIndex, ...
-          absoluteThreshold] = ...
-  confidenceBoutsFromTrkFile(trkFile, naiveQuantileThreshold)
+          absoluteConfidenceThreshold] = ...
+  confidenceBoutsFromTrkFile(trkFile, quantileThreshold)
 % Find bouts of consecutive frames whose max-landmark interest
 % (interest = -confidence) is at or above a quantile-derived threshold
 % (i.e. uncertain bouts).
@@ -49,14 +49,14 @@ if isempty(interestFromPairIndex)
   trackletIndexFromSortedBoutIndex = zeros(0, 1) ;
   targetIndexFromSortedBoutIndex = zeros(0, 1) ;
   minConfFromSortedBoutIndex = zeros(0, 1) ;
-  absoluteThreshold = nan ;
+  absoluteConfidenceThreshold = nan ;
   return
 end
 
 % Compute the absolute interest threshold corresponding to the given
 % quantile.  Higher naiveQuantileThreshold filters out more (only the
 % most-interesting frames survive).
-absoluteInterestThreshold = quantile(interestFromPairIndex, naiveQuantileThreshold) ;
+absoluteInterestThreshold = quantile(interestFromPairIndex, quantileThreshold) ;
 
 % Build bouts: contiguous runs of consecutive frames (within a single
 % tracklet) whose interest is at or above the threshold.
@@ -104,6 +104,6 @@ targetIndexFromSortedBoutIndex = targetIndexFromBoutIndex(boutIndexFromSortedBou
 minConfFromSortedBoutIndex = -maxInterestFromBoutIndex(boutIndexFromSortedBoutIndex) ;
 
 % Translate the absolute interest threshold back to confidence.
-absoluteThreshold = -absoluteInterestThreshold ;
+absoluteConfidenceThreshold = -absoluteInterestThreshold ;
 
 end  % function
