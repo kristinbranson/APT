@@ -11,10 +11,10 @@ classdef UncertainFramesModel < handle
     labeler_  % back-reference to Labeler (Transient in spirit)
     startFrameFromBoutIndex_  % [N x 1] first frame of each bout
     endFrameFromBoutIndex_  % [N x 1] last frame of each bout
-    extremeFrameFromBoutIndex_  % [N x 1] frame with min/max confidence in each bout
+    minConfidenceFrameFromBoutIndex_  % [N x 1] frame where the per-bout min confidence occurs
     trackletIndexFromBoutIndex_  % [N x 1] tracklet indices (into TrkFile)
     targetIndexFromBoutIndex_  % [N x 1] target indices (for navigation)
-    extremeConfidenceFromBoutIndex_  % [N x 1] min- or max-confidence values per bout
+    minConfidenceFromBoutIndex_  % [N x 1] per-bout min-confidence values
     absoluteConfidenceThreshold_ = nan  % scalar double, quantile-derived absolute threshold
     overallMinConfidence_ = nan
       % scalar double, the smallest per-frame min-over-landmarks
@@ -53,15 +53,15 @@ classdef UncertainFramesModel < handle
       obj.labeler_ = labeler ;
       obj.startFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.endFrameFromBoutIndex_ = zeros(0, 1) ;
-      obj.extremeFrameFromBoutIndex_ = zeros(0, 1) ;
+      obj.minConfidenceFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.trackletIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
-      obj.extremeConfidenceFromBoutIndex_ = zeros(0, 1) ;
+      obj.minConfidenceFromBoutIndex_ = zeros(0, 1) ;
     end  % function
 
     function result = get.isLaden(obj)
       % Return whether there is anything to show.
-      result = ~isempty(obj.extremeConfidenceFromBoutIndex_) ;
+      result = ~isempty(obj.minConfidenceFromBoutIndex_) ;
     end  % function
 
     function result = get.isVisible(obj)
@@ -137,7 +137,7 @@ classdef UncertainFramesModel < handle
       for boutIndex = 1 : boutCount
         startFrameIndex = obj.startFrameFromBoutIndex_(boutIndex) ;
         endFrameIndex = obj.endFrameFromBoutIndex_(boutIndex) ;
-        confidence = obj.extremeConfidenceFromBoutIndex_(boutIndex) ;
+        confidence = obj.minConfidenceFromBoutIndex_(boutIndex) ;
         isSingleFrame = (startFrameIndex == endFrameIndex) ;
         if isMultiTarget
           if isMA
@@ -163,7 +163,7 @@ classdef UncertainFramesModel < handle
     end  % function
 
     function [frameIndex, trackletIndex, targetIndex] = frameTrackletAndTargetIndexFromCurrentBoutIndex(obj)
-      % Return the extreme-confidence frame, tracklet index, and target index
+      % Return the min-confidence frame, tracklet index, and target index
       % for the currently selected bout.  Errors if no bout is currently selected.
       boutIndex = obj.currentBoutIndexMaybe_ ;
       if isempty(boutIndex)
@@ -174,8 +174,8 @@ classdef UncertainFramesModel < handle
     end  % function
 
     function [frameIndex, trackletIndex, targetIndex] = frameTrackletAndTargetIndexFromBoutIndex_(obj, boutIndex)
-      % Return the extreme-confidence frame and tracklet index for the given bout.
-      frameIndex = obj.extremeFrameFromBoutIndex_(boutIndex) ;
+      % Return the min-confidence frame and tracklet index for the given bout.
+      frameIndex = obj.minConfidenceFrameFromBoutIndex_(boutIndex) ;
       trackletIndex = obj.trackletIndexFromBoutIndex_(boutIndex) ;
       targetIndex = obj.targetIndexFromBoutIndex_(boutIndex) ;
     end  % function
@@ -241,10 +241,10 @@ classdef UncertainFramesModel < handle
 
       [obj.startFrameFromBoutIndex_, ...
        obj.endFrameFromBoutIndex_, ...
-       obj.extremeFrameFromBoutIndex_, ...
+       obj.minConfidenceFrameFromBoutIndex_, ...
        obj.trackletIndexFromBoutIndex_, ...
        obj.targetIndexFromBoutIndex_, ...
-       obj.extremeConfidenceFromBoutIndex_, ...
+       obj.minConfidenceFromBoutIndex_, ...
        obj.overallMinConfidence_, ...
        obj.overallMaxConfidence_, ...
        obj.absoluteConfidenceThreshold_] = ...
@@ -256,10 +256,10 @@ classdef UncertainFramesModel < handle
       % Reset to empty state.
       obj.startFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.endFrameFromBoutIndex_ = zeros(0, 1) ;
-      obj.extremeFrameFromBoutIndex_ = zeros(0, 1) ;
+      obj.minConfidenceFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.trackletIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
-      obj.extremeConfidenceFromBoutIndex_ = zeros(0, 1) ;
+      obj.minConfidenceFromBoutIndex_ = zeros(0, 1) ;
       obj.absoluteConfidenceThreshold_ = nan ;
       % obj.isLaden_ = false ;
       obj.isFresh_ = true ;
