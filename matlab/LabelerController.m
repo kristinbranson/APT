@@ -18,6 +18,7 @@ classdef LabelerController < handle
       % Manages the highlighting of axes for GT mode.  This is controller-like
       % but might not be a controller in the strictest sense.
     uncertainFramesController_  % UncertainFramesController, or []
+    compareTrackersController_  % CompareTrackersController, or []
   end
 
   properties  % "uncontrolled" satellite figures---satellite figures that aren't managed by controllers (at present)
@@ -107,6 +108,7 @@ classdef LabelerController < handle
     menu_evaluate_gtmode
     menu_evaluate_gt_frames
     menu_evaluate_show_uncertain_frames
+    menu_evaluate_compare_trackers
     menu_evaluate_gtsetsuggestions
     menu_file
     menu_file_bundle_tempdir
@@ -349,6 +351,9 @@ classdef LabelerController < handle
       % Create the UncertainFramesController to manage that
       obj.uncertainFramesController_ = UncertainFramesController(labeler.uncertainFramesModel_, obj, labeler) ;
 
+      % Create the CompareTrackersController to manage that
+      obj.compareTrackersController_ = CompareTrackersController(labeler.compareTrackersModel_, obj, labeler) ;
+
       % Update the controls enablement  
       obj.updateEnablementOfManyControls() ;
       
@@ -499,6 +504,18 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didSetUncertainFramesIsVisible', ...
                     @(s,e)(obj.didSetUncertainFramesIsVisible())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateCompareTrackers', ...
+                    @(s,e)(obj.updateCompareTrackers())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didSetCompareTrackersThreshold', ...
+                    @(s,e)(obj.didSetCompareTrackersThreshold())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didSetCompareTrackersIsVisible', ...
+                    @(s,e)(obj.didSetCompareTrackersIsVisible())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didSetCompareTrackersTrackerSelection', ...
+                    @(s,e)(obj.didSetCompareTrackersTrackerSelection())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'newMovie',@(s,e)(obj.cbkNewMovie(s,e)));
       obj.listeners_(end+1) = ...
@@ -688,6 +705,12 @@ classdef LabelerController < handle
           delete(obj.uncertainFramesController_) ;
         end
         obj.uncertainFramesController_ = [] ;
+      end
+      if ~isempty(obj.compareTrackersController_)
+        if isvalid(obj.compareTrackersController_)
+          delete(obj.compareTrackersController_) ;
+        end
+        obj.compareTrackersController_ = [] ;
       end
     end  % function
 
@@ -1609,7 +1632,8 @@ classdef LabelerController < handle
             obj.(methodName)(source, event, varargin{:});
           end
         elseif isequal(type,'uicontrol') || isequal(type,'uimenu') || isequal(type,'uibutton') || ...
-               isequal(type,'uilistbox') || isequal(type,'uieditfield') ,
+               isequal(type,'uilistbox') || isequal(type,'uieditfield') || ...
+               isequal(type,'uidropdown') ,
           methodName=[controlName '_actuated_'] ;
           if ismethod(obj,methodName) ,
             obj.(methodName)(source, event, varargin{:});
@@ -3506,6 +3530,8 @@ classdef LabelerController < handle
 
       % Items that require a movie but not GT mode
       set(obj.menu_evaluate_show_uncertain_frames, 'Enable', onIff(hasMovie)) ;
+      hasMultipleTrackers = numel(labeler.trackerHistory) >= 2 ;
+      set(obj.menu_evaluate_compare_trackers, 'Enable', onIff(hasMovie && hasMultipleTrackers)) ;
     end  % function
 
     function updateDebugMenu(obj)
@@ -3713,6 +3739,65 @@ classdef LabelerController < handle
       selectedIndex = src.ValueIndex ;
       labeler = obj.labeler_ ;
       labeler.uncertainFramesCurrentBoutIndexMaybe = selectedIndex ;
+    end  % function
+
+    function updateCompareTrackers(obj)
+      % Update the compare-trackers controller if it exists and is visible.
+      ctc = obj.compareTrackersController_ ;
+      ctc.update() ;
+    end  % function
+
+    function didSetCompareTrackersThreshold(obj)
+      % Update the compare-trackers controller after the threshold changes.
+      ctc = obj.compareTrackersController_ ;
+      ctc.update() ;
+    end  % function
+
+    function didSetCompareTrackersIsVisible(obj)
+      % Update the compare-trackers controller after visibility changes.
+      ctc = obj.compareTrackersController_ ;
+      ctc.update() ;
+    end  % function
+
+    function didSetCompareTrackersTrackerSelection(obj)
+      % Update the compare-trackers controller after a ref/test tracker
+      % selection changes.
+      ctc = obj.compareTrackersController_ ;
+      ctc.update() ;
+    end  % function
+
+    function menu_evaluate_compare_trackers_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Make the "Compare Trackers" figure visible.
+      labeler = obj.labeler_ ;
+      labeler.pushBusyStatus('Showing "Compare Trackers" window...') ;
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;  %#ok<NASGU>
+      model = labeler.compareTrackersModel_ ;
+      model.isVisible = true ;
+    end  % function
+
+    function compare_trackers_threshold_edit_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Handle threshold edit box change.
+      ctc = obj.compareTrackersController_ ;
+      ctc.compare_trackers_threshold_edit_actuated_(src) ;
+    end  % function
+
+    function compare_trackers_reference_dropdown_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Handle reference-tracker dropdown change.
+      ctc = obj.compareTrackersController_ ;
+      ctc.compare_trackers_reference_dropdown_actuated_(src) ;
+    end  % function
+
+    function compare_trackers_test_dropdown_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Handle test-tracker dropdown change.
+      ctc = obj.compareTrackersController_ ;
+      ctc.compare_trackers_test_dropdown_actuated_(src) ;
+    end  % function
+
+    function compare_trackers_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Navigate to the selected compare-trackers bout.
+      selectedIndex = src.ValueIndex ;
+      labeler = obj.labeler_ ;
+      labeler.compareTrackersCurrentBoutIndexMaybe = selectedIndex ;
     end  % function
 
     function cbkCropIsCropModeChanged(obj, src, evt)  %#ok<INUSD>
@@ -6447,6 +6532,7 @@ classdef LabelerController < handle
       sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
       sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;
       sendMaybe(obj.uncertainFramesController_, 'update') ;
+      sendMaybe(obj.compareTrackersController_, 'update') ;
     end
     
     function save(obj)

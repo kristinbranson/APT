@@ -197,6 +197,10 @@ classdef Labeler < handle
     updateUncertainFrames
     didSetUncertainFramesThreshold
     didSetUncertainFramesIsVisible
+    updateCompareTrackers
+    didSetCompareTrackersThreshold
+    didSetCompareTrackersIsVisible
+    didSetCompareTrackersTrackerSelection
   end
 
   events  % used to come from labeler.tracker
@@ -324,6 +328,7 @@ classdef Labeler < handle
   properties (Dependent, Hidden)
     backend
     uncertainFramesCurrentBoutIndexMaybe
+    compareTrackersCurrentBoutIndexMaybe
   end
 
   %% Movie/Video
@@ -731,6 +736,11 @@ classdef Labeler < handle
     uncertainFramesModel_  % UncertainFramesModel object
   end
 
+  %% Compare Trackers
+  properties (Transient)
+    compareTrackersModel_  % CompareTrackersModel object
+  end
+
   %% PreProc
   properties
     ppdb  % PreProcDB for DL
@@ -877,6 +887,7 @@ classdef Labeler < handle
       obj.infoTimelineModel_ = InfoTimelineModel();
       obj.movieManagerModel_ = MovieManagerModel() ;
       obj.uncertainFramesModel_ = UncertainFramesModel(obj) ;
+      obj.compareTrackersModel_ = CompareTrackersModel(obj) ;
       % Set obj.isInInteractiveMode_ based on isInInteractiveModeRaw and
       % isInBatchModeRaw, treating an empty as "look at the other one" and
       % complaining if they are both nonempty and disagree.
@@ -5133,8 +5144,9 @@ classdef Labeler < handle
       % This need to run after the tracker is synched b/c it needs to use the
       % tracker predictions.
       obj.uncertainFramesModel_.syncFromPredictions() ;
-      
-      % Notify the controller that the movie has been changed      
+      obj.compareTrackersModel_.syncFromPredictions() ;
+
+      % Notify the controller that the movie has been changed
       edata = NewMovieEventData(isFirstMovie);
       obj.notify_('newMovie', edata) ;
 
@@ -5202,8 +5214,9 @@ classdef Labeler < handle
       % This need to run after the tracker is synched b/c it needs to use the
       % tracker predictions.
       obj.uncertainFramesModel_.syncFromPredictions() ;
+      obj.compareTrackersModel_.syncFromPredictions() ;
 
-      % Notify the controller that the movie has been changed      
+      % Notify the controller that the movie has been changed
       edata = NewMovieEventData(false);
       obj.notify_('newMovie', edata) ;
 
@@ -13969,6 +13982,7 @@ classdef Labeler < handle
       if ~isempty(tracker)
         tracker.clearTrackingResults() ;
         obj.uncertainFramesModel_.syncFromPredictions() ;
+        obj.compareTrackersModel_.syncFromPredictions() ;
         obj.notify_('updateTimeline') ;
         obj.setDoesNeedSave(true, 'Cleared tracking results') ;
       end
@@ -14449,6 +14463,25 @@ classdef Labeler < handle
       ufm = obj.uncertainFramesModel_ ;
       ufm.currentBoutIndexMaybe = newValue ;  % will error if newValue is invalid
       [frameIndex, trackletIndex, targetIndex] = ufm.frameTrackletAndTargetIndexFromCurrentBoutIndex() ;
+      if obj.maIsMA
+        obj.setFrameAndTracklet(frameIndex, trackletIndex) ;
+      else
+        obj.setFrameAndTarget(frameIndex, targetIndex) ;
+      end
+    end  % function
+
+    function result = get.compareTrackersCurrentBoutIndexMaybe(obj)
+      % Return the currently selected compare-trackers bout index, or [] if none.
+      result = obj.compareTrackersModel_.currentBoutIndexMaybe ;
+    end  % function
+
+    function set.compareTrackersCurrentBoutIndexMaybe(obj, newValue)
+      % Setter method for compareTrackersCurrentBoutIndexMaybe.  Stores
+      % the selected bout index on the model and then navigates the
+      % Labeler to the corresponding frame and ref-tracklet/target.
+      ctm = obj.compareTrackersModel_ ;
+      ctm.currentBoutIndexMaybe = newValue ;  % will error if newValue is invalid
+      [frameIndex, trackletIndex, targetIndex] = ctm.frameTrackletAndTargetIndexFromCurrentBoutIndex() ;
       if obj.maIsMA
         obj.setFrameAndTracklet(frameIndex, trackletIndex) ;
       else

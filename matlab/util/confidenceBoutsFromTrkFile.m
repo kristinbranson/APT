@@ -1,5 +1,9 @@
-function [firstFrameIndexFromSortedBoutIndex, lastFrameIndexFromSortedBoutIndex, minConfFrameIndexFromSortedBoutIndex, ...
-          trackletIndexFromSortedBoutIndex, targetIndexFromSortedBoutIndex, minConfFromSortedBoutIndex, ...
+function [firstFrameIndexFromSortedBoutIndex, ...
+          lastFrameIndexFromSortedBoutIndex, ...
+          minConfFrameIndexFromSortedBoutIndex, ...
+          trackletIndexFromSortedBoutIndex, ...
+          targetIndexFromSortedBoutIndex, ...
+          minConfFromSortedBoutIndex, ...
           absoluteConfidenceThreshold] = ...
   confidenceBoutsFromTrkFile(trkFile, quantileThreshold)
 % Find bouts of consecutive frames whose max-landmark interest
@@ -7,20 +11,20 @@ function [firstFrameIndexFromSortedBoutIndex, lastFrameIndexFromSortedBoutIndex,
 % (i.e. uncertain bouts).
 %
 % Internally the bout-formation, quantile, and sort calculations all
-% happen in the interest domain: a higher interest means a less
-% confident, more uncertain frame.  A bout is a maximal contiguous run
-% of consecutive frames (within a single tracklet) whose per-frame
-% max-interest stays at or above the quantile-derived threshold.  Each
-% bout is represented by the frame achieving the maximum interest within
-% the run, and bouts are returned in descending order of that max
-% interest (i.e. ascending order of per-bout min confidence) -- most
-% uncertain first.
+% happen in the interest domain via interestBoutsFromPerTrackletData: a
+% higher interest means a less confident, more uncertain frame.  A bout
+% is a maximal contiguous run of consecutive frames (within a single
+% tracklet) whose per-frame max-interest stays at or above the
+% quantile-derived threshold.  Each bout is represented by the frame
+% achieving the maximum interest within the run, and bouts are returned
+% in descending order of that max interest (i.e. ascending order of
+% per-bout min confidence) -- most uncertain first.
 %
 % Inputs and outputs are expressed in the confidence domain so callers
 % that present results to the user in terms of confidence don't need to
-% flip signs.  In particular, naiveQuantileThreshold is interpreted in
-% the interest domain (so 0.99 keeps the top 1% most-interesting
-% frames), and the returned absoluteThreshold and minConf* are
+% flip signs.  In particular, quantileThreshold is interpreted in the
+% interest domain (so 0.99 keeps the top 1% most-interesting frames),
+% and the returned absoluteConfidenceThreshold and minConf* are
 % confidence values.
 %
 % Returns empty column vectors and NaN threshold when there are no bouts.
@@ -36,74 +40,24 @@ trackletIndices = (1 : trackletCount)' ;
            trackletIndices, ...
            'UniformOutput', false) ;
 
-% Concatenate all the *FromTrackletIndex cell arrays together, thus
-% collecting all valid (frame, tracklet) pairs into a single flattened
-% interest vector.
-interestFromPairIndex = vertcat(interestFromTrackletFrameIndexFromTrackletIndex{:}) ;
+% Run the shared bout-formation / quantile / sort pipeline in the
+% interest domain.
+[firstFrameIndexFromSortedBoutIndex, ...
+ lastFrameIndexFromSortedBoutIndex, ...
+ maxInterestFrameIndexFromSortedBoutIndex, ...
+ trackletIndexFromSortedBoutIndex, ...
+ targetIndexFromSortedBoutIndex, ...
+ maxInterestFromSortedBoutIndex, ...
+ absoluteInterestThreshold] = ...
+  interestBoutsFromPerTrackletData(frameIndexFromTrackletFrameIndexFromTrackletIndex, ...
+                                   trackletIndexFromTrackletIndex, ...
+                                   targetIndexFromTrackletIndex, ...
+                                   interestFromTrackletFrameIndexFromTrackletIndex, ...
+                                   quantileThreshold) ;
 
-% Do an early return if there are no pairs.
-if isempty(interestFromPairIndex)
-  firstFrameIndexFromSortedBoutIndex = zeros(0, 1) ;
-  lastFrameIndexFromSortedBoutIndex = zeros(0, 1) ;
-  minConfFrameIndexFromSortedBoutIndex = zeros(0, 1) ;
-  trackletIndexFromSortedBoutIndex = zeros(0, 1) ;
-  targetIndexFromSortedBoutIndex = zeros(0, 1) ;
-  minConfFromSortedBoutIndex = zeros(0, 1) ;
-  absoluteConfidenceThreshold = nan ;
-  return
-end
-
-% Compute the absolute interest threshold corresponding to the given
-% quantile.  Higher naiveQuantileThreshold filters out more (only the
-% most-interesting frames survive).
-absoluteInterestThreshold = quantile(interestFromPairIndex, quantileThreshold) ;
-
-% Build bouts: contiguous runs of consecutive frames (within a single
-% tracklet) whose interest is at or above the threshold.
-[firstFrameIndexFromTrackletBoutIndexFromTrackletIndex, ...
- lastFrameIndexFromTrackletBoutIndexFromTrackletIndex, ...
- maxInterestFrameIndexFromTrackletBoutIndexFromTrackletIndex, ...
- trackletIndexFromTrackletBoutIndexFromTrackletIndex, ...
- targetIndexFromTrackletBoutIndexFromTrackletIndex, ...
- maxInterestFromTrackletBoutIndexFromTrackletIndex] = ...
-  cellfun(@(frameIndexFromTrackletFrameIndex, ...
-            trackletIndex, ...
-            targetIndex, ...
-            interestFromTrackletFrameIndex) ...
-            collectInterestBoutsForSingleTracklet(frameIndexFromTrackletFrameIndex, ...
-                                                  trackletIndex, ...
-                                                  targetIndex, ...
-                                                  interestFromTrackletFrameIndex, ...
-                                                  absoluteInterestThreshold), ...
-          frameIndexFromTrackletFrameIndexFromTrackletIndex, ...
-          trackletIndexFromTrackletIndex, ...
-          targetIndexFromTrackletIndex, ...
-          interestFromTrackletFrameIndexFromTrackletIndex, ...
-          'UniformOutput', false) ;
-
-% Concatenate all the *FromTrackletIndex cell arrays together, thus
-% collecting all the bouts from all the tracklets.
-firstFrameIndexFromBoutIndex = vertcat(firstFrameIndexFromTrackletBoutIndexFromTrackletIndex{:}) ;
-lastFrameIndexFromBoutIndex = vertcat(lastFrameIndexFromTrackletBoutIndexFromTrackletIndex{:}) ;
-trackletIndexFromBoutIndex = vertcat(trackletIndexFromTrackletBoutIndexFromTrackletIndex{:}) ;
-targetIndexFromBoutIndex = vertcat(targetIndexFromTrackletBoutIndexFromTrackletIndex{:}) ;
-maxInterestFromBoutIndex = vertcat(maxInterestFromTrackletBoutIndexFromTrackletIndex{:}) ;
-maxInterestFrameIndexFromBoutIndex = vertcat(maxInterestFrameIndexFromTrackletBoutIndexFromTrackletIndex{:}) ;
-
-% Sort bouts by max interest, descending: most interesting (least
-% confident) first.
-[~, boutIndexFromSortedBoutIndex] = sort(maxInterestFromBoutIndex, 'descend') ;
-
-% Sort everything else according to the sort order, and translate the
-% max interest back to min confidence.
-firstFrameIndexFromSortedBoutIndex = firstFrameIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;
-lastFrameIndexFromSortedBoutIndex = lastFrameIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;
-minConfFrameIndexFromSortedBoutIndex = maxInterestFrameIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;
-trackletIndexFromSortedBoutIndex = trackletIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;
-targetIndexFromSortedBoutIndex = targetIndexFromBoutIndex(boutIndexFromSortedBoutIndex) ;
-minConfFromSortedBoutIndex = -maxInterestFromBoutIndex(boutIndexFromSortedBoutIndex) ;
-
-% Translate the absolute interest threshold back to confidence.
+% Translate interest-domain results back to the confidence domain.
+minConfFrameIndexFromSortedBoutIndex = maxInterestFrameIndexFromSortedBoutIndex ;
+minConfFromSortedBoutIndex = -maxInterestFromSortedBoutIndex ;
 absoluteConfidenceThreshold = -absoluteInterestThreshold ;
 
 end  % function
