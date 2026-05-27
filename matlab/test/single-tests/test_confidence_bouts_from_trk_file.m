@@ -74,6 +74,7 @@ end
 % Plot each case for visual inspection.
 f = plotAllCases(caseInfo, resultFromCaseIndex) ;
 cleaner = onCleanup(@()(delete(f))) ;
+pause(5) ;  % so we can see the fig, if briefly
 
 % Second pass: check each case's results against expectations.
 for caseIndex = 1 : numel(caseInfo)
