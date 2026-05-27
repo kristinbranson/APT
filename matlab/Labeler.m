@@ -13968,10 +13968,11 @@ classdef Labeler < handle
       tracker = obj.tracker ;
       if ~isempty(tracker)
         tracker.clearTrackingResults() ;
+        obj.uncertainFramesModel_.syncFromPredictions() ;
         obj.notify_('updateTimeline') ;
         obj.setDoesNeedSave(true, 'Cleared tracking results') ;
       end
-    end  % function    
+    end  % function
     
     function replaceMovieAndTrxPathPrefixes(obj, oldPrefix, newPrefix)
       % For all the movie and trx file paths, does macro-substitution, then replaces
