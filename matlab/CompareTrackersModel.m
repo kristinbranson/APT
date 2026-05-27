@@ -50,6 +50,10 @@ classdef CompareTrackersModel < handle
     displayStringFromBoutIndex
       % cellstr showing the bout frame ranges and max distances (used for
       % listbox display).
+    isTestTrackerChoiceValid
+      % logical: true when the test-tracker selection differs from the
+      % reference-tracker selection (so a meaningful comparison can be
+      % computed), false when they coincide.
   end
 
   methods
@@ -152,6 +156,12 @@ classdef CompareTrackersModel < handle
       obj.isFresh_ = false ;
       obj.syncFromPredictionsIfStaleAndVisible_() ;
       obj.labeler_.notifyRetrograde('updateCompareTrackers') ;
+    end  % function
+
+    function result = get.isTestTrackerChoiceValid(obj)
+      % Return whether the test-tracker selection differs from the
+      % reference-tracker selection.
+      result = obj.testTrackerHistoryIndex_ ~= obj.referenceTrackerHistoryIndex_ ;
     end  % function
 
     function result = get.displayStringFromBoutIndex(obj)
@@ -265,6 +275,14 @@ classdef CompareTrackersModel < handle
       % Clamp the selection indices to the current trackerHistory length.
       refIndex = min(max(obj.referenceTrackerHistoryIndex_, 1), trackerCount) ;
       testIndex = min(max(obj.testTrackerHistoryIndex_, 1), trackerCount) ;
+
+      % Short-circuit: comparing a tracker to itself is meaningless and
+      % would just be a flat zero-distance result.  The controller
+      % flags this state visually.
+      if refIndex == testIndex
+        obj.clear_() ;
+        return
+      end
 
       refTrkFile = trkFileForTrackerHistoryIndex_(labeler, refIndex) ;
       testTrkFile = trkFileForTrackerHistoryIndex_(labeler, testIndex) ;

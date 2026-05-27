@@ -66,6 +66,11 @@ classdef CompareTrackersController < handle
         obj.testDropdown_.Value = clampDropdownValue_(model.testTrackerHistoryIndex, itemsData) ;
       end
 
+      % Flag the test dropdown pink when it is the same as the
+      % reference, since the comparison is then a no-op.
+      obj.testDropdown_.BackgroundColor = ...
+        fif(model.isTestTrackerChoiceValid, [1 1 1], [1 0.8 0.85]) ;
+
       obj.thresholdEdit_.Value = sprintf('%g', model.quantileThreshold) ;
       absoluteThreshold = model.absoluteDistanceThreshold ;
       if isfinite(absoluteThreshold)
@@ -84,9 +89,15 @@ classdef CompareTrackersController < handle
           previousIndex = 1 ;
         end
         obj.listbox_.ValueIndex = max(1, min(previousIndex, entryCount)) ;
+        obj.listbox_.FontAngle = 'normal' ;
         obj.listbox_.Enable = 'on' ;
+      elseif ~model.isTestTrackerChoiceValid
+        obj.listbox_.Items = {'(Test tracker should differ from reference.)'} ;
+        obj.listbox_.FontAngle = 'italic' ;
+        obj.listbox_.Enable = 'off' ;
       else
         obj.listbox_.Items = {} ;
+        obj.listbox_.FontAngle = 'normal' ;
         obj.listbox_.Enable = 'off' ;
       end
 
