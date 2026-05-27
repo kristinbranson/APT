@@ -14083,6 +14083,9 @@ classdef Labeler < handle
       if endCause == EndCause.complete
         obj.infoTimelineModel_.invalidateTraceCache() ;
         obj.setDoesNeedSave(true, 'New frames tracked') ;
+        % New predictions invalidate the satellite windows' caches.
+        obj.uncertainFramesModel_.syncFromPredictions() ;
+        obj.compareTrackersModel_.syncFromPredictions() ;
       elseif endCause == EndCause.error
         obj.printErrorInfo_('track', pollingResultOrEmpty)
       end
