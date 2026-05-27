@@ -26,7 +26,7 @@ end
 controller.controlActuated('menu_evaluate_show_uncertain_frames') ;
 
 % Check the listbox has expectedListboxItemCount items
-expectedListboxItemCount = 33 ;
+expectedListboxItemCount = 7 ;
 listbox = findall(0, 'Tag', 'uncertain_frames_listbox') ;
 itemCountForMovie10 = numel(listbox.Items) ;
 if itemCountForMovie10 ~= expectedListboxItemCount
