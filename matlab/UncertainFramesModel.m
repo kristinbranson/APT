@@ -16,8 +16,14 @@ classdef UncertainFramesModel < handle
     targetIndexFromBoutIndex_  % [N x 1] target indices (for navigation)
     extremeConfidenceFromBoutIndex_  % [N x 1] min- or max-confidence values per bout
     absoluteConfidenceThreshold_ = nan  % scalar double, quantile-derived absolute threshold
-    overallMinConfidence_ = nan  % scalar double, min of allMinConf across all frames
-    overallMaxConfidence_ = nan  % scalar double, max of allMaxConf across all frames
+    overallMinConfidence_ = nan
+      % scalar double, the smallest per-frame min-over-landmarks
+      % confidence (equivalently, the largest per-frame interest)
+      % across all valid (frame, tracklet) pairs.
+    overallMaxConfidence_ = nan
+      % scalar double, the largest per-frame min-over-landmarks
+      % confidence (equivalently, the smallest per-frame interest)
+      % across all valid (frame, tracklet) pairs.
     % isLaden_ = false  % scalar logical, true if there is anything to show
     isVisible_ = false  % scalar logical, whether the UFC figure is visible
     isFresh_ = false
