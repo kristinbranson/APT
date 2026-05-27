@@ -3696,6 +3696,8 @@ classdef LabelerController < handle
     function menu_evaluate_show_uncertain_frames_actuated_(obj, src, evt)  %#ok<INUSD>
       % Make the "Uncertain Frames" figure visible
       labeler = obj.labeler_ ;
+      labeler.pushBusyStatus('Showing "Uncertain Frames" window...') ;
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;  %#ok<NASGU>
       model = labeler.uncertainFramesModel_ ;
       model.isVisible = true ;
     end  % function

@@ -44,6 +44,7 @@ classdef UncertainFramesController < handle
       if ~obj.hasValidFigure_
         obj.createFigure_() ;
       end
+      wasFigureVisible = strcmp(obj.figure_.Visible, 'on') ;
       obj.thresholdEdit_.Value = sprintf('%g', model.quantileConfidenceThreshold) ;
       absoluteThreshold = model.absoluteConfidenceThreshold ;
       if isfinite(absoluteThreshold)
@@ -68,6 +69,11 @@ classdef UncertainFramesController < handle
       end
       % Make visible at end to reduce flickering
       obj.figure_.Visible = 'on' ;
+      if ~wasFigureVisible
+        % Block until the uifigure is laid out so the caller's busy
+        % cursor stays up until the window is ready for input.
+        waitForFigureToSync(obj.figure_) ;
+      end
     end  % function
 
     function delete(obj)
