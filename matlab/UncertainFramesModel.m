@@ -3,7 +3,7 @@ classdef UncertainFramesModel < handle
   % for the current movie.
 
   properties (Access=private)
-    quantileConfidenceThreshold_ = 0.95
+    quantileConfidenceThreshold_ = 0.99
       % scalar double, the quantile threshold (0-1) for filtering bouts.
   end
 
