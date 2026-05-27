@@ -1608,7 +1608,8 @@ classdef LabelerController < handle
           if ismethod(obj,methodName) ,
             obj.(methodName)(source, event, varargin{:});
           end
-        elseif isequal(type,'uicontrol') || isequal(type,'uimenu') || isequal(type,'uibutton') ,
+        elseif isequal(type,'uicontrol') || isequal(type,'uimenu') || isequal(type,'uibutton') || ...
+               isequal(type,'uilistbox') || isequal(type,'uieditfield') ,
           methodName=[controlName '_actuated_'] ;
           if ismethod(obj,methodName) ,
             obj.(methodName)(source, event, varargin{:});
@@ -3707,7 +3708,7 @@ classdef LabelerController < handle
 
     function uncertain_frames_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
       % Navigate to the selected uncertain frame.
-      selectedIndex = src.Value ;
+      selectedIndex = src.ValueIndex ;
       labeler = obj.labeler_ ;
       labeler.uncertainFramesCurrentBoutIndexMaybe = selectedIndex ;
     end  % function
