@@ -16,14 +16,6 @@ classdef UncertainFramesModel < handle
     targetIndexFromBoutIndex_  % [N x 1] target indices (for navigation)
     minConfidenceFromBoutIndex_  % [N x 1] per-bout min-confidence values
     absoluteConfidenceThreshold_ = nan  % scalar double, quantile-derived absolute threshold
-    overallMinConfidence_ = nan
-      % scalar double, the smallest per-frame min-over-landmarks
-      % confidence (equivalently, the largest per-frame interest)
-      % across all valid (frame, tracklet) pairs.
-    overallMaxConfidence_ = nan
-      % scalar double, the largest per-frame min-over-landmarks
-      % confidence (equivalently, the smallest per-frame interest)
-      % across all valid (frame, tracklet) pairs.
     % isLaden_ = false  % scalar logical, true if there is anything to show
     isVisible_ = false  % scalar logical, whether the UFC figure is visible
     isFresh_ = false
@@ -37,8 +29,6 @@ classdef UncertainFramesModel < handle
     isVisible
     absoluteConfidenceThreshold
     quantileConfidenceThreshold
-    overallMinConfidence
-    overallMaxConfidence
     currentBoutIndexMaybe
   end
 
@@ -104,16 +94,6 @@ classdef UncertainFramesModel < handle
         error('APT:invalidPropertyValue', ...
               'Threshold must be a finite scalar between 0 and 1') ;
       end
-    end  % function
-
-    function result = get.overallMinConfidence(obj)
-      % Return the min of per-frame min-confidence across all frames.
-      result = obj.overallMinConfidence_ ;
-    end  % function
-
-    function result = get.overallMaxConfidence(obj)
-      % Return the max of per-frame max-confidence across all frames.
-      result = obj.overallMaxConfidence_ ;
     end  % function
 
     function syncFromPredictions(obj)
@@ -245,8 +225,6 @@ classdef UncertainFramesModel < handle
        obj.trackletIndexFromBoutIndex_, ...
        obj.targetIndexFromBoutIndex_, ...
        obj.minConfidenceFromBoutIndex_, ...
-       obj.overallMinConfidence_, ...
-       obj.overallMaxConfidence_, ...
        obj.absoluteConfidenceThreshold_] = ...
         confidenceBoutsFromTrkFile(trkFile, obj.quantileConfidenceThreshold_) ;
       obj.isFresh_ = true ;

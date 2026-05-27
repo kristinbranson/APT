@@ -1,6 +1,5 @@
 function [firstFrameIndexFromSortedBoutIndex, lastFrameIndexFromSortedBoutIndex, minConfFrameIndexFromSortedBoutIndex, ...
           trackletIndexFromSortedBoutIndex, targetIndexFromSortedBoutIndex, minConfFromSortedBoutIndex, ...
-          minConf, maxConf, ...
           absoluteThreshold] = ...
   confidenceBoutsFromTrkFile(trkFile, naiveQuantileThreshold)
 % Find bouts of consecutive frames whose max-landmark interest
@@ -21,10 +20,10 @@ function [firstFrameIndexFromSortedBoutIndex, lastFrameIndexFromSortedBoutIndex,
 % that present results to the user in terms of confidence don't need to
 % flip signs.  In particular, naiveQuantileThreshold is interpreted in
 % the interest domain (so 0.99 keeps the top 1% most-interesting
-% frames), and the returned absoluteThreshold, minConf*, and maxConf
-% are all confidence values.
+% frames), and the returned absoluteThreshold and minConf* are
+% confidence values.
 %
-% Returns empty column vectors and NaN extremes when there are no bouts.
+% Returns empty column vectors and NaN threshold when there are no bouts.
 
 % Gather per-frame max-interest data from all tracklets.
 trackletCount = trkFile.ntracklets ;
@@ -50,16 +49,9 @@ if isempty(interestFromPairIndex)
   trackletIndexFromSortedBoutIndex = zeros(0, 1) ;
   targetIndexFromSortedBoutIndex = zeros(0, 1) ;
   minConfFromSortedBoutIndex = zeros(0, 1) ;
-  minConf = nan ;
-  maxConf = nan ;
   absoluteThreshold = nan ;
   return
 end
-
-% Record overall extremes before filtering.  Higher interest maps to
-% lower confidence and vice versa.
-minConf = -max(interestFromPairIndex) ;
-maxConf = -min(interestFromPairIndex) ;
 
 % Compute the absolute interest threshold corresponding to the given
 % quantile.  Higher naiveQuantileThreshold filters out more (only the
