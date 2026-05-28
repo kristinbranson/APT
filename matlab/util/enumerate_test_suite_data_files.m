@@ -14,9 +14,9 @@ function enumerate_test_suite_data_files(testRootPath, outputPath)
 %
 % Stage 2: for each .lbl, load the project with a (batch-mode) Labeler and
 %   read the macro-resolved paths from movieFilesAllFull, movieFilesAllGTFull,
-%   trxFilesAllFull, and trxFilesAllGTFull.  The output file lists, per .lbl,
-%   the referenced files grouped by category, and ends with a deduplicated
-%   global list of every unique file path across all .lbl files.
+%   trxFilesAllFull, and trxFilesAllGTFull.  The output file lists each .lbl
+%   path on its own line at the left margin, followed by the files it refers
+%   to, each indented by two spaces.
 
   if ~exist('testRootPath', 'var') || isempty(testRootPath)
     thisFileDir = fileparts(mfilename('fullpath')) ;
@@ -36,7 +36,7 @@ function enumerate_test_suite_data_files(testRootPath, outputPath)
   end
 
   % For testing: only look at the first few .lbl files.
-  testingLimit = 3 ;
+  testingLimit = inf ;
   if numel(lblPaths) > testingLimit
     lblPaths = lblPaths(1 : testingLimit) ;
   end
@@ -48,56 +48,28 @@ function enumerate_test_suite_data_files(testRootPath, outputPath)
   if outFid < 0
     error('Could not open output file ''%s'' for writing.', outputPath) ;
   end
-  outCleaner = onCleanup(@()(fclose(outFid))) ;  %#ok<NASGU>
-
-  allPaths = {} ;
-  failures = {} ;
+  outCleaner = onCleanup(@()(fclose(outFid))) ;  
 
   for lblIndex = 1 : lblCount
     lblPath = lblPaths{lblIndex} ;
     fprintf('\n[%d/%d] %s\n', lblIndex, lblCount, lblPath) ;
-    fprintf(outFid, '================================================================\n') ;
-    fprintf(outFid, 'PROJECT: %s\n', lblPath) ;
-    fprintf(outFid, '================================================================\n') ;
+    fprintf(outFid, '%s\n', lblPath) ;
 
     if ~exist(lblPath, 'file')
-      fprintf(outFid, '  <FILE NOT FOUND>\n\n') ;
-      failures{end+1, 1} = sprintf('%s (file not found)', lblPath) ;  %#ok<AGROW>
       continue
     end
 
     try
-      paths = enumerateOneLbl_(lblPath, outFid) ;
-      allPaths = [allPaths ; paths(:)] ;  %#ok<AGROW>
+      referencedPaths = enumerateOneLbl_(lblPath) ;
+      for refIndex = 1 : numel(referencedPaths)
+        fprintf(outFid, '  %s\n', referencedPaths{refIndex}) ;
+      end
     catch loadError
-      fprintf(outFid, '  <ERROR LOADING: %s>\n\n', loadError.message) ;
-      failures{end+1, 1} = sprintf('%s (%s)', lblPath, loadError.message) ;  %#ok<AGROW>
-    end
-    fprintf(outFid, '\n') ;
-  end
-
-  % Deduplicated, sorted global list
-  uniquePaths = unique(allPaths) ;
-  fprintf(outFid, '================================================================\n') ;
-  fprintf(outFid, 'ALL UNIQUE REFERENCED FILES (%d total)\n', numel(uniquePaths)) ;
-  fprintf(outFid, '================================================================\n') ;
-  for pathIndex = 1 : numel(uniquePaths)
-    fprintf(outFid, '%s\n', uniquePaths{pathIndex}) ;
-  end
-
-  if ~isempty(failures)
-    fprintf(outFid, '\n================================================================\n') ;
-    fprintf(outFid, 'FAILURES (%d)\n', numel(failures)) ;
-    fprintf(outFid, '================================================================\n') ;
-    for failureIndex = 1 : numel(failures)
-      fprintf(outFid, '%s\n', failures{failureIndex}) ;
+      fprintf('Error loading %s: %s\n', lblPath, loadError.message) ;
     end
   end
 
-  fprintf('\nDone.  Wrote %d unique paths to %s.\n', numel(uniquePaths), outputPath) ;
-  if ~isempty(failures)
-    fprintf('%d project(s) failed; see end of output file.\n', numel(failures)) ;
-  end
+  fprintf('\nDone.  Wrote results to %s.\n', outputPath) ;
 end  % function
 
 
@@ -131,11 +103,11 @@ function lblPaths = discoverLblFilesFromTestSuite_(testRootPath)
 end  % function
 
 
-function paths = enumerateOneLbl_(lblPath, outFid)
-  % Load a single .lbl and emit the referenced file paths to outFid.
-  % Returns a column cellstr of all referenced paths (non-empty).
+function paths = enumerateOneLbl_(lblPath)
+  % Load a single .lbl and return all referenced file paths as a column
+  % cellstr (non-empty entries only).
   labeler = Labeler('isInBatchMode', true) ;
-  cleaner = onCleanup(@()(delete(labeler))) ;  %#ok<NASGU>
+  cleaner = onCleanup(@()(delete(labeler))) ;  
 
   labeler.projLoad(lblPath, 'nomovie', true) ;
 
@@ -143,11 +115,6 @@ function paths = enumerateOneLbl_(lblPath, outFid)
   movieGTFiles = flattenCellstr_(labeler.movieFilesAllGTFull) ;
   trxFiles = flattenCellstr_(labeler.trxFilesAllFull) ;
   trxGTFiles = flattenCellstr_(labeler.trxFilesAllGTFull) ;
-
-  writeSection_(outFid, 'Movies (regular)', movieFiles) ;
-  writeSection_(outFid, 'Movies (GT)', movieGTFiles) ;
-  writeSection_(outFid, 'Trx files (regular)', trxFiles) ;
-  writeSection_(outFid, 'Trx files (GT)', trxGTFiles) ;
 
   paths = [movieFiles ; movieGTFiles ; trxFiles ; trxGTFiles] ;
 end  % function
@@ -162,17 +129,4 @@ function flat = flattenCellstr_(cellOfStr)
   flat = reshape(cellOfStr, [], 1) ;
   isKeeper = ~cellfun(@isempty, flat) ;
   flat = flat(isKeeper) ;
-end  % function
-
-
-function writeSection_(outFid, label, paths)
-  % Write a labeled list of paths to outFid.
-  fprintf(outFid, '  %s (%d):\n', label, numel(paths)) ;
-  if isempty(paths)
-    fprintf(outFid, '    (none)\n') ;
-    return
-  end
-  for pathIndex = 1 : numel(paths)
-    fprintf(outFid, '    %s\n', paths{pathIndex}) ;
-  end
 end  % function
