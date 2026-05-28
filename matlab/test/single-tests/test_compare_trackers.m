@@ -6,20 +6,14 @@ function test_compare_trackers()
 % Temporary location until the test project lands under
 % /groups/branson/bransonlab/apt/unittest/.
 linux_project_file_path = ...
-  '/home/taylora@hhmi.org/apt-local/model-comparison/htflies-10-with-trks-from-two-trackers.lbl' ;
-if ispc()
-  project_file_path = strrep(linux_project_file_path, '/groups/branson/bransonlab', 'Z:') ;
-  replace_path = { '/groups/branson/bransonlab', 'Z:' } ;
-else
-  project_file_path = linux_project_file_path ;
-  replace_path = [] ;
-end
+  '/groups/branson/bransonlab/apt/unittest/htflies-10-with-trks-from-two-trackers.lbl' ;
+[project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
 
 [labeler, controller] = ...
   StartAPT('projfile', project_file_path, ...
            'replace_path', replace_path) ;
-cleaner = onCleanup(@()(delete(controller))) ;  %#ok<NASGU>
-cleaner2 = onCleanup(@()(delete(labeler))) ;  %#ok<NASGU>
+cleaner = onCleanup(@()(delete(controller))) ;
+cleaner2 = onCleanup(@()(delete(labeler))) ;
 
 % The project should have at least two trained trackers.
 trackerCount = numel(labeler.trackerHistory) ;

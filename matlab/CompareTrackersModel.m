@@ -12,7 +12,7 @@ classdef CompareTrackersModel < handle
   end
 
   properties (Transient, Access=private)
-    labeler_  % back-reference to Labeler (Transient in spirit)
+    labeler_  % back-reference to Labeler
     referenceTrackerHistoryIndex_ = 1
       % scalar positive integer, index into labeler.trackerHistory for
       % the reference tracker.

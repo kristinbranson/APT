@@ -9,13 +9,7 @@ function test_mmc_file_existence_styles()
 % linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
 linux_project_file_path = ...
   '/groups/branson/bransonlab/apt/unittest/multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved_3_lightly_trained.lbl' ;
-if ispc()
-  project_file_path = strrep(linux_project_file_path, '/groups/branson/bransonlab', 'Z:') ;
-  replace_path = { '/groups/branson/bransonlab', 'Z:' } ;
-else
-  project_file_path = linux_project_file_path ;
-  replace_path = [] ;
-end
+[project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
 
 [labeler, controller] = ...
   StartAPT('projfile', project_file_path, ...

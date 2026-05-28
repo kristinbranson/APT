@@ -3,13 +3,7 @@ function test_timeline_prediction_lines()
 % tracked project, and absent after clearing tracking results.
 linux_project_file_path = ...
   '/groups/branson/bransonlab/apt/unittest/with-trx-project-with-short-movie-tracked.lbl' ;
-if ispc()
-  project_file_path = strrep(linux_project_file_path, '/groups/branson/bransonlab', 'Z:') ;
-  replace_path = { '/groups/branson/bransonlab', 'Z:' } ;
-else
-  project_file_path = linux_project_file_path ;
-  replace_path = [] ;
-end
+[project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
 
 [labeler, controller] = ...
   StartAPT('projfile', project_file_path, ...
