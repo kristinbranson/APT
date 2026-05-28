@@ -1,7 +1,7 @@
 function test_stephen_tracking()
   % Test training for stephen project
-  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, 'sh_test_lbl_20200310_modded_resaved_tweaked_lightly_trained_20240122.lbl') ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/sh_test_lbl_20200310_modded_resaved_tweaked_lightly_trained_20240122.lbl' ;
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
   oc = onCleanup(@()(delete(tester))) ;
   if ~isempty(tester.labeler.tracker.trkP)

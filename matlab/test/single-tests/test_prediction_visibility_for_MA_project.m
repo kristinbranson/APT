@@ -7,8 +7,10 @@ rng(42) ;
 rngCleanupObj = onCleanup(@()(rng(originalRngState))) ;
 
 % Start APT with a project that has saved tracking results.
-projectFile = '/groups/branson/bransonlab/apt/unittest/htflies-10-with-saved-tracks.lbl' ;
+linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/htflies-10-with-saved-tracks.lbl' ;
+[projectFile, replace_path] = localize_test_project_path(linux_project_file_path) ;
 [labeler, controller] = StartAPT('projfile', projectFile, ...
+                                  'replace_path', replace_path, ...
                                   'isInDebugMode', true) ;
 cleanupObj = onCleanup(@()(delete(controller))) ;
 drawnow() ;

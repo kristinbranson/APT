@@ -1,8 +1,8 @@
 function test_gt_mode_with_zero_gt_movies()
 % Test that Evaluate > Groundtruthing Mode can be entered on a project with saved tracks.
 
-[~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-project_file_path = fullfile(unittest_dir_path, 'htflies-10-with-saved-tracks.lbl') ;
+linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/htflies-10-with-saved-tracks.lbl' ;
+[project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
 [labeler, controller] = ...
   StartAPT('projfile', project_file_path, ...
            'replace_path', replace_path) ;

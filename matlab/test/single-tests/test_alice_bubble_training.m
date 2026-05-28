@@ -1,7 +1,7 @@
 function test_alice_bubble_training()
   % Test training for alice project
-  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, 'alice/multitarget_bubble_expandedbehavior_20180425_allGT_MK_MDN04182019_updated_20250306.lbl') ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/alice/multitarget_bubble_expandedbehavior_20180425_allGT_MK_MDN04182019_updated_20250306.lbl' ;
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
   training_params = struct('dlc_override_dlsteps', {true}) ;  % scalar struct
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
   oc = onCleanup(@()(delete(tester))) ;

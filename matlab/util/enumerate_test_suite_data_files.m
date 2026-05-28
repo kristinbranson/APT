@@ -13,9 +13,9 @@ function enumerate_test_suite_data_files(testRootPath, outputPath)
 %        '/...lbl').  This catches both the canonical /groups/branson/bransonlab/
 %        apt/unittest/ projects and ad-hoc paths like the one in
 %        test_compare_trackers.m that lives under the user's home directory.
-%     2. Calls of the form fullfile(unittest_dir_path, '<name>.lbl'), which the
-%        test helpers use; <name>.lbl is resolved against the Linux unittest dir
-%        returned by get_test_project_paths() on Linux.
+%     2. Calls of the form fullfile(unittest_dir_path, '<name>.lbl').  Some
+%        legacy tests may still use this idiom; <name>.lbl is resolved
+%        against the canonical Linux unittest directory.
 %
 % Stage 2: for each .lbl, load the project with a (batch-mode) Labeler and
 %   read the macro-resolved paths from movieFilesAllFull, movieFilesAllGTFull,

@@ -5,8 +5,8 @@ function test_AR_GRONe_SA_training_conda()
     warning('conda backend is not supported on Windows, so %s always passes on Windows', mfilename());
     return
   end
-  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, 'multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved_3.lbl') ;  
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved_3.lbl' ;
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
   backend = 'conda' ;
   backend_params = synthesize_backend_params(backend) ;
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
