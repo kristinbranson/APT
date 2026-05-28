@@ -13,10 +13,15 @@ function enumerate_test_suite_data_files(testRootPath, outputPath)
 %   so it identifies exactly the tests that read a .lbl file.
 %
 % Stage 2: for each .lbl, load the project with a (batch-mode) Labeler and
-%   read the macro-resolved paths from movieFilesAllFull, movieFilesAllGTFull,
-%   trxFilesAllFull, and trxFilesAllGTFull.  The output file lists each .lbl
-%   path on its own line at the left margin, followed by the files it refers
-%   to, each indented by two spaces.
+%   collect every external file the project references:
+%     - movies (regular + GT) from movieFilesAllFull / movieFilesAllGTFull
+%     - trx files (regular + GT) from trxFilesAllFull / trxFilesAllGTFull
+%     - imported .trk files from each tracker's trkPathFromImovAndViewIndex
+%     - calibration files from sourceFile on each CalRig in
+%       viewCalibrationData / viewCalibrationDataGT
+%   The output file lists each .lbl path on its own line at the left margin,
+%   followed by the files it references, each indented by two spaces.
+%   Duplicates within a project are removed but original ordering is kept.
 
   if ~exist('testRootPath', 'var') || isempty(testRootPath)
     thisFileDir = fileparts(mfilename('fullpath')) ;
@@ -104,10 +109,10 @@ end  % function
 
 
 function paths = enumerateOneLbl_(lblPath)
-  % Load a single .lbl and return all referenced file paths as a column
-  % cellstr (non-empty entries only).
+  % Load a single .lbl and return every external file path it references,
+  % deduplicated while preserving first-occurrence order, as a column cellstr.
   labeler = Labeler('isInBatchMode', true) ;
-  cleaner = onCleanup(@()(delete(labeler))) ;  
+  cleaner = onCleanup(@()(delete(labeler))) ;
 
   labeler.projLoad(lblPath, 'nomovie', true) ;
 
@@ -115,8 +120,60 @@ function paths = enumerateOneLbl_(lblPath)
   movieGTFiles = flattenCellstr_(labeler.movieFilesAllGTFull) ;
   trxFiles = flattenCellstr_(labeler.trxFilesAllFull) ;
   trxGTFiles = flattenCellstr_(labeler.trxFilesAllGTFull) ;
+  importedTrkFiles = collectImportedTrkFiles_(labeler) ;
+  calibrationFiles = collectCalibrationSourceFiles_(labeler) ;
 
-  paths = [movieFiles ; movieGTFiles ; trxFiles ; trxGTFiles] ;
+  paths = [movieFiles ; movieGTFiles ; trxFiles ; trxGTFiles ; ...
+           importedTrkFiles ; calibrationFiles] ;
+  paths = unique(paths, 'stable') ;
+end  % function
+
+
+function paths = collectImportedTrkFiles_(labeler)
+  % Gather absolute paths of .trk files that have been imported into any
+  % tracker in the project's trackerHistory.  Each tracker carries a
+  % [nmovset x nview] cellstr in trkPathFromImovAndViewIndex; empty entries
+  % indicate movie/view combinations with no imported trk.
+  paths = cell(0, 1) ;
+  trackers = labeler.trackerHistory ;
+  for trackerIndex = 1 : numel(trackers)
+    tracker = trackers{trackerIndex} ;
+    if ~isprop(tracker, 'trkPathFromImovAndViewIndex')
+      continue
+    end
+    paths = [paths ; flattenCellstr_(tracker.trkPathFromImovAndViewIndex)] ;  %#ok<AGROW>
+  end
+end  % function
+
+
+function paths = collectCalibrationSourceFiles_(labeler)
+  % Gather sourceFile paths from every CalRig stored in the project's
+  % view-calibration properties (regular and GT).  CalRig.sourceFile records
+  % the on-disk file the calibration was originally loaded from; it can be
+  % empty when the rig was synthesized rather than loaded.
+  paths = cell(0, 1) ;
+  for propNameCell = {'viewCalibrationData', 'viewCalibrationDataGT'}
+    paths = [paths ; calRigSourceFiles_(labeler.(propNameCell{1}))] ;  %#ok<AGROW>
+  end
+end  % function
+
+
+function paths = calRigSourceFiles_(value)
+  % Recursively extract sourceFile from a CalRig, or from a cell array of
+  % CalRig objects.  Returns a (possibly empty) column cellstr.
+  paths = cell(0, 1) ;
+  if isempty(value)
+    return
+  end
+  if iscell(value)
+    for i = 1 : numel(value)
+      paths = [paths ; calRigSourceFiles_(value{i})] ;  %#ok<AGROW>
+    end
+    return
+  end
+  if isa(value, 'CalRig') && ~isempty(value.sourceFile)
+    paths{end+1, 1} = value.sourceFile ;
+  end
 end  % function
 
 
