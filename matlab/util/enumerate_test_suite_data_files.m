@@ -6,16 +6,11 @@ function enumerate_test_suite_data_files(testRootPath, outputPath)
 % outputPath: path to write the per-project enumeration to.
 %   Defaults to 'lbl_referenced_files.txt' in the current directory.
 %
-% Stage 1: scan every .m file under testRootPath for .lbl path references and
-%   produce a deduplicated, sorted list of .lbl project files used by the
-%   test suite.  Two heuristics are applied:
-%     1. Any single-quoted absolute Linux path ending in .lbl (i.e. matching
-%        '/...lbl').  This catches both the canonical /groups/branson/bransonlab/
-%        apt/unittest/ projects and ad-hoc paths like the one in
-%        test_compare_trackers.m that lives under the user's home directory.
-%     2. Calls of the form fullfile(unittest_dir_path, '<name>.lbl').  Some
-%        legacy tests may still use this idiom; <name>.lbl is resolved
-%        against the canonical Linux unittest directory.
+% Stage 1: scan every .m file under testRootPath for assignments of the form
+%   linux_project_file_path = '<path>.lbl' (optionally split across two lines
+%   with a MATLAB continuation '...').  This is the project-wide convention
+%   for naming the .lbl that a test will load via localize_test_project_path,
+%   so it identifies exactly the tests that read a .lbl file.
 %
 % Stage 2: for each .lbl, load the project with a (batch-mode) Labeler and
 %   read the macro-resolved paths from movieFilesAllFull, movieFilesAllGTFull,
@@ -107,19 +102,18 @@ end  % function
 
 
 function lblPaths = discoverLblFilesFromTestSuite_(testRootPath)
-  % Scan all .m files under testRootPath and extract .lbl file paths
-  % referenced in the source.
+  % Scan all .m files under testRootPath and extract the .lbl path from
+  % each linux_project_file_path = '<path>.lbl' assignment.  The MATLAB
+  % line-continuation '...' between the '=' and the opening quote is
+  % tolerated so that both single-line and split-line forms are matched.
   if ~exist(testRootPath, 'dir')
     error('Test root directory ''%s'' does not exist.', testRootPath) ;
   end
 
-  unittestDirOnLinux = '/groups/branson/bransonlab/apt/unittest' ;
-
   % Recursively list all .m files in the test tree
   mFileInfos = dir(fullfile(testRootPath, '**', '*.m')) ;
 
-  absolutePattern = '''(/[^'']+\.lbl)''' ;
-  fullfilePattern = 'fullfile\s*\(\s*unittest_dir_path\s*,\s*''([^'']+\.lbl)''' ;
+  assignmentPattern = 'linux_project_file_path\s*=\s*(?:\.\.\.\s*)?''([^'']+\.lbl)''' ;
 
   discovered = {} ;
   for fileIndex = 1 : numel(mFileInfos)
@@ -127,15 +121,9 @@ function lblPaths = discoverLblFilesFromTestSuite_(testRootPath)
     fullPath = fullfile(info.folder, info.name) ;
     text = fileread(fullPath) ;
 
-    absoluteTokens = regexp(text, absolutePattern, 'tokens') ;
-    for tokIndex = 1 : numel(absoluteTokens)
-      discovered{end+1, 1} = absoluteTokens{tokIndex}{1} ;  %#ok<AGROW>
-    end
-
-    fullfileTokens = regexp(text, fullfilePattern, 'tokens') ;
-    for tokIndex = 1 : numel(fullfileTokens)
-      discovered{end+1, 1} = ...
-        [unittestDirOnLinux '/' fullfileTokens{tokIndex}{1}] ;  %#ok<AGROW>
+    tokens = regexp(text, assignmentPattern, 'tokens') ;
+    for tokIndex = 1 : numel(tokens)
+      discovered{end+1, 1} = tokens{tokIndex}{1} ;  %#ok<AGROW>
     end
   end
 
