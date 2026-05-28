@@ -2,7 +2,7 @@ function test_uncertain_frames()
 % Test that the Uncertain Frames window shows the correct number of items
 % when switching between movies.
 linux_project_file_path = ...
-  '/groups/branson/bransonlab/apt/unittest/with-trx-project-with-short-movie-tracked.lbl' ;
+  '/groups/branson/bransonlab/apt/unittest/with-trx-project-with-short-movie-tracked-relocated.lbl' ;
 [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
 
 [labeler, controller] = ...

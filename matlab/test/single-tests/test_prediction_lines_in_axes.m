@@ -2,7 +2,7 @@ function test_prediction_lines_in_axes()
 % Test that prediction line objects in axes_curr have the expected tags
 % and non-NaN coordinate data after loading a tracked project.
 linux_project_file_path = ...
-  '/groups/branson/bransonlab/apt/unittest/with-trx-project-with-short-movie-tracked.lbl' ;
+  '/groups/branson/bransonlab/apt/unittest/with-trx-project-with-short-movie-tracked-relocated.lbl' ;
 [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
 
 [labeler, controller] = ...

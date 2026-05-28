@@ -6,7 +6,7 @@ function test_compare_trackers()
 % Temporary location until the test project lands under
 % /groups/branson/bransonlab/apt/unittest/.
 linux_project_file_path = ...
-  '/groups/branson/bransonlab/apt/unittest/htflies-10-with-trks-from-two-trackers.lbl' ;
+  '/groups/branson/bransonlab/apt/unittest/htflies-10-with-trks-from-two-trackers-relocated.lbl' ;
 [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
 
 [labeler, controller] = ...

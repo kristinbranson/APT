@@ -7,7 +7,7 @@ rng(42) ;
 rngCleanupObj = onCleanup(@()(rng(originalRngState))) ;
 
 % Start APT with a project that has saved tracking results.
-linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/htflies-10-with-saved-tracks.lbl' ;
+linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/htflies-10-with-saved-tracks-relocated.lbl' ;
 [projectFile, replace_path] = localize_test_project_path(linux_project_file_path) ;
 [labeler, controller] = StartAPT('projfile', projectFile, ...
                                   'replace_path', replace_path, ...
