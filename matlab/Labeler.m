@@ -191,7 +191,8 @@ classdef Labeler < handle
     % updateLabelSkeletonCosmetics
     updatePreProcParams
     requestMacroizationGUI
-    requestMessageBox
+    requestNonmodalMessageBox
+    requestModalWarningDialog
     requestQuestionDialog
     updateLabelCoreTrackResForCurrentTarget
     updateUncertainFrames
@@ -2849,12 +2850,20 @@ classdef Labeler < handle
       % Set up the prev_axes
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode) ;
-      obj.prevAxesMode_ = pamode ;
       if pamode == PrevAxesMode.FROZEN
         modeInfoStruct = s.cfg.PrevAxes.ModeInfo ;
-        if ~isempty(fieldnames(modeInfoStruct)) && obj.hasMovie
+        if obj.hasMovie && isPrevAxesModeInfoUsable(modeInfoStruct)
+          obj.prevAxesMode_ = PrevAxesMode.FROZEN ;
           obj.corePrevAxesTargetSpec_ = CorePrevAxesTargetSpec(modeInfoStruct) ;
+        else
+          % Legacy/degenerate FROZEN state: the saved ModeInfo carries no usable
+          % target identity (e.g. old projects saved with empty iMov/frm/iTgt), so
+          % there is nothing to freeze to.  Fall back to LASTSEEN with an unset spec.
+          obj.prevAxesMode_ = PrevAxesMode.LASTSEEN ;
+          obj.corePrevAxesTargetSpec_ = [] ;
         end
+      else
+        obj.prevAxesMode_ = pamode ;
       end
       obj.notify_('updatePrevPanel') ;
 
@@ -2954,7 +2963,8 @@ classdef Labeler < handle
       if nomovie || (doAllRegularMoviesExist && doAllGTMoviesExist)
         % All is well, do nothing.
       else
-        error('Labeler:movie_missing', 'At least one movie is missing (see console for list).  Use File > Manage Movies... to fix.') ;
+        obj.warnUserModal_('At least one movie is missing (see console for list).  Use File > Manage Movies... to fix.', ...
+                           'Missing movies') ;
       end
       % Final sign-off
       fprintf('\nFinished loading project, elapsed time %f s.\n',toc(starttime)); 
@@ -8412,7 +8422,7 @@ classdef Labeler < handle
           fprintf('Saved labels: %s\n',outf);
         end
       end
-      obj.messageUser_(sprintf('Results for %d moviesets exported.', nMov), 'Export Complete') ;
+      obj.messageUserNonmodal_(sprintf('Results for %d moviesets exported.', nMov), 'Export Complete') ;
     end
     
     function labelImportTrkGeneric(obj, mIdx, trkfiles)
@@ -9601,7 +9611,7 @@ classdef Labeler < handle
 
       nextmft = obj.gtNextUnlabeledMFT();
       if isempty(nextmft),
-        obj.messageUser_('No more unlabeled frames in to-label list.') ;
+        obj.messageUserNonmodal_('No more unlabeled frames in to-label list.') ;
         return;
       end
 
@@ -14409,9 +14419,9 @@ classdef Labeler < handle
       obj.notify_('updatePrevPanel') ;
     end
 
-    function messageUser_(obj, text, title)
-      % Show a message to the user via the controller, or print to console if
-      % no controller is present.
+    function messageUserNonmodal_(obj, text, title)
+      % Show a nonmodal message to the user via the controller, or print to console
+      % if no controller is present.
       if ~exist('title', 'var') ,
         title = 'Message' ;
       end
@@ -14420,9 +14430,26 @@ classdef Labeler < handle
           % every value wrapped in a cell so struct() always produces a
           % scalar struct, regardless of whether any field value is a
           % cell array.
-        obj.notify_('requestMessageBox') ;
+        obj.notify_('requestNonmodalMessageBox') ;
       else
         fprintf('%s\n', text) ;
+      end
+    end  % function
+
+    function warnUserModal_(obj, text, title)
+      % Show a modal warning dialog to the user via the controller, or print to
+      % console if no controller is present.
+      if ~exist('title', 'var') ,
+        title = 'Warning' ;
+      end
+      if obj.isInInteractiveMode
+        obj.dialogLaunchPad_ = struct('text', {text}, 'title', {title}) ;
+          % every value wrapped in a cell so struct() always produces a
+          % scalar struct, regardless of whether any field value is a
+          % cell array.
+        obj.notify_('requestModalWarningDialog') ;
+      else
+        warningNoTrace(text) ;
       end
     end  % function
 

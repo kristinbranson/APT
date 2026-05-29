@@ -606,7 +606,9 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'requestMacroizationGUI',@(s,e)(obj.requestMacroizationGUI())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'requestMessageBox',@(s,e)(obj.requestMessageBox())) ;
+        addlistener(obj.labeler_,'requestNonmodalMessageBox',@(s,e)(obj.requestNonmodalMessageBox())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'requestModalWarningDialog',@(s,e)(obj.requestModalWarningDialog())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'requestQuestionDialog',@(s,e)(obj.requestQuestionDialog())) ;
       obj.listeners_(end+1) = ...
@@ -8350,11 +8352,21 @@ classdef LabelerController < handle
       labeler.dialogLandingPad = result ;
     end  % function
 
-    function requestMessageBox(obj)
+    function requestNonmodalMessageBox(obj)
       % Show a message box to the user on behalf of the Labeler.
       labeler = obj.labeler_ ;
       params = labeler.dialogLaunchPad ;
       obj.nonmodalMessageBox_(params.text, params.title) ;
+    end  % function
+
+    function requestModalWarningDialog(obj)
+      % Show a modal warning dialog to the user on behalf of the Labeler.
+      labeler = obj.labeler_ ;
+      params = labeler.dialogLaunchPad ;
+      % Save and restore focus, since warndlg can steal it from the main window.
+      fig = gcf() ;
+      uiwait(warndlg(params.text, params.title, 'modal')) ;
+      figure(fig) ;  % restore focus
     end  % function
 
     function updateLabelCoreTrackResForCurrentTarget(obj)
@@ -8378,9 +8390,9 @@ classdef LabelerController < handle
       % Save and restore focus, since questdlg can steal it from the main window.
       fig = gcf() ;
       answer = questdlg(params.text, ...
-                         params.title, ...
-                         buttons{:}, ...
-                         params.default) ;
+                        params.title, ...
+                        buttons{:}, ...
+                        params.default) ;  % modal window
       figure(fig) ;  % restore focus
       if isempty(answer)
         answer = params.default ;
