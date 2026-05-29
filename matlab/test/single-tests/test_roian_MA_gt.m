@@ -3,7 +3,7 @@ function test_roian_MA_gt()
     warning('The project videos are too large to easily copy, so %s always passes on Windows', mfilename());
     return
   end    
-  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-gt-added-and-movie-paths-moved-2.lbl' ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-gt-added-and-movie-paths-moved.lbl' ;
   [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
   backend = docker_unless_janelia_cluster_then_conda() ;
   backend_params = synthesize_backend_params(backend) ;
