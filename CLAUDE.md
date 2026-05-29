@@ -307,4 +307,11 @@ the path properly.
 Running commands that span multiple lines using `matlab -batch`
 doesn't seem to work.  Write such commands to a .m file and run that
 instead.
+
+When using the Matlab MCP server, the MATLAB session it launches does
+not have the APT path configured.  After the MCP server starts its
+MATLAB session (i.e. on the first MCP tool call of a session, or after
+the session restarts), run `modpath()` once to set up the path.  The
+path persists for the rest of that MATLAB session, so it only needs to
+be run again if the session restarts.
   
