@@ -50,26 +50,39 @@ classdef CompareTrackersController < handle
 
       % Refresh dropdown items and selection from the current
       % trackerHistory, in case trackers were added since the last
-      % update.
+      % update.  The reference tracker is always the current tracker
+      % (trackerHistory index 1), so its dropdown is always disabled and
+      % just displays that tracker.
       [items, itemsData] = obj.trackerDropdownItems_() ;
       obj.referenceDropdown_.Items = items ;
       obj.referenceDropdown_.ItemsData = itemsData ;
       obj.testDropdown_.Items = items ;
       obj.testDropdown_.ItemsData = itemsData ;
       if isempty(itemsData)
-        obj.referenceDropdown_.Enable = 'off' ;
         obj.testDropdown_.Enable = 'off' ;
       else
-        obj.referenceDropdown_.Enable = 'on' ;
         obj.testDropdown_.Enable = 'on' ;
         obj.referenceDropdown_.Value = clampDropdownValue_(model.referenceTrackerHistoryIndex, itemsData) ;
         obj.testDropdown_.Value = clampDropdownValue_(model.testTrackerHistoryIndex, itemsData) ;
       end
+      obj.referenceDropdown_.Enable = 'off' ;
 
-      % Flag the test dropdown pink when it is the same as the
-      % reference, since the comparison is then a no-op.
-      obj.testDropdown_.BackgroundColor = ...
-        fif(model.isTestTrackerChoiceValid, [1 1 1], [1 0.8 0.85]) ;
+      % Indicate the reference (== current) tracker in the test dropdown,
+      % since selecting it as the test tracker yields no comparison.  In
+      % R2023a and later, per-item dropdown styling is available, so pink
+      % just the reference item (always the first item) in the list.  In
+      % older releases, fall back to flagging the whole control pink when
+      % the test selection coincides with the reference.
+      if verLessThan('matlab', '9.14')  % R2023a
+        obj.testDropdown_.BackgroundColor = ...
+          fif(model.isTestTrackerChoiceValid, [1 1 1], [1 0.8 0.85]) ;
+      else
+        removeStyle(obj.testDropdown_) ;
+        if ~isempty(itemsData)
+          pinkStyle = uistyle('BackgroundColor', [1 0.8 0.85]) ;
+          addStyle(obj.testDropdown_, pinkStyle, 'item', 1) ;
+        end
+      end
 
       obj.thresholdEdit_.Value = sprintf('%g', model.quantileThreshold) ;
       absoluteThreshold = model.absoluteDistanceThreshold ;
@@ -127,11 +140,6 @@ classdef CompareTrackersController < handle
       obj.model_.quantileThreshold = newValue ;
     end  % function
 
-    function compare_trackers_reference_dropdown_actuated_(obj, src)
-      % Handle reference-tracker dropdown change.
-      obj.model_.referenceTrackerHistoryIndex = src.Value ;
-    end  % function
-
     function compare_trackers_test_dropdown_actuated_(obj, src)
       % Handle test-tracker dropdown change.
       obj.model_.testTrackerHistoryIndex = src.Value ;
@@ -164,11 +172,12 @@ classdef CompareTrackersController < handle
         'Text', 'Reference:', ...
         'HorizontalAlignment', 'right', ...
         'Tag', 'compare_trackers_reference_label') ;
+      % The reference tracker is always the current tracker, so this
+      % dropdown is disabled and has no value-changed callback.
       obj.referenceDropdown_ = uidropdown(referenceRow, ...
         'Items', {''}, ...
-        'Tag', 'compare_trackers_reference_dropdown', ...
-        'ValueChangedFcn', ...
-          @(src, evt)(labelerController.controlActuated('compare_trackers_reference_dropdown', src, evt))) ;
+        'Enable', 'off', ...
+        'Tag', 'compare_trackers_reference_dropdown') ;
 
       % Row 2: test tracker
       testRow = uigridlayout(gridLayout, [1, 2]) ;

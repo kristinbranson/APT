@@ -3783,12 +3783,6 @@ classdef LabelerController < handle
       ctc.compare_trackers_threshold_edit_actuated_(src) ;
     end  % function
 
-    function compare_trackers_reference_dropdown_actuated_(obj, src, evt)  %#ok<INUSD>
-      % Handle reference-tracker dropdown change.
-      ctc = obj.compareTrackersController_ ;
-      ctc.compare_trackers_reference_dropdown_actuated_(src) ;
-    end  % function
-
     function compare_trackers_test_dropdown_actuated_(obj, src, evt)  %#ok<INUSD>
       % Handle test-tracker dropdown change.
       ctc = obj.compareTrackersController_ ;

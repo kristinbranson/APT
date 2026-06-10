@@ -1,6 +1,7 @@
 function test_compare_trackers()
 % Test that the Compare Trackers window populates its dropdowns and
-% listbox correctly, and shows the same-tracker warning when the test
+% listbox correctly, flags the reference (current) tracker pink in the
+% test dropdown, and shows the same-tracker warning when the test
 % selection coincides with the reference selection.
 
 % Temporary location until the test project lands under
@@ -36,6 +37,16 @@ if numel(testDropdown.Items) ~= trackerCount
         numel(testDropdown.Items), trackerCount) ;
 end
 
+% The reference dropdown is disabled and always shows the current
+% tracker (trackerHistory index 1).
+if ~strcmp(referenceDropdown.Enable, 'off')
+  error('Expected reference dropdown to be disabled, but Enable=%s', referenceDropdown.Enable) ;
+end
+if referenceDropdown.Value ~= 1
+  error('Expected reference dropdown to show the current tracker (index 1), but Value=%d', ...
+        referenceDropdown.Value) ;
+end
+
 % Defaults: reference = first tracker, test = second.  The two should
 % differ, so the listbox should contain at least one bout.
 if referenceDropdown.Value == testDropdown.Value
@@ -51,10 +62,26 @@ if strcmp(listbox.FontAngle, 'italic')
   error('Listbox should be in normal font when bouts are present, but FontAngle is italic') ;
 end
 
-% Set the test selection equal to the reference; the listbox should
-% switch to a single italic warning entry and the test dropdown's
-% background should turn pink.
+% The reference (current) tracker should be flagged pink in the test
+% dropdown.  In R2023a and later this is a per-item style on the first
+% item, shown regardless of the current test selection; in older
+% releases the whole control turns pink only when the test selection
+% coincides with the reference.
+pinkColor = [1 0.8 0.85] ;
 model = labeler.compareTrackersModel_ ;
+if verLessThan('matlab', '9.14')  % R2023a
+  model.testTrackerHistoryIndex = model.referenceTrackerHistoryIndex ;
+  if ~isequal(testDropdown.BackgroundColor, pinkColor)
+    error('Expected test dropdown background to be pink when ref==test') ;
+  end
+else
+  if ~isReferenceItemPink_(testDropdown, pinkColor)
+    error('Expected the reference tracker item in the test dropdown to have a pink background') ;
+  end
+end
+
+% Set the test selection equal to the reference; the listbox should
+% switch to a single italic warning entry.
 model.testTrackerHistoryIndex = model.referenceTrackerHistoryIndex ;
 if numel(listbox.Items) ~= 1
   error('Expected listbox to have a single warning entry when ref==test, but got %d items', ...
@@ -65,9 +92,6 @@ if ~strcmp(listbox.FontAngle, 'italic')
 end
 if ~strcmp(listbox.Enable, 'off')
   error('Expected listbox to be disabled when ref==test, but got Enable=%s', listbox.Enable) ;
-end
-if ~isequal(testDropdown.BackgroundColor, [1 0.8 0.85])
-  error('Expected test dropdown background to be pink when ref==test') ;
 end
 
 % Restore the test selection to a different tracker; listbox should
@@ -82,4 +106,22 @@ if strcmp(listbox.FontAngle, 'italic')
   error('Listbox should be in normal font after restoring distinct test') ;
 end
 
+end  % function
+
+
+
+function result = isReferenceItemPink_(dropdown, pinkColor)
+% Return whether the dropdown has a per-item style giving the first
+% (reference) item the given background color.
+result = false ;
+styleConfigurations = dropdown.StyleConfigurations ;
+for styleIndex = 1 : height(styleConfigurations)
+  target = string(styleConfigurations.Target(styleIndex)) ;
+  targetIndex = styleConfigurations.TargetIndex{styleIndex} ;
+  style = styleConfigurations.Style(styleIndex) ;
+  if target == "item" && isequal(targetIndex, 1) && isequal(style.BackgroundColor, pinkColor)
+    result = true ;
+    return
+  end
+end
 end  % function

@@ -15,7 +15,8 @@ classdef CompareTrackersModel < handle
     labeler_  % back-reference to Labeler
     referenceTrackerHistoryIndex_ = 1
       % scalar positive integer, index into labeler.trackerHistory for
-      % the reference tracker.
+      % the reference tracker.  Always 1: the reference tracker is always
+      % the current tracker.
     testTrackerHistoryIndex_ = 2
       % scalar positive integer, index into labeler.trackerHistory for
       % the test tracker.  Defaults to 2; clamped to 1 if there is only
@@ -116,21 +117,9 @@ classdef CompareTrackersModel < handle
     end  % function
 
     function result = get.referenceTrackerHistoryIndex(obj)
+      % The reference tracker is always the current tracker, which lives
+      % at trackerHistory index 1.  Read-only.
       result = obj.referenceTrackerHistoryIndex_ ;
-    end  % function
-
-    function set.referenceTrackerHistoryIndex(obj, newValue)
-      isValid = isValidTrackerHistoryIndex_(obj, newValue) ;
-      if isValid
-        obj.referenceTrackerHistoryIndex_ = newValue ;
-        obj.isFresh_ = false ;
-        obj.syncFromPredictionsIfStaleAndVisible_() ;
-      end
-      obj.labeler_.notifyRetrograde('didSetCompareTrackersTrackerSelection') ;
-      if ~isValid
-        error('APT:invalidPropertyValue', ...
-              'Reference tracker index must be a positive integer within trackerHistory') ;
-      end
     end  % function
 
     function result = get.testTrackerHistoryIndex(obj)
@@ -272,13 +261,16 @@ classdef CompareTrackersModel < handle
         return
       end
 
-      % Clamp the selection indices to the current trackerHistory length.
-      refIndex = min(max(obj.referenceTrackerHistoryIndex_, 1), trackerCount) ;
+      % The reference tracker is always the current tracker (history
+      % index 1).  Clamp the test selection to the current
+      % trackerHistory length.
+      refIndex = 1 ;
       testIndex = min(max(obj.testTrackerHistoryIndex_, 1), trackerCount) ;
 
       % Short-circuit: comparing a tracker to itself is meaningless and
       % would just be a flat zero-distance result.  The controller
-      % flags this state visually.
+      % flags this state visually.  This is reachable when the user sets
+      % the current (reference) tracker to also be the test tracker.
       if refIndex == testIndex
         obj.clear_() ;
         return
