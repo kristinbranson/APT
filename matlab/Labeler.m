@@ -8084,8 +8084,25 @@ classdef Labeler < handle
         end
       else
         basename = [basename '_$trackertype'];
+        % Append the training timestamp and the user tag (if any), so that
+        % different trackers of the same type yield distinct filenames.
+        % Both are sanitized for use in a filename and come just after the
+        % tracker type.
+        tracker = obj.tracker ;
+        if ~isempty(tracker)
+          if isprop(tracker, 'trnNameLbl')
+            timestampFragment = fileNameFragmentFromString(tracker.trnNameLbl) ;
+            if ~isempty(timestampFragment)
+              basename = [basename '_' timestampFragment] ;
+            end
+          end
+          tagFragment = fileNameFragmentFromString(tracker.userTag) ;
+          if ~isempty(tagFragment)
+            basename = [basename '_' tagFragment] ;
+          end
+        end
       end
-      
+
       rawname = fullfile('$movdir',basename);
     end
 
