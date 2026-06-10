@@ -13,14 +13,12 @@ classdef CompareTrackersModel < handle
 
   properties (Transient, Access=private)
     labeler_  % back-reference to Labeler
-    referenceTrackerHistoryIndex_ = 1
-      % scalar positive integer, index into labeler.trackerHistory for
-      % the reference tracker.  Always 1: the reference tracker is always
-      % the current tracker.
-    testTrackerHistoryIndex_ = 2
-      % scalar positive integer, index into labeler.trackerHistory for
-      % the test tracker.  Defaults to 2; clamped to 1 if there is only
-      % one tracker.
+    testTracker_ = []
+      % Handle to the tracker selected as the test tracker, or [] for
+      % none.  Stored by identity (not by index) so the selection
+      % survives reordering of labeler.trackerHistory.  The reference
+      % tracker is always the current tracker (trackerHistory{1}), so it
+      % is not stored here.
     startFrameFromBoutIndex_  % [N x 1] first frame of each bout
     endFrameFromBoutIndex_  % [N x 1] last frame of each bout
     maxDistanceFrameFromBoutIndex_  % [N x 1] frame where the per-bout max distance occurs
@@ -42,8 +40,8 @@ classdef CompareTrackersModel < handle
     isVisible
     absoluteDistanceThreshold
     quantileThreshold
-    referenceTrackerHistoryIndex
-    testTrackerHistoryIndex
+    referenceTracker
+    testTracker
     currentBoutIndexMaybe
   end
 
@@ -116,27 +114,52 @@ classdef CompareTrackersModel < handle
       end
     end  % function
 
-    function result = get.referenceTrackerHistoryIndex(obj)
-      % The reference tracker is always the current tracker, which lives
-      % at trackerHistory index 1.  Read-only.
-      result = obj.referenceTrackerHistoryIndex_ ;
+    function result = get.referenceTracker(obj)
+      % The reference tracker is always the current tracker
+      % (trackerHistory{1}).  Read-only.  Returns [] if there are no
+      % trackers.
+      trackerHistory = obj.labeler_.trackerHistory ;
+      if isempty(trackerHistory)
+        result = [] ;
+      else
+        result = trackerHistory{1} ;
+      end
     end  % function
 
-    function result = get.testTrackerHistoryIndex(obj)
-      result = obj.testTrackerHistoryIndex_ ;
+    function result = get.testTracker(obj)
+      % Return the effective test tracker: the stored selection if it is
+      % still a valid tracker in the history, otherwise a sensible
+      % default (the first non-current tracker, or [] if there is none).
+      trackerHistory = obj.labeler_.trackerHistory ;
+      if ~isempty(obj.testTracker_) && isvalid(obj.testTracker_) && ...
+          isTrackerInHistory_(obj.testTracker_, trackerHistory)
+        result = obj.testTracker_ ;
+      else
+        result = defaultTestTrackerFromHistory_(trackerHistory) ;
+      end
     end  % function
 
-    function set.testTrackerHistoryIndex(obj, newValue)
-      isValid = isValidTrackerHistoryIndex_(obj, newValue) ;
+    function set.testTracker(obj, newValue)
+      % Set the test tracker, by identity.  A valid value is [] or a
+      % tracker currently in the labeler's trackerHistory.
+      isValid = isempty(newValue) || ...
+                ( isscalar(newValue) && ...
+                  isa(newValue, 'LabelTracker') && ...
+                  isvalid(newValue) && ...
+                  isTrackerInHistory_(newValue, obj.labeler_.trackerHistory) ) ;
       if isValid
-        obj.testTrackerHistoryIndex_ = newValue ;
+        if isempty(newValue)
+          obj.testTracker_ = [] ;
+        else
+          obj.testTracker_ = newValue ;
+        end
         obj.isFresh_ = false ;
         obj.syncFromPredictionsIfStaleAndVisible_() ;
       end
       obj.labeler_.notifyRetrograde('didSetCompareTrackersTrackerSelection') ;
       if ~isValid
         error('APT:invalidPropertyValue', ...
-              'Test tracker index must be a positive integer within trackerHistory') ;
+              'Test tracker must be [] or a tracker in the labeler''s trackerHistory') ;
       end
     end  % function
 
@@ -148,9 +171,9 @@ classdef CompareTrackersModel < handle
     end  % function
 
     function result = get.isTestTrackerChoiceValid(obj)
-      % Return whether the test-tracker selection differs from the
-      % reference-tracker selection.
-      result = obj.testTrackerHistoryIndex_ ~= obj.referenceTrackerHistoryIndex_ ;
+      % Return whether the test tracker differs from the reference
+      % tracker (compared by identity).
+      result = ~areSameTracker_(obj.testTracker, obj.referenceTracker) ;
     end  % function
 
     function result = get.displayStringFromBoutIndex(obj)
@@ -262,19 +285,26 @@ classdef CompareTrackersModel < handle
       end
 
       % The reference tracker is always the current tracker (history
-      % index 1).  Clamp the test selection to the current
-      % trackerHistory length.
-      refIndex = 1 ;
-      testIndex = min(max(obj.testTrackerHistoryIndex_, 1), trackerCount) ;
+      % index 1).  The test tracker is tracked by identity.
+      referenceTracker = obj.referenceTracker ;
+      testTracker = obj.testTracker ;
 
-      % Short-circuit: comparing a tracker to itself is meaningless and
-      % would just be a flat zero-distance result.  The controller
-      % flags this state visually.  This is reachable when the user sets
-      % the current (reference) tracker to also be the test tracker.
-      if refIndex == testIndex
+      % Short-circuit: comparing a tracker to itself (or having no
+      % distinct test tracker) is meaningless and would just be a flat
+      % zero-distance result.  The controller flags this state visually.
+      % This is reachable when the user makes the test tracker the
+      % current (reference) tracker.
+      if isempty(testTracker) || areSameTracker_(testTracker, referenceTracker)
         obj.clear_() ;
         return
       end
+
+      testIndex = trackerHistoryIndexFromTracker_(trackerHistory, testTracker) ;
+      if isempty(testIndex)
+        obj.clear_() ;
+        return
+      end
+      refIndex = 1 ;
 
       refTrkFile = trkFileForTrackerHistoryIndex_(labeler, refIndex) ;
       testTrkFile = trkFileForTrackerHistoryIndex_(labeler, testIndex) ;
@@ -314,16 +344,43 @@ end  % classdef
 
 
 
-function result = isValidTrackerHistoryIndex_(obj, newValue)
-% Return whether newValue is a valid index into the labeler's tracker
-% history.
-result = isscalar(newValue) && ...
-         isnumeric(newValue) && ...
-         isreal(newValue) && ...
-         isfinite(newValue) && ...
-         newValue == round(newValue) && ...
-         1 <= newValue && ...
-         newValue <= numel(obj.labeler_.trackerHistory) ;
+function result = areSameTracker_(a, b)
+% Identity comparison for tracker handles that tolerates [] operands.
+% Two trackers are the same iff they are the same handle; two empties are
+% considered the same.
+if isempty(a) || isempty(b)
+  result = isempty(a) && isempty(b) ;
+else
+  result = (a == b) ;
+end
+end  % function
+
+
+
+function index = trackerHistoryIndexFromTracker_(trackerHistory, tracker)
+% Return the index of the given tracker within trackerHistory, or [] if
+% it is not present.  Compared by identity.
+index = find(cellfun(@(t)(t == tracker), trackerHistory), 1) ;
+end  % function
+
+
+
+function result = isTrackerInHistory_(tracker, trackerHistory)
+% Return whether the given tracker handle is one of the trackers in
+% trackerHistory (compared by identity).
+result = ~isempty(trackerHistoryIndexFromTracker_(trackerHistory, tracker)) ;
+end  % function
+
+
+
+function result = defaultTestTrackerFromHistory_(trackerHistory)
+% Return the default test tracker (the first non-current tracker), or []
+% if there is none.  The current tracker is trackerHistory{1}.
+if numel(trackerHistory) >= 2
+  result = trackerHistory{2} ;
+else
+  result = [] ;
+end
 end  % function
 
 

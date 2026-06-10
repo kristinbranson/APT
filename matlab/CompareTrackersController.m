@@ -54,10 +54,11 @@ classdef CompareTrackersController < handle
       % (trackerHistory index 1), so its dropdown is always disabled and
       % just displays that tracker.
       [items, itemsData] = obj.trackerDropdownItems_() ;
+      referenceTracker = model.referenceTracker ;
       obj.referenceDropdown_.Items = items ;
       obj.referenceDropdown_.ItemsData = itemsData ;
-      if ~isempty(itemsData)
-        obj.referenceDropdown_.Value = clampDropdownValue_(model.referenceTrackerHistoryIndex, itemsData) ;
+      if ~isempty(itemsData) && ~isempty(referenceTracker)
+        obj.referenceDropdown_.Value = clampDropdownValue_(referenceTracker, itemsData) ;
       end
       obj.referenceDropdown_.Enable = 'off' ;
 
@@ -65,13 +66,14 @@ classdef CompareTrackersController < handle
       % (reference) tracker, unless the current tracker is itself
       % selected as the test tracker -- in which case include it so the
       % selection is displayable (and flagged pink).
-      referenceTrackerHistoryIndex = model.referenceTrackerHistoryIndex ;
-      isCurrentTrackerSelectedAsTest = isequal(model.testTrackerHistoryIndex, referenceTrackerHistoryIndex) ;
+      testTracker = model.testTracker ;
+      isCurrentTrackerSelectedAsTest = ...
+        ~isempty(testTracker) && ~isempty(referenceTracker) && (testTracker == referenceTracker) ;
       if isCurrentTrackerSelectedAsTest
         testItems = items ;
         testItemsData = itemsData ;
       else
-        areTestCandidates = ~cellfun(@(d)(isequal(d, referenceTrackerHistoryIndex)), itemsData) ;
+        areTestCandidates = ~cellfun(@(d)(d == referenceTracker), itemsData) ;
         testItems = items(areTestCandidates) ;
         testItemsData = itemsData(areTestCandidates) ;
       end
@@ -83,7 +85,7 @@ classdef CompareTrackersController < handle
         obj.testDropdown_.Items = testItems ;
         obj.testDropdown_.ItemsData = testItemsData ;
         obj.testDropdown_.Enable = 'on' ;
-        obj.testDropdown_.Value = clampDropdownValue_(model.testTrackerHistoryIndex, testItemsData) ;
+        obj.testDropdown_.Value = clampDropdownValue_(testTracker, testItemsData) ;
       end
 
       % Indicate the reference (== current) tracker in the test dropdown,
@@ -98,7 +100,7 @@ classdef CompareTrackersController < handle
       else
         removeStyle(obj.testDropdown_) ;
         referenceItemPosition = ...
-          find(cellfun(@(d)(isequal(d, referenceTrackerHistoryIndex)), testItemsData), 1) ;
+          find(cellfun(@(d)(d == referenceTracker), testItemsData), 1) ;
         if ~isempty(referenceItemPosition)
           pinkStyle = uistyle('BackgroundColor', [1 0.8 0.85]) ;
           addStyle(obj.testDropdown_, pinkStyle, 'item', referenceItemPosition) ;
@@ -162,8 +164,9 @@ classdef CompareTrackersController < handle
     end  % function
 
     function compare_trackers_test_dropdown_actuated_(obj, src)
-      % Handle test-tracker dropdown change.
-      obj.model_.testTrackerHistoryIndex = src.Value ;
+      % Handle test-tracker dropdown change.  src.Value is the selected
+      % tracker handle.
+      obj.model_.testTracker = src.Value ;
     end  % function
   end  % methods
 
@@ -251,7 +254,9 @@ classdef CompareTrackersController < handle
 
     function [items, itemsData] = trackerDropdownItems_(obj)
       % Build the dropdown Items / ItemsData arrays from the labeler's
-      % current trackerHistory.  Returns parallel cell arrays.
+      % current trackerHistory.  Returns parallel cell arrays.  Each
+      % ItemsData entry is the tracker handle itself, so selections are
+      % tracked by identity rather than by position in trackerHistory.
       trackers = obj.labeler_.trackerHistory ;
       trackerCount = numel(trackers) ;
       items = cell(trackerCount, 1) ;
@@ -267,7 +272,7 @@ classdef CompareTrackersController < handle
         else
           items{i} = sprintf('%s (%s, %s)', algNamePretty, userTag, trnNameLbl) ;
         end
-        itemsData{i} = i ;
+        itemsData{i} = tracker ;
       end
     end  % function
   end  % methods
@@ -275,13 +280,14 @@ end  % classdef
 
 
 
-function clampedValue = clampDropdownValue_(desiredValue, itemsData)
-% Return desiredValue if it is one of the items in itemsData; otherwise
-% return the first item.  Used to keep dropdown selection valid when the
-% trackerHistory shrinks or the model's selection drifts past the end.
-isPresent = any(cellfun(@(d)(isequal(d, desiredValue)), itemsData)) ;
+function clampedValue = clampDropdownValue_(desiredTracker, itemsData)
+% Return desiredTracker if it is one of the trackers in itemsData;
+% otherwise return the first item.  Used to keep the dropdown selection
+% valid when the trackerHistory changes.  Compared by identity, so a
+% backup copy of a tracker does not count as a match.
+isPresent = any(cellfun(@(d)(d == desiredTracker), itemsData)) ;
 if isPresent
-  clampedValue = desiredValue ;
+  clampedValue = desiredTracker ;
 else
   clampedValue = itemsData{1} ;
 end

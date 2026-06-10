@@ -1,8 +1,9 @@
 function test_compare_trackers()
 % Test that the Compare Trackers window populates its dropdowns and
 % listbox correctly, flags the reference (current) tracker pink in the
-% test dropdown, and shows the same-tracker warning when the test
-% selection coincides with the reference selection.
+% test dropdown, and tracks the test-tracker selection by identity so
+% that making the test tracker the current tracker is handled
+% gracefully.
 
 % Temporary location until the test project lands under
 % /groups/branson/bransonlab/apt/unittest/.
@@ -29,6 +30,7 @@ controller.controlActuated('menu_evaluate_compare_trackers') ;
 % the current (reference) tracker, so it has one fewer item.
 referenceDropdown = findall(0, 'Tag', 'compare_trackers_reference_dropdown') ;
 testDropdown = findall(0, 'Tag', 'compare_trackers_test_dropdown') ;
+currentTracker = labeler.tracker ;
 if numel(referenceDropdown.Items) ~= trackerCount
   error('Reference dropdown has %d items, expected %d', ...
         numel(referenceDropdown.Items), trackerCount) ;
@@ -37,24 +39,23 @@ if numel(testDropdown.Items) ~= trackerCount - 1
   error('Test dropdown has %d items, expected %d', ...
         numel(testDropdown.Items), trackerCount - 1) ;
 end
-if any(cellfun(@(d)(isequal(d, 1)), testDropdown.ItemsData))
-  error('Test dropdown should omit the current tracker (index 1) when it is not selected as the test tracker') ;
+if any(cellfun(@(d)(d == currentTracker), testDropdown.ItemsData))
+  error('Test dropdown should omit the current tracker when it is not selected as the test tracker') ;
 end
 
 % The reference dropdown is disabled and always shows the current
-% tracker (trackerHistory index 1).
+% tracker.
 if ~strcmp(referenceDropdown.Enable, 'off')
   error('Expected reference dropdown to be disabled, but Enable=%s', referenceDropdown.Enable) ;
 end
-if referenceDropdown.Value ~= 1
-  error('Expected reference dropdown to show the current tracker (index 1), but Value=%d', ...
-        referenceDropdown.Value) ;
+if ~(referenceDropdown.Value == currentTracker)
+  error('Expected reference dropdown to show the current tracker') ;
 end
 
-% Defaults: reference = first tracker, test = second.  The two differ,
-% so the listbox should contain at least one bout.
+% Defaults: reference = current tracker, test = a different tracker.  The
+% two differ, so the listbox should contain at least one bout.
 if referenceDropdown.Value == testDropdown.Value
-  error('Expected default reference and test selections to differ') ;
+  error('Expected reference and test selections to differ') ;
 end
 listbox = findall(0, 'Tag', 'compare_trackers_listbox') ;
 expectedListboxItemCount = 1 ;
@@ -77,63 +78,89 @@ end
 % case: the test dropdown then includes the current tracker (flagged
 % pink), and the listbox shows a single italic warning entry.
 model = labeler.compareTrackersModel_ ;
-model.testTrackerHistoryIndex = model.referenceTrackerHistoryIndex ;
-if numel(testDropdown.Items) ~= trackerCount
-  error('Test dropdown should include the current tracker when it is selected as test; got %d items, expected %d', ...
-        numel(testDropdown.Items), trackerCount) ;
-end
-if verLessThan('matlab', '9.14')  % R2023a
-  if ~isequal(testDropdown.BackgroundColor, pinkColor)
-    error('Expected test dropdown background to be pink when ref==test') ;
-  end
-else
-  if ~isReferenceItemPink_(testDropdown, pinkColor)
-    error('Expected the current tracker item in the test dropdown to be pink when selected as test') ;
-  end
-end
-if numel(listbox.Items) ~= 1
-  error('Expected listbox to have a single warning entry when ref==test, but got %d items', ...
-        numel(listbox.Items)) ;
-end
-if ~strcmp(listbox.FontAngle, 'italic')
-  error('Expected listbox FontAngle to be italic when ref==test, but got %s', listbox.FontAngle) ;
-end
-if ~strcmp(listbox.Enable, 'off')
-  error('Expected listbox to be disabled when ref==test, but got Enable=%s', listbox.Enable) ;
-end
+model.testTracker = model.referenceTracker ;
+assertGracefulSameTrackerState_(testDropdown, listbox, trackerCount, pinkColor) ;
 
-% Restore the test selection to a different tracker; the current tracker
-% drops out of the list and the listbox repopulates.
-otherTrackerIndex = 1 + mod(model.referenceTrackerHistoryIndex, trackerCount) ;
-model.testTrackerHistoryIndex = otherTrackerIndex ;
+% Pick a distinct test tracker (the second tracker in the history); the
+% current tracker drops out of the list and the listbox repopulates.
+secondTracker = labeler.trackerHistory{2} ;
+model.testTracker = secondTracker ;
 if numel(testDropdown.Items) ~= trackerCount - 1
-  error('Test dropdown should omit the current tracker after restoring a distinct test; got %d items, expected %d', ...
+  error('Test dropdown should omit the current tracker for a distinct test; got %d items, expected %d', ...
         numel(testDropdown.Items), trackerCount - 1) ;
 end
 if numel(listbox.Items) < expectedListboxItemCount
-  error('Expected >= %d bout items in listbox after restoring distinct test, but got %d', ...
+  error('Expected >= %d bout items in listbox for a distinct test, but got %d', ...
         expectedListboxItemCount, numel(listbox.Items)) ;
 end
-if strcmp(listbox.FontAngle, 'italic')
-  error('Listbox should be in normal font after restoring distinct test') ;
-end
 
-% Changing the current tracker should refresh the window, since the
-% reference tracker is always the current tracker.
-originalCurrentTracker = labeler.tracker ;
+% Now make the selected test tracker the current tracker.  Because the
+% test selection is tracked by identity, it should follow the same
+% tracker -- which is now the current (reference) tracker -- so the
+% window should switch to the graceful same-tracker state.  (With the
+% old positional-index design, the test selection would instead have
+% pointed at whatever tracker landed in that slot.)
 labeler.trackMakeExistingTrackerCurrentGivenIndex(2) ;
-if isequal(labeler.tracker, originalCurrentTracker)
-  error('Expected the current tracker to change after trackMakeExistingTrackerCurrentGivenIndex(2)') ;
+if ~(labeler.tracker == secondTracker)
+  error('Expected the second tracker to become the current tracker') ;
 end
-if referenceDropdown.Value ~= 1
-  error(['Expected reference dropdown to show the current tracker (index 1) ' ...
-         'after the current tracker changed, but Value=%d'], referenceDropdown.Value) ;
+if ~(model.testTracker == secondTracker)
+  error('Expected the test selection to still refer to the same tracker by identity') ;
+end
+assertGracefulSameTrackerState_(testDropdown, listbox, trackerCount, pinkColor) ;
+
+% Make the other tracker current again.  The test selection still refers
+% to secondTracker (now the non-current tracker), so the comparison is
+% meaningful again and the listbox repopulates.
+labeler.trackMakeExistingTrackerCurrentGivenIndex(2) ;
+if labeler.tracker == secondTracker
+  error('Expected the current tracker to change away from the second tracker') ;
+end
+if ~(model.testTracker == secondTracker)
+  error('Expected the test selection to still refer to the same tracker by identity') ;
+end
+if ~(referenceDropdown.Value == labeler.tracker)
+  error('Expected reference dropdown to show the new current tracker after the change') ;
 end
 if numel(listbox.Items) < expectedListboxItemCount
   error('Expected the listbox to repopulate after the current tracker changed, but got %d items', ...
         numel(listbox.Items)) ;
 end
+if strcmp(listbox.FontAngle, 'italic')
+  error('Listbox should be in normal font after the current tracker changed') ;
+end
 
+end  % function
+
+
+
+function assertGracefulSameTrackerState_(testDropdown, listbox, trackerCount, pinkColor)
+% Assert the "same tracker" graceful state: the test dropdown includes
+% the current tracker (flagged pink) and the listbox shows a single
+% italic, disabled warning entry.
+if numel(testDropdown.Items) ~= trackerCount
+  error('Test dropdown should include the current tracker when it is the test tracker; got %d items, expected %d', ...
+        numel(testDropdown.Items), trackerCount) ;
+end
+if verLessThan('matlab', '9.14')  % R2023a
+  if ~isequal(testDropdown.BackgroundColor, pinkColor)
+    error('Expected test dropdown background to be pink when test == reference') ;
+  end
+else
+  if ~isReferenceItemPink_(testDropdown, pinkColor)
+    error('Expected the current tracker item in the test dropdown to be pink when it is the test tracker') ;
+  end
+end
+if numel(listbox.Items) ~= 1
+  error('Expected listbox to have a single warning entry when test == reference, but got %d items', ...
+        numel(listbox.Items)) ;
+end
+if ~strcmp(listbox.FontAngle, 'italic')
+  error('Expected listbox FontAngle to be italic when test == reference, but got %s', listbox.FontAngle) ;
+end
+if ~strcmp(listbox.Enable, 'off')
+  error('Expected listbox to be disabled when test == reference, but got Enable=%s', listbox.Enable) ;
+end
 end  % function
 
 
