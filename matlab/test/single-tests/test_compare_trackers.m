@@ -80,6 +80,30 @@ if ~isequal(listbox.ValueIndex, 1)
   error('Expected listbox ValueIndex to be 1 after selecting bout 1') ;
 end
 
+% Clicking the already-selected item should still navigate: this is how
+% the user jumps back to the bout's frame after manually moving away.
+% (ValueChangedFcn does not fire for such a click, but ClickedFcn does;
+% simulate the latter's actuation.)
+boutFrame = labeler.currFrame ;
+if boutFrame == labeler.nframes
+  awayFrame = boutFrame - 1 ;
+else
+  awayFrame = boutFrame + 1 ;
+end
+labeler.setFrame(awayFrame) ;
+if labeler.currFrame ~= awayFrame
+  error('Expected to navigate away to frame %d, but currFrame is %d', awayFrame, labeler.currFrame) ;
+end
+clickEvent = struct('InteractionInformation', struct('Item', 1)) ;
+exceptionMaybe = controller.controlActuated('compare_trackers_listbox_clicked', listbox, clickEvent) ;
+if ~isempty(exceptionMaybe)
+  error('Simulated listbox click raised an exception: %s', exceptionMaybe{1}.message) ;
+end
+if labeler.currFrame ~= boutFrame
+  error('Expected the re-click on the selected bout to navigate back to frame %d, but currFrame is %d', ...
+        boutFrame, labeler.currFrame) ;
+end
+
 % No test-dropdown item is flagged pink while the current tracker is
 % absent from the list.
 pinkColor = [1 0.8 0.85] ;

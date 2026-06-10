@@ -3796,6 +3796,22 @@ classdef LabelerController < handle
       labeler.compareTrackersCurrentBoutIndexMaybe = selectedIndex ;
     end  % function
 
+    function compare_trackers_listbox_clicked_actuated_(obj, src, evt)  %#ok<INUSL>
+      % Navigate to the clicked compare-trackers bout.  Unlike
+      % ValueChangedFcn, this fires even when the clicked item is the
+      % already-selected one, which matters when the user has manually
+      % navigated away from the bout's frame and wants to jump back.  (For
+      % a click that changes the selection, ValueChangedFcn fires first
+      % and this re-navigates to the same place, which is harmless.)
+      clickedItemIndex = evt.InteractionInformation.Item ;
+      if isempty(clickedItemIndex)
+        % The click landed on whitespace below the items.
+        return
+      end
+      labeler = obj.labeler_ ;
+      labeler.compareTrackersCurrentBoutIndexMaybe = clickedItemIndex ;
+    end  % function
+
     function cbkCropIsCropModeChanged(obj, src, evt)  %#ok<INUSD>
       obj.cropReactNewCropMode_() ;
     end  % function
