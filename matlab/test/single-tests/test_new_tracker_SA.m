@@ -8,11 +8,11 @@ function test_new_tracker_SA()
   oc1 = onCleanup(@()(delete(controller)));  
   oc2 = onCleanup(@()(delete(labeler)));  
 
-  % Set the labeler to silent mode for batch operation
-  labeler.silent = true ;
+  % Put the labeler in batch mode so prompts use defaults
+  labeler.isInBatchMode = true ;
 
   % Load the named project
-  labeler.projLoadGUI(project_file_path, 'replace_path', replace_path);
+  labeler.projLoad(project_file_path, 'replace_path', replace_path) ;
 
   % Get the list of available tracker types
   [~, ~, saposenets] = Labeler.getAllTrackerTypes();

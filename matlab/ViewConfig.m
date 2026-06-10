@@ -91,10 +91,17 @@ classdef ViewConfig
         ax = hAx(iView);
         
         fpos = vCfg.FigurePos;
-        tf = structfun(@isscalar,fpos);
+        tf = structfun(@isscalar, fpos) ;
         if all(tf)
-          fpos = [fpos.left fpos.bottom fpos.width fpos.height];
-          hFig(iView).Position = fpos;
+          fposVec = [fpos.left fpos.bottom fpos.width fpos.height] ;
+          if fposVec(3) <= 1 && fposVec(4) <= 1
+            % Position was saved in normalized units by an older version of APT.
+            % Convert to pixels before applying, to avoid triggering
+            % SizeChangedFcn while Units are temporarily normalized.
+            screenSize = get(groot(), 'ScreenSize') ;
+            fposVec = fposVec .* screenSize ;
+          end
+          hFig(iView).Position = fposVec ;
         elseif any(tf)
           warning('LabelerGUI:figPos',...
             'Ignoring invalid configuration setting: position for figure %d.',iView);
@@ -167,9 +174,14 @@ classdef ViewConfig
         ax.Box = 'on';
         ax.FontUnits = 'pixels';
         ax.FontSize = vCfg.AxFontSize;
-        if vCfg.ShowAxTicks
+        if vCfg.ShowAxTicks || vCfg.ShowGrid
           ax.XTickMode = 'auto';
           ax.YTickMode = 'auto';
+        else
+          ax.XTick = [];
+          ax.YTick = [];
+        end
+        if vCfg.ShowAxTicks
           ax.XTickLabelMode = 'auto';
           ax.YTickLabelMode = 'auto';
         else
@@ -180,7 +192,36 @@ classdef ViewConfig
           grid(ax,'on');
         else
           grid(ax,'off');
-        end        
+        end
+        if iView==1
+          hAxPrev.XAxisLocation = 'top';
+          hAxPrev.XColor = axColor ;
+          hAxPrev.YColor = axColor ;
+          hAxPrev.Box = 'on';
+          hAxPrev.FontUnits = 'pixels';
+          hAxPrev.FontSize = vCfg.AxFontSize;
+          ax.TickDir = 'in' ;
+          hAxPrev.TickDir = 'in' ;
+          if vCfg.ShowAxTicks || vCfg.ShowGrid
+            hAxPrev.XTickMode = 'auto';
+            hAxPrev.YTickMode = 'auto';
+          else
+            hAxPrev.XTick = [];
+            hAxPrev.YTick = [];
+          end
+          if vCfg.ShowAxTicks
+            hAxPrev.XTickLabelMode = 'auto';
+            hAxPrev.YTickLabelMode = 'auto';
+          else
+            hAxPrev.XTickLabel = [];
+            hAxPrev.YTickLabel = [];
+          end
+          if vCfg.ShowGrid
+            grid(hAxPrev,'on');
+          else
+            grid(hAxPrev,'off');
+          end
+        end
       end
     end  % function
     
@@ -252,19 +293,21 @@ classdef ViewConfig
       end
     end
 
-    function movInvert = getMovieInvert(viewCfg)
-      nview = numel(viewCfg);
-      movInvert = false(1,nview);
-      for i=1:nview
-        if ~isempty(viewCfg(i).InvertMovie)
-          movInvert(i) = logical(viewCfg(i).InvertMovie);
-        end
-      end
-    end
+    % function result = getMovieInvert(viewCfg)
+    %   nview = numel(viewCfg);
+    %   result = false(1,nview);
+    %   for i=1:nview
+    %     if ~isempty(viewCfg(i).InvertMovie)
+    %       result(i) = logical(viewCfg(i).InvertMovie);
+    %     end
+    %   end
+    % end
 
-  end
+  end  % methods (Static)
   
-end
+end  % classdef
+
+
 
 function hlpAxDir(ax,prop,val)
 if isempty(val)

@@ -3,6 +3,7 @@ classdef Coco < handle
     j
     fname
   end
+
   methods
     function obj = Coco(jsonfname)
       if exist(jsonfname,'file')==0
@@ -15,6 +16,7 @@ classdef Coco < handle
       obj.j = jsondecode(txt{1});
       obj.fname = jsonfname;
     end
+
     function [imids,imidscnt] = summary(obj)
       ims = obj.j.images;
       nims = numel(ims);
@@ -38,6 +40,7 @@ classdef Coco < handle
       fprintf('breakdown of imid counts in anns:\n');
       summary(categorical(imidscnt));
     end
+
     function save(obj,fname)
       if nargin==1 || isempty(fname)
         fname = obj.fname; %#ok<NASGU>
@@ -58,6 +61,7 @@ classdef Coco < handle
       fclose(fh);
       fprintf('Wrote %s.\n',fname); 
     end
+
     function computeBBoxAndAreaFromKps(obj,varargin)
       % sets .bbox, .area from .keypoints.
       
@@ -95,6 +99,7 @@ classdef Coco < handle
       obj.j.annotations = anns;
       fprintf('Updated %d anns.\n',numel(idxanns));
     end
+
     function massageImageFilepaths(obj,pat,rep)
       nim = numel(obj.j.images);
       for i=1:nim
@@ -103,6 +108,7 @@ classdef Coco < handle
       end
       fprintf('Regexp''d %d filenames.\n',nim);      
     end
+
     function massage(obj)
       obj.j.annotations = rmfield(obj.j.annotations,'iscrowd');
       for i=1:numel(obj.j.annotations)
@@ -110,6 +116,7 @@ classdef Coco < handle
       end
       fprintf(2,'HAND MASSAGE CATEGORIES\n');
     end
+
     function rmExtra(obj)
       % rm extraneous flds that cause errors in PyCoco
       jj = obj.j;
@@ -117,6 +124,7 @@ classdef Coco < handle
       jj.annotations = rmfield(jj.annotations,{'segmentation' 'keypoints'});
       obj.j = jj;
     end
+
     function viz(obj,imidx,varargin)
 
       [scargs,ttlargs,showkps,kpsplotspec,kpsmrkrsz,fignum] = myparse(varargin,...
@@ -169,6 +177,7 @@ classdef Coco < handle
         input(num2str(iim));
       end        
     end
+
     function [roi,kps] = getann(obj,ianns,varargin)
       % roi: [nann x 4]
       % kps: [npt x 2 x nann]
@@ -209,6 +218,7 @@ classdef Coco < handle
       kps = kpsall;
     end
   end
+
   methods (Static)
     function roi = computeRoi(xy,varargin)
       % See Labeler/maGetRoi
@@ -270,6 +280,7 @@ classdef Coco < handle
         end
       end
     end
+
     function roi = bbox2roi(bb)
       % bb: [4]
       assert(numel(bb)==4);

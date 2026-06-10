@@ -94,7 +94,7 @@ cfgBase.ViewNames = {};
 cfgBase.Track.Enable = true;
 cfgBase.ProjectName = 'test';
 FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim' 'InvertMovie' 'AxFontSize' 'ShowAxTicks' 'ShowGrid'};
-cfgBase.View(1) = ProjectSetup('structLeavesStr2Double',cfgBase.View(1),FIELDS2DOUBLIFY);
+cfgBase.View(1) = structLeavesStr2Double(cfgBase.View(1),FIELDS2DOUBLIFY);
 
 lObj = StartAPT();
 lObj.projNew(cfgBase) ;
@@ -103,7 +103,7 @@ for ndx = 1:numel(umovies)
   lObj.movieAdd(umovies(ndx));
 end
 
-lObj.movieSetGUI(1);
+lObj.movieSet(1);
 %%
 n = numel(movieidx);
 for ndx = 1:n

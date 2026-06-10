@@ -45,38 +45,43 @@ end
 
 
 function LandmarkColors_OpeningFcn(hObject, eventdata, handles, varargin)
-% [tfchanges,savedinfo] = LandmarkColors(lObj,cbk)
+% [tfchanges,savedinfo] = LandmarkColors(controller,lObj,cbk)
 
 % cbk sig: cbk(colorSpecs,markerSpecs,skelSpecs)
 %   colorSpecs: array of LandmarkColorSpec objs (could be nonscalar)
 %   markerSpecs: [3] struct array nested Marker/TextProps etc
-%   skelSpecs: [3] struct array 
+%   skelSpecs: [3] struct array
 
 handles.output = hObject;
 set(hObject,'MenuBar','None');
 
 hObject.CloseRequestFcn = @figure_landmarkcolors_CloseRequestFcn;
 
-lObj = varargin{1};
+controller = varargin{1};
+lObj = varargin{2};
 handles.nlandmarks = lObj.nPhysPoints;
-handles.applyCbkFcn = varargin{2}; % sig:
+handles.applyCbkFcn = varargin{3}; % sig:
 
-centerOnParentFigure(hObject,lObj.hFig);
+mainFigurePosition = controller.mainFigurePixelPosition() ;
+centerOnOtherFigureGivenPositionBang(hObject, mainFigurePosition) ;
 
 
 % Marker State
 % This is stored only in the table. Get and Set using Set/GetMarker*.
 lsetTypesCell = num2cell(enumeration('LandmarkSetType'));
-ppiAll = {lObj.labelPointsPlotInfo; lObj.predPointsPlotInfo; lObj.impPointsPlotInfo};
+ppiAll = {lObj.labelPointsPlotInfo; lObj.predPointsPlotInfo};
 FLDS = {'MarkerProps' 'TextProps' 'TextOffset'};
 sPropsMrkr = cellfun(@(x)structrestrictflds(x,FLDS),ppiAll);
 [sPropsMrkr.landmarkSetType] = deal(lsetTypesCell{:});
 % Color State
 % This state is maintained in handles.colorSpecs. What is shown in the
 % Colors pane is per pumShowing.
-handles.colorSpecs = cellfun(@(x1,x2,x3)LandmarkColorSpec(x1,x2,x3),...
-  lsetTypesCell,...
-  repmat({lObj.nPhysPoints},3,1),ppiAll);
+lsetTypesCellCount = numel(lsetTypesCell) ;
+handles.colorSpecs = ...
+  cellfun(@(x1,x2,x3)LandmarkColorSpec(x1,x2,x3), ...
+          lsetTypesCell, ...
+          repmat({lObj.nPhysPoints},lsetTypesCellCount,1), ...
+          ppiAll) ;
 % Skel State
 FLDS = {'SkeletonProps'};
 sPropsSkel = cellfun(@(x)structrestrictflds(x,FLDS),ppiAll);
@@ -96,7 +101,7 @@ tbl.ColumnFormat{1} = MARKERS;
 strcmp(tbl.ColumnName{6},'Label Font Angle');
 tbl.ColumnFormat{6} = {'normal' 'italic'};
 ncol = numel(tbl.ColumnFormat);
-set(tbl,'Data',cell(3,ncol),'RowName',{'Label' 'Prediction' 'Imported'});
+set(tbl,'Data',cell(3,ncol),'RowName',{'Label' 'Prediction'});
 
 MarkerControlsSet(handles,sPropsMrkr);
 
@@ -136,7 +141,6 @@ pum = handles.pumShowing;
 pum.String = { ...
   'Labels'
   'Predictions'
-  'Imported'
   };
 pum.Value = 1;
 
@@ -272,7 +276,7 @@ cs.setTFManual(true);
 updateColorsPane(handles);
 
 function pushbutton_manual_Callback(hObject, eventdata, handles, landmarki)
-fprintf('Landmark %d\n',landmarki);
+% fprintf('Landmark %d\n',landmarki);
 cs = handles.colorSpecs;
 iCS = handles.pumShowing.Value;
 cs = cs(iCS);
@@ -312,7 +316,7 @@ function MarkerControlsSet(handles,s)
 % s: as in structure returned by MarkerControlsGet
 
 uitbl = handles.tblProps;
-assert(isequal(uitbl.RowName,{'Label' 'Prediction' 'Imported'}'));
+assert(isequal(uitbl.RowName,{'Label' 'Prediction'}'));
 
 FLDS_MARKER = {'Marker' 'MarkerSize' 'LineWidth'};
 tMrkr = struct2table([s.MarkerProps]');
@@ -346,7 +350,7 @@ function s = MarkerControlsGet(handles)
 % Els of s labeled by lbl, pred, imp
 
 uitbl = handles.tblProps;
-assert(isequal(uitbl.RowName,{'Label' 'Prediction' 'Imported'}'));
+assert(isequal(uitbl.RowName,{'Label', 'Prediction'}'));
 
 uitblColumnNameSanitized = regexprep(uitbl.ColumnName,' ','_'); % for eg ML19a
 t = cell2table(uitbl.Data,'VariableNames',uitblColumnNameSanitized);

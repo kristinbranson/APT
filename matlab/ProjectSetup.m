@@ -1,339 +1,516 @@
-function varargout = ProjectSetup(varargin)
-% New project creation
-
-% Last Modified by GUIDE v2.5 03-Oct-2020 10:16:05
-
-% Begin initialization code - DO NOT EDIT
-gui_Singleton = 0;
-gui_State = struct('gui_Name',       mfilename, ...
-                   'gui_Singleton',  gui_Singleton, ...
-                   'gui_OpeningFcn', @ProjectSetup_OpeningFcn, ...
-                   'gui_OutputFcn',  @ProjectSetup_OutputFcn, ...
-                   'gui_LayoutFcn',  [] , ...
-                   'gui_Callback',   []);
-if nargin && ischar(varargin{1})
-    gui_State.gui_Callback = str2func(varargin{1});
-end
-
-if nargout
-    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
-else
-    gui_mainfcn(gui_State, varargin{:});
-end
-% End initialization code - DO NOT EDIT
-
-% PROJECT CONFIGURATION/SETUP NOTES
-% 20160815
-% 
-% A _project configuration_ is the stuff in pref.default.yaml. It is 
-% comprised of:
-%
-% 1. Core per-project info: number/names of views, number/names of points.
-% 2. More cosmetic per-project info: how lines/markers look, frame 
-% increments in various situations, etc.
-% 3. Tracker specification and config.
-% 4. More application-level preferences, like keyboard shortcut choices. 
-% Strictly speaking these could be separated out but for now just lump them 
-% in. (Plus, who knows what turns out to be useful when configurable
-% per-project.)
-%
-% If you have a project configuration, you can create/init a new, "blank"
-% project.
-%
-% A _project_ is comprised of:
-% 1. A project configuration
-% 2. Moviefilenames, trxfilenames, filename macros, file metadata
-% 3. (Optional) view calibration info, view calibration file
-% 4. Label data (labels, timestamps, tags, flags)
-% 5. UI state: current movie/frame/target, labelMode, image colormap etc
-%
-% The first time you need a project configuration, the stuff in
-% pref.default.yaml is used. In all subsequent instances, you start off
-% with your most recent configuration.
-%
-% Once a project is created, much/most of the configuration info is
-% mutable. For instance, you can rename points, change labelModes, change
-% trackers, change plot cosmetics, etc. A few things are currently 
-% immutable, such as the number of labeling points. When a project is
-% saved, the saved configuration is generated from the
-% Labeler-state-at-that-time, which may differ from the project's initial
-% configuration. 
-%
-% Later, if application-wide preferences are desired/added, these can
-% override parts of the project configuration as appropriate.
-%
-% Labeler actions:
-% - Create a new/blank project from a configuration.
-% - Get the current configuration.
-% - Load an existing project (which contains a configuration).
-% - Save a project -- i) get current config, and ii) create project.
-
-% --- Executes just before ProjectSetup is made visible.
-%
-% Modal dialog. Generates project configuration struct
-%
-% cfg = ProjectSetup(); 
-% cfg = ProjectSetup(hParentFig); % centered on hParentFig
-function ProjectSetup_OpeningFcn(hObject, eventdata, handles, varargin)
-
-h1 = findall(handles.figure1,'-property','Units');
-set(h1,'Units','Normalized');
-set(handles.figure1,'MenuBar','None');
-
-if numel(varargin)>=1
-  hParentFig = varargin{1};
-  if ~ishandle(hParentFig)
-    error('ProjectSetup:arg','Expected argument to be a figure handle.');
+classdef ProjectSetup < handle
+  % Widget properties
+  properties (Access = private, Transient)
+    fig_                                  matlab.ui.Figure
+    project_name_label_                   matlab.ui.control.Label
+    project_name_edit_                    matlab.ui.control.EditField
+    number_of_keypoints_label_            matlab.ui.control.Label
+    number_of_keypoints_edit_             matlab.ui.control.EditField
+    number_of_keypoints_details_label_    matlab.ui.control.Label
+    number_of_views_label_                matlab.ui.control.Label
+    number_of_views_edit_                 matlab.ui.control.EditField
+    number_of_views_details_label_        matlab.ui.control.Label
+    multiple_animals_label_               matlab.ui.control.Label
+    multiple_animals_checkbox_            matlab.ui.control.CheckBox
+    multiple_animals_details_label_       matlab.ui.control.Label
+    has_body_tracking_label_              matlab.ui.control.Label
+    has_body_tracking_checkbox_           matlab.ui.control.CheckBox
+    has_body_tracking_details_label_      matlab.ui.control.Label
+    copy_settings_from_button_            matlab.ui.control.Button
+    create_project_button_                matlab.ui.control.Button
+    cancel_button_                        matlab.ui.control.Button
   end
-  centerOnParentFigure(hObject,hParentFig);
-end  
+
+  % Non-widget state (private in spirit; underscore suffix marks the intent)
+  properties (Access = private, Transient)
+    cfg_
+    output_
+  end
+
+  properties (Dependent)
+    output
+  end
+
+  methods
+    function obj = ProjectSetup(varargin)
+      % Build and show the ProjectSetup dialog.  Returns once the figure
+      % is shown and populated; the caller is responsible for blocking
+      % (e.g. via uiwait(obj.fig_)) and for reading obj.output afterwards.
+      %
+      %   obj = ProjectSetup() ;
+      %   obj = ProjectSetup(hParentFig) ;  % centered on hParentFig
+      if numel(varargin) >= 1
+        hParentFig = varargin{1} ;
+        if ~ishandle(hParentFig)
+          error('ProjectSetup:arg', 'Expected argument to be a figure handle.') ;
+        end
+      else
+        hParentFig = [] ;
+      end
+      obj.createAndLayoutComponents_(hParentFig) ;
+      cfg = Labeler.cfgGetLastProjectConfigNoView() ;
+      obj.setCfg_(cfg) ;
+      waitForFigureToSync(obj.fig_) ;  % block until the figure is actually visible
+    end  % function
+
+    function delete(obj)
+      % Delete the underlying figure when the obj is deleted.
+      delete(obj.fig_) ;
+    end  % function
+    
+    function result = get.output(obj)
+      % Getter for output: the project-config struct chosen by the user,
+      % or [] if the dialog was cancelled.
+      result = obj.output_ ;
+    end  % function
+
+    function uiwait(obj)
+      % Block the caller until the dialog is closed.
+      uiwait(obj.fig_) ;
+    end  % function
+  end  % methods
   
-handles.output = [];
+  methods (Access = private)
+    function result = generateFinalConfig_(obj)
+      % Generate a config struct from the current object state.  Takes
+      % obj.cfg_ as a base, brings its variable-length fields (ViewNames,
+      % LabelPointNames, View) in line with the current view/point counts,
+      % then overlays the values from the UI.
+      storedCfg = obj.cfg_ ;
+      projectName = obj.project_name_edit_.Value ;
+      keypointCount = str2double(obj.number_of_keypoints_edit_.Value) ;
+      viewCount = str2double(obj.number_of_views_edit_.Value) ;
+      hasBodyTracking = obj.has_body_tracking_checkbox_.Value ;
+      multipleAnimals = obj.multiple_animals_checkbox_.Value ;
+      result = ProjectSetup.patchCfg(storedCfg, projectName, keypointCount, viewCount, ...
+                                     hasBodyTracking, multipleAnimals) ;
+    end  % function
 
-% init PUMs that depend only on codebase
-% lms = enumeration('LabelMode');
-% tfnone = lms==LabelMode.NONE;
-% lms(tfnone,:) = [];
-% lmStrs = arrayfun(@(x)x.prettyString,lms,'uni',0);
-% handles.pumLabelingMode.String = lmStrs;
-% handles.pumLabelingMode.UserData = lms;
-% trackers = LabelTracker.findAllSubclasses;
-% trackers = [{'None'};trackers];
-% handles.pumTracking.String = trackers;
+    function setCfg_(obj, cfg)
+      % Set the given config struct on the controls and on internal state.
+      obj.cfg_ = cfg ;
+      obj.number_of_views_edit_.Value = num2str(cfg.NumViews) ;
+      obj.number_of_keypoints_edit_.Value = num2str(cfg.NumLabelPoints) ;
+      obj.has_body_tracking_checkbox_.Value = cfg.Trx.HasTrx ;
+      obj.multiple_animals_checkbox_.Value = cfg.MultiAnimal ;
+    end  % function
 
-handles.propsPane = [];
+    function number_of_points_edit_actuated_(obj, source, event)  %#ok<INUSD>
+      % Value-changed handler for the keypoint-count edit field.
+      rawValue = str2double(obj.number_of_keypoints_edit_.Value) ;
+      if ~(floor(rawValue) == rawValue && rawValue >= 1)
+        obj.number_of_keypoints_edit_.Value = event.PreviousValue ;
+      end
+    end  % function
 
-% init ui state
-cfg = Labeler.cfgGetLastProjectConfigNoView;
-handles = setCurrentConfig(handles,cfg);
-handles.propsPane.Position(4) = handles.propsPane.Position(3); % by default table is slightly bigger than panel for some reason
-handles = advModeCollapse(handles);
+    function number_of_views_edit_actuated_(obj, source, event)  %#ok<INUSD>
+      % Value-changed handler for the view-count edit field.
+      rawValue = str2double(obj.number_of_views_edit_.Value) ;
+      if ~(floor(rawValue) == rawValue && rawValue >= 1)
+        obj.number_of_views_edit_.Value = event.PreviousValue ;
+      end
+      viewCount = str2double(obj.number_of_views_edit_.Value) ;
+      switch viewCount
+        case 1
+          obj.has_body_tracking_checkbox_.Enable = 'on' ;
+          obj.multiple_animals_checkbox_.Enable = 'on' ;
+        otherwise
+          obj.has_body_tracking_checkbox_.Value = false ;
+          obj.multiple_animals_checkbox_.Value = false ;
+          obj.has_body_tracking_checkbox_.Enable = 'off' ;
+          obj.multiple_animals_checkbox_.Enable = 'off' ;
+      end
+    end  % function
 
-guidata(hObject, handles);
+    function project_name_edit_actuated_(obj, source, event)  %#ok<INUSD>
+      % Value-changed handler for the project-name edit field.
+      name = obj.project_name_edit_.Value ;
+      if ~all(isstrprop(name, 'alphanum'))
+        % This unfortunately invalidates _ also.  Checking for it seems more
+        % work than worth.  MK 20220913
+        warndlg('Name should have only alphanumeric characters') ;
+        obj.project_name_edit_.Value = event.PreviousValue  ;
+      end
+    end  % function
 
-% UIWAIT makes ProjectSetup wait for user response (see UIRESUME)
-uiwait(handles.figure1);
+    function didRequestClose_(obj, source, event)  %#ok<INUSD>
+      % Close-request function for the main figure.
+      obj.output_ = [] ;
+      delete(obj.fig_) ;
+    end  % function
 
-function varargout = ProjectSetup_OutputFcn(hObject, eventdata, handles) 
-varargout{1} = handles.output;
-delete(handles.figure1);
+    function cancel_button_actuated_(obj, source, event)  %#ok<INUSD>
+      % Button-pushed function for the Cancel button.
+      obj.output_ = [] ;
+      delete(obj.fig_) ;
+    end  % function
 
-function cfg = genCurrentConfig(handles)
-% Generate config from the current UI state
+    function copy_settings_from_button_actuated_(obj, source, event)  %#ok<INUSD>
+      % Button-pushed function for the Copy Settings From... button.
+      lastLblFile = RC.getprop('lastLblFile') ;
+      if isempty(lastLblFile)
+        lastLblFile = pwd ;
+      end
+      [fname, pth] = uigetfile('*.lbl', 'Select project file', lastLblFile) ;
+      if isequal(fname, 0)
+        return
+      end
+      lbl = loadLbl(fullfile(pth, fname)) ;
+      lbl = Labeler.lblModernize(lbl) ;
+      cfg = lbl.cfg ;
+      obj.setCfg_(cfg) ;
+    end  % function
 
-ad = getappdata(handles.figure1);
-cfg = ad.mirror;
+    function create_project_button_actuated_(obj, source, event)  %#ok<INUSD>
+      % Button-pushed function for the Create Project button.
+      cfg = obj.generateFinalConfig_() ;
+      obj.output_ = cfg ;
+      delete(obj.fig_) ;
+    end  % function
 
-assert(numel(fieldnames(cfg.ViewNames))==handles.nViews);
-assert(numel(fieldnames(cfg.LabelPointNames))==handles.nPoints);
-cfg.NumViews = handles.nViews;
-cfg.NumLabelPoints = handles.nPoints;
-cfg.ViewNames = struct2cell(cfg.ViewNames);
-cfg.LabelPointNames = struct2cell(cfg.LabelPointNames);
-cfg.Trx.HasTrx = handles.cbHasTrx.Value;
-cfg.MultiAnimal = handles.cbMA.Value;
-isMA = cfg.MultiAnimal && ~cfg.Trx.HasTrx;
-if isMA
-  cfg.LabelMode = LabelMode.MULTIANIMAL;
-else
-  cfg.LabelMode = LabelMode.SEQUENTIAL;
-end
-% pumLM = handles.pumLabelingMode;
-% lmVal = pumLM.Value;
-% cfg.LabelMode = char(pumLM.UserData(lmVal));
-% pumTrk = handles.pumTracking;
-% tracker = pumTrk.String{pumTrk.Value};
-% cfg.Track.Enable = ~strcmpi(tracker,'none');
-cfg.Track.Enable = true;
-% cfg.Track.Type = tracker;
-% propertiesGUI treats props with empty vals as strings even if they are
-% subsequently filled with numbers
-FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim' 'InvertMovie' 'AxFontSize' 'ShowAxTicks' 'ShowGrid'};
-for i=1:numel(cfg.View)  
-  cfg.View(i) = structLeavesStr2Double(cfg.View(i),FIELDS2DOUBLIFY);
-end
+    function createAndLayoutComponents_(obj, hParentFig)
+      % Create UIFigure and components.
+      % Create the figure and all its child controls, laid out via
+      % nested uigridlayouts: an outer 7-row column, where each
+      % "Number of X" / question section is itself a 2-row column
+      % (label-and-control row, then details label).
 
-function handles = setCurrentConfig(handles,cfg)
-% Set given config on controls
+      % Layout constants
+      figWidth = 450 ;
+      initialFigHeight = 700 ;  % oversized; shrunk to fit content at the end
+      marginWidth = 25 ;
+      bgColor = [0 0.243 0.365] ;  % close to prussian blue
+      labelColor = [0 1 1] ;  % cyan
+      fieldFontColor = [0 250 209]/255 ;  % close to turqoise
+      fieldBgColor = [0 0 0] ;  % black
+      bigFontSize = 20 ;
+      smallFontSize = 16 ;
+      projectNameFieldWidth = 250 ;
+      numberFieldWidth = 150 ;
+      createProjectButtonWidth = 200 ;
+      cancelButtonWidth = 150 ;
+      copySettingsButtonWidth = 180 ;
+      buttonHeight = 32 ;
+      withinSectionRowSpacing = 8 ;  % gap between a section's label-and-control row and its details label
+      outerGridRowSpacing = 12 ;  % gap between outerGrid rows
+      copySettingsOverlapAmount = 6 ;  % how far the Copy Settings button overlaps into the Has Body Tracking details
 
-% we store these two props on handles in order to be able to revert; 
-% data/model is split between i) primary UIcontrols and ii) adv panel 
-handles.nViews = cfg.NumViews; 
-handles.nPoints = cfg.NumLabelPoints;
-set(handles.etNumberOfViews,'string',num2str(handles.nViews));
-set(handles.etNumberOfPoints,'string',num2str(handles.nPoints));
-set(handles.cbHasTrx,'Value',cfg.Trx.HasTrx);
-set(handles.cbMA,'Value',cfg.MultiAnimal);
+      % Create the figure
+      obj.fig_ = uifigure('Visible', 'off') ;
+      obj.fig_.Color = bgColor ;
+      obj.fig_.Position = [100 100 figWidth initialFigHeight] ;
+      obj.fig_.Name = 'Project Setup' ;
+      obj.fig_.Resize = 'off' ;
+      obj.fig_.CloseRequestFcn = @(src, evt) obj.didRequestClose_(src, evt) ;
+      obj.fig_.HandleVisibility = 'callback' ;
+      obj.fig_.Tag = 'project_setup_fig' ;
+      if ~isempty(hParentFig)
+        centerOnParentFigure(obj.fig_, hParentFig) ;
+      end
 
+      % Outer column: 7 rows.  Rows 1-5 are content sections (sized 'fit').
+      % Row 6 is reserved empty space for the Copy Settings button, which is
+      % added as a direct child of the figure (not the grid) so it can
+      % overlap the Has Body Tracking details area above.  Row 7 holds the
+      % bottom buttons.
+      outerGrid = uigridlayout(obj.fig_, [7 1]) ;
+      outerGrid.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', buttonHeight, buttonHeight} ;
+      outerGrid.ColumnWidth = {'1x'} ;
+      outerGrid.Padding = [marginWidth marginWidth marginWidth marginWidth] ;
+      outerGrid.RowSpacing = outerGridRowSpacing ;
+      outerGrid.BackgroundColor = bgColor ;
 
-% pumLM = handles.pumLabelingMode;
-% [tf,val] = ismember(cfg.LabelMode,arrayfun(@char,pumLM.UserData,'uni',0));
-% if ~tf
-%   % should never happen 
-%   val = 1; % NONE
-% end
-% pumLM.Value = val;
+      % Row 1: Project Name -----------------------------------------
+      projectNameRow = uigridlayout(outerGrid, [1 2]) ;
+      projectNameRow.ColumnWidth = {'1x', projectNameFieldWidth} ;
+      projectNameRow.RowHeight = {'fit'} ;
+      projectNameRow.Padding = [0 0 0 0] ;
+      projectNameRow.ColumnSpacing = 10 ;
+      projectNameRow.BackgroundColor = bgColor ;
 
-% pumTrk = handles.pumTracking;
-% if cfg.Track.Enable 
-%   [tf,val] = ismember(cfg.Track.Type,pumTrk.String);
-%   if ~tf
-%     % unexpected but maybe not impossible due to path
-%     val = 1; % None
-%   end
-% else
-%   val = 1;
-% end
-% pumTrk.Value = val;
+      obj.project_name_label_ = uilabel(projectNameRow) ;
+      obj.project_name_label_.Tag = 'project_name_label_' ;
+      obj.project_name_label_.Text = 'Project Name' ;
+      obj.project_name_label_.FontSize = bigFontSize ;
+      obj.project_name_label_.FontColor = labelColor ;
+      obj.project_name_label_.BackgroundColor = bgColor ;
 
-sMirror = Labeler.cfg2mirror(cfg);
-handles = advTableRefresh(handles,sMirror);
+      obj.project_name_edit_ = uieditfield(projectNameRow, 'text') ;
+      obj.project_name_edit_.Tag = 'project_name_edit_' ;
+      obj.project_name_edit_.ValueChangedFcn = @(src, evt) obj.project_name_edit_actuated_(src, evt) ;
+      obj.project_name_edit_.FontSize = bigFontSize ;
+      obj.project_name_edit_.FontColor = fieldFontColor ;
+      obj.project_name_edit_.BackgroundColor = fieldBgColor ;
 
-function handles = advTableRefresh(handles,sMirror)
-tfRefresh = exist('sMirror','var')==0;
-if tfRefresh
-  ad = getappdata(handles.figure1);
-  sMirror = ad.mirror;
-end
-sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror,'ViewNames','view',handles.nViews);
-sMirror = Labeler.hlpAugmentOrTruncNameField(sMirror,'LabelPointNames','point',handles.nPoints);
-sMirror = Labeler.hlpAugmentOrTruncStructField(sMirror,'View',handles.nViews);
-if ~isempty(handles.propsPane) && ishandle(handles.propsPane)
-  delete(handles.propsPane);
-  handles.propsPane = [];
-end
-  
-handles.propsPane = propertiesGUI(handles.pnlAdvanced,sMirror);
+      % Row 2: Number of Keypoints ---------------------------------
+      keypointsSection = uigridlayout(outerGrid, [2 1]) ;
+      keypointsSection.RowHeight = {'fit', 'fit'} ;
+      keypointsSection.ColumnWidth = {'1x'} ;
+      keypointsSection.Padding = [0 0 0 0] ;
+      keypointsSection.RowSpacing = withinSectionRowSpacing ;
+      keypointsSection.BackgroundColor = bgColor ;
 
-function handles = advModeExpand(handles)
-h1 = findall(handles.figure1,'-property','Units');
-set(h1,'Units','pixels');
-posRight = handles.landmarkRight.Position;
-posRight = posRight(1)+posRight(3);
-pos = handles.figure1.Position;
-pos(3) = posRight;
-handles.figure1.Position = pos;
-set(h1,'Units','normalized');
-handles.advancedOn = true;
-handles.pbAdvanced.String = '< Basic';
+      keypointsRow = uigridlayout(keypointsSection, [1 2]) ;
+      keypointsRow.ColumnWidth = {'1x', numberFieldWidth} ;
+      keypointsRow.RowHeight = {'fit'} ;
+      keypointsRow.Padding = [0 0 0 0] ;
+      keypointsRow.ColumnSpacing = 10 ;
+      keypointsRow.BackgroundColor = bgColor ;
 
-function handles = advModeCollapse(handles)
-h1 = findall(handles.figure1,'-property','Units');
-set(h1,'Units','pixels');
-posMid = handles.landmarkMid.Position;
-posMid = posMid(1)+posMid(3)/2;
-pos = handles.figure1.Position;
-pos(3) = posMid;
-handles.figure1.Position = pos;
-set(h1,'Units','normalized');
-handles.advancedOn = false;
-handles.pbAdvanced.String = 'Advanced >';
+      obj.number_of_keypoints_label_ = uilabel(keypointsRow) ;
+      obj.number_of_keypoints_label_.Tag = 'number_of_keypoints_label_' ;
+      obj.number_of_keypoints_label_.Text = 'Number of Keypoints' ;
+      obj.number_of_keypoints_label_.FontSize = bigFontSize ;
+      obj.number_of_keypoints_label_.FontColor = labelColor ;
+      obj.number_of_keypoints_label_.BackgroundColor = bgColor ;
 
-function handles = advModeToggle(handles)
-if handles.advancedOn
-  handles = advModeCollapse(handles);
-else
-  handles = advModeExpand(handles);
-end
+      obj.number_of_keypoints_edit_ = uieditfield(keypointsRow, 'text') ;
+      obj.number_of_keypoints_edit_.Tag = 'number_of_keypoints_edit_' ;
+      obj.number_of_keypoints_edit_.ValueChangedFcn = @(src, evt) obj.number_of_points_edit_actuated_(src, evt) ;
+      obj.number_of_keypoints_edit_.HorizontalAlignment = 'right' ;
+      obj.number_of_keypoints_edit_.FontSize = bigFontSize ;
+      obj.number_of_keypoints_edit_.FontColor = fieldFontColor ;
+      obj.number_of_keypoints_edit_.BackgroundColor = fieldBgColor ;
+      obj.number_of_keypoints_edit_.Value = '12' ;
 
-function etProjectName_Callback(hObject, eventdata, handles)
-name = hObject.String;
-if ~all(isstrprop(name,'alphanum')) 
-  % This unfortunately invalidates _ also. Checking for it seems more work
-  % than worth. MK 20220913
-  warndlg('Name should have only alphanumberic characters');
-  hObject.String = '';
-end
+      obj.number_of_keypoints_details_label_ = uilabel(keypointsSection) ;
+      obj.number_of_keypoints_details_label_.Tag = 'number_of_keypoints_details_label_' ;
+      obj.number_of_keypoints_details_label_.Text = 'Number of keypoints to label for each animal' ;
+      obj.number_of_keypoints_details_label_.WordWrap = 'on' ;
+      obj.number_of_keypoints_details_label_.VerticalAlignment = 'top' ;
+      obj.number_of_keypoints_details_label_.FontSize = smallFontSize ;
+      obj.number_of_keypoints_details_label_.FontColor = labelColor ;
+      obj.number_of_keypoints_details_label_.BackgroundColor = bgColor ;
 
-function etNumberOfPoints_Callback(hObject, eventdata, handles)
-%fprintf('etNOP enter');
-val = str2double(hObject.String);
-if floor(val)==val && val>=1
-  handles.nPoints = val;
-else
-  hObject.String = handles.nPoints;
-end
-handles = advTableRefresh(handles);
-guidata(hObject,handles);
-%fprintf('etNOP end');
-function etNumberOfViews_Callback(hObject, eventdata, handles)
-val = str2double(hObject.String);
-if floor(val)==val && val>=1
-  handles.nViews = val;
-else
-  hObject.String = handles.nViews;
-end
-switch handles.nViews
-  case 1
-    handles.cbHasTrx.Enable = 'on';
-    handles.cbMA.Enable = 'on';    
-  otherwise
-    handles.cbHasTrx.Value = 0;
-    handles.cbMA.Value = 0;
-    handles.cbHasTrx.Enable = 'off';
-    handles.cbMA.Enable = 'off';
-end
-handles = advTableRefresh(handles);
-guidata(hObject,handles);
-% function pumLabelingMode_Callback(hObject, eventdata, handles)
-% function pumTracking_Callback(hObject, eventdata, handles)
-function pbCreateProject_Callback(hObject, eventdata, handles)
-%fprintf('pbCreate start');
-cfg = genCurrentConfig(handles);
-cfg.ProjectName = handles.etProjectName.String;
-handles.output = cfg;
-guidata(handles.figure1,handles);
-close(handles.figure1);
-%fprintf('pbCreate end');
-function pbCancel_Callback(hObject, eventdata, handles)
-handles.output = [];
-guidata(handles.figure1,handles);
-close(handles.figure1);
-function pbCollapseNames_Callback(hObject, eventdata, handles)
-function pbAdvanced_Callback(hObject, eventdata, handles)
-handles = advModeToggle(handles);
-guidata(handles.figure1,handles);
-function pbCopySettingsFrom_Callback(hObject, eventdata, handles)
-lastLblFile = RC.getprop('lastLblFile');
-if isempty(lastLblFile)
-  lastLblFile = pwd;
-end
-[fname,pth] = uigetfile('*.lbl','Select project file',lastLblFile);
-if isequal(fname,0)
-  return;
-end
-lbl = loadLbl(fullfile(pth,fname));
-lbl = Labeler.lblModernize(lbl);
-cfg = lbl.cfg;
-handles = setCurrentConfig(handles,cfg);
-guidata(handles.figure1,handles);
+      % Row 3: Number of Views -------------------------------------
+      viewsSection = uigridlayout(outerGrid, [2 1]) ;
+      viewsSection.RowHeight = {'fit', 'fit'} ;
+      viewsSection.ColumnWidth = {'1x'} ;
+      viewsSection.Padding = [0 0 0 0] ;
+      viewsSection.RowSpacing = withinSectionRowSpacing ;
+      viewsSection.BackgroundColor = bgColor ;
 
-function figure1_CloseRequestFcn(hObject, eventdata, handles)
-if isequal(get(hObject,'waitstatus'),'waiting')
-% The GUI is still in UIWAIT, us UIRESUME
-  uiresume(hObject);
-else  
-  delete(hObject);
-end
+      viewsRow = uigridlayout(viewsSection, [1 2]) ;
+      viewsRow.ColumnWidth = {'1x', numberFieldWidth} ;
+      viewsRow.RowHeight = {'fit'} ;
+      viewsRow.Padding = [0 0 0 0] ;
+      viewsRow.ColumnSpacing = 10 ;
+      viewsRow.BackgroundColor = bgColor ;
 
-function s = structLeavesStr2Double(s,flds)
-% flds: cellstr of fieldnames
-%
-% Convert nonempty leaf nodes that are strs to doubles
-for f=flds(:)',f=f{1}; %#ok<FXSET>
-  val = s.(f);
-  if isstruct(val)
-    s.(f) = structLeavesStr2Double(s.(f),fieldnames(s.(f)));
-  elseif ~isempty(val)
-    if ischar(val)
-      s.(f) = str2double(val);
+      obj.number_of_views_label_ = uilabel(viewsRow) ;
+      obj.number_of_views_label_.Tag = 'number_of_views_label_' ;
+      obj.number_of_views_label_.Text = 'Number of Views' ;
+      obj.number_of_views_label_.FontSize = bigFontSize ;
+      obj.number_of_views_label_.FontColor = labelColor ;
+      obj.number_of_views_label_.BackgroundColor = bgColor ;
+
+      obj.number_of_views_edit_ = uieditfield(viewsRow, 'text') ;
+      obj.number_of_views_edit_.Tag = 'number_of_views_edit_' ;
+      obj.number_of_views_edit_.ValueChangedFcn = @(src, evt) obj.number_of_views_edit_actuated_(src, evt) ;
+      obj.number_of_views_edit_.HorizontalAlignment = 'right' ;
+      obj.number_of_views_edit_.FontSize = bigFontSize ;
+      obj.number_of_views_edit_.FontColor = fieldFontColor ;
+      obj.number_of_views_edit_.BackgroundColor = fieldBgColor ;
+      obj.number_of_views_edit_.Value = '1' ;
+
+      obj.number_of_views_details_label_ = uilabel(viewsSection) ;
+      obj.number_of_views_details_label_.Tag = 'number_of_views_details_label_' ;
+      obj.number_of_views_details_label_.Text = 'APT can do 3D labeling and tracking from multiple calibrated cameras. Enter 1 if animals were imaged from just one camera. Otherwise, enter the number of synced cameras recording the animals.' ;
+      obj.number_of_views_details_label_.WordWrap = 'on' ;
+      obj.number_of_views_details_label_.VerticalAlignment = 'top' ;
+      obj.number_of_views_details_label_.FontSize = smallFontSize ;
+      obj.number_of_views_details_label_.FontColor = labelColor ;
+      obj.number_of_views_details_label_.BackgroundColor = bgColor ;
+
+      % Row 4: Multiple Animals ------------------------------------
+      multipleAnimalsSection = uigridlayout(outerGrid, [2 1]) ;
+      multipleAnimalsSection.RowHeight = {'fit', 'fit'} ;
+      multipleAnimalsSection.ColumnWidth = {'1x'} ;
+      multipleAnimalsSection.Padding = [0 0 0 0] ;
+      multipleAnimalsSection.RowSpacing = withinSectionRowSpacing ;
+      multipleAnimalsSection.BackgroundColor = bgColor ;
+
+      multipleAnimalsRow = uigridlayout(multipleAnimalsSection, [1 2]) ;
+      multipleAnimalsRow.ColumnWidth = {'1x', numberFieldWidth} ;
+      multipleAnimalsRow.RowHeight = {'fit'} ;
+      multipleAnimalsRow.Padding = [0 0 0 0] ;
+      multipleAnimalsRow.ColumnSpacing = 10 ;
+      multipleAnimalsRow.BackgroundColor = bgColor ;
+
+      obj.multiple_animals_label_ = uilabel(multipleAnimalsRow) ;
+      obj.multiple_animals_label_.Tag = 'multiple_animals_label_' ;
+      obj.multiple_animals_label_.Text = 'Multiple Animals?' ;
+      obj.multiple_animals_label_.FontSize = bigFontSize ;
+      obj.multiple_animals_label_.FontColor = labelColor ;
+      obj.multiple_animals_label_.BackgroundColor = bgColor ;
+
+      % Center multiple_animals_checkbox_ horizontally within the numberFieldWidth-wide cell so
+      % it aligns with the centered "12" / "1" in the number fields above.
+      multiple_animals_checkbox_Cell = uigridlayout(multipleAnimalsRow, [1 3]) ;
+      multiple_animals_checkbox_Cell.ColumnWidth = {'1x', 'fit', '1x'} ;
+      multiple_animals_checkbox_Cell.RowHeight = {'fit'} ;
+      multiple_animals_checkbox_Cell.Padding = [0 0 0 8] ;  % top-pad to vertically align glyph with the adjacent label text
+      multiple_animals_checkbox_Cell.ColumnSpacing = 0 ;
+      multiple_animals_checkbox_Cell.BackgroundColor = bgColor ;
+
+      obj.multiple_animals_checkbox_ = uicheckbox(multiple_animals_checkbox_Cell) ;
+      obj.multiple_animals_checkbox_.Tag = 'multiple_animals_checkbox_' ;
+      obj.multiple_animals_checkbox_.Layout.Column = 2 ;
+      obj.multiple_animals_checkbox_.Text = '' ;
+      obj.multiple_animals_checkbox_.FontSize = bigFontSize ;
+      obj.multiple_animals_checkbox_.FontColor = labelColor ;
+
+      obj.multiple_animals_details_label_ = uilabel(multipleAnimalsSection) ;
+      obj.multiple_animals_details_label_.Tag = 'multiple_animals_details_label_' ;
+      obj.multiple_animals_details_label_.Text = 'Check this box if there are multiple animals visible in any video frames. Otherwise, APT will assume there is just one animal visible per frame.' ;
+      obj.multiple_animals_details_label_.WordWrap = 'on' ;
+      obj.multiple_animals_details_label_.VerticalAlignment = 'top' ;
+      obj.multiple_animals_details_label_.FontSize = smallFontSize ;
+      obj.multiple_animals_details_label_.FontColor = labelColor ;
+      obj.multiple_animals_details_label_.BackgroundColor = bgColor ;
+
+      % Row 5: Has Body Tracking -----------------------------------
+      hasBodyTrackingSection = uigridlayout(outerGrid, [2 1]) ;
+      hasBodyTrackingSection.RowHeight = {'fit', 'fit'} ;
+      hasBodyTrackingSection.ColumnWidth = {'1x'} ;
+      hasBodyTrackingSection.Padding = [0 0 0 0] ;
+      hasBodyTrackingSection.RowSpacing = withinSectionRowSpacing ;
+      hasBodyTrackingSection.BackgroundColor = bgColor ;
+
+      hasBodyTrackingRow = uigridlayout(hasBodyTrackingSection, [1 2]) ;
+      hasBodyTrackingRow.ColumnWidth = {'1x', numberFieldWidth} ;
+      hasBodyTrackingRow.RowHeight = {'fit'} ;
+      hasBodyTrackingRow.Padding = [0 0 0 0] ;
+      hasBodyTrackingRow.ColumnSpacing = 10 ;
+      hasBodyTrackingRow.BackgroundColor = bgColor ;
+
+      obj.has_body_tracking_label_ = uilabel(hasBodyTrackingRow) ;
+      obj.has_body_tracking_label_.Tag = 'has_body_tracking_label_' ;
+      obj.has_body_tracking_label_.Text = 'Has Body Tracking?' ;
+      obj.has_body_tracking_label_.FontSize = bigFontSize ;
+      obj.has_body_tracking_label_.FontColor = labelColor ;
+      obj.has_body_tracking_label_.BackgroundColor = bgColor ;
+
+      has_body_tracking_checkbox_Cell = uigridlayout(hasBodyTrackingRow, [1 3]) ;
+      has_body_tracking_checkbox_Cell.ColumnWidth = {'1x', 'fit', '1x'} ;
+      has_body_tracking_checkbox_Cell.RowHeight = {'fit'} ;
+      has_body_tracking_checkbox_Cell.Padding = [0 0 0 8] ;  % top-pad to vertically align glyph with the adjacent label text
+      has_body_tracking_checkbox_Cell.ColumnSpacing = 0 ;
+      has_body_tracking_checkbox_Cell.BackgroundColor = bgColor ;
+
+      obj.has_body_tracking_checkbox_ = uicheckbox(has_body_tracking_checkbox_Cell) ;
+      obj.has_body_tracking_checkbox_.Tag = 'has_body_tracking_checkbox_' ;
+      obj.has_body_tracking_checkbox_.Layout.Column = 2 ;
+      obj.has_body_tracking_checkbox_.Text = '' ;
+      obj.has_body_tracking_checkbox_.FontSize = 24 ;
+      obj.has_body_tracking_checkbox_.FontColor = labelColor ;
+
+      obj.has_body_tracking_details_label_ = uilabel(hasBodyTrackingSection) ;
+      obj.has_body_tracking_details_label_.Tag = 'has_body_tracking_details_label_' ;
+      obj.has_body_tracking_details_label_.Text = 'APT can do pose tracking on top of body tracking from an algorithm like FlyTracker or Ctrax. Check this box if you have already tracked the centroids and orientations of your animals and want to base pose tracking on those trajectories. If so, a trajectory file is input with each video.' ;
+      obj.has_body_tracking_details_label_.WordWrap = 'on' ;
+      obj.has_body_tracking_details_label_.VerticalAlignment = 'top' ;
+      obj.has_body_tracking_details_label_.FontSize = smallFontSize ;
+      obj.has_body_tracking_details_label_.FontColor = labelColor ;
+      obj.has_body_tracking_details_label_.BackgroundColor = bgColor ;
+
+      % Row 6 is reserved empty space; copy_settings_from_button_ is added below as
+      % a direct child of the figure so it can overlap the Has Body Tracking
+      % details area in row 5.
+      emptyRow = uigridlayout(outerGrid, [1 1]) ;
+      emptyRow.Padding = [0 0 0 0] ;
+      emptyRow.BackgroundColor = bgColor ;
+
+      % Row 7: Bottom buttons (Create Project + Cancel, centered, with
+      % an explicit gap between the two buttons) -------------------
+      betweenBottomButtonsWidth = 20 ;
+      bottomButtonsRow = uigridlayout(outerGrid, [1 5]) ;
+      bottomButtonsRow.ColumnWidth = {'1x', createProjectButtonWidth, betweenBottomButtonsWidth, cancelButtonWidth, '1x'} ;
+      bottomButtonsRow.RowHeight = {'fit'} ;
+      bottomButtonsRow.Padding = [0 0 0 0] ;
+      bottomButtonsRow.ColumnSpacing = 0 ;
+      bottomButtonsRow.BackgroundColor = bgColor ;
+
+      obj.create_project_button_ = uibutton(bottomButtonsRow, 'push') ;
+      obj.create_project_button_.Tag = 'create_project_button_' ;
+      obj.create_project_button_.Layout.Column = 2 ;
+      obj.create_project_button_.ButtonPushedFcn = @(src, evt) obj.create_project_button_actuated_(src, evt) ;
+      obj.create_project_button_.BackgroundColor = fieldBgColor ;
+      obj.create_project_button_.FontSize = bigFontSize ;
+      obj.create_project_button_.FontColor = fieldFontColor ;
+      obj.create_project_button_.Text = 'Create Project' ;
+
+      obj.cancel_button_ = uibutton(bottomButtonsRow, 'push') ;
+      obj.cancel_button_.Tag = 'cancel_button_' ;
+      obj.cancel_button_.Layout.Column = 4 ;
+      obj.cancel_button_.ButtonPushedFcn = @(src, evt) obj.cancel_button_actuated_(src, evt) ;
+      obj.cancel_button_.BackgroundColor = fieldBgColor ;
+      obj.cancel_button_.FontSize = bigFontSize ;
+      obj.cancel_button_.FontColor = fieldFontColor ;
+      obj.cancel_button_.Text = 'Cancel' ;
+
+      % Show the figure so uigridlayout resolves to real pixel positions,
+      % then resize the figure to fit the natural content height.
+      obj.fig_.Visible = 'on' ;
+      shrinkFigureToFitContentBang(obj.fig_, outerGrid) ;
+
+      % Copy Settings... button.  Created as a direct child of the figure
+      % (not inside outerGrid) so it can overlap into the Has Body Tracking
+      % details area above, matching the look of the original GUIDE layout.
+      % Drawn on top of outerGrid because it is created later.
+      obj.copy_settings_from_button_ = uibutton(obj.fig_, 'push') ;
+      obj.copy_settings_from_button_.Tag = 'copy_settings_from_button_' ;
+      obj.copy_settings_from_button_.ButtonPushedFcn = @(src, evt) obj.copy_settings_from_button_actuated_(src, evt) ;
+      obj.copy_settings_from_button_.BackgroundColor = fieldBgColor ;
+      obj.copy_settings_from_button_.FontSize = bigFontSize ;
+      obj.copy_settings_from_button_.FontColor = labelColor ;
+      obj.copy_settings_from_button_.Tooltip = 'Copy settings from an existing project' ;
+      obj.copy_settings_from_button_.Text = 'Copy Settings...' ;
+      % Position derived from the known outerGrid layout.  Bottom of the Has
+      % Body Tracking details label, measured from the figure bottom, is:
+      %   marginWidth + row 7 + spacing + row 6 + spacing
+      detailsBottomY = marginWidth + buttonHeight + outerGridRowSpacing + buttonHeight + outerGridRowSpacing ;
+      copySettingsButtonX = (figWidth - marginWidth) - copySettingsButtonWidth ;
+      copySettingsButtonY = detailsBottomY + copySettingsOverlapAmount - buttonHeight ;
+      obj.copy_settings_from_button_.Position = [copySettingsButtonX, copySettingsButtonY, copySettingsButtonWidth, buttonHeight] ;
+
+      % Do a final centering
+      if ~isempty(hParentFig)
+        centerOnParentFigure(obj.fig_, hParentFig) ;
+      end
+    end  % function
+  end  % methods (Access = private)
+
+  methods (Static)
+    function result = patchCfg(cfg, projectName, keypointCount, viewCount, hasBodyTracking, multipleAnimals)
+      result = cfg ;
+      result.NumViews = viewCount ;
+      result.NumLabelPoints = keypointCount ;
+
+      viewNameCount = numel(result.ViewNames) ;
+      if viewNameCount > viewCount
+        result.ViewNames = result.ViewNames(1:viewCount) ;
+      elseif viewNameCount < viewCount
+        result.ViewNames(viewNameCount+1:viewCount) = {''} ;
+      end
+      pointNameCount = numel(result.LabelPointNames) ;
+      if pointNameCount > keypointCount
+        result.LabelPointNames = result.LabelPointNames(1:keypointCount) ;
+      elseif pointNameCount < keypointCount
+        result.LabelPointNames(pointNameCount+1:keypointCount) = {''} ;
+      end
+      result.View = augmentOrTruncateVector(result.View(:), viewCount) ;
+
+      result.Trx.HasTrx = hasBodyTracking ;
+      result.MultiAnimal = multipleAnimals ;
+      isMultiAnimal = result.MultiAnimal && ~result.Trx.HasTrx ;
+      if isMultiAnimal
+        result.LabelMode = LabelMode.MULTIANIMAL ;
+      else
+        result.LabelMode = LabelMode.SEQUENTIAL ;
+      end
+      result.Track.Enable = true ;
+      result.ProjectName = projectName ;
     end
-  else
-    % none, empty
   end
-end
-
-function cbHasTrx_Callback(hObject, eventdata, handles)
-% none
-function cbMA_Callback(hObject, eventdata, handles)
-% none
+end  % classdef

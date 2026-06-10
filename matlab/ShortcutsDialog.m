@@ -166,7 +166,7 @@ centerOnParentFigure(hfig,obj.mainFigure_);
         end
       end
 
-      if ~ismember(fn,lObj.controller_.fakeMenuTags) && ~isvisible(val)
+      if ~ismember(fn,apt.mainFigureFakeMenuTags()) && ~isvisible(val)
         continue;
       end
 

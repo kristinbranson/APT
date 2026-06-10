@@ -74,11 +74,30 @@ classdef SpecifyMovieToTrackGUI < handle
     end
     
     function [movdata,dostore] = run(obj)
-      uiwait(obj.gdata.fig);
-      movdata = obj.movdata;
-      dostore = obj.dostore;
+      % Wait until the figure is actually on screen with its final geometry,
+      % then refresh the displayed paths so the initial truncation reflects
+      % the realized edit-field widths.  Doing this at the end of createGUI
+      % is too early: the WM hasn't mapped/sized the window yet, so
+      % getpixelposition returns stale widths and the truncation no-ops.
+      waitForFigureToSync(obj.gdata.fig) ;
+      obj.updatePathDisplay() ;
+      uiwait(obj.gdata.fig) ;
+      movdata = obj.movdata ;
+      dostore = obj.dostore ;
     end
-    
+
+    function delete(obj)
+      % Clean up figures if they still exist.
+      if ~isempty(obj.gdata)
+        if isfield(obj.gdata, 'crop') && isfield(obj.gdata.crop, 'fig')
+          deleteValidGraphicsHandles(obj.gdata.crop.fig) ;
+        end
+        if isfield(obj.gdata, 'fig')
+          deleteValidGraphicsHandles(obj.gdata.fig) ;
+        end
+      end
+    end  % function
+
     function initMovData(obj,movdata)
       
       obj.movdata = movdata;
@@ -323,51 +342,25 @@ classdef SpecifyMovieToTrackGUI < handle
           'Callback',@(h,e) obj.pb_control_Callback(h,e,controlbuttontags{i}));
       end
 
-      % Add path display toggle buttons to the right
-      pathToggleW = 0.08;
-      pathToggleSpacing = 0.005;
-      pathToggleX1 = 1 - obj.posinfo.border - 2*pathToggleW - pathToggleSpacing;
-
-      % Load icon images
-      leftAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_left.png'));
-      rightAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_right.png'));
-      if ndims(leftAlignIcon)==2
-        leftAlignIcon = repmat(leftAlignIcon,[1 1 3]);
+      % Add path-display popupmenu, right-aligned with the edit fields above
+      pathPopupW = 0.099 ;  % ~60% of the prior toggle-pair width
+      pathPopupX1 = obj.posinfo.editx + obj.posinfo.editw - pathPopupW ;
+      if obj.showPathEnds
+        pathPopupValue = 2;
+      else
+        pathPopupValue = 1;
       end
-      if ndims(rightAlignIcon)==2
-        rightAlignIcon = repmat(rightAlignIcon,[1 1 3]);
-      end
-
-      % Create button group for path toggle buttons
-      obj.gdata.bg_path = uibuttongroup(obj.gdata.fig,...
-        'BackgroundColor',obj.colorinfo.backgroundcolor,...
-        'BorderType','none',...
+      obj.gdata.pum_path = uicontrol(obj.gdata.fig,...
+        'Style','popupmenu',...
         'Units','normalized',...
-        'Position',[pathToggleX1 controlbuttony 2*pathToggleW+pathToggleSpacing obj.posinfo.rowh],...
-        'SelectionChangedFcn',@(src,evt) obj.pathToggleChanged(src,evt));
-
-      % "Starts" toggle button (left side)
-      obj.gdata.tb_path_starts = uitogglebutton(obj.gdata.bg_path,...
-        'Text','',...
-        'Icon',leftAlignIcon,...
-        'Tooltip','Show path starts',...
-        'FontColor','w','BackgroundColor',[1,1,1],...
-        'FontWeight','bold',...
-        'Value',~obj.showPathEnds,...
-        'Tag','togglebutton_path_starts');
-
-      % "Ends" toggle button (right side)
-      obj.gdata.tb_path_ends = uitogglebutton(obj.gdata.bg_path,...
-        'Text','',...
-        'Icon',rightAlignIcon,...
-        'Tooltip','Show path ends',...
-        'FontColor','w','BackgroundColor',[1,1,1],...
-        'FontWeight','bold',...
-        'Value',obj.showPathEnds,...
-        'Tag','togglebutton_path_ends');
-
-      % Position the toggle buttons
-      obj.updatePathTogglePositions();
+        'Position',[pathPopupX1 controlbuttony pathPopupW obj.posinfo.rowh],...
+        'String',{'Show Path Starts','Show Path Ends'},...
+        'Value',pathPopupValue,...
+        'ForegroundColor','w',...
+        'BackgroundColor',obj.colorinfo.editfilecolor,...
+        'TooltipString','Choose whether long paths are truncated to show their start or their end',...
+        'Tag','popupmenu_path',...
+        'Callback',@(src,evt) obj.pathPopupChanged(src,evt));
       
       rowi = 1;
       for i = 1:obj.nview,
@@ -478,36 +471,26 @@ classdef SpecifyMovieToTrackGUI < handle
         'HorizontalAlignment','right',...
         'Parent',obj.gdata.fig);
 
-        % Create button group for radio buttons
-        obj.gdata.bg_linking = uibuttongroup(obj.gdata.fig,...
-          'BackgroundColor',obj.colorinfo.backgroundcolor,...
-          'BorderType','none',...
+        % Linking-method popupmenu (replaces broken uiradiobuttons; see
+        % path-display popupmenu above for rationale)
+        if strcmp(obj.link_type,'identity')
+          linkingPopupValue = 2 ;
+        else
+          linkingPopupValue = 1 ;
+        end
+        obj.gdata.pum_linking = uicontrol(obj.gdata.fig,...
+          'Style','popupmenu',...
+          'Units','normalized',...
           'Position',[obj.posinfo.editx obj.posinfo.rowys(rowi) obj.posinfo.editw obj.posinfo.rowh],...
-          'SelectionChangedFcn',@(src,evt) obj.linkingTypeChanged(src,evt));
-
-
-        set(obj.gdata.bg_linking,'Units','pixels');
-        pos = get(obj.gdata.bg_linking,'Position');
-        set(obj.gdata.bg_linking,'Units','normalized');
-        wd = pos(3)/2-20;  % Now divide by 2 instead of 3
-
-        % Radio buttons - positions will be calculated dynamically
-        obj.gdata.rb_motion = uiradiobutton(obj.gdata.bg_linking,...
-          'Text','Motion Linking',...
-          'FontColor','w',...
-          'Position',[10 5 wd 20],...
-          'Value',strcmp(obj.link_type,'motion'));
-
-        obj.gdata.rb_identity = uiradiobutton(obj.gdata.bg_linking,...
-          'Text','Identity linking',...
-          'FontColor','w',...
-          'Position',[wd+20 5 wd 20],...
-          'Value',strcmp(obj.link_type,'identity'));
+          'String',{'Motion Linking','Identity Linking'},...
+          'Value',linkingPopupValue,...
+          'ForegroundColor','w',...
+          'BackgroundColor',obj.colorinfo.editfilecolor,...
+          'TooltipString','Method used to link detections across frames',...
+          'Tag','popupmenu_linking',...
+          'Callback',@(src,evt) obj.linkingTypeChanged(src,evt));
         
-        % Update radio button positions after creation
-        obj.updateLinkingButtonPositions();
-        
-        rowi = rowi + 1;
+        % rowi = rowi + 1;
 
         % for i = 1:obj.nview,
       %     tag = 'detect';
@@ -519,11 +502,12 @@ classdef SpecifyMovieToTrackGUI < handle
       %     obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.detectfiles{i});
         % end
 
-      end
+      end  % if obj.isma etc
 
-      obj.updatePathDisplay();
-
-      
+      % Initial updatePathDisplay() is deferred to run(), since the
+      % WM-realized geometry isn't available until the figure has actually
+      % been mapped on screen.
+      obj.updatePathDisplay() ;
     end
     
     function isgood = checkRowValue(obj,key,iview)
@@ -809,7 +793,6 @@ classdef SpecifyMovieToTrackGUI < handle
       if isempty(obj.movieReader) || numel(obj.movieReader) < iview || ...
           isempty(obj.movieReader{iview}),
         obj.movieReader{iview} = MovieReader;
-        obj.movieReader{iview}.flipVert = obj.lObj.movieInvert(iview);
         obj.movieReader{iview}.forceGrayscale = obj.lObj.movieForceGrayscale;
         obj.movieReader{iview}.open(obj.movdata.movfiles{iview});
       end
@@ -966,19 +949,14 @@ classdef SpecifyMovieToTrackGUI < handle
       end
     end
 
-    function linkingTypeChanged(obj, src, evt)
-      % Callback for linking type radio button group
-      selectedButton = evt.NewValue;
-
-      % Determine which linking type was selected
-      if selectedButton == obj.gdata.rb_motion
-        obj.link_type = 'motion';
-      elseif selectedButton == obj.gdata.rb_identity
-        obj.link_type = 'identity';
+    function linkingTypeChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the linking-method popupmenu
+      if get(obj.gdata.pum_linking, 'Value') == 2
+        obj.link_type = 'identity' ;
+      else
+        obj.link_type = 'motion' ;
       end
-
-      % Update toTrack data structure
-      obj.movdata.link_type = obj.link_type;
+      obj.movdata.link_type = obj.link_type ;
     end
 
     function trk = genTrkfile(obj,movie,defaulttrk,varargin)
@@ -990,112 +968,19 @@ classdef SpecifyMovieToTrackGUI < handle
       end
     end
     
-    function figureResizeCallback(obj, src, evt)
-      % Called when the figure is resized - update radio button positions
-      if obj.lObj.maIsMA && isfield(obj.gdata, 'bg_linking') && isvalid(obj.gdata.bg_linking)
-        obj.updateLinkingButtonPositions();
-      end
-      % Update path toggle button positions on resize
-      if isfield(obj.gdata, 'bg_path') && isvalid(obj.gdata.bg_path)
-        obj.updatePathTogglePositions();
-      end
-      % Update path display after resize to adjust truncation to new component sizes
-      obj.updatePathDisplay();
-    end
-    
-    function updateLinkingButtonPositions(obj)
-      % Calculate and update radio button positions based on button group size
-      if ~isfield(obj.gdata, 'bg_linking') || ~isvalid(obj.gdata.bg_linking)
-        return;
-      end
-      
-      try
-        % Update the "Linking Method" text position if it exists
-        if isfield(obj.gdata, 'linktext') && isvalid(obj.gdata.linktext)
-          % Get current button group position to align text with it
-          bgPos_norm = get(obj.gdata.bg_linking,'Position');
-          % Update text position to align with button group
-          set(obj.gdata.linktext, 'Position', [obj.posinfo.textx, bgPos_norm(2), obj.posinfo.textw, obj.posinfo.rowh]);
-        end
-        
-        % Get the button group position in pixels
-        set(obj.gdata.bg_linking,'Units','pixels');
-        bgPos = get(obj.gdata.bg_linking,'Position');
-        bgWidth = bgPos(3);
-        bgHeight = bgPos(4);
-        set(obj.gdata.bg_linking,'Units','normalized');
-        
-        % Calculate button dimensions with padding
-        padding = 10;  % pixels
-        buttonHeight = max(20, bgHeight - 2*padding);  % minimum 20px height
-        buttonWidth = (bgWidth - 3*padding) / 2;  % divide width by 2 with padding
-
-        % Calculate positions for each button
-        y = (bgHeight - buttonHeight) / 2;  % center vertically
-
-        % Update positions (now only motion and identity)
-        if isfield(obj.gdata, 'rb_motion') && isvalid(obj.gdata.rb_motion)
-          obj.gdata.rb_motion.Position = [padding, y, buttonWidth, buttonHeight];
-        end
-        if isfield(obj.gdata, 'rb_identity') && isvalid(obj.gdata.rb_identity)
-          obj.gdata.rb_identity.Position = [padding + buttonWidth + padding, y, buttonWidth, buttonHeight];
-        end
-        
-      catch ME
-        % Silently handle errors during resize
-        warning(ME.identifier,'Error updating linking button positions: %s', ME.message);
-      end
+    function figureResizeCallback(obj, src, evt)  %#ok<INUSD>
+      % Refresh path-truncation when the figure resizes (component widths change).
+      obj.updatePathDisplay() ;
     end
 
-    function pathToggleChanged(obj, src, evt)
-      % Callback for path display toggle button group
-      selectedButton = evt.NewValue;
-
-      % Determine which toggle was selected and update showPathEnds accordingly
-      if selectedButton == obj.gdata.tb_path_starts
-        obj.showPathEnds = false;  % Show path starts
-      elseif selectedButton == obj.gdata.tb_path_ends
-        obj.showPathEnds = true;   % Show path ends
-      end
-
-      % Update all displayed file paths
-      obj.updatePathDisplay();
-    end
-
-    function updatePathTogglePositions(obj)
-      % Update positions of the path toggle buttons
-      if ~isfield(obj.gdata, 'bg_path') || ~isvalid(obj.gdata.bg_path)
-        return;
-      end
-
-      try
-        % Get the button group position in pixels
-        set(obj.gdata.bg_path,'Units','pixels');
-        bgPos = get(obj.gdata.bg_path,'Position');
-        bgWidth = bgPos(3);
-        bgHeight = bgPos(4);
-        set(obj.gdata.bg_path,'Units','normalized');
-
-        % Calculate button dimensions - split the width in half
-        buttonWidth = bgWidth / 2;
-        buttonHeight = max(20, bgHeight - 4);  % Leave small padding
-
-        % Position buttons side by side
-        if isfield(obj.gdata, 'tb_path_starts') && isvalid(obj.gdata.tb_path_starts)
-          obj.gdata.tb_path_starts.Position = [2, 2, buttonWidth-4, buttonHeight];
-        end
-        if isfield(obj.gdata, 'tb_path_ends') && isvalid(obj.gdata.tb_path_ends)
-          obj.gdata.tb_path_ends.Position = [buttonWidth+2, 2, buttonWidth-4, buttonHeight];
-        end
-
-      catch ME
-        % Silently handle errors during positioning
-        warning(ME.identifier,'Error updating path toggle positions: %s', ME.message);
-      end
+    function pathPopupChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the Path Starts / Path Ends popupmenu
+      obj.showPathEnds = ( get(obj.gdata.pum_path, 'Value') == 2 ) ;
+      obj.updatePathDisplay() ;
     end
 
     function updatePathDisplay(obj)
-      % Update the display of file paths based on current mode (starts vs ends)
+      % Update the display of file paths based on current mode (starts vs ends).
 
       % Update movie file paths
       if isfield(obj.gdata, 'movie') && isfield(obj.gdata.movie, 'rowedit')
@@ -1145,7 +1030,7 @@ classdef SpecifyMovieToTrackGUI < handle
           set(obj.gdata.cal.rowedit(1), 'String', displayPath);
         end
       end
-    end
+    end  % function
 
     function displayPath = getDisplayPath(obj, originalPath, editComponent)
       % Get the appropriate display path based on current toggle setting

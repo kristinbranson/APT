@@ -13,6 +13,7 @@ classdef AxesHighlightManager < handle
   properties (Constant)
     ORANGE = [1 .6 .2];
   end
+
   properties
     HILITEPROPS = struct(...
       'axes',struct(...
@@ -32,11 +33,10 @@ classdef AxesHighlightManager < handle
       assert(isa(hAxes,'matlab.graphics.axis.Axes'));
       assert(~isempty(hAxes));
       
-      % NOTE: Trx vs noTrx, Axes vs Panels
-      % Atm, hasTrx-ness is not encoded at the project level. (It probably
-      % should be). Ie, a project may have some movies with trx and some
-      % without. So, the highlight manager must know how to handle both
-      % with-trx hilighting and without-trx highlighting.
+      % NOTE: Trx vs noTrx, Axes vs Panels. A project may have some movies with
+      % trx and some without (at least before training/tracking occurs). So, the
+      % highlight manager must know how to handle both with-trx hilighting and
+      % without-trx highlighting.
       
       obj.hAxs = hAxes;
       

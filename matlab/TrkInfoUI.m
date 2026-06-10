@@ -1,9 +1,9 @@
-function TrkInfoUI(lobj)
+function f = TrkInfoUI(controller, lobj)
 
 assert(lobj.maIsMA,'UI is functional only for multi-animal projects');
 f = findall(groot(),'tag','TrkInfoUI');
 if isempty(f)
-  init_figure(lobj);
+  f = init_figure(controller, lobj);
 else
   figure(f);
   h = guidata(f);
@@ -12,19 +12,20 @@ else
     h.mov_tbl.Selection = [curmov 1];
     h.curmov = curmov;
     h.lobj = lobj;
+    h.controller = controller;
     guidata(f,h);
     update_movie(f);
   end
 end
-end
+end  % function
 
-function f = init_figure(lobj)
+function f = init_figure(controller, lobj)
 
 f = uifigure('Units','pixel','Position',[250,250,1000,800],...
              'tag','TrkInfoUI','Name','Track Info');
-%     centerOnParentFigure(f,lobj.hFig)
 h = guidata(f);
 h.lobj = lobj;
+h.controller = controller;
 h.fig = f;
 
 curmov = lobj.currMovie;
@@ -35,13 +36,13 @@ gl = uigridlayout(f,[nr nc]);
 gl.RowHeight = {150,'1x',50};
 gl.ColumnWidth = {'1x',100};
 
-sel_btn = uiswitch(gl,'slider','ValueChangedFcn',@pred_imported_callback);
-sel_btn.Layout.Row = 1;
-sel_btn.Layout.Column = 2;
-sel_btn.Items = {'Imported','Predicted'};
-sel_btn.Value = {'Imported'};
-sel_btn.Orientation = 'Vertical';
-h.sel_btn = sel_btn;
+% sel_btn = uiswitch(gl,'slider','ValueChangedFcn',@pred_imported_callback);
+% sel_btn.Layout.Row = 1;
+% sel_btn.Layout.Column = 2;
+% sel_btn.Items = {'Imported', 'Predicted'};
+% sel_btn.Value = {'Predicted'};
+% sel_btn.Orientation = 'Vertical';
+% h.sel_btn = sel_btn;
 
 
 mov_list = lobj.movieFilesAllFullGTaware;
@@ -121,7 +122,6 @@ function update_movie(f)
 h = guidata(f);
 idx = h.curmov;
 lobj = h.lobj;
-imp_trk = lobj.labels2GTaware{idx};   
 if ~isempty(lobj.tracker)
   pred_trk = lobj.tracker.getTrackingResults(MovieIndex(idx));
   pred_trk = pred_trk{1};
@@ -129,30 +129,16 @@ else
   pred_trk = [];
 end
 
-has_imp = imp_trk.hasdata;
 has_pred = ~isempty(pred_trk) && pred_trk.hasdata;
 
-if has_imp && has_pred
-  h.sel_btn.Enable = 'on';
-elseif has_imp
-  h.sel_btn.Enable = 'off';
-  h.sel_btn.Value = 'Imported';
-elseif has_pred
-  h.sel_btn.Enable = 'off';
-  h.sel_btn.Value = 'Predicted';
-else
-  h.sel_btn.Enable = 'off';
+if ~has_pred
   h.tbl.Data = {};
   h.trk = {};
   h.has_data = false;
   return;
 end
 
-if strcmp(h.sel_btn.Value,'Imported')
-  trk = imp_trk;
-else
-  trk = pred_trk;
-end
+trk = pred_trk;
 
 [dat,sf,ef,breaks,top_links] = get_data(trk);
 h.tbl.Data = dat;
@@ -218,13 +204,12 @@ function [tdat,sf,ef,breaks,top_links] = get_data(trk)
   
 end
 
-function pred_imported_callback(handle,event,~)
- h = guidata(handle);
- h.sel_btn.Value = event.Value;
- guidata(handle,h)
- update_movie(h.fig);
- 
-end
+% function pred_imported_callback(handle,event,~)
+%  h = guidata(handle);
+%  h.sel_btn.Value = event.Value;
+%  guidata(handle,h)
+%  update_movie(h.fig); 
+% end
 
 function h = switch_target(h,tgt)
 if ~h.has_data, return; end
@@ -232,7 +217,7 @@ if h.lobj.currMovie ~= h.curmov
   qstr = sprintf('Switch to movie %d?',h.curmov);
   res = questdlg(qstr,'Switch Movie');
   if strcmp(res, 'Yes')
-    h.lobj.movieSetGUI(h.curmov);
+    h.lobj.movieSet(h.curmov);
   else
     return
   end
@@ -243,7 +228,7 @@ ef = h.ef;
 trk = h.trk;
 curfr = lobj.currFrame;
 if (sf(tgt)>curfr) || (ef(tgt)<curfr)
-  lobj.setFrameGUI(sf(tgt));
+  lobj.setFrame(sf(tgt));
 else
   haspred = trk.getPTrkFT(curfr,tgt);
   if ~haspred
@@ -252,30 +237,30 @@ else
     tdat = trk.getPTrkTgt(tgt);
     vfr = find(~all(isnan(tdat),[1,2]));
     closest = argmin(abs(vfr-curfr+sf(tgt)));
-    lobj.setFrameGUI(vfr(closest));
+    lobj.setFrame(vfr(closest));
   end
 end
 
-if strcmp(h.sel_btn.Value, 'Predicted')
-  lobj.tracker.trkVizer.trxSelectedTrxID(tgt,true);
-  lobj.tracker.trkVizer.centerPrimary;
-else
-  lobj.labeledpos2trkViz.trxSelectedTrxID(tgt,true);
-  lobj.labeledpos2trkViz.centerPrimary;
+tvm = lobj.tracker.trkVizer ;
+if ~isempty(tvm)
+  tvm.setSelectedTracklet(tgt) ;
+end
+tv = h.controller.tvTrkPred_ ;
+if ~isempty(tv)
+  tv.centerPrimary() ;
 end
 h.curtrk = tgt;
 guidata(h.fig,h);
 end
 
 function centerPrimary(h)
-lobj = h.lobj;
-if strcmp(h.sel_btn.Value, 'Predicted')
-  lobj.tracker.trkVizer.centerPrimary;
-else
-  lobj.labeledpos2trkViz.centerPrimary;
+tv = h.controller.tvTrkPred_ ;
+if ~isempty(tv)
+  tv.centerPrimary() ;
 end
 
 end
+
 function prev_btn_callback(handles,event,~)
 h = guidata(handles);
 if isempty(h.tbl.Selection)
@@ -295,14 +280,14 @@ curfr = lobj.currFrame;
 if curfr<sf
   warning('No previous breaks');
 elseif curfr>ef
-  lobj.setFrameGUI(ef);
+  lobj.setFrame(ef);
 else
   ss(ss>=(curfr-sf+1)) = nan;
   if all(isnan(ss))
-    lobj.setFrameGUI(sf);
+    lobj.setFrame(sf);
   else
     sndx = argmax(ss);
-    lobj.setFrameGUI(ss(sndx)+sf-1);
+    lobj.setFrame(ss(sndx)+sf-1);
   end
 end
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
@@ -331,14 +316,14 @@ curfr = lobj.currFrame;
 if curfr>ef
   warning('No next breaks');
 elseif curfr<sf
-  lobj.setFrameGUI(sf);
+  lobj.setFrame(sf);
 else
   ss(ss<=(curfr-sf+1)) = nan;
   if all(isnan(ss))
-    lobj.setFrameGUI(ef);
+    lobj.setFrame(ef);
   else
     sndx = argmin(ss);
-    lobj.setFrameGUI(ss(sndx)+sf-1);
+    lobj.setFrame(ss(sndx)+sf-1);
   end
 end
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
@@ -358,7 +343,7 @@ trk = h.trk;
 lobj = h.lobj;
 
 sf = trk.startframes(curtrk);
-lobj.setFrameGUI(sf);
+lobj.setFrame(sf);
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end
@@ -376,7 +361,7 @@ trk = h.trk;
 lobj = h.lobj;
 
 ef = trk.endframes(curtrk);
-lobj.setFrameGUI(ef);
+lobj.setFrame(ef);
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end

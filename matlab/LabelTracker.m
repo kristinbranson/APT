@@ -50,11 +50,35 @@ classdef (Abstract) LabelTracker < handle
     hideViz = false; % scalar logical. If true, hide visualizations
     showPredsCurrTargetOnly = false;
   end
+
+  properties
+    userTag_ = '' % char, user-assigned short name for this tracker
+  end
+
+  properties (Dependent)
+    userTag
+  end
+
+  methods
+    function v = get.userTag(obj)
+      v = obj.userTag_ ;
+    end  % function
+
+    function set.userTag(obj, v)
+      assert(ischar(v) && (isempty(v) || isrow(v)), ...
+        'userTag must be an empty char array or a row char array') ;
+      obj.userTag_ = v ;
+    end  % function
+  end
   
   methods (Abstract)
     % return cellstr, (deep) nets used by this tracker
     v = getNetsUsed(obj)
     tci = trackerCreateInfo(obj)
+    % Apply trained tracker to the specified frames.
+    track(obj, varargin)
+    % Track a specific list of frames, e.g. for GT performance evaluation.
+    trackList(obj, varargin)
   end
   
   methods
@@ -74,8 +98,6 @@ classdef (Abstract) LabelTracker < handle
       
       % listeners = { ...
       %   addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
-      %   %addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
-      %   addlistener(labelerObj,'didSetCurrTarget',@(s,e)(obj.newLabelerTarget()));
       %   addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
       %   addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
       %   };
@@ -113,6 +135,12 @@ classdef (Abstract) LabelTracker < handle
       % Called from init() when a new project is created/loaded, etc
       % Designed to be overloaded by subclasses.
     end
+
+    function didSetCurrFrame(obj, frm) %#ok<INUSD>
+      % Called by the Labeler when the current frame changes.  Subclasses
+      % that cache per-frame data on a TVM should override to refresh that
+      % cache.  Default is a no-op.
+    end  % function
         
     function sPrm = getParams(obj)
       sPrm = struct();
@@ -167,20 +195,6 @@ classdef (Abstract) LabelTracker < handle
     
     function tf = hasBeenTrained(obj)  %#ok<STOUT>
       %
-    end
-    
-    function track(obj,tblMFT,varargin)
-      % Apply trained tracker to the specified frames.
-      % 
-      % tblMFT: MFTable with cols MFTable.FLDSID
-      %
-      %
-      % DEPRECATED Legacy/Single-target API:
-      %   track(obj,iMovs,frms,...)
-      %
-      % iMovsSgned: [M] indices into .lObj.movieFilesAll to track; negative
-      %   indices are into .lObj.movieFilesAllGT.
-      % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
     end
     
     function [tfhaspred,xy,tfocc] = getTrackingResultsCurrFrm(obj)
@@ -275,14 +289,6 @@ classdef (Abstract) LabelTracker < handle
       % Default impl: none
     end    
         
-    function newLabelerFrame(obj)
-      % Called when Labeler is navigated to a new frame
-    end
-    
-    function newLabelerTarget(obj)
-      % Called when Labeler is navigated to a new target
-    end
-    
     function newLabelerMovie(obj)
       % Called when Labeler is navigated to a new movie
     end
@@ -355,8 +361,11 @@ classdef (Abstract) LabelTracker < handle
   
   methods % For infotimeline display
     
-    function props = propList(obj)
-      props = EmptyLandmarkFeatureArray();
+    function props = auxPropList(obj)
+      % Return auxiliary tracker-specific properties (e.g. confidence)
+      % for timeline display.  Base label features (displacement, etc.)
+      % are always available and need not be listed here.
+      props = EmptyLandmarkFeatureArray() ;
     end
     
     function data = getPropValues(obj,prop)
@@ -390,7 +399,7 @@ classdef (Abstract) LabelTracker < handle
         bodytrx = [];
       end      
       
-      plist = obj.propList();
+      plist = obj.auxPropList() ;
       plistcodes = {plist.code}';
       % tfaux = any(strcmp(prop.code,plistcodes)) ;  
       tfaux = any(strcmp(prop.code,plistcodes)) && ~isempty(auxlbl) ;  
@@ -545,12 +554,12 @@ classdef (Abstract) LabelTracker < handle
   methods
     function set.hideViz(obj, value)
       obj.hideViz = value ;
-      obj.lObj.doNotify('didSetTrackerHideViz') ;
+      obj.lObj.notifyRetrograde('didSetTrackerHideViz') ;
     end    
 
     function set.showPredsCurrTargetOnly(obj, value)
       obj.showPredsCurrTargetOnly = value ;
-      obj.lObj.doNotify('didSetTrackerShowPredsCurrTargetOnly') ;
+      obj.lObj.notifyRetrograde('didSetTrackerShowPredsCurrTargetOnly') ;
     end    
     
     % function copyProperties_(obj, other)

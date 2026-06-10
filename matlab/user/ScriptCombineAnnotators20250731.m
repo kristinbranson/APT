@@ -58,8 +58,8 @@ outlblfile_combined = fullfile(outdir,'combined.lbl');
 %% open the base file
 
 inlblfile_combined = fullfile(lbldir,baselblfile);
-lObj = StartAPT;
-lObj.projLoadGUI(inlblfile_combined);
+[lObj,controller] = StartAPT;
+lObj.projLoad(inlblfile_combined);
 moviefiles_base = lObj.movieFilesAllFull;
 moviefiles_gt_base = lObj.movieFilesAllGTFull;
 tbldata_base = lObj.labelGetMFTableLabeled('useMovNames',true);
@@ -71,7 +71,7 @@ newmoviefiles_gt = cell(0,size(moviefiles_base,2));
 tbldata = cell(size(addlblfiles));
 for i = 1:numel(addlblfiles),
   inlblfile = fullfile(lbldir,addlblfiles{i});
-  lObj.projLoadGUI(inlblfile);
+  lObj.projLoad(inlblfile);
   moviefilescurr = lObj.movieFilesAllFull;
   % check that all movies are in the base file
   isnew = ~ismember(moviefilescurr(:,1),moviefiles_base(:,1));
@@ -91,7 +91,7 @@ for i = 1:numel(addlblfiles),
 end
 
 % reload the base lbl file
-lObj.projLoadGUI(inlblfile_combined);
+lObj.projLoad(inlblfile_combined);
 
 tbldata_combined = tbldata_base;
 for i = 1:numel(addlblfiles),
@@ -153,7 +153,7 @@ for i = 1:size(moviefiles_remove,1),
   moviefile = moviefiles_remove{i,1};
   imov = find(strcmp(moviefile,lObj.movieFilesAllFull(:,1)));
   assert(numel(imov) == 1);
-  tfSucc = lObj.movieRmGUI(imov,'force',true);
+  tfSucc = controller.movieRmGUI(imov,'force',true);
   assert(tfSucc);
 end
 

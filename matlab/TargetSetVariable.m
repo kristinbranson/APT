@@ -6,6 +6,7 @@ classdef TargetSetVariable < TargetSet
     getTargetIndicesHook 
     id % id for testing for special cases
   end
+
   methods
     function obj = TargetSetVariable(ps,pcs,fcn,id)
       obj.prettyString = ps;
@@ -17,14 +18,17 @@ classdef TargetSetVariable < TargetSet
         obj.id = id;
       end
     end
+
     function str = getPrettyString(obj,labelerObj)
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;      
       str = obj.prettyString;
     end
+
     function str = getPrettyCompactString(obj,labelerObj)
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;      
       str = obj.prettyCompactString;
     end
+
     function iTgts = getTargetIndices(obj,lObj,mIdx)
       % mIdx: [n] vector of MovieIndices
       % iTgts: [n] cell array. iTgts{i} contains a vector of 1-based target

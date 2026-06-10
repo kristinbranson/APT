@@ -1,18 +1,19 @@
 function hFig = GTManager(varargin)
 
-if nargin == 1 && isa(varargin{1},'Labeler'),
-  lObj = varargin{1};
+if nargin >= 2 && isa(varargin{1},'LabelerController'),
+  controller = varargin{1};
+  lObj = varargin{2};
 else
   feval(varargin{:});
   return;
 end
 
-% GTManager(labelerObj)
+% GTManager(controller, labelerObj)
 %
 % GTManager is created with Visible='off'.
 
 % GTManager<->Labeler messaging:
-% 2. GTManager sets current movie/frame/target in Labeler based on 
+% 2. GTManager sets current movie/frame/target in Labeler based on
 %   treeTable interaction
 % 3a. Labeler prop listeners completely refresh GTTable content (gtSuggMFTable)
 % 3b. Labeler prop listeners incrementally update GTTable content (gtSuggMFTableLbled)
@@ -20,16 +21,13 @@ end
 %   (frame, target etc)
 
 assert(isa(lObj,'Labeler'));
-%obj.hFig = MovieManager(obj);
 handles = struct;
 handles.labeler = lObj;
-      
+handles.controller = controller;
+
 hFig = uifigure('Units','pixels','Position',[951,1400,733,733],...
   'Name','Groundtruth Navigator','Visible','off');
-mainController = lObj.controller_ ;
-if ~isempty(mainController)
-  mainController.addSatellite(hFig) ;
-end
+% Figure is tracked via obj.GTManagerFigure in LabelerController.gtShowGTManager()
 
 handles.figure1 = hFig;
 
@@ -120,10 +118,10 @@ handles = updateAll(handles);
 guidata(hFig,handles);
 set(hFig,'Visible','on');
 
-centerfig(handles.figure1,lObj.gdata.mainFigure_);
+centerfig(handles.figure1,controller.mainFigure_);
 
 function columnnames = getTblFrameColumnNames(handles)
-if handles.labeler.hasTrx,
+if handles.labeler.projectHasTrx,
   columnnames = {'Frame','Target','Labeled','Error'};
 else
   columnnames = {'Frame','Has Labels','Error'};
@@ -175,15 +173,15 @@ else
   if ~doupdate || strcmpi(fn,'frm'),
     data(:,1) = num2cell(handles.tbl.frm(idx));
   end
-  if handles.labeler.hasTrx && (~doupdate || strcmpi(fn,'iTgt')),
+  if handles.labeler.projectHasTrx && (~doupdate || strcmpi(fn,'iTgt')),
     data(:,2) = num2cell(handles.tbl.iTgt(idx));
   end
   if ~doupdate || strcmp(fn,'hasLbl'),
-    col = double(handles.labeler.hasTrx) + 2;
+    col = double(handles.labeler.projectHasTrx) + 2;
     data(:,col) = num2cell(handles.hasLbl(idx));
   end
   if ~doupdate || strcmp(fn,'err'),
-    col = double(handles.labeler.hasTrx) + 3;    
+    col = double(handles.labeler.projectHasTrx) + 3;    
     if any(~isnan(handles.err)),
       data(:,col) = num2cell(handles.err(idx));
     else
@@ -198,7 +196,7 @@ end
 
 function handles = updateAll(handles)
 
-if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler.controller_.mainFigure_)
+if isfield(handles, 'controller') && isscalar(handles.controller) && ishghandle(handles.controller.mainFigure_)
   % All is well
 else
   % Sometimes cbkGTSuggUpdated() gets called very early on, before handles.labeler is set
@@ -349,7 +347,7 @@ if ~isequal(newrow,oldrow),
 end
 
 data = handles.tblFrame.Data;
-if lObj.hasTrx,
+if lObj.projectHasTrx,
   newrow = find(cell2mat(data(:,1))==frm & cell2mat(data(:,2))==iTgt);
 else
   newrow = find(cell2mat(data(:,1))==frm);
@@ -395,7 +393,7 @@ if isempty(handles.tblFrame.Data),
 
 end
 ft = double(cell2mat(handles.tblFrame.Data(ftrow,1)));
-if lObj.hasTrx,
+if lObj.projectHasTrx,
   ft = [ft,double(cell2mat(handles.tblFrame.Data(ftrow,2)))];
 end
 mov = handles.iMovUn(movrow);
@@ -403,21 +401,16 @@ mov = handles.iMovUn(movrow);
 function lclNavToMFT(lObj,mov,ft)
 iMov = mov.get();
 if iMov~=lObj.currMovie
-  lObj.movieSetGUI(iMov);
+  lObj.movieSet(iMov);
 end
 if numel(ft) > 1,
   itgt = ft(2);
-  lObj.setFrameAndTargetGUI(ft(1),itgt);
+  lObj.setFrameAndTarget(ft(1),itgt);
 else
-  lObj.setFrameGUI(ft(1));
+  lObj.setFrame(ft(1));
 
   itgt = nan;
 end
-
-% function imovs = cbkGetSelectedMovies(hMMobj)
-% % Get current selection in Table
-% handles = guidata(hMMobj);
-% imovs = handles.navTreeTbl.getSelectedMovies();
 
 function menu_gtframes_suggest_Callback(hObject, eventdata, handles)
 LabelerGT.generateSuggestionsUI(handles.labeler);
@@ -501,11 +494,11 @@ lclNavToMFT(lObj,mov(1),ft(1,:));
 function pbComputeGT_Callback(hObject, src, evt)
 handles = guidata(hObject);
 lObj = handles.labeler;
-mainController = lObj.controller_ ;
-if isempty(mainController)
+controller = handles.controller ;
+if isempty(controller)
   whichlabels = 'all' ;
 else
-  response = mainController.askAboutUnrequestedGTLabelsIfNeeded_() ;
+  response = controller.askAboutUnrequestedGTLabelsIfNeeded_() ;
   if strcmp(response, 'cancel') 
     return
   end

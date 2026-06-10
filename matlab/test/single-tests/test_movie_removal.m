@@ -17,10 +17,10 @@ function test_movie_removal()
   originalMovieCount = numel(labeler.movieFilesAll) ;
 
   firstMovieIndexToRemove = 3 ;
-  labeler.movieRmGUI(firstMovieIndexToRemove, 'force', true) ;
+  controller.movieRmGUI(firstMovieIndexToRemove, 'force', true) ;
 
   secondMovieIndexToRemove = 2 ;  % Want one in the middle
-  labeler.movieRmGUI(secondMovieIndexToRemove, 'force', true) ;
+  controller.movieRmGUI(secondMovieIndexToRemove, 'force', true) ;
 
   % Do verification
   finalMovieCount = numel(labeler.movieFilesAll) ; 

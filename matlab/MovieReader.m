@@ -38,28 +38,8 @@ classdef MovieReader < handle
     hascrop % logical scalar, true if cropInfo is set
   end
   
-  properties (SetObservable)
-    % AL June 2016. Note on these SetObservable props.
-    %
-    % Our view of Labeler as a client of MovieReader is slightly unusual.
-    % We posit that Labeler.movieReader is part of Labeler's public API, 
-    % rather than .movieReader being purely private implementation. These
-    % MovieReader props are Public+SetObservable b/c we consider them part
-    % of Labeler's public API; users or the UI can/will set them directly, 
-    % rather than being forwarded through eg a dummy public property on 
-    % Labeler.
-    %
-    % The two main reasons for this decision are i) convenience and ii) to
-    % keep a dummy/forwarding prop on Labeler in sync, a listener would 
-    % need to be attached to the MovieReader prop anyway. I kind of like 
-    % the idea of having a select few properties of a large object like 
-    % Labeler (that contain 'permanent' scalar subobjects) to be considered 
-    % public API. It's a convenient and clean way of dividing 
-    % code/responsibility a little without creating a bunch of forwarding 
-    % props/methods.
-
-    forceGrayscale = false; % if true, [MxNx3] images are run through rgb2gray
-    flipVert = false; % if true, images are flipud-ed on read
+  properties
+    forceGrayscale = false;  % if true, [MxNx3] images are run through rgb2gray
   end
   
   properties (Dependent)
@@ -70,6 +50,7 @@ classdef MovieReader < handle
     function v = get.isOpen(obj)
       v = ~isnan(obj.fid);
     end
+
     function v = get.nrread(obj)
       ci = obj.cropInfo; 
       if isempty(ci)
@@ -78,6 +59,7 @@ classdef MovieReader < handle
         v = ci.roi(4)-ci.roi(3)+1;
       end
     end
+
     function v = get.ncread(obj)
       ci = obj.cropInfo; 
       if isempty(ci)
@@ -86,6 +68,7 @@ classdef MovieReader < handle
         v = ci.roi(2)-ci.roi(1)+1;
       end
     end
+
     function v = get.roiread(obj)
       ci = obj.cropInfo;
       if ~isempty(ci)
@@ -94,6 +77,7 @@ classdef MovieReader < handle
         v = [1 obj.nc 1 obj.nr];
       end
     end
+
     function v = get.hascrop(obj)
       v = ~isempty(obj.cropInfo);
     end
@@ -179,17 +163,13 @@ classdef MovieReader < handle
       
       [doBGsub,docrop] = myparse(varargin,...
         'doBGsub',false,...
-        'docrop',false ... % if true, .cropInfo is used if avail. Note, 
-                       ... % cropping occurs AFTER flipvert, if that is on
+        'docrop',false ... % if true, .cropInfo is used if avail
         );
       
       assert(obj.isOpen,'Movie is not open.');
       im = obj.readFrameFcn(i);
       imOrigType = class(im);
 
-      if obj.flipVert
-        im = flipud(im);
-      end
       if obj.forceGrayscale
         if size(im,3)==3 % doesn't have to be RGB but convert anyway
           im = rgb2gray(im);
@@ -204,7 +184,7 @@ classdef MovieReader < handle
         % Note, bgReadFcn should be returning bg images with same
         % scaling as im.
 
-        % Note: we do NOT apply .flipVert to bgIm, bgDevIm here...
+        % Note: we do NOT apply flipud to bgIm, bgDevIm here...
         
         im = PxAssign.simplebgsub(obj.bgType,double(im),obj.bgIm,obj.bgDevIm);
         
@@ -283,7 +263,6 @@ classdef MovieReader < handle
       obj.preload = labeler.movieReadPreLoadMovies; % must occur before .open()
       obj.open(movfname{iView},bgArgs{:});
       obj.forceGrayscale = labeler.movieForceGrayscale;
-      obj.flipVert = labeler.movieInvert(iView);      
       cInfo = labeler.getMovieFilesAllCropInfoMovIdx(mIdx);
       if ~isempty(cInfo)
         obj.setCropInfo(cInfo(iView));

@@ -9,13 +9,11 @@ classdef InfoTimelineController < handle
   % Note that objects of this class do not implement any listeners, and do not
   % directly respond to any UI callbacks.
   %
-  % As of Aug 16 2025, the update*() methods are still a hodge-podge of
-  % situationally-appropriate updates, which should likely be streamlined
-  % at some point.  Ideally the update() method would be the core update method,
-  % and would be a general-purpose method to update all the controls that are
-  % owned by this object, no matter the situation.  Additional less-general
-  % update*() methods would be for use in more specific settings when the
-  % performance of update() is inadequate.
+  % The update() method is the core update method, and is a general-purpose
+  % method to update all the controls that are owned by this object, no
+  % matter the situation.  Additional less-general update*() methods are for
+  % use in more specific settings when the performance of update() is
+  % inadequate.
 
   properties (Constant)
     axLmaxntgt = 3  % applies to hAxL for MA projs; number of tgts to display
@@ -28,43 +26,53 @@ classdef InfoTimelineController < handle
     hCurrFrame  % scalar line handle current frame
     hCurrFrameL  % scalar line handle current frame
     hStatThresh  % scalar line handle, threshold
+    hUncertainThresh  % scalar line handle, uncertain-frames threshold
     hCMenuClearBout  % scalar context menu
     hCMenuSetNumFramesShown
     hCMenuToggleThresholdViz
-    hPts  % [npts] line handles
+    hPts  % [nLabelPoints] line handles 
     hPtStat  % scalar line handle
-    hPtsL  % [npts] patch handles (non-MA projs), or [1] image handle (MA projs)    
+    hPtsL  % [nLabelPoints] patch handles (non-MA projs), or [1] image handle (MA projs)    
     hSelIm  % scalar image handle for selection
     hSegLineGT  % scalar line handle
     hSegLineGTLbled  % scalar line handle
   end
   
   methods
-    function obj = InfoTimelineController(labeler, axtm, axti)
+    function obj = InfoTimelineController(labeler, mainTimelineAxes, isLabeledTimelineAxes)
       obj.lObj = labeler ;
-      obj.hAx = axtm;
+      obj.hAx = mainTimelineAxes;
       obj.hCurrFrame = ...
-        line('Parent',axtm, ...
+        line('Parent',mainTimelineAxes, ...
              'XData',[nan nan], ...
-             'YData',axtm.YLim, ...
+             'YData',mainTimelineAxes.YLim, ...
              'LineStyle','-', ...
              'Color',[1 1 1],...
              'hittest','off', ...
              'Tag','InfoTimeline_CurrFrame');
       obj.hStatThresh = ...
-        line('Parent',axtm, ...
+        line('Parent',mainTimelineAxes, ...
              'XData',[nan nan], ...
              'YData',[0 0], ...
              'LineStyle','-', ...
              'Color',[1 1 1],...
              'hittest','off', ...
              'visible','off', ...
-             'Tag','InfoTimeline_StatThresh');      
+             'Tag','InfoTimeline_StatThresh');
+      obj.hUncertainThresh = ...
+        line('Parent',mainTimelineAxes, ...
+             'XData',[nan nan], ...
+             'YData',[0 0], ...
+             'LineStyle','--', ...
+             'Color',[1 1 1],...
+             'hittest','off', ...
+             'visible','off', ...
+             'Tag','InfoTimeline_UncertainThresh');
 
-      obj.hAxL = axti;
+      obj.hAxL = isLabeledTimelineAxes;
       
       obj.hCurrFrameL = ...
-        line('Parent',axti, ...
+        line('Parent',isLabeledTimelineAxes, ...
              'XData',[nan nan], ...
              'YData',[0 1], ...
              'LineStyle','-', ...
@@ -77,11 +85,12 @@ classdef InfoTimelineController < handle
       obj.hPtsL = [];
             
       obj.hSelIm = [];
-      obj.hSegLineGT = line('Parent',axtm,'XData',nan,'YData',nan,'Tag','InfoTimeline_SegLineGT');
-      obj.hSegLineGTLbled = line('Parent',axtm,'XData',nan,'YData',nan,'Tag','InfoTimeline_SegLineGTLbled');
+      obj.hSegLineGT = line('Parent',mainTimelineAxes,'XData',nan,'YData',nan,'Tag','InfoTimeline_SegLineGT');
+      obj.hSegLineGTLbled = line('Parent',mainTimelineAxes,'XData',nan,'YData',nan,'Tag','InfoTimeline_SegLineGTLbled');
       
+      % Build the context menu for the main timeline axes
       hCMenu = ...
-        uicontextmenu('Parent',axtm.Parent,...
+        uicontextmenu('Parent',mainTimelineAxes.Parent,...
                       'Tag','InfoTimeline_ContextMenu');
       obj.hCMenuSetNumFramesShown = ...
         uimenu('Parent',hCMenu, ...
@@ -95,7 +104,7 @@ classdef InfoTimelineController < handle
         uimenu('Parent',hCMenu, ...
                'Label','Toggle statistic threshold visibility',...
                'Tag','menu_InfoTimeline_ToggleThresholdViz');
-      axtm.UIContextMenu = hCMenu;            
+      mainTimelineAxes.UIContextMenu = hCMenu;            
 
       % Make sure the main timeline axes and the is-labeled axes always have the
       % same XLim, even when user uses Matlab built-in zoom/pan features.
@@ -103,10 +112,11 @@ classdef InfoTimelineController < handle
     end  % function
     
     function delete(obj)
-      deleteValidGraphicsHandles([obj.hCurrFrame,obj.hCurrFrameL,obj.hStatThresh]);
+      deleteValidGraphicsHandles([obj.hCurrFrame,obj.hCurrFrameL,obj.hStatThresh,obj.hUncertainThresh]);
       obj.hCurrFrame = [];
       obj.hCurrFrameL = [];
       obj.hStatThresh = [];
+      obj.hUncertainThresh = [];
       deleteValidGraphicsHandles(obj.hPts);
       deleteValidGraphicsHandles(obj.hPtStat);
       obj.hPts = [];
@@ -121,8 +131,93 @@ classdef InfoTimelineController < handle
       obj.hSegLineGTLbled = [];
     end
         
-    function updateForNewProject(obj)
-      % Update the controls in the wake of a new project being created/loaded.
+    function update(obj)
+      % Bring all controls fully into sync with the model, regardless of
+      % the current state of the model.  More-specific update*() methods
+      % exist for use in more-specific settings when the performance of
+      % this method is inadequate.
+
+      lObj = obj.lObj ;
+
+      % If there is no movie loaded, the timeline has nothing to show.
+      % (hasMovie implies hasProject.)  Push all widgets to a known-good
+      % blank state so they don't show stale data.
+      if ~lObj.hasMovie
+        % Delete per-project handles that may be stale
+        deleteValidGraphicsHandles(obj.hPts) ;
+        obj.hPts = [] ;
+        deleteValidGraphicsHandles(obj.hPtStat) ;
+        obj.hPtStat = [] ;
+        deleteValidGraphicsHandles(obj.hPtsL) ;
+        obj.hPtsL = [] ;
+        % Delete per-movie handles that may be stale
+        deleteValidGraphicsHandles(obj.hSelIm) ;
+        obj.hSelIm = [] ;
+        % Reset persistent line handles to show nothing
+        set(obj.hCurrFrame, 'XData', [nan nan]) ;
+        set(obj.hCurrFrameL, 'XData', [nan nan]) ;
+        set(obj.hStatThresh, 'XData', [nan nan], 'Visible', 'off') ;
+        set(obj.hUncertainThresh, 'XData', [nan nan], 'Visible', 'off') ;
+        set(obj.hSegLineGT, 'XData', nan, 'YData', nan, 'Visible', 'off') ;
+        set(obj.hSegLineGTLbled, 'XData', nan, 'YData', nan, 'Visible', 'off') ;
+        % Disable context menu items
+        set(obj.hCMenuClearBout, 'Enable', 'off') ;
+        return ;
+      end
+
+      % From here on, we know a project and movie are loaded.
+
+      % Ensure the per-landmark handle arrays (hPts, hPtStat, hPtsL) are
+      % the right size for the current project.  If they're not,
+      % updateForNewProject() will delete and recreate them.
+      if numel(obj.hPts) ~= lObj.nLabelPoints
+        obj.updateForProject_() ;
+      end
+
+      % Ensure the per-movie controls (selection image, segmented GT
+      % lines) are initialized for the current movie's frame count.  This
+      % must happen before updateGTModeRelatedControls(), because that
+      % method sets data on the segmented GT lines using the current
+      % movie's nframes.  If the lines are still sized for a previous
+      % movie, the XData/YData sizes will be mismatched.
+      obj.updateForMovie_() ;
+
+      % Update the data traces (hPts, hPtStat, hPtsL)
+      obj.updateTraces() ;
+
+      % Update the landmark colors
+      obj.updateLandmarkColors() ;
+
+      % Update the current frame line position and axes limits.  Must
+      % happen after updateTraces(), because updateTraces() sets YLim on
+      % hAx, and updateCurrentFrameLineXData() reads YLim for
+      % hCurrFrame's YData.
+      obj.updateCurrentFrameLineXData_() ;
+
+      % Update current frame line widths (depends on selection mode)
+      obj.updateCurrentFrameLineWidths_() ;
+
+      % Update selection image CData
+      obj.updateSelectionImageCData_() ;
+
+      % Update statistic threshold display
+      obj.updateStatThresh() ;
+
+      % Update uncertain-frames threshold display
+      obj.updateUncertainThresh() ;
+
+      % Update GT mode related controls (segmented line visibility and
+      % data).  Note: updateForMovie_() above also calls this, so it
+      % is redundant in most cases, but is needed when only the GT mode
+      % has changed without a movie change.
+      obj.updateGTModeRelatedControls() ;
+
+      % Update context menu
+      obj.updateContextMenu_() ;
+    end  % function
+
+    function updateForProject_(obj)
+      % Update the controls to match the current project.
 
       % Get the core things we need from the labeler
       lObj = obj.lObj ;
@@ -145,7 +240,7 @@ classdef InfoTimelineController < handle
                'YData',i, ...
                'Marker','.', ...
                'LineStyle','-', ...
-               'Color',colors(i,:),...
+               'Color',colors(i,:), ...
                'hittest','off', ...
                'Tag',sprintf('InfoTimeline_Pt%d',i)) ;
       end
@@ -180,6 +275,7 @@ classdef InfoTimelineController < handle
                          'Tag','InfoTimeline_Stat');
       
       ax.XColor = prefsXColor;
+      ax.YColor = prefsXColor;
       dy = .01;
       ax.YLim = [0-dy 1+dy];
       if ishandle(obj.hSelIm)
@@ -197,10 +293,11 @@ classdef InfoTimelineController < handle
       set(obj.hCurrFrame,'XData',[nan nan],'YData',ax.YLim,'ZData',[1 1]);
       set(obj.hCurrFrameL,'XData',[nan nan],'YData',axl.YLim,'ZData',[1 1]);
       set(obj.hStatThresh,'XData',[nan nan],'ZData',[1 1]);
+      set(obj.hUncertainThresh,'XData',[nan nan],'ZData',[1 1]);
     end
     
-    function updateForNewMovie(obj, colorTBSelect)
-      % Update the controls in the wake of a new movie being made current.
+    function updateForMovie_(obj)
+      % Update the controls to sync with the current movie.
 
       % Return early if labeler is being initialized
       lObj = obj.lObj ;
@@ -224,7 +321,8 @@ classdef InfoTimelineController < handle
               'CData', uint8(zeros(1,nframes)), ...
               'HitTest', 'off',...
               'CDataMapping', 'direct') ;
-      obj.hAx.Colormap = [ 0 0 0 ; colorTBSelect ] ;      
+      PURPLE = [80 31 124]/256 ;
+      obj.hAx.Colormap = [ 0 0 0 ; PURPLE ] ;      
       xlims = [1 nframes];
       sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
@@ -235,24 +333,30 @@ classdef InfoTimelineController < handle
       obj.updateGTModeRelatedControls();
     end
             
-    function updateLabels(obj,varargin)
+    function updateTraces(obj)
       % Update .hPts, .hMarked, .hPtStat
       
       lObj = obj.lObj ;
-      if lObj.isinit || isempty(lObj.nLabelPoints) || isnan(lObj.nLabelPoints)
+      if ~lObj.hasMovie
+        set(obj.hPts, 'XData', nan, 'YData', nan) ;
+        set(obj.hPtStat, 'XData', nan, 'YData', nan) ;
+        set(obj.hPtsL, 'XData', nan, 'YData', nan) ;
+        set(obj.hCurrFrame, 'XData', [nan nan]) ;
+        set(obj.hStatThresh, 'XData', [nan nan]) ;
+        set(obj.hUncertainThresh, 'XData', [nan nan]) ;
+        set(obj.hAx, 'YLim', [0 1]) ;
         return
       end
-      
-      dat = lObj.getTimelineDataForCurrentMovieAndTarget(varargin{:});  % [nptsxnfrm]
-      datnonnan = dat(~isnan(dat));
+
+      traceData = lObj.getTimelineDataForCurrentMovieAndTarget();  % [nLabelPoints x nFrames]
+      nonnanTraceData = traceData(~isnan(traceData));
 
       set(obj.hPts,'XData',nan,'YData',nan);
       set(obj.hPtStat,'XData',nan,'YData',nan);
       
-      if ~isempty(datnonnan)
-        
-        y1 = min(datnonnan(:));
-        y2 = max(datnonnan(:));
+      if ~isempty(nonnanTraceData)        
+        y1 = min(nonnanTraceData(:));
+        y2 = max(nonnanTraceData(:));
         if y1 == y2,
           if y1==0
             y1 = -eps;
@@ -265,31 +369,44 @@ classdef InfoTimelineController < handle
         end
         %dy = max(y2-y1,eps);
         %lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
-        x = 1:size(dat,2);
+        x = 1:size(traceData,2);
         if ishandle(obj.hSelIm),
           set(obj.hSelIm,'YData',[y1,y2]);
         end
         
+        % Expand the y range to include the uncertain-frames threshold if it
+        % would be visible (UFC is visible and timeline shows confidence)
+        ufm = lObj.uncertainFramesModel_ ;
+        itm = lObj.infoTimelineModel ;
+        [ptype, prop] = itm.getCurPropSmart() ;
+        isShowingConfidence = strcmp(ptype, 'Predictions') && ...
+                              isfield(prop, 'feature') && strcmp(prop.feature, 'confidence') ;
+        if ufm.isVisible && isfinite(ufm.absoluteConfidenceThreshold) && isShowingConfidence
+          y1 = min(y1, ufm.absoluteConfidenceThreshold) ;
+          y2 = max(y2, ufm.absoluteConfidenceThreshold) ;
+        end
+
         set(obj.hAx,'YLim',[y1,y2]);
         set(obj.hCurrFrame,'YData',[y1,y2]);
-        if size(dat,1) == lObj.nLabelPoints,
+        if size(traceData,1) == lObj.nLabelPoints,
           for i=1:lObj.nLabelPoints
-            set(obj.hPts(i),'XData',x,'YData',dat(i,:));
+            set(obj.hPts(i),'XData',x,'YData',traceData(i,:));
           end
-        elseif size(dat,1) == 1,
-          set(obj.hPtStat,'XData',x,'YData',dat(1,:));
+        elseif size(traceData,1) == 1,
+          set(obj.hPtStat,'XData',x,'YData',traceData(1,:));
         else
-          warningNoTrace(sprintf('InfoTimeline: Number of rows in statistics was %d, expected either %d or 1',size(dat,1),lObj.nLabelPoints));
+          warningNoTrace(sprintf('InfoTimeline: Number of rows in statistics was %d, expected either %d or 1',size(traceData,1),lObj.nLabelPoints));
         end
         
         set(obj.hStatThresh,'XData',x([1 end]));
-      end
+        set(obj.hUncertainThresh,'XData',x([1 end]));
+      end  % if ~isempty(traceData)
       
       if lObj.maIsMA
-        tflbledDisp = lObj.getLabeledTgts(obj.axLmaxntgt);
-        set(obj.hPtsL,'CData',uint8(tflbledDisp'));          
+        tflbledDisp = lObj.getLabeledTgts(obj.axLmaxntgt) ;
+        set(obj.hPtsL,'CData',uint8(tflbledDisp')) ;
       else
-        islabeled = lObj.getIsLabeledCurrMovTgt(); % [nptsxnfrm]
+        islabeled = lObj.getIsLabeledCurrMovTgt() ; % [nLabelPoints x nFrames]
         for i = 1:lObj.nLabelPoints,
           if any(islabeled(i,:)),
             [t0s,t1s] = get_interval_ends(islabeled(i,:));
@@ -306,17 +423,14 @@ classdef InfoTimelineController < handle
       end
     end  % function
     
-    function updateAfterCurrentFrameSet(obj)
-      % This gets called after the user changes the frame they're looking at, i.e.
-      % after labeler.currFrame is set.      
-      if isnan(obj.lObj.nLabelPoints), return; end      
-      obj.updateCurrentFrameLineXData_() ;      
-      itm = obj.lObj.infoTimelineModel ;
-      if itm.selectOn
-        obj.updateSelectionImageCData_() ;
-      end
-      obj.updateContextMenu_() ;
-    end  % function
+    % function updateAfterCurrentFrameSet(obj)
+    %   % This gets called after the user changes the frame they're looking at, i.e.
+    %   % after labeler.currFrame is set.      
+    %   if isnan(obj.lObj.nLabelPoints), return; end      
+    %   obj.updateCurrentFrameLineXData() ;      
+    %   obj.updateSelectionImageCData() ;
+    %   obj.updateContextMenu() ;
+    % end  % function
 
     function updateCurrentFrameLineXData_(obj)
       if isnan(obj.lObj.nLabelPoints), return; end
@@ -324,31 +438,19 @@ classdef InfoTimelineController < handle
         return
       end
       currFrame = obj.lObj.currFrame ;
-      nominal_xspan = 2*obj.lObj.projPrefs.InfoTimelines.FrameRadius;
+      nominal_r = obj.lObj.projPrefs.InfoTimelines.FrameRadius;
       nominal_dxtick = obj.lObj.projPrefs.InfoTimelines.dXTick ;
-      if nominal_xspan==0 || nominal_xspan > obj.lObj.nframes
-        x0 = 1;
-        x1 = obj.lObj.nframes;
-        xspan = x1-x0 ;
+      % MK says he wants the current frame in the center,
+      % even it means the limits run off the end.
+      if nominal_r==0 || 2*nominal_r > obj.lObj.nframes
+        r = floor(obj.lObj.nframes/2) ;
       else
-        xspan = nominal_xspan ;
-        r = xspan/2 ;
-        x0_raw = currFrame-r;
-        x1_raw = currFrame+r; %min(frm+r,obj.nfrm);
-        % Make sure the limits don't run off the end
-        if x0_raw<1
-          x0 = 1 ;
-          x1 = 1 + 2*r ;
-        elseif x1_raw>obj.lObj.nframes
-          x1 = obj.lObj.nframes ;
-          x0 = x1 - 2*r ;
-        else
-          x0 = x0_raw ;
-          x1 = x1_raw ;
-        end
+        r = nominal_r ;
       end
-      if xspan/nominal_dxtick > 20 ,
-        dxtick = apt.heuristic_dxtick_from_xspan(xspan) ;
+      x0 = currFrame-r ;
+      x1 = currFrame+r ;
+      if r/nominal_dxtick > 10 ,
+        dxtick = apt.heuristic_dxtick_from_xspan(2*r) ;
       else
         dxtick = nominal_dxtick ;
       end
@@ -362,11 +464,12 @@ classdef InfoTimelineController < handle
     end  % function
     
     function updateSelectionImageCData_(obj)
+      % Update the selection-highlight image from the model state.
       itm = obj.lObj.infoTimelineModel ;
-      if ~isempty(obj.hSelIm) && isvalid(obj.hSelIm) 
+      if ~isempty(obj.hSelIm) && isvalid(obj.hSelIm)
         obj.hSelIm.CData = itm.isSelectedFromFrameIndex ;
       end
-    end  % function   
+    end  % function
 
     function updateLandmarkColors(obj)
       tflbl = obj.lObj.infoTimelineModel.getCurPropTypeIsLabel();
@@ -399,13 +502,24 @@ classdef InfoTimelineController < handle
       % Update visibility and axis colors
       onoff = onIff(tfshow);
       obj.hStatThresh.Visible = onoff;
-      if tfshow
-        obj.hAx.YColor = obj.hAx.XColor;
-      else
-        obj.hAx.YColor = [0.15 0.15 0.15];
-      end
-    end  % function   
-    
+    end  % function
+
+    function updateUncertainThresh(obj)
+      % Update the uncertain-frames threshold display from the model.
+      % Only visible when the UFC is visible and the timeline is showing a
+      % Predictions confidence feature.
+      ufm = obj.lObj.uncertainFramesModel_ ;
+      threshold = ufm.absoluteConfidenceThreshold ;
+      itm = obj.lObj.infoTimelineModel ;
+      [ptype, prop] = itm.getCurPropSmart() ;
+      isShowingConfidence = strcmp(ptype, 'Predictions') && ...
+                            isfield(prop, 'feature') && strcmp(prop.feature, 'confidence') ;
+      isVisible = ufm.isVisible && isShowingConfidence ;
+      tidyThreshold = fif(isempty(threshold), nan, threshold) ;
+      obj.hUncertainThresh.YData = [tidyThreshold tidyThreshold] ;
+      obj.hUncertainThresh.Visible = onIff(isVisible) ;
+    end  % function
+
     function updateGTModeRelatedControls(obj)
       lObj = obj.lObj;
       gt = lObj.gtIsGTMode;
@@ -475,18 +589,17 @@ classdef InfoTimelineController < handle
       end
     end  % function
 
-    function update(obj)
-      % Update controls to reflect the model state
-      obj.updateCurrentFrameLineWidths_() ;
-      obj.updateCurrentFrameLineXData_() ;
-      obj.updateSelectionImageCData_() ;
-      obj.updateContextMenu_() ;
-    end  % function
-
     function updateContextMenu_(obj)
       lObj = obj.lObj ;
       % Gray menu item if not in a bout
       set(obj.hCMenuClearBout,'Enable',onIff(lObj.isCurrentFrameSelected()));
+    end  % function
+
+    function updateSelection(obj)
+      obj.updateCurrentFrameLineWidths_() ;
+      obj.updateCurrentFrameLineXData_() ;
+      obj.updateSelectionImageCData_() ;
+      obj.updateContextMenu_() ;      
     end  % function
   end  % methods  
 end  % classdef

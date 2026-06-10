@@ -33,11 +33,11 @@ classdef TrackBatchGUI < handle
   end
   
   methods
-    function obj = TrackBatchGUI(lObj,varargin)
+    function obj = TrackBatchGUI(lObj,mainFigure,varargin)
       obj.lObj = lObj;
       obj.isma = lObj.maIsMA;
-      obj.hParent = obj.lObj.gdata.mainFigure_;      
-      [toTrack,debug] = myparse(varargin,'toTrack',struct,'debug',false);
+      obj.hParent = mainFigure ;
+      toTrack = myparse(varargin,'toTrack',struct);
       
       obj.defaulttrkpat = lObj.defaultExportTrkRawname();
       obj.defaultdetectpat = [obj.defaulttrkpat '.tracklet'];
@@ -53,6 +53,13 @@ classdef TrackBatchGUI < handle
       uiwait(obj.gdata.fig);
       toTrack = obj.toTrack;
     end
+
+    function delete(obj)
+      % Clean up the figure if it still exists.
+      if ~isempty(obj.gdata) && isfield(obj.gdata, 'fig')
+        deleteValidGraphicsHandles(obj.gdata.fig) ;
+      end
+    end  % function
     
     function initData(obj,toTrack)
       obj.toTrack = toTrack;
@@ -139,7 +146,7 @@ classdef TrackBatchGUI < handle
       rowys = coltitley - (rowh+rowborder)*(1:obj.nmovies_per_page);
  
       macroedity = rowys(end) - 1.5*(rowh+rowborder);
-      hasTrx = obj.lObj.hasTrx;
+      hasTrx = obj.lObj.projectHasTrx;
       obj.hasTrx = hasTrx;
       if hasTrx
         macroedity(2) = macroedity - (rowh+rowborder);
@@ -599,6 +606,7 @@ classdef TrackBatchGUI < handle
       obj.updateTruncatedFilePathsWithMode();
       
     end
+
     function setRowVisible(obj,i,visible)
       set([obj.gdata.edit_movie(i),obj.gdata.edit_trk(i),...
         obj.gdata.button_details(i),obj.gdata.button_delete(i)],'Visible',visible);
@@ -610,12 +618,14 @@ classdef TrackBatchGUI < handle
     function moviei = item2MovieIdx(obj,itemi)
       moviei = (obj.page-1)*obj.nmovies_per_page + itemi;
     end
+
     function itemi = movie2ItemIdx(obj,moviei)
       itemi = moviei - (obj.page-1)*obj.nmovies_per_page;
       if itemi <= 0 || itemi > obj.nmovies_per_page,
         itemi = [];
       end
     end
+
     function movdata = getMovData(obj,moviei)
       movdata = struct;
       if moviei <= obj.nmovies,
@@ -640,6 +650,7 @@ classdef TrackBatchGUI < handle
         end
       end
     end
+
     function setMovData(obj,moviei,movdata)
       nview = obj.lObj.nview;
       obj.toTrack.movfiles(moviei,:) = movdata.movfiles;
@@ -708,6 +719,7 @@ classdef TrackBatchGUI < handle
       % Apply current truncation mode to this row
       obj.updateTruncatedFilePathsWithMode();      
     end
+
     function pb_details_Callback(obj,h,e,itemi) %#ok<*INUSL>
       obj.setBusy();
       moviei = obj.item2MovieIdx(itemi);
@@ -732,6 +744,7 @@ classdef TrackBatchGUI < handle
       end
       obj.setNotBusy();
     end
+
     function pb_delete_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
       if itemi == 1 && moviei > obj.nmovies,
@@ -893,7 +906,7 @@ classdef TrackBatchGUI < handle
       partIndex = nviews + 1;
 
       % Handle trx files if project requires them
-      if obj.lObj.hasTrx
+      if obj.lObj.projectHasTrx
         if length(parts) >= partIndex + nviews - 1
           % Trx files specified for each view
           trxFiles = parts(partIndex:partIndex + nviews - 1);
@@ -941,6 +954,7 @@ classdef TrackBatchGUI < handle
     function setNPages(obj)
       obj.npages = ceil(max(1,obj.nmovies) / obj.nmovies_per_page);
     end
+
     function setPage(obj,page)
       obj.page = page;
       obj.updateMovieList();
@@ -991,29 +1005,30 @@ classdef TrackBatchGUI < handle
               end
             end
           end
-
           % Check for existing _detect files and ask user if they want to continue
           userChoice = obj.checkAndPromptForDetectFiles();
           switch userChoice
             case 'cancel'
-              return; % User cancelled
+              return;
             case 'use_detect'
               obj.toTrack.docontinue = true;
-            case 'new_tracking'
+            case {'new_tracking', 'no_detect_files'}
               obj.toTrack.docontinue = false;
-              % Continue with normal tracking
-            case 'no_detect_files'
-              obj.toTrack.docontinue = false;
-              % Continue with normal tracking
           end
 
           % Check for existing output trk files and ask user if they want to overwrite
           overwriteChoice = obj.checkAndPromptForOutputFiles();
           if strcmp(overwriteChoice, 'cancel')
-            return; % User cancelled
+            return;
           end
 
-          obj.lObj.trackBatch('toTrack',obj.toTrack,'track_type',tag);
+          % apt.TrackType.link was renamed to id_link; map the legacy 'link' button tag.
+          if strcmp(tag, 'link')
+            trackTypeEnum = apt.TrackType.id_link ;
+          else
+            trackTypeEnum = apt.TrackType(tag) ;
+          end
+          obj.lObj.trackBatch(obj.toTrack, 'trackType', trackTypeEnum);
           delete(obj.gdata.fig);
         otherwise
           error('Callback for %s not implemented',tag);
@@ -1105,9 +1120,11 @@ classdef TrackBatchGUI < handle
         set(controls(isvisible),'Enable','on');
       end
     end
+
     function setNotBusy(obj)
       obj.setBusy(false);
     end
+
     function edit_movie_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
       movie = h.Value;
@@ -1118,7 +1135,7 @@ classdef TrackBatchGUI < handle
         trk = obj.genTrkfile(movie,defaulttrk);
       end
       defaulttrx = obj.defaulttrxpat;
-      tfgentrx = obj.lObj.hasTrx && ~isempty(defaulttrx);
+      tfgentrx = obj.lObj.projectHasTrx && ~isempty(defaulttrx);
       if tfgentrx
         trx = obj.genTrkfile(movie,defaulttrx,'enforceExt',false);
       end
@@ -1177,6 +1194,7 @@ classdef TrackBatchGUI < handle
       end
       
     end
+
     function edit_trx_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
       if moviei>obj.nmovies
@@ -1185,12 +1203,12 @@ classdef TrackBatchGUI < handle
       end
       trx = h.Value;
       obj.toTrack.trxfiles{moviei,1} = trx;
-      
+
       % Update original data
       if moviei <= length(obj.originalTrxFiles)
         obj.originalTrxFiles{moviei} = trx;
       end
-      
+
       % mutating .toTrack outside setMovData
       obj.needsSave = true;
     end
@@ -1203,15 +1221,27 @@ classdef TrackBatchGUI < handle
       end
       trk = h.Value;
       obj.toTrack.trkfiles{moviei,1} = trk;
-      
+
       % Update original data
       if moviei <= length(obj.originalTrkFiles)
         obj.originalTrkFiles{moviei} = trk;
+      end
+
+      % mutating .toTrack outside setMovData
+      obj.needsSave = true;
+    end
+
+    function edit_detect_Callback(obj,h,e,itemi)
+      moviei = obj.item2MovieIdx(itemi);
+      if moviei>obj.nmovies
+        obj.pb_add_Callback([],[],[]);
+        return;
       end
       
       % mutating .toTrack outside setMovData
       obj.needsSave = true;
     end
+
     function trk = genTrkfile(obj,movie,defaulttrk,varargin)  
       if isempty(movie)
         trk = '';
@@ -1251,6 +1281,7 @@ classdef TrackBatchGUI < handle
 
       end
     end
+
     function apply_macro_allmovies(obj)
       defaulttrk = obj.defaulttrkpat;
       for moviei = 1:obj.nmovies
@@ -1268,6 +1299,7 @@ classdef TrackBatchGUI < handle
       % mutating .toTrack outside setMovData
       obj.needsSave = true;
     end
+
     function macro_changed_trx(obj,h,e)
       trxpat = strtrim(h.Value);
       if strcmp(trxpat,obj.defaulttrxpat)

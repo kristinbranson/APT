@@ -6,6 +6,7 @@ classdef ProjectFSInfo
     action
     filename
   end
+
   methods
     function obj = ProjectFSInfo(act,fname)
       obj.timestamp = now();

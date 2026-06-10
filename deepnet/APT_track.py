@@ -42,6 +42,9 @@ def parse_args(argv):
     parser.add_argument('-config_file', dest='config_file', help='JSON file with parameters related to tracking', default=None)
     parser.add_argument('-continue', dest='continue_tracking', help='continue tracking from an existing .part file', action='store_true')
 
+    parser.add_argument('-continue', dest='continue_tracking', action='store_true',
+                        help='Continue tracking from existing .part file.')
+
     parser.add_argument('-conf_params',
                         help='conf params. These will override params from lbl file. If the model is a 2 stage tracker then this will override the params only for the first stage', default=None, nargs='*')
     parser.add_argument('-conf_params2',
@@ -203,11 +206,16 @@ def main(argv):
         argv.pop(tndx)
         argv.pop(tndx)
 
+    if args.continue_tracking:
+        tndx = argv.index('-continue')
+        argv.pop(tndx)
+
     # if usestrippedlbl:
     #     cmd = f'{config_file} '
     # else:
     #     cmd = ''
-    cmd = f'{config_file} -type {mtypes[ndx]} -cache {tdir} {pre_str} {extra} -name {tstamps_str[ndx]} track {extra_2}'
+    continue_str = ' -continue' if args.continue_tracking else ''
+    cmd = f'{config_file} -type {mtypes[ndx]} -cache {tdir} {pre_str} {extra} -name {tstamps_str[ndx]} track {extra_2}{continue_str}'
 
 
 ##

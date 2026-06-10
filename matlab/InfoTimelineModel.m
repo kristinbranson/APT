@@ -7,8 +7,8 @@ classdef InfoTimelineModel < handle
   % changes are reflected in the APT UI.
 
   properties (Constant)
-    TLPROPFILESTR = 'landmark_features.yaml';
-    TLPROPTYPES = {'Labels','Predictions','Imported','All Frames'};
+    PROPS_FILE_NAME = 'landmark_features.yaml'
+    PROP_TYPES = {'Labels', 'Predictions', 'All Frames'}'
   end
 
   properties  % Private by convention
@@ -17,44 +17,44 @@ classdef InfoTimelineModel < handle
     props_ % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
     props_tracker_ % [ntrkprop]. ". Applicable when proptype is 'Predictions'
     props_allframes_ % [nallprop]. ". Applicable when proptype is All Frames
-    proptypes_ % property types, eg 'Labels' or 'Predictions'
     curprop_ % row index into props, or props_tracker, depending on curproptype
     curproptype_ % row index into proptypes
     isdefault_ % whether this has been changed
-    TLPROPS_  % struct array, features we can compute. Initted from yaml at construction-time
-    TLPROPS_TRACKER_  % struct array, features for current tracker. Initted at setTracker time
+    % TLPROPS_  % struct array, features we can compute. Initted from yaml at construction-time
+    trackerAuxiliaryProps_  % struct array, auxiliary features for current tracker
     isSelectedFromFrameIndex_ = false(1,0)  % Internal record of what frames are shown as selected on the timeline
     custom_data_  % [1 x nframes] custom data to plot
-    tldata_  % [nptsxnfrm] most recent data set/shown. NOT y-normalized
+    tldata_  % [npts x nfrm] most recent data set/shown. NOT y-normalized
     statThresh_  % scalar, threshold value for timeline statistics
     isStatThreshVisible_  % scalar logical, whether to show threshold visualization
     tldata_ptype_  % the ptype used when tldata_ was last computed
     tldata_pcode_  % the pcode used when tldata_ was last computed
-    tldata_iMov  % the iMov used when tldata_ was last computed
-    tldata_iTgt  % the iTgt used when tldata_ was last computed
+    tldata_iMov_  % the iMov used when tldata_ was last computed
+    tldata_iTgt_  % the iTgt used when tldata_ was last computed
+    tldata_iTrklet_  % the tracklet index used when tldata_ was last computed (MA projects)
+    tldata_trnNameLbl_  % the tracker train ID used when tldata_ was last computed
   end
   
   properties (Dependent)
-    selectOn % scalar logical, if true, select "Pen" is down
-    selectOnStartFrm % frame where selection started
-    props % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
-    props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
-    props_allframes % [nallprop]. ". Applicable when proptype is All Frames
-    proptypes % property types, eg 'Labels' or 'Predictions'
-    curprop % row index into props, or props_tracker, depending on curproptype
-    curproptype % row index into proptypes
-    isdefault % whether this has been changed
+    selectOn  % scalar logical, if true, select "Pen" is down
+    selectOnStartFrm  % frame where selection started
+    props  % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
+    props_tracker  % [ntrkprop]. ". Applicable when proptype is 'Predictions'
+    props_allframes  % [nallprop]. ". Applicable when proptype is All Frames
+    proptypes  % property types, eg 'Labels' or 'Predictions'
+    curprop  % row index into props, or props_tracker, depending on curproptype
+    curproptype  % row index into proptypes
+    isdefault  % whether this has been changed
     isSelectedFromFrameIndex
-    custom_data % [1 x nframes] custom data to plot
-    statThresh % scalar, threshold value for timeline statistics
-    isStatThreshVisible % scalar logical, whether to show threshold visualization
+    custom_data  % [1 x nframes] custom data to plot
+    statThresh  % scalar, threshold value for timeline statistics
+    isStatThreshVisible  % scalar logical, whether to show threshold visualization
   end
 
   methods
-    function obj = InfoTimelineModel(hasTrx)
+    function obj = InfoTimelineModel()
       obj.selectOn_ = false;
       obj.selectOnStartFrm_ = [];
-      obj.proptypes_ = InfoTimelineModel.TLPROPTYPES(:);
       obj.curprop_ = 1;
       obj.curproptype_ = 1;
       obj.isdefault_ = true;
@@ -62,9 +62,8 @@ classdef InfoTimelineModel < handle
       obj.tldata_ = [];
       obj.statThresh_ = [];
       obj.isStatThreshVisible_ = false;
-      obj.readTimelinePropsNew();
-      obj.TLPROPS_TRACKER_ = EmptyLandmarkFeatureArray();
-      obj.initializePropsEtc_(hasTrx);  % fires no events
+      obj.trackerAuxiliaryProps_ = EmptyLandmarkFeatureArray();
+      obj.initializePropsEtc_(false, false);  % fires no events
     end
     
     function v = get.selectOn(obj)
@@ -96,8 +95,8 @@ classdef InfoTimelineModel < handle
       v = obj.props_allframes_;
     end
 
-    function v = get.proptypes(obj)
-      v = obj.proptypes_;
+    function v = get.proptypes(obj)  %#ok<MANU>
+      v = InfoTimelineModel.PROP_TYPES ;
     end
 
     function v = get.curprop(obj)
@@ -137,20 +136,26 @@ classdef InfoTimelineModel < handle
       obj.isStatThreshVisible_ = ~obj.isStatThreshVisible_;
     end
 
-    function result = getTimelineDataForCurrentMovieAndTarget(obj, labeler,varargin)
-      [doRecompute] = myparse(varargin,'doRecompute',false);
-      if ~doRecompute
-        if isempty(obj.tldata_) 
-          doRecompute = true ;
+    function result = getTimelineDataForCurrentMovieAndTarget(obj, labeler)
+      if isempty(obj.tldata_)
+        doRecompute = true ;
+      else
+        [ptype,pcode] = obj.getCurPropSmart();
+        iMov = labeler.currMovie;
+        iTgt = labeler.currTarget;
+        iTrklet = obj.getCurrentTrackletIndex_(labeler) ;
+        tracker = labeler.tracker ;
+        if ~isempty(tracker)
+          trnNameLbl = tracker.trnNameLbl ;
         else
-          [ptype,pcode] = obj.getCurPropSmart();
-          iMov = labeler.currMovie;
-          iTgt = labeler.currTarget;
-          doRecompute = ~isequal(ptype, obj.tldata_ptype_) || ...
-                        ~isequal(pcode, obj.tldata_pcode_) || ...
-                        ~isequal(iMov, obj.tldata_iMov) || ...
-                        ~isequal(iTgt, obj.tldata_iTgt);
+          trnNameLbl = '' ;
         end
+        doRecompute = ~isequal(ptype, obj.tldata_ptype_) || ...
+                      ~isequal(pcode, obj.tldata_pcode_) || ...
+                      ~isequal(iMov, obj.tldata_iMov_) || ...
+                      ~isequal(iTgt, obj.tldata_iTgt_) || ...
+                      ~isequal(iTrklet, obj.tldata_iTrklet_) || ...
+                      ~isequal(trnNameLbl, obj.tldata_trnNameLbl_) ;
       end
       if doRecompute
         obj.recomputeDataForCurrentMovieAndTarget_(labeler) ;
@@ -158,54 +163,51 @@ classdef InfoTimelineModel < handle
       result = obj.tldata_;
     end
     
-    function readTimelinePropsNew(obj)
-      path = fullfile(APT.Root, 'matlab') ;
-      tlpropfile = fullfile(path,InfoTimelineModel.TLPROPFILESTR);
-      assert(logical(exist(tlpropfile,'file')), 'File %s is missing', tlpropfile);      
-      obj.TLPROPS_ = ReadLandmarkFeatureFile(tlpropfile);      
-    end
-
-    function initializePropsEtc_(obj, hasTrx)
+    function initializePropsEtc_(obj, hasMovie, hasTrx)
       % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
-      
+
+      % Read the TL props from the .yaml file
+      path = fullfile(APT.Root, 'matlab') ;
+      tlpropfile = fullfile(path,InfoTimelineModel.PROPS_FILE_NAME);
+      assert(logical(exist(tlpropfile,'file')), 'File %s is missing', tlpropfile);      
+      props = ReadLandmarkFeatureFile(tlpropfile);      
+
       % remove body features if no body tracking
-      props = obj.TLPROPS_;
-      if ~isempty(hasTrx) && ~hasTrx ,
+      if hasMovie && ~hasTrx
         idxremove = strcmpi({props.coordsystem},'Body');
         props(idxremove) = [];
+      else
+        % ~hasMovie || hasTrx
+        % If there's no movie then none of this stuff should be touched anyway.
+        % If the movie has trx then we want to leave the body coords in there.
       end
       obj.props_ = props;      
-      obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);      
-      obj.props_allframes_ = struct('name','Add custom...',...
-        'code','add_custom',...
-        'file','');      
+      obj.props_tracker_ = cat(1,obj.trackerAuxiliaryProps_,obj.props);
+      obj.props_allframes_ = ...
+        struct('name','Add custom...',...
+               'code','add_custom',...
+               'file','');
     end
 
-    function didChangeCurrentTracker(obj, newTrackerPropList)
-      % Handle tracker change - update proptypes and props_tracker
+    function didChangeCurrentTracker(obj, newAuxPropList)
+      % Handle tracker change - update tracker-specific display props.
       % Called by the parent Labeler.
-      
-      % Set .proptypes_, .props_tracker_
-      if isempty(newTrackerPropList),
-        % AL: Probably obsolete codepath
-        % Seems to be in-use in Aug 2025.  Sometimes the tracker property list is
-        % empty...
-        tfIsPredictions = strcmpi(obj.proptypes_,'Predictions') ;
-        obj.proptypes_(tfIsPredictions) = [];
-        obj.props_tracker_ = [];
-      else
-        if ~ismember('Predictions', obj.proptypes_),
-          obj.proptypes_{end+1} = 'Predictions';
-        end
-        obj.TLPROPS_TRACKER_ = newTrackerPropList ; %#ok<*PROPLC>
-        obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);
-      end
+      %
+      % newAuxPropList: auxiliary tracker-specific properties (e.g.
+      %   confidence).  May be empty for net types with no aux labels.
+      %   Even so, props_tracker_ still includes the base
+      %   label features, since label features can be computed on
+      %   predicted positions.
 
-      % Check that .curprop is in range for current .props,
+      % Update tracker-specific props and rebuild props_tracker_
+      obj.trackerAuxiliaryProps_ = newAuxPropList ;  %#ok<*PROPLC>
+      obj.props_tracker_ = cat(1, obj.trackerAuxiliaryProps_, obj.props) ;
+
+      % Check that .curprop is in-range for current .props,
       % .props_tracker, .curproptype. 
-      ptype = obj.proptypes_{obj.curproptype_};
+      ptype = obj.proptypes{obj.curproptype_};
       switch ptype
-        case 'Predictions'
+        case {'Predictions'}
           tfOOB = (obj.curprop_ > numel(obj.props_tracker_));
         otherwise
           tfOOB = (obj.curprop_ > numel(obj.props_)) ;
@@ -216,17 +218,20 @@ classdef InfoTimelineModel < handle
     end  % function
 
     function tf = hasPredictionConfidence(obj)
-      tf = ~isempty(obj.TLPROPS_TRACKER_);
+      tf = ~isempty(obj.trackerAuxiliaryProps_);
     end
     
     function props = getPropsDisp(obj, ipropType)
-      % Get available properties for given propType (idx)
+      % Get available properties for given propType (idx).
+      % These are options for things to display in the timeline, like confidence,
+      % velmag, etc.
       if nargin < 2,
         ipropType = obj.curproptype;
       end
-      if strcmpi(obj.proptypes{ipropType},'Predictions'),
+      propType = obj.proptypes{ipropType} ;
+      if strcmpi(propType, 'Predictions')
         props = {obj.props_tracker.name};
-      elseif strcmpi(obj.proptypes{ipropType},'All Frames'),
+      elseif strcmpi(propType, 'All Frames'),
         props = {obj.props_allframes.name};
       else
         props = {obj.props.name};
@@ -251,7 +256,7 @@ classdef InfoTimelineModel < handle
       end
       obj.clearSelection(nframes) ;
       obj.custom_data_ = [];
-      obj.initializePropsEtc_(hasTrx) ;  % fires no events
+      obj.initializePropsEtc_(hasMovie, hasTrx) ;  % fires no events
       if obj.getCurPropTypeIsAllFrames()
         obj.curproptype_ = 1 ;
         obj.curprop_ = 1 ;
@@ -295,7 +300,9 @@ classdef InfoTimelineModel < handle
     end
 
     function didSetCurrFrame(obj, currFrame)
-      % Called by the Labeler after currFrame is set.
+      % Called by the Labeler after currFrame is set.  
+      % Currently, updates the set of selected frames if the timeline is in selection
+      % mode.
       if obj.selectOn_
         f0 = obj.selectOnStartFrm_ ;
         f1 = currFrame ;
@@ -313,8 +320,8 @@ classdef InfoTimelineModel < handle
     % end
 
     function clearBout(obj, currentFrameIndex)  
-      % Unselect the bout that currentFrameIndex is in.  If currentFrameIndex is not
-      % in a bout, do nothing.
+      % Unselect the bout of selected frames that currentFrameIndex is in.  If
+      % currentFrameIndex is not in a bout, do nothing.
       isSelectedFromFrameIndex = obj.isSelectedFromFrameIndex_ ;
       bout = findBoutEdges(currentFrameIndex, isSelectedFromFrameIndex) ;
       if isempty(bout)
@@ -340,7 +347,7 @@ classdef InfoTimelineModel < handle
       
       ptype = obj.proptypes{obj.curproptype};
       switch ptype
-        case 'Predictions'
+        case {'Predictions'}
           prop = obj.props_tracker(obj.curprop);
         otherwise
           prop = obj.props(obj.curprop);
@@ -359,7 +366,7 @@ classdef InfoTimelineModel < handle
         tldata = nan(labeler.nLabelPoints,1);
       else
         switch ptype
-          case {'Labels','Imported'}
+          case 'Labels'
             needtrx = labeler.hasTrx && strcmpi(pcode.coordsystem,'Body');
             if needtrx,
               trxFile = labeler.trxFilesAllFullGTaware{iMov,1};
@@ -368,28 +375,11 @@ classdef InfoTimelineModel < handle
             else
               bodytrx = [];
             end
-            
+
             nfrmtot = labeler.nframes;
-            if strcmp(ptype,'Labels'),
-              s = labeler.labelsGTaware{iMov};
-              [tfhasdata,lpos,lposocc,lpost0,lpost1] = Labels.getLabelsT(s,iTgt);
-              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
-            else
-              s = labeler.labels2GTaware{iMov};
-              if labeler.maIsMA
-                % Use "current Tracklet" for imported data
-                if ~isempty(labeler.labeledpos2trkViz)
-                  iTgt = labeler.labeledpos2trkViz.currTrklet;
-                  if isnan(iTgt)
-                    warningNoTrace('No Tracklet currently selected; showing timeline data for first tracklet.');
-                    iTgt = 1;
-                  end
-                else
-                  iTgt = 1;
-                end
-              end  
-              [tfhasdata,lpos,lposocc,lpost0,lpost1] = s.getPTrkTgt2(iTgt);
-            end
+            s = labeler.labelsGTaware{iMov};
+            [tfhasdata,lpos,lposocc,lpost0,lpost1] = Labels.getLabelsT(s,iTgt);
+            lpos = reshape(lpos,size(lpos,1)/2,2,[]);
             if tfhasdata
               tldata = ComputeLandmarkFeatureFromPos(...
                 lpos,lposocc,lpost0,lpost1,nfrmtot,bodytrx,pcode);
@@ -400,7 +390,7 @@ classdef InfoTimelineModel < handle
             % AL 20200511 hack, initialization ordering. If the timeline
             % pum has 'Predictions' selected and a new project is loaded,
             % the trackers are not updated (via
-            % LabelerGUI/cbkCurrTrackerChanged) until after a movieSetGUI()
+            % LabelerGUI/cbkCurrTrackerChanged) until after a movieSet()
             % call which leads here.
             tracker = labeler.tracker ;
             if ~isempty(tracker) && isvalid(tracker)
@@ -429,8 +419,15 @@ classdef InfoTimelineModel < handle
       obj.tldata_ = tldata;
       obj.tldata_ptype_ = ptype ;
       obj.tldata_pcode_ = pcode ;
-      obj.tldata_iMov = iMov ;
-      obj.tldata_iTgt = iTgt ;
+      obj.tldata_iMov_ = iMov ;
+      obj.tldata_iTgt_ = iTgt ;
+      obj.tldata_iTrklet_ = obj.getCurrentTrackletIndex_(labeler) ;
+      tracker = labeler.tracker ;
+      if ~isempty(tracker)
+        obj.tldata_trnNameLbl_ = tracker.trnNameLbl ;
+      else
+        obj.tldata_trnNameLbl_ = '' ;
+      end
     end  % function
     
     function setCurrentPropertyType(obj, iproptype, iprop)
@@ -438,7 +435,23 @@ classdef InfoTimelineModel < handle
       obj.curproptype_ = iproptype;
       obj.curprop_ = iprop;
       obj.isdefault_ = false ;
-    end
+    end  % function
     
-  end  % methods  
+    function iTrklet = getCurrentTrackletIndex_(obj, labeler)  %#ok<INUSL>
+      % Get the current tracklet index for MA projects.
+      % Returns NaN for non-MA projects or when no tracklet visualizer exists.
+      tracker = labeler.tracker ;
+      if labeler.maIsMA && ~isempty(tracker) && ...
+          isprop(tracker, 'trkVizer') && ~isempty(tracker.trkVizer) && ...
+          isprop(tracker.trkVizer, 'currTrklet')
+        iTrklet = tracker.trkVizer.currTrklet ;
+      else
+        iTrklet = nan ;
+      end
+    end  % function
+
+    function invalidateTraceCache(obj)
+      obj.tldata_ = [] ;
+    end  % function
+  end  % methods
 end  % classdef

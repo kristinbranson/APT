@@ -169,6 +169,7 @@ classdef WaitBarWithCancel < handle
     function updateMessage(obj)
       obj.hTxt.String = obj.contexts.fullmessage();
     end
+
     function updateShowBar(obj)
       onoff = onIff(~isempty(obj.contexts) && ~obj.contexts(end).nobar);
       obj.hBar.Visible = onoff;

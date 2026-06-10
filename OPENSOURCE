@@ -21,10 +21,6 @@ We thank the open source community for making this project possible. APT contain
   http://stackoverflow.com/questions/19625073/how-to-run-clojure-from-matlab/22524112#22524112
   Andrew Janke
   
-* matlab/JavaTableWrapper
-  https://www.mathworks.com/matlabcentral/fileexchange/49994-java-table-wrapper-for-user-interfaces
-  Robyn Jackey
-  
 * matlab/jsonlab-1.2
   https://www.mathworks.com/matlabcentral/fileexchange/33381-jsonlab-a-toolbox-to-encode-decode-json-files
   Qianqian Fang
@@ -32,11 +28,7 @@ We thank the open source community for making this project possible. APT contain
 * matlab/propertiesGUI
   http://undocumentedmatlab.com/articles/propertiesgui
   Yair M. Altman: altmany(at)gmail.com
-  
-* matlab/treeTable
-  http://undocumentedmatlab.com/articles/treetable
-  Yair M. Altman: altmany(at)gmail.com
-  
+
 * matlab/YAMLMatlab_0.4.3, matlab/+yaml
   https://code.google.com/archive/p/yamlmatlab/
   https://github.com/ewiger/yamlmatlab

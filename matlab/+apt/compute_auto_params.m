@@ -73,6 +73,7 @@ function autoparams = compute_auto_params(lobj)
     y = aligned_labels(:,2,:);
     aligned_labels(:,1,:) = x .* cos_a - y .* sin_a;
     aligned_labels(:,2,:) = x .* sin_a + y .* cos_a;
+    aligned_labels(isinf(aligned_labels)) = nan;
   else
     aligned_labels = all_labels;
   end
@@ -130,7 +131,7 @@ function autoparams = compute_auto_params(lobj)
   else
     crop_radius = nanmax(l_span_pc);
   end
-  crop_radius = ceil(crop_radius/16)*16;
+  crop_radius = ceil(crop_radius/32)*32;
 
   autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
   if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
@@ -138,8 +139,9 @@ function autoparams = compute_auto_params(lobj)
   end
 
   if has_ht
-    a_min = permute(nanmin(aligned_labels,[],1),[2,3,1]);
-    a_max = permute(nanmax(aligned_labels,[],1),[2,3,1]);
+
+    a_min = permute(min(aligned_labels,[],1,'omitmissing'),[2,3,1]);
+    a_max = permute(max(aligned_labels,[],1,'omitmissing'),[2,3,1]);
     a_span = a_max-a_min;
     a_span_pc = prctile(a_span,98,2);
     a_ratio_pc = prctile(a_span(2,:)./a_span(1,:),[5,50,95]);
@@ -229,7 +231,8 @@ function autoparams = compute_auto_params(lobj)
       % If we are cropping the images then use animal trange.
       crop_sz = lobj.trackParams.ROOT.MultiAnimal.multi_crop_im_sz;
       trange_crop = crop_sz/10;
-      trange_top = min(trange_pair,trange_crop);
+      trange_top = trange_crop;
+      % trange_top = min(trange_pair,trange_crop);
     else
       trange_top = trange_frame;
     end

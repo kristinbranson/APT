@@ -52,6 +52,7 @@ classdef DLBackEndClass < handle
     default_jrcgpuqueue = 'gpu_a100'
     default_jrcnslots_train = 4
     default_jrcnslots_track = 4
+    default_jrcJobDuration = 10080  % in minutes; 10080 = 7 days
 
     default_conda_env = 'apt-20250626-tf215-pytorch21-hopper' 
     % new docker and singularity iamges have graph-cut-opt package for id
@@ -92,10 +93,11 @@ classdef DLBackEndClass < handle
 
     gpuids = []  % for now used by docker/conda
     
-    jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
-    jrcgpuqueue 
-    jrcnslots 
+    jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'
+    jrcgpuqueue
+    jrcnslots
     jrcnslotstrack
+    jrcJobDuration  % job wall-clock time limit in minutes, passed as -W to bsub
 
     % condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
 
@@ -179,7 +181,10 @@ classdef DLBackEndClass < handle
       end
       if isempty(obj.jrcnslotstrack) ,
         obj.jrcnslotstrack = DLBackEndClass.default_jrcnslots_track ;
-      end      
+      end
+      if isempty(obj.jrcJobDuration) ,
+        obj.jrcJobDuration = DLBackEndClass.default_jrcJobDuration ;
+      end
 
       % Just populate this now, whether or not we end up using it      
       obj.awsec2 = AWSec2() ;
@@ -262,10 +267,19 @@ classdef DLBackEndClass < handle
         % all is well
       else
         error('APT:invalidValue', 'Invalid value for the JRC addition bsub arguments');
-      end        
+      end
       % Actually set the value
       obj.jrcAdditionalBsubArgs = new_value ;
-    end    
+    end
+
+    function set.jrcJobDuration(obj, new_value)
+      if isnumeric(new_value) && isscalar(new_value) && new_value > 0 ,
+        % all is well
+      else
+        error('APT:invalidValue', 'Job duration must be a positive number (minutes)');
+      end
+      obj.jrcJobDuration = new_value ;
+    end
 
     % function set.condaEnv(obj, new_value)
     %   % Check for crazy values
@@ -998,10 +1012,9 @@ classdef DLBackEndClass < handle
       obj.training_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
-    function registerTrackingJob(obj, totrackinfo, deeptracker, gpuids, track_type)
+    function registerTrackingJob(obj, totrackinfo, deeptracker, gpuids, trackType)
       % Register a single tracking job with the backend, for later spawning via
       % spawnRegisteredJobs().
-      % track_type should be one of {'track', 'link', 'detect'}
 
       % Get the root of the remote source tree
       remoteAptRootAsChar = obj.aptSourceDirRootRemoteAsChar_() ;
@@ -1015,7 +1028,7 @@ classdef DLBackEndClass < handle
       basecmd = DLBackEndClass.trackCodeGenBase(totrackinfo,...
                                                 'ignore_local',ignore_local,...
                                                 'nativeaptroot',APT.Root,...
-                                                'track_type',track_type);
+                                                'trackType', trackType);
       args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteAptRootAsChar, 'track') ;
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
       commandFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
@@ -1342,6 +1355,12 @@ classdef DLBackEndClass < handle
         result = obj.awsec2.fileExists(wslFilePath) ;
       else
         nativeFilePathAsChar = nativeFilePath.charUnescaped() ;
+        % Refresh NFS attribute cache before checking, to avoid false negatives
+        % when a remote job (bsub/cluster) has just written the file.
+        parent = fileparts(nativeFilePathAsChar) ;
+        if ~isempty(parent)
+          dir(parent) ;
+        end
         result = logical(exist(nativeFilePathAsChar, 'file')) ;
       end
     end  % function
@@ -2004,7 +2023,7 @@ classdef DLBackEndClass < handle
 
     function testBackendConfig(obj, labeler)
       obj.testText_ = {''};
-      labeler.notify('updateBackendTestText') ;
+      labeler.notifyRetrograde('updateBackendTestText') ;
       switch obj.type,
         case DLBackEnd.Bsub,
           obj.testBsubBackendConfig_(labeler) ;

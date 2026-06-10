@@ -53,7 +53,8 @@ function TrainMonitorGUI_OpeningFcn(hObject, eventdata, handles, varargin)
 % varargin   command line arguments to TrainMonitorGUI (see VARARGIN)
 
 % Choose default command line output for TrainMonitorGUI
-set(hObject,'MenuBar','None');
+set(hObject, 'MenuBar', 'none', 'ToolBar', 'none', 'DockControls', 'off') ;
+delete(findall(hObject, 'Type', 'uitoolbar')) ;
 handles.output = hObject;
 handles.vizobj = varargin{1};
 
@@ -151,4 +152,3 @@ else
   % sanity check
   error('Bad userdata value for pushbutton_startstop');
 end
-

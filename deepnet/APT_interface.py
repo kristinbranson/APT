@@ -1,6 +1,9 @@
 #from __future__ import division
 #from __future__ import print_function
 
+PREFETCH_BATCHES = True
+from concurrent.futures import ThreadPoolExecutor
+
 import logging
 from operator import truediv
 #logging.basicConfig(
@@ -438,10 +441,15 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
     coco_info['ndx'] += 1
     imfile = os.path.join(coco_info['imdir'], '{:08d}.png'.format(ndx))
     if cur_im.shape[2] == 1:
-        cv2.imwrite(imfile, cur_im[:, :, 0])
+        im_to_write = cur_im[:, :, 0]
     else:
-        cur_im = cv2.cvtColor(cur_im, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(imfile, cur_im)
+        im_to_write = cv2.cvtColor(cur_im, cv2.COLOR_RGB2BGR)
+        cur_im = im_to_write
+    executor = coco_info.get('executor')
+    if executor is not None:
+        executor.submit(cv2.imwrite, imfile, im_to_write)
+    else:
+        cv2.imwrite(imfile, im_to_write)
 
     ann['images'].append(
         {'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': imfile, 'movid': info[0],
@@ -543,16 +551,18 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
     categories = [{'id': 1, 'skeleton': skeleton, 'keypoints': names, 'super_category': 'fly', 'name': 'fly'}, {'id': 2, 'super_category': 'neg_box', 'name': 'neg_box'}]
 
     train_ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
-    train_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'train')}
     val_ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
-    val_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'val')}
     os.makedirs(os.path.join(conf.cachedir, 'train'), exist_ok=True)
     os.makedirs(os.path.join(conf.cachedir, 'val'), exist_ok=True)
+    imwrite_executor = ThreadPoolExecutor(max_workers=4)
+    train_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'train'), 'executor': imwrite_executor}
+    val_info = {'ndx': 0, 'ann_ndx': 0, 'imdir': os.path.join(conf.cachedir, 'val'), 'executor': imwrite_executor}
 
     out_fns = [lambda data: convert_to_coco(train_info, train_ann, data, conf),
                lambda data: convert_to_coco(val_info, val_ann, data, conf)]
 
     splits, __ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt, trnpack_val_split=trnpack_val_split)
+    imwrite_executor.shutdown(wait=True)
     # if use_cache:
     # else:
     #     splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples, db_dict=db_dict)
@@ -1759,8 +1769,9 @@ def setup_ma(conf):
         logging.warning(f'Crop sz computed in front-end {conf.multi_crop_im_sz} does not match crop size computed locally {max_sz}. Using back end computed size')
 
     logging.info(f'--- Using crops of size {max_sz} for multi-animal training.  ---')
-    y_sz = min(fr_sz[0],max_sz)
-    x_sz = min(fr_sz[1],max_sz)
+    y_sz = int(min( np.ceil(fr_sz[0]/32)*32,max_sz))
+    x_sz = int(min( np.ceil(fr_sz[1]/32)*32,max_sz))
+
     conf.imsz = (y_sz,x_sz)
 
 
@@ -1796,28 +1807,11 @@ def get_clusters(rois):
 
 def create_mask(roi, sz):
     # sz should be h x w (i.e y first then x)
-    x, y = np.meshgrid(np.arange(sz[1]), np.arange(sz[0]))
-    x = x.flatten()
-    y = y.flatten()
-    pts = np.vstack((x, y)).T
-    grid = None
+    mask = np.zeros(sz, dtype=np.uint8)
     for c in roi:
-        rr = c.tolist()
-        rr.append(rr[0])
-        path = Path(rr)
-        cgrid = path.contains_points(pts)
-        if grid is not None:
-#            logging.warning('Code changed by KB because IDE was showing an error here, let KB know if this breaks!')
-            grid = np.logical_or(grid,cgrid)
-            #grid = grid | cgrid
-        else:
-            grid = cgrid
-
-    if grid is None:
-        mask = np.zeros(sz) > 0.5
-    else:
-        mask = grid.reshape(sz)
-    return mask
+        pts = np.round(c).astype(np.int32)  # (N, 2) array of (x, y)
+        cv2.fillPoly(mask, [pts], color=1)
+    return mask.astype(bool)
 
 
 def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
@@ -1841,7 +1835,17 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         y_top = max(y_top, 0)
         y_bottom = y_top + conf.imsz[0]
 
-        assert (y_top-1) <= round(y_min) and (y_bottom+1) >= round(y_max) and (x_left-1) <= round(x_min) and (x_right+1) >= round(x_max), 'Cropping for cluster is improper'
+        ok = ((y_top-1) <= round(y_min) and (y_bottom+1) >= round(y_max)
+              and (x_left-1) <= round(x_min) and (x_right+1) >= round(x_max))
+        if not ok:
+            logging.warning(
+                'Improper crop (roi not fully contained). '
+                'info=%s roi x=[%g,%g] y=[%g,%g] crop x=[%d,%d] y=[%d,%d] '
+                'imsz=%s multi_frame_sz=%s frame.shape=%s. '
+                'Labels outside crop will be dropped.',
+                info, x_min, x_max, y_min, y_max,
+                x_left, x_right, y_top, y_bottom,
+                conf.imsz, conf.multi_frame_sz, frame.shape)
         return x_left, y_top, x_right, y_bottom
 
     def roi2patch(roi_in, x_left, y_top):
@@ -1868,6 +1872,8 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         if conf.multi_loss_mask:
             curl = np.nanmean(curl[sel],axis=1)
             cur_mask_pts = np.round(curl).astype('int')
+            cur_mask_pts[..., 0] = np.clip(cur_mask_pts[..., 0], 0, mask.shape[1]-1)
+            cur_mask_pts[..., 1] = np.clip(cur_mask_pts[..., 1], 0, mask.shape[0]-1)
             pt_mask = mask[cur_mask_pts[...,1],cur_mask_pts[...,0]]
             final_sel = sel[pt_mask]
         else:
@@ -1876,15 +1882,20 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
 
     # clusters = get_clusters(roi)
     # n_clusters = len(np.unique(clusters))
-    n_clusters = len(roi)
     all_data = []
     mask_sc = 4
     mask_sz = (conf.multi_frame_sz[0]//mask_sc, conf.multi_frame_sz[1]//mask_sc)
     done_mask = np.zeros(mask_sz) > 1
 
     roi = roi.copy()
+    nan_roi = np.all(np.isnan(roi), axis=(-1,-2))
+    roi = roi[~nan_roi]
     roi[..., 0] = np.clip(roi[..., 0], 0, conf.multi_frame_sz[1])
     roi[..., 1] = np.clip(roi[..., 1], 0, conf.multi_frame_sz[0])
+    n_clusters = len(roi)
+
+    cur_pts = cur_pts.copy()
+    cur_pts = cur_pts[~nan_roi]
 
     if conf.multi_loss_mask or conf.multi_use_mask:
         n_extra_roi = 0 if extra_roi is None else len(extra_roi)
@@ -2822,9 +2833,11 @@ def write_n_tracked_part_file(n_done, part_file):
         fh.write("{}".format(n_done))
 
 
-def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False, **kwargs):
+def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False, do_split_preproc=False, **kwargs):
     ''' Returns prediction functions and close functions for different network types
-
+    If do_split_preproc is True and the model supports it (can_split_preproc),
+    returns (preproc_fn, infer_fn, close_fn, model_file).
+    Otherwise returns (pred_fn, close_fn, model_file).
     '''
     if model_type == 'dpk':
         raise RuntimeError('dpk network not implemented')
@@ -2869,7 +2882,11 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
             poser = getattr(pose_module, module_name)(conf, name=name)
         except ImportError:
             raise ImportError(f'Undefined type of network:{model_type}')
-        pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
+        if do_split_preproc and getattr(poser, 'can_split_preproc', False):
+            preproc_fn, pred_fn, close_fn, model_file = poser.get_pred_fn(model_file, do_split_preproc=True)
+            pred_fn = (preproc_fn, pred_fn)
+        else:
+            pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
 
     return pred_fn, close_fn, model_file
 
@@ -3887,7 +3904,8 @@ def classify_movie(conf, pred_fn, model_type,
                    save_hmaps=False,
                    predict_trk_file=None,
                    crop_loc=[None],
-                   continue_tracking=False):
+                   continue_tracking=False,
+                   preproc_fn=None):
     ''' Classifies frames in a movie. All animals in a frame are classified before moving to the next frame.'''
 
     if type(crop_loc) == list and crop_loc[0] is None:
@@ -3979,11 +3997,31 @@ def classify_movie(conf, pred_fn, model_type,
     n_list = len(to_do_list)
     n_batches = int(math.ceil(float(n_list) / bsize))
     logging.info('Tracking...')
+
+    if PREFETCH_BATCHES:
+        _prefetch_exec = ThreadPoolExecutor(max_workers=1)
+
+        def _load_batch(b):
+            s = b * bsize
+            p = min(n_list - s, bsize)
+            ims = create_batch_ims(to_do_list[s:(s + p)], conf, cap, flipud, T, crop_loc)
+            if preproc_fn is not None:
+                ims = preproc_fn(ims)
+            return ims, p
+
+        _prefetch_future = _prefetch_exec.submit(_load_batch, 0)
+
     for cur_b in tqdm(range(n_batches),**TQDM_PARAMS,unit='batch'):
         cur_start = cur_b * bsize
-        ppe = min(n_list - cur_start, bsize)
-        all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
-
+        if PREFETCH_BATCHES:
+            all_f, ppe = _prefetch_future.result()
+            if cur_b + 1 < n_batches:
+                _prefetch_future = _prefetch_exec.submit(_load_batch, cur_b + 1)
+        else:
+            ppe = min(n_list - cur_start, bsize)
+            all_f = create_batch_ims(to_do_list[cur_start:(cur_start + ppe)], conf, cap, flipud, T, crop_loc)
+            if preproc_fn is not None:
+                all_f = preproc_fn(all_f)
         ret_dict = pred_fn(all_f)
         base_locs = ret_dict.pop('locs')
         # hmaps = ret_dict.pop('hmaps')
@@ -4175,15 +4213,19 @@ def classify_movie_all(model_type, **kwargs):
     if conf.stage == 'first':
         conf.n_classes = 2
         conf.op_affinity_graph = [[0, 1]]
-    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=train_name)
+    pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=train_name, do_split_preproc=True)
+    if isinstance(pred_fn, tuple):
+        preproc_fn, pred_fn = pred_fn
+    else:
+        preproc_fn = None
     no_except = kwargs['no_except']
     del kwargs['no_except']
     with cleaner(close_fn):
         if no_except:
-            trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+            trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, preproc_fn=preproc_fn, **kwargs)
         else:
             try:
-                trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+                trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, preproc_fn=preproc_fn, **kwargs)
             except (IOError, ValueError) as e:
                 trk = None
                 logging.exception('Could not track movie')

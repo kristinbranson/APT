@@ -20,8 +20,8 @@ function test_backend_common(backend_type)
   % Create a new project
   labeler.projNew(cfg) ;
 
-  % Set the labeler to silent mode for batch operation
-  labeler.silent = true;
+  % Put the labeler in batch mode so prompts use defaults
+  labeler.isInBatchMode = true;
   
   % Set backend to the specified type
   labeler.set_backend_property('type', backend_type);

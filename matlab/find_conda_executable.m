@@ -11,22 +11,21 @@ if isempty(memoized_result) ,
     memoized_result = apt_conda_path ;
   else
     % First check if conda *is* on the path
-    [retval, location] = system('which conda') ;
-    is_conda_on_path = (retval==0) && ~isempty(location) ;
+    [retval, pathWithTildeMaybe] = system('which conda') ;
+    is_conda_on_path = (retval==0) && ~isempty(pathWithTildeMaybe) ;
     if is_conda_on_path ,
-
       % Replace the tilde with the actual home directory path
       % Check if the path starts with '~/' or '~\' (for robust handling)
-      if startsWith(location, '~')
+      if startsWith(pathWithTildeMaybe, '~')
         if ispc % Windows
           homeDir = getenv('USERPROFILE');
         else % Mac or Linux
           homeDir = getenv('HOME');
         end
         % Remove the tilde part and combine with the home directory
-        location = fullfile(homeDir, location(2:end));
+        location = fullfile(homeDir, pathWithTildeMaybe(2:end));
       else
-        location = pathWithTilde; % No tilde to replace
+        location = pathWithTildeMaybe ; % No tilde to replace
       end
       memoized_result = strtrim(location) ;
     else
@@ -40,7 +39,7 @@ if isempty(memoized_result) ,
       else
         home_path = getenv('HOME') ;
         folders_to_check_for = {'miniforge3' 'anaconda3', 'anaconda2', 'miniconda3', 'miniconda2', '.miniconda3-blurgh'} ;
-        for i = length(folders_to_check_for) ,
+        for i = 1:length(folders_to_check_for) ,
           folder_name = folders_to_check_for{i} ;
           conda_prefix = fullfile(home_path, folder_name) ;
           if exist(conda_prefix, 'dir') ,

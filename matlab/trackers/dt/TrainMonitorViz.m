@@ -9,7 +9,6 @@ classdef TrainMonitorViz < handle
     %hannlastupdated % [1] textbox/annotation handle
     hline % [nmodel x 2] line handle, one loss curve per view
     hlinekill % [nmodel x 2] line handle, killed marker per view
-    trainMontageFigs = []; % figure handles for showing training image montages
     setidx % [1 x nmodel], which set each line belongs to
     
     wasAborted = []  % 1 x nmodel, whether training has been aborted
@@ -61,9 +60,10 @@ classdef TrainMonitorViz < handle
           'Show error messages'}});
   end
 
-  properties (Transient) 
+  properties (Transient)
     parent_
     labeler_
+    trainMontageFigures_ = []  % figure handles for showing training image montages
   end
 
   properties (Dependent)
@@ -82,10 +82,12 @@ classdef TrainMonitorViz < handle
       end
     end
   end
+
   methods
     function v = get.nmodels(obj)
       v = size(obj.hline,1);
     end
+
     function v = get.nset(obj)
       v = size(obj.haxs,2);
     end
@@ -196,8 +198,10 @@ classdef TrainMonitorViz < handle
     end
     
     function delete(obj)
-      deleteValidGraphicsHandles(obj.hfig);
-      obj.hfig = [];
+      deleteValidGraphicsHandles(obj.trainMontageFigures_) ;
+      obj.trainMontageFigures_ = [] ;
+      deleteValidGraphicsHandles(obj.hfig) ;
+      obj.hfig = [] ;
     end
     
     function splitaxs(obj,nsets)
@@ -506,8 +510,43 @@ classdef TrainMonitorViz < handle
     end  % function
     
     function showTrainingImages(obj)
-      trnImgIfo = obj.dtObj.loadTrainingImages();
-      obj.trainMontageFigs = obj.dtObj.trainImageMontage(trnImgIfo,'hfigs',obj.trainMontageFigs);
+      trnImgIfo = obj.dtObj.loadTrainingImages() ;
+      obj.trainMontageFigures_ = obj.trainImageMontage(trnImgIfo, 'hfigs', obj.trainMontageFigures_) ;
+    end  % function
+
+    function hfigs = trainImageMontage(obj, trnImgMats, varargin)
+      % Show montage of training images with data augmentation.
+
+      pppi = obj.labeler_.labelPointsPlotInfo ;
+      mrkrProps = struct2paramscell(pppi.MarkerProps) ;
+      margs0 = {'nr', 3, 'nc', 3, 'maskalpha', 0.3, ...
+        'framelblscolor', [1 1 0], ...
+        'pplotargs', mrkrProps} ;
+
+      hfigs = myparse(varargin, 'hfigs', []) ;
+
+      if isempty(hfigs),
+        hfigs = nan(1, numel(trnImgMats)) ;
+      end
+
+      for i = 1:numel(trnImgMats)
+        ti = trnImgMats{i} ;
+        if isempty(ti)
+          continue ;
+        end
+
+        dam = DataAugMontage() ;
+        dam.init(ti) ;
+        npts = size(dam.locs, 2) ;
+        colors = pppi.Colors(1:npts, :) ;
+        margs = [margs0 {'colors' colors}] ;
+        if numel(hfigs) >= i && hfigs(i) > 0 && ishandle(hfigs(i)) && ~any(hfigs(1:i-1)==hfigs(i)),
+          hfig = hfigs(i) ;
+        else
+          hfig = [] ;
+        end
+        hfigs(i) = dam.show(margs, 'hfig', hfig) ;
+      end
     end  % function
     
     function result = queryAllJobsStatus(obj)      

@@ -72,11 +72,13 @@ classdef ParameterTreeConstraint < handle
 %           'actionFcn',@ParameterTreeConstraint.actFcnTargetCropRad); ...
 %           ];      
     end
+
     function tf = predFcnAlignTrxThetaCPRRotCorr(t,p2set,v2set)
       nodeCPRRotCorr = t.findnode('CPR.RotCorrection.OrientationType');
       tf = strcmp(p2set,'MultiAnimal.TargetCrop.AlignUsingTrxTheta') && ...
         logical(v2set) && strcmp(nodeCPRRotCorr.Data.Value,'fixed');
     end
+
     function msg = actFcnAlignTrxThetaCPRRotCorr(t,pl,p2set,v2set)
       orientationTypeFQN = 'CPR.RotCorrection.OrientationType';
       t.setValue(orientationTypeFQN,'arbitrary');
@@ -94,6 +96,7 @@ classdef ParameterTreeConstraint < handle
       items = strread(propFQN,'%s','delimiter','.');
       pfound = ParameterTreeConstraint.findGridPropRecurse(propAL,items);
     end
+
     function pfound = findGridPropRecurse(propAL,items)
       n = propAL.size;
       for i=0:n-1 % java

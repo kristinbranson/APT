@@ -15,7 +15,7 @@ classdef BgTrackPoller < BgPoller
     backend_  % A scalar DlBackEndClass, owned by someone else
 
     %nViews_ = 0
-    trackType_ = 'movie'
+    trackStyle_ = apt.TrackStyle.movie
     toTrackInfos_ = []
     link_type
     
@@ -42,44 +42,52 @@ classdef BgTrackPoller < BgPoller
     function v = get.views(obj)
       v = obj.toTrackInfos_.views;
     end
+
     function v = get.nViews(obj)
       v = numel(obj.views) ;
     end
+
     function v = get.stages(obj)
       v = obj.toTrackInfos_.stages;
     end
+
     function v = get.nStages(obj)
       v = numel(obj.stages);
     end
+
     function v = get.njobs(obj)
       v = obj.toTrackInfos_.n;
     end
+
     function v = get.movfiles(obj)
       v = obj.toTrackInfos_.getMovfiles();
     end
+
     function v = get.nMovies(obj)
       v = size(obj.movfiles,1);
     end
+
     function sz = get.resultSize(obj)
-      if strcmp(obj.trackType_,'list'),
-        sz = [1,obj.nViews,1];
-      elseif strcmp(obj.trackType_,'movie'),
-        sz = [obj.nMovies,obj.nViews,obj.nStages];
-      else
-        sz = [];
+      switch obj.trackStyle_
+        case apt.TrackStyle.list
+          sz = [1,obj.nViews,1];
+        case apt.TrackStyle.movie
+          sz = [obj.nMovies,obj.nViews,obj.nStages];
+        otherwise
+          error('Unknown apt.TrackStyle: %s', char(obj.trackStyle_)) ;
       end
     end
   end    
     
   methods
-    function obj = BgTrackPoller(trackType, dmc, backend, toTrackInfos,varargin)
-      [link_type] = myparse(varargin,'link_type','detect'); % whether to detect or link
-      assert(strcmp(trackType,'movie') || strcmp(trackType,'list')) ;
+    function obj = BgTrackPoller(trackStyle, dmc, backend, toTrackInfos, varargin)
+      [link_type] = myparse(varargin, 'link_type', 'detect') ;  % whether to detect or link
+      assert(isa(trackStyle, 'apt.TrackStyle')) ;
       assert(isa(dmc, 'DeepModelChainOnDisk')) ;
       assert(isa(backend, 'DLBackEndClass') && isscalar(backend)) ;
       assert(isa(toTrackInfos, 'ToTrackInfoSet')) ;
 
-      obj.trackType_ = trackType ;
+      obj.trackStyle_ = trackStyle ;
       obj.dmcs_ = dmc ;
       obj.backend_ = backend ;
       obj.toTrackInfos_ = toTrackInfos ;
@@ -88,16 +96,17 @@ classdef BgTrackPoller < BgPoller
 
     function result = poll(obj, logger)
       % Function that calls either compute() or computeList(), depending on
-      % value of obj.track_type
+      % value of obj.trackStyle_
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
       end
-      if strcmp(obj.trackType_,'movie')
-        result = obj.pollForMovie(logger,obj.link_type) ;
-      elseif strcmp(obj.trackType_,'list')
-        result = obj.pollForList(logger) ;
-      else
-        error('Unknown track_type: %s', obj.trackType_) ;
+      switch obj.trackStyle_
+        case apt.TrackStyle.movie
+          result = obj.pollForMovie(logger, obj.link_type) ;
+        case apt.TrackStyle.list
+          result = obj.pollForList(logger) ;
+        otherwise
+          error('Unknown apt.TrackStyle: %s', char(obj.trackStyle_)) ;
       end
       assert(isstruct(result) && isscalar(result)) ;
     end

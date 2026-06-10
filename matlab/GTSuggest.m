@@ -111,7 +111,7 @@ output = handles.output;
       handles.etMinDistTrainingFrames.Value = val;
     else
       val = 1000;
-      handles.etMinDistTrainingFrames.String = val;
+      handles.etMinDistTrainingFrames.Value = val;
     end
 
   end
@@ -154,7 +154,7 @@ output = handles.output;
     movSelObj = handles.btngrpMovies.SelectedObject;
     if movSelObj==handles.rbAllMovies
       s.movSet = MovieIndexSetVariable.AllGTMov;
-      s.movIdxs = s.movSet.getMovieIndices(handles.lObj);
+      s.movIdxs = s.movSet.getMovieIndices(handles.labeler);
 
     elseif movSelObj==handles.rbSelectedMovies
       s.movSet = MovieIndexSetVariable.SelMov;

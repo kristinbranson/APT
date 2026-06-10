@@ -7,6 +7,7 @@ classdef APTParameters
     % Use getParamTrees to access copies of these trees.
     PARAM_FILES_TREES = APTParameters.paramFilesTrees() ; 
   end
+
   methods (Static)
     function trees = getParamTrees(subtree)
       % Get a copy of PARAM_FILES_TREES. A copy is made for safety so the
@@ -111,6 +112,7 @@ classdef APTParameters
       sPrm0 = tPrm0.structize();
       sPrm0 = sPrm0.ROOT;
     end
+
     function sPrm0 = defaultParamsStructAll
       tPrm0 = APTParameters.defaultParamsTree;
       sPrm0 = tPrm0.structize();
@@ -135,6 +137,7 @@ classdef APTParameters
       sPrm = tPrm.structize();
       sPrmDTcommon = sPrm.ROOT.DeepTrack;
     end
+
     function sPrmDTspecific = defaultParamsStructDT(nettype)
       tPrm = APTParameters.getParamTrees(char(nettype));
       sPrmDTspecific = tPrm.structize();
@@ -144,14 +147,17 @@ classdef APTParameters
       fld = fld{1};
       sPrmDTspecific = sPrmDTspecific.(fld);
     end
+
     function ppPrm0 = defaultPreProcParamsOldStyle
       sPrm0 = APTParameters.defaultParamsOldStyle();
       ppPrm0 = sPrm0.PreProc;
     end
+
     function sPrm0 = defaultCPRParamsOldStyle
       sPrm0 = APTParameters.defaultParamsOldStyle();
       sPrm0 = rmfield(sPrm0,'PreProc');
     end
+
     function [tPrm,minLevel] = propagateLevelFromLeaf(tPrm)
       
       if isempty(tPrm.Children),
@@ -166,6 +172,7 @@ classdef APTParameters
       tPrm.Data.Level = PropertyLevelsEnum(minLevel);
       
     end
+
     function [tPrm,rqts] = propagateRequirementsFromLeaf(tPrm)
       
       if isempty(tPrm.Children),
@@ -183,6 +190,7 @@ classdef APTParameters
       tPrm.Data.Requirements = rqts;
       
     end
+
     function filterPropertiesByLevel(tree,level)
       
       if isempty(tree.Children),
@@ -221,7 +229,7 @@ classdef APTParameters
           netsUsed = labelerObj.trackerNetsUsed;
         end
         if isempty(hasTrx),
-          hasTrx = labelerObj.hasTrx;
+          hasTrx = labelerObj.projectHasTrx;
         end
         if isempty(trackerIsDL),
           trackerIsDL = labelerObj.trackerIsDL;
@@ -378,7 +386,7 @@ classdef APTParameters
     function v = all2PreProcParams(sPrmAll)
       sPrmPPandCPR = sPrmAll;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack');
-      [sPrmPPandCPRold] = CPRParam.new2old(sPrmPPandCPR,5,1); % we won't use npoints or nviews
+      [sPrmPPandCPRold] = cprParamNew2Old(sPrmPPandCPR,5,1); % we won't use npoints or nviews
       v = sPrmPPandCPRold.PreProc;
     end
     
@@ -423,7 +431,7 @@ classdef APTParameters
       end
       sPrmPPandCPR = sPrmAll;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack');
-      [sPrmPPandCPRold] = CPRParam.n/ew2old(sPrmPPandCPR,nPhysPoints,nviews); % we won't use npoints or nviews
+      [sPrmPPandCPRold] = cprParamNew2Old(sPrmPPandCPR,nPhysPoints,nviews); % we won't use npoints or nviews
       v = rmfield(sPrmPPandCPRold,'PreProc');
     end
 
@@ -432,7 +440,7 @@ classdef APTParameters
     % set old format preproc parameters
     function sPrmAll = setPreProcParams(sPrmAll,sPrmPPOld)
       % convert old to new format
-      sPrmPPNew = CPRParam.old2newPPOnly(sPrmPPOld);
+      sPrmPPNew = cprParamOld2NewPPOnly(sPrmPPOld);
       sPrmAll = structoverlay(sPrmAll,sPrmPPNew);
     end
 
@@ -465,7 +473,7 @@ classdef APTParameters
     
     % set old cpr parameters
     function sPrmAll = setCPRParams(sPrmAll,sPrmCPROld)
-      [sPrmCPR,sPrmAll.ROOT.Track.ChunkSize] = CPRParam.old2newCPROnly(sPrmCPROld);
+      [sPrmCPR,sPrmAll.ROOT.Track.ChunkSize] = cprParamOld2NewCPROnly(sPrmCPROld);
       sPrmAll.ROOT.CPR = sPrmCPR;
     end
     
@@ -596,9 +604,9 @@ classdef APTParameters
     end
     
     function [tPrm,canceled,do_update] = ...
-        autosetparamsGUI(tPrm,lobj)
+        autosetparamsGUI(tPrm, lobj, mainFigurePosition)
       
-      silent = lobj.silent ;
+      silent = lobj.isInBatchMode ;
       
       if lobj.maIsMA && lobj.trackerIsTwoStage  && ~lobj.trackerIsObjDet
           % Using head-tail for the first stage
@@ -708,7 +716,7 @@ classdef APTParameters
           if default || silent
             res = 'Update';
           else
-            res = APTParameters.raiseAcceptAutoParamsDialog(dstr,lobj.hFig);
+            res = APTParameters.raiseAcceptAutoParamsDialog(dstr, mainFigurePosition);
           end
         else
           res = 'Do not update';
@@ -733,9 +741,9 @@ classdef APTParameters
       
     end  % function
     
-    function res = raiseAcceptAutoParamsDialog(dstr, parentFig)
+    function res = raiseAcceptAutoParamsDialog(dstr, mainFigurePosition)
       % Raise a custom modal dialog that is sized to contain dstr, and looks nice,
-      % and is centered on parentFig.  This function blocks until the user clicks
+      % and is centered on the main figure.  This function blocks until the user clicks
       % one of the dialog box buttons.  On return, res is an old-style string
       % containing the user response.  Either 'Update', 'Do not update', or
       % 'Cancel'.
@@ -774,7 +782,8 @@ classdef APTParameters
       % Size the figure, center on parent
       fig.Position(4) = fig_height ;
       fig.Position(3) = fig_width ;
-      centerOnParentFigure(fig,parentFig);
+      % centerOnParentFigure(fig,parentFig);
+      centerOnOtherFigureGivenPositionBang(fig, mainFigurePosition) ;
 
       % Position the textbox
       textbox.Position(2) = margin+margin+button_height;
@@ -830,7 +839,7 @@ classdef APTParameters
       sPrm0 = tPrm0.structize();
       % Use nan for npts, nviews; default parameters do not know about any
       % model
-      sPrm0 = CPRParam.new2old(sPrm0,nan,nan);
+      sPrm0 = cprParamNew2Old(sPrm0,nan,nan);
     end
 
     function [s,deepnets] = paramFileSpecs()
@@ -840,7 +849,7 @@ classdef APTParameters
 
       s.preprocess = 'params_preprocess.yaml';
       s.track = 'params_track.yaml';
-      s.cpr = fullfile('trackers','cpr','params_cpr.yaml');
+      s.cpr = fullfile('trackers','params_cpr.yaml');
       s.deeptrack = fullfile('trackers','dt','params_deeptrack.yaml');
       s.ma = fullfile('trackers','dt','params_ma.yaml');
       s.postprocess = 'params_postprocess.yaml';

@@ -4,6 +4,7 @@ classdef TrainingOverlayReceiver < handle
     tstrBases
     tblMFT
   end
+
   methods
     function obj = TrainingOverlayReceiver(hAx,tbases,tMFT)
       assert(numel(hAx)==numel(tbases));
@@ -11,6 +12,7 @@ classdef TrainingOverlayReceiver < handle
       obj.tstrBases = tbases;
       obj.tblMFT = tMFT;
     end      
+
     function respond(obj,eid)
       if isempty(eid)
         for i=1:numel(obj.axs)

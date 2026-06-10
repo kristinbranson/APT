@@ -52,6 +52,14 @@ ISPY3 = sys.version_info >= (3, 0)
 SMALLVALUE = -100000
 SMALLVALUETHRESH = -1000
 
+PARALLEL_PREPROCESS = True
+if PARALLEL_PREPROCESS:
+    PARALLEL_PREPROCESS_MAXWORKERS = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else os.cpu_count()
+else:
+    PARALLEL_PREPROCESS_MAXWORKERS = 1
+if PARALLEL_PREPROCESS_MAXWORKERS > 1:
+    from concurrent.futures import ThreadPoolExecutor
+
 # In[ ]:
 
 # not used anymore
@@ -122,6 +130,7 @@ def scale_images(img, locs, scale, conf, mask=None, **kwargs):
     szx_ds = round(sz[2]/scale)
     scaley_actual = sz[1]/szy_ds
     scalex_actual = sz[2]/szx_ds
+    out_sz = (szx_ds, szy_ds) 
 
     nan_valid = np.invert(np.isnan(locs))
     high_valid = locs > SMALLVALUETHRESH  # ridiculosly low values are used for multi animal
@@ -129,25 +138,19 @@ def scale_images(img, locs, scale, conf, mask=None, **kwargs):
 
     simg = np.zeros((sz[0], szy_ds, szx_ds, sz[3]))
     smask = np.zeros((sz[0],szy_ds,szx_ds)) if mask is not None else None
-    for ndx in range(sz[0]):
-        # using skimage transform which is really really slow
-        # use anti_aliasing?
-        # if sz[3] == 1:
-        #     simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3], preserve_range=True, mode='edge', **kwargs)
-        # else:
-        #     simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3], preserve_range= True, mode='edge', **kwargs)
-        # if mask is not None:
-        #     smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0,**kwargs)
-
-        out_sz = simg.shape[1:3][::-1]
-        if sz[3] == 1:
-            simg[ndx, :, :, 0] = cv2.resize(img[ndx, :, :, 0], out_sz, **kwargs)
-        else:
-            simg[ndx, :, :, :] = cv2.resize(img[ndx, :, :, :], out_sz, **kwargs)
+    
+    def _apply_one(ndx):
+        simg[ndx] = cv2.resize(img[ndx], out_sz, **kwargs).reshape(simg.shape[1:])
         if mask is not None:
-            # use skimage transform because it can work on boolean data
-            smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0)#,**kwargs)
-
+            smask[ndx] = transform.resize(mask[ndx],smask.shape[1:3],preserve_range=True,mode='edge',order=0)#,**kwargs)
+    
+    if sz[0] == 1 or (PARALLEL_PREPROCESS_MAXWORKERS <= 1):
+        for ndx in range(sz[0]):
+            _apply_one(ndx)
+    else:
+        with ThreadPoolExecutor(max_workers=PARALLEL_PREPROCESS_MAXWORKERS) as executor:
+            executor.map(_apply_one, range(sz[0]))
+            
     # AL 20190909. see also create_label_images
     # new_locs = new_locs/scale
     new_locs = rescale_points(locs, scalex_actual, scaley_actual)
@@ -180,26 +183,30 @@ def normalize_mean(in_img, conf):
     return xx
 
 def adjust_contrast(in_img, conf):
-    if conf.adjust_contrast:
+    if not conf.adjust_contrast:
+        return in_img
+    simg = np.zeros(in_img.shape)
+    def _apply_one(ndx):
         clahe = cv2.createCLAHE(
             clipLimit=2.0,
             tileGridSize=(conf.clahe_grid_size, conf.clahe_grid_size))
-        simg = np.zeros(in_img.shape)
         if in_img.shape[3] == 1:
-            for ndx in range(in_img.shape[0]):
-                simg[ndx, :, :, 0] = clahe.apply(in_img[ndx,:,:,0 ].astype('uint8')).astype('float')
+            simg[ndx, :, :, 0] = clahe.apply(in_img[ndx,:,:,0 ].astype('uint8')).astype('float')
         else:
-            for ndx in range(in_img.shape[0]):
-                lab = cv2.cvtColor(in_img[ndx,...], cv2.COLOR_RGB2LAB)
-                lab_planes = list(cv2.split(lab))
-                lab_planes[0] = clahe.apply(lab_planes[0])
-                lab = cv2.merge(lab_planes)
-                rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
-                simg[ndx,...] = rgb
-        return simg
+            lab = cv2.cvtColor(in_img[ndx,...], cv2.COLOR_RGB2LAB)
+            lab_planes = list(cv2.split(lab))
+            lab_planes[0] = clahe.apply(lab_planes[0])
+            lab = cv2.merge(lab_planes)
+            rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+            simg[ndx,...] = rgb
+            
+    if in_img.shape[0] == 1 or (PARALLEL_PREPROCESS_MAXWORKERS <= 1):
+        for ndx in range(in_img.shape[0]):
+            _apply_one(ndx)
     else:
-        return in_img
-
+        with ThreadPoolExecutor(max_workers=PARALLEL_PREPROCESS_MAXWORKERS) as executor:
+            executor.map(_apply_one, range(in_img.shape[0]))
+    return simg
 
 # def process_image(frame_in, conf):
 #     #     cropx = (framein.shape[0] - conf.imsz[0])/2
@@ -333,7 +340,7 @@ def check_inbounds(ll,rows,cols,check_bounds_distort,valid=None,badvalue=SMALLVA
     """
     if valid is None:
         valid = np.invert(np.isnan(ll[...,0])) | (ll[...,0] > SMALLVALUETHRESH)
-    inbounds = valid | ((ll[...,0] >= 0) & (ll[..., 1] >= 0) & (ll[...,0] < cols) & (ll[..., 1] < rows))
+    inbounds = valid & ((ll[...,0] >= 0) & (ll[..., 1] >= 0) & (ll[...,0] < cols) & (ll[..., 1] < rows))
     ll[~inbounds] = badvalue
     sane = (not np.any(valid)) or np.all(inbounds[valid]) or (not check_bounds_distort and np.any(inbounds[valid]))
     return sane
