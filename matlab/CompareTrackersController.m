@@ -285,7 +285,7 @@ function clampedValue = clampDropdownValue_(desiredTracker, itemsData)
 % otherwise return the first item.  Used to keep the dropdown selection
 % valid when the trackerHistory changes.  Compared by identity, so a
 % backup copy of a tracker does not count as a match.
-isPresent = any(cellfun(@(d)(d == desiredTracker), itemsData)) ;
+isPresent = ~isempty(desiredTracker) && any(cellfun(@(d)(d == desiredTracker), itemsData)) ;
 if isPresent
   clampedValue = desiredTracker ;
 else

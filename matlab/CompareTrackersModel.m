@@ -115,28 +115,16 @@ classdef CompareTrackersModel < handle
     end  % function
 
     function result = get.referenceTracker(obj)
-      % The reference tracker is always the current tracker
-      % (trackerHistory{1}).  Read-only.  Returns [] if there are no
-      % trackers.
-      trackerHistory = obj.labeler_.trackerHistory ;
-      if isempty(trackerHistory)
-        result = [] ;
-      else
-        result = trackerHistory{1} ;
-      end
+      % The reference tracker is always the current tracker.  Read-only.
+      % Returns [] if there are no trackers.
+      result = obj.labeler_.tracker ;
     end  % function
 
     function result = get.testTracker(obj)
-      % Return the effective test tracker: the stored selection if it is
-      % still a valid tracker in the history, otherwise a sensible
-      % default (the first non-current tracker, or [] if there is none).
-      trackerHistory = obj.labeler_.trackerHistory ;
-      if ~isempty(obj.testTracker_) && isvalid(obj.testTracker_) && ...
-          isTrackerInHistory_(obj.testTracker_, trackerHistory)
-        result = obj.testTracker_ ;
-      else
-        result = defaultTestTrackerFromHistory_(trackerHistory) ;
-      end
+      % The tracker selected as the test tracker, or [] if none.  The
+      % default is filled in (by identity) during
+      % syncFromPredictionsIfStaleAndVisible_.
+      result = obj.testTracker_ ;
     end  % function
 
     function set.testTracker(obj, newValue)
@@ -271,14 +259,13 @@ classdef CompareTrackersModel < handle
       end
 
       labeler = obj.labeler_ ;
+      trackerHistory = labeler.trackerHistory ;
+      trackerCount = numel(trackerHistory) ;
 
       if labeler.currMovie == 0
         obj.clear_() ;
         return
       end
-
-      trackerHistory = labeler.trackerHistory ;
-      trackerCount = numel(trackerHistory) ;
       if trackerCount < 2
         obj.clear_() ;
         return
@@ -287,7 +274,12 @@ classdef CompareTrackersModel < handle
       % The reference tracker is always the current tracker (history
       % index 1).  The test tracker is tracked by identity.
       referenceTracker = obj.referenceTracker ;
-      testTracker = obj.testTracker ;
+      if isempty(obj.testTracker_)
+        % If no test tracker is selected, adopt the default: the first
+        % non-current tracker.
+        obj.testTracker_ = defaultTestTrackerFromHistory_(trackerHistory) ;
+      end
+      testTracker = obj.testTracker ;      
 
       % Short-circuit: comparing a tracker to itself (or having no
       % distinct test tracker) is meaningless and would just be a flat
