@@ -575,7 +575,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
     end
     function setMarkerCosmetics(obj,pvargs)
       if isstruct(pvargs)
-        pvargs = obj.convertLabelerMarkerPVs(pvargs);
+        pvargs = obj.convertLabelerMarkerPVs(pvargs,'pred');
         arrayfun(@(x)set(x,pvargs),obj.hPred);
         arrayfun(@(x)set(x,pvargs),obj.hPredOcc);
         obj.mrkrReg = pvargs.Marker;        
@@ -586,7 +586,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
     end
     function setTextCosmetics(obj,pvargs)
       if isstruct(pvargs)
-        pvargs = obj.convertLabelerTextPVs(pvargs);
+        pvargs = obj.convertLabelerTextPVs(pvargs,'pred');
         arrayfun(@(x)set(x,pvargs),obj.hPredTxt);        
       else
         assert(false);

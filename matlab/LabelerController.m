@@ -6020,7 +6020,8 @@ classdef LabelerController < handle
     function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       cbkApply = @(varargin)(labeler.hlpApplyCosmetics(varargin{:})) ;
-      LandmarkColors(labeler,cbkApply);
+      LandmarkColors_App(labeler,cbkApply);
+      % LandmarkColors(labeler,cbkApply);
       % AL 20220217: changes now applied immediately
       % if ischange
       %   cbkApply(savedres.colorSpecs,savedres.markerSpecs,savedres.skelSpecs);

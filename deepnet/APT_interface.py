@@ -48,6 +48,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logging.getLogger('shapely.geos').setLevel(logging.WARNING)
 
+
+class _StopProfiling(Exception):
+    """Raised to exit early during profiling without triggering error handlers."""
+    pass
+
 import shlex
 import argparse
 import collections
@@ -1057,7 +1062,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
         assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
         for n, v in zip(cc[0::2], cc[1::2]):
             if not quiet:
-                logging.info('Overriding param %s <= ' % n, v)
+                logging.info(f'Overriding param {n} <= {v}')
             setattr(conf, n, ast.literal_eval(v))
 
     # overrides for each network
@@ -1825,14 +1830,14 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         d_x = (conf.imsz[1] - (x_max - x_min)) * 0.9
         r_x = (np.random.rand() - 0.5) * d_x
         x_left = int(round((x_max + x_min) / 2 - conf.imsz[1] / 2 + r_x))
-        x_left = min(x_left, frame.shape[1] - conf.imsz[1])
+        x_left = min(x_left, conf.multi_frame_sz[1] - conf.imsz[1])
         x_left = max(x_left, 0)
         x_right = x_left + conf.imsz[1]
 
         d_y = (conf.imsz[0] - (y_max - y_min)) * 0.9
         r_y = (np.random.rand() - 0.5) * d_y
         y_top = int(round((y_max + y_min) / 2 - conf.imsz[0] / 2 + r_y))
-        y_top = min(y_top, frame.shape[0] - conf.imsz[0])
+        y_top = min(y_top, conf.multi_frame_sz[0] - conf.imsz[0])
         y_top = max(y_top, 0)
         y_bottom = y_top + conf.imsz[0]
 
@@ -1852,9 +1857,14 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         return roi_in
 
     def labels_within_mask(curl, mask):
+        # First FInd all the labels that fall within the patch, then find if their centroid falls within the mask. If multi_loss_mask is false, then all labels that fall within the patch are used for loss. If multi_loss_mask is true, then only those labels whose centroid falls within the mask are used for loss.
+
         sel = np.where(np.all( ((curl[..., 0] >= 0) & (curl[..., 1] >= 0) &
                 (curl[..., 0] < conf.imsz[1]) & (curl[..., 1] < conf.imsz[0])) |
                 np.isnan(curl[...,0]), 1))[0]
+        # remove labels that are all NaNs
+        all_nan = np.all(np.isnan(curl[sel,...,0]), axis=1)
+        sel = sel[~all_nan]
         if conf.multi_loss_mask:
             curl = np.nanmean(curl[sel],axis=1)
             cur_mask_pts = np.round(curl).astype('int')
@@ -2150,6 +2160,8 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
     # conf.is_multi and conf.multi_crop_ims
     logging.info('Resaving training images...')
     for selndx, cur_t in enumerate(tqdm(T['locdata'],**TQDM_PARAMS,unit='example')):
+        # if selndx >= 200:
+        #     raise _StopProfiling()
 
         cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
@@ -5402,15 +5414,20 @@ def main(argv):
 
     # main function
     if args.no_except:
-        run(args)
-        logging.info('APT_interface finished successfully')
+        try:
+            run(args)
+            logging.info('APT_interface finished successfully')
+        except _StopProfiling:
+            logging.info('Profiling stop requested after 200 iterations')
     else:
         try:
             # run(j_args)
             run(args)
             logging.info('APT_interface finished successfully')
+        except _StopProfiling:
+            logging.info('Profiling stop requested after 200 iterations')
         except Exception as e:
-            logging.exception('APT_interface errored: {e}, {type(e)}')
+            logging.exception(f'APT_interface errored: {e}, {type(e)}')
 
 def remove_local_path():
     for p in sys.path[::-1]:

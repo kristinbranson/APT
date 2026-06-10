@@ -106,6 +106,12 @@ handles.hSldListener = addlistener(handles.sldSkeletonLineWidth,...
   'ContinuousValueChange',@(s,e)sldSkeletonLineWidth_Callback(s,[],guidata(s)));
 SkelControlsSet(handles,sPropsSkel);
 
+handles.tfTrajControlsShown = false;
+if lObj.hasTrx || lObj.maIsMA
+  handles = initTrajPane(handles, lObj);
+  handles.tfTrajControlsShown = true;
+end
+
 set(handles.figure_landmarkcolors,'Name','Landmark Cosmetics');
 handles.saved = [];
 guidata(hObject, handles);
@@ -384,6 +390,140 @@ s = struct(...
   'SkeletonProps',s0);
 
 
+%%%%%%%%%%%%%
+% TRAJECTORY %
+%%%%%%%%%%%%%
+
+function handles = initTrajPane(handles, lObj)
+% Inserts a Trajectory panel between the existing content and the Done/Cancel
+% buttons by expanding the figure downward, shifting all content up, and
+% repositioning Done/Cancel at the new bottom.
+
+prefs = lObj.projPrefs.Trx;
+hFig = handles.figure_landmarkcolors;
+panH = 70; % height added for trajectory panel (panel itself is ~45px, rest is margin)
+btnH = 23; % approximate height of Done/Cancel buttons
+btnMargin = 8;
+
+hFig.Units = 'pixels';
+origPos = hFig.Position;
+
+% Capture Done/Cancel button handles and their x positions before any shifts
+hDone   = findobj(hFig, 'Tag', 'pbDone');
+hCancel = findobj(hFig, 'Tag', 'pbCancel');
+for hBtn = [hDone(:); hCancel(:)]'
+  hBtn.Units = 'pixels';
+end
+
+% Expand figure downward
+hFig.Position = [origPos(1) origPos(2)-panH origPos(3) origPos(4)+panH];
+
+% Shift all children UP so they retain their screen positions
+for hChild = hFig.Children(:)'
+  try
+    hChild.Units = 'pixels';
+    p = hChild.Position;
+    hChild.Position = [p(1) p(2)+panH p(3) p(4)];
+  catch
+  end
+end
+
+% Move Done and Cancel buttons back to the new bottom
+for hBtn = [hDone(:); hCancel(:)]'
+  if isvalid(hBtn)
+    p = hBtn.Position;
+    hBtn.Position = [p(1) btnMargin p(3) p(4)];
+  end
+end
+
+% Place trajectory panel just above the buttons
+pnlY = btnMargin + btnH + 6;
+pnlH = panH - pnlY - 4;
+pnlW = origPos(3) - 10;
+pnl = uipanel(hFig, 'Title', 'Trajectory', 'Units', 'pixels', ...
+  'Position', [5 pnlY pnlW pnlH], 'Tag', 'pnlTraj');
+
+if isnumeric(prefs.TrajColor)
+  trajClr0 = prefs.TrajColor(1,:);
+else
+  trajClr0 = [1 1 0];
+end
+
+% Single-row layout: Color | LineWidth slider | FontSize
+rowY = 4;
+rowH = 20;
+x = 5;
+
+uicontrol(pnl, 'Style', 'text', 'String', 'Color:', ...
+  'Units', 'pixels', 'Position', [x rowY 38 rowH], 'HorizontalAlignment', 'right');
+x = x + 42;
+handles.pbTrajColor = uicontrol(pnl, 'Style', 'pushbutton', ...
+  'BackgroundColor', trajClr0, 'String', '', ...
+  'Units', 'pixels', 'Position', [x rowY 50 rowH], 'Tag', 'pbTrajColor', ...
+  'Callback', @(h,e)pbTrajColor_Callback(h, e, guidata(h)));
+x = x + 58;
+
+uicontrol(pnl, 'Style', 'text', 'String', 'Line width:', ...
+  'Units', 'pixels', 'Position', [x rowY 65 rowH], 'HorizontalAlignment', 'right');
+x = x + 68;
+sldW = pnlW - x - 110;
+handles.sldTrajLineWidth = uicontrol(pnl, 'Style', 'slider', ...
+  'Min', log2(0.5), 'Max', log2(16), ...
+  'Value', log2(max(prefs.TrajLineWidth, 0.5)), ...
+  'Units', 'pixels', 'Position', [x rowY sldW rowH], 'Tag', 'sldTrajLineWidth');
+x = x + sldW + 3;
+handles.txTrajLineWidth = uicontrol(pnl, 'Style', 'text', ...
+  'String', sprintf('%.1f', prefs.TrajLineWidth), ...
+  'Units', 'pixels', 'Position', [x rowY 32 rowH], 'Tag', 'txTrajLineWidth');
+x = x + 36;
+
+uicontrol(pnl, 'Style', 'text', 'String', 'Font size:', ...
+  'Units', 'pixels', 'Position', [x rowY 58 rowH], 'HorizontalAlignment', 'right');
+x = x + 61;
+handles.editTrajFontSize = uicontrol(pnl, 'Style', 'edit', ...
+  'String', num2str(prefs.TrxIDLblFontSize), ...
+  'Units', 'pixels', 'Position', [x rowY 40 rowH], 'Tag', 'editTrajFontSize', ...
+  'Callback', @(h,e)pbApply_Callback(handles.output, [], guidata(h)));
+
+addlistener(handles.sldTrajLineWidth, 'ContinuousValueChange', ...
+  @(s,e)sldTrajLineWidth_Callback(s, [], guidata(s)));
+
+handles.sPropsTraj0 = struct('TrajColor', trajClr0, ...
+  'TrajLineWidth', prefs.TrajLineWidth, 'TrxIDLblFontSize', prefs.TrxIDLblFontSize);
+
+
+function TrajControlsSet(handles, prefs)
+if isnumeric(prefs.TrajColor)
+  handles.pbTrajColor.BackgroundColor = prefs.TrajColor(1,:);
+end
+handles.sldTrajLineWidth.Value = log2(max(prefs.TrajLineWidth, 0.5));
+handles.txTrajLineWidth.String = sprintf('%.1f', prefs.TrajLineWidth);
+handles.editTrajFontSize.String = num2str(prefs.TrxIDLblFontSize);
+
+
+function sPropsTraj = TrajControlsGet(handles)
+sPropsTraj.TrajColor = handles.pbTrajColor.BackgroundColor;
+sPropsTraj.TrajLineWidth = 2^handles.sldTrajLineWidth.Value;
+handles.txTrajLineWidth.String = sprintf('%.1f', sPropsTraj.TrajLineWidth);
+fs = str2double(handles.editTrajFontSize.String);
+if ~isnan(fs) && fs > 0
+  sPropsTraj.TrxIDLblFontSize = fs;
+end
+
+
+function pbTrajColor_Callback(hObject, eventdata, handles)
+c0 = handles.pbTrajColor.BackgroundColor;
+newclr = uisetcolor(c0, 'Trajectory color');
+if numel(newclr) == 3
+  handles.pbTrajColor.BackgroundColor = newclr;
+end
+pbApply_Callback(handles.output, [], handles);
+
+
+function sldTrajLineWidth_Callback(hObject, eventdata, handles)
+pbApply_Callback(handles.output, [], handles);
+
+
 %%%%%%%%%%%%%%%%%%
 % APPLY/DONE/ETC %
 %%%%%%%%%%%%%%%%%%
@@ -417,11 +557,17 @@ tfmkrchanged = ~arrayfun(@(x,y)isequaln(x,structoverlay(x,y)),...
 tfskelchanged = ~arrayfun(@(x,y)isequaln(x,structoverlay(x,y)),...
   handles.sPropsSkel0,sPropsSkel);
 
+sPropsTraj = [];
+if handles.tfTrajControlsShown
+  sPropsTraj = TrajControlsGet(handles);
+end
+
 %~arrayfun(@isequaln,sPropsMrkr,handles.sPropsMrkr0);
 handles.saved = struct(...
-  'colorSpecs',colorSpecs(tfclrchanged),...  
+  'colorSpecs',colorSpecs(tfclrchanged),...
   'markerSpecs',sPropsMrkr(tfmkrchanged),...
-  'skeletonSpecs',sPropsSkel(tfskelchanged) ...
+  'skeletonSpecs',sPropsSkel(tfskelchanged),...
+  'trajSpecs',sPropsTraj ...
   );
 % Note either field of handles.saved could be empty
 
@@ -444,8 +590,8 @@ uiresume(hObject);
 function pbApply_Callback(hObject, eventdata, handles)
 handles = SaveState(handles);
 saved = handles.saved;
-handles.applyCbkFcn(saved.colorSpecs,saved.markerSpecs,saved.skeletonSpecs);
-guidata(hObject,handles);
+handles.applyCbkFcn(saved.colorSpecs, saved.markerSpecs, saved.skeletonSpecs, saved.trajSpecs);
+guidata(hObject, handles);
 
 function pbCancel_Callback(hObject, eventdata, handles)
 uiresume(handles.figure_landmarkcolors);

@@ -3181,6 +3181,19 @@ classdef Labeler < handle
       % - obj...Saving.CacheDir is unchanged
       % - all DMCs need not have .rootDirs that point to projtempdir
                   
+      % Generate tracking config (fortracking=true, no addExtraParams) so that
+      % apt-track-wrapper can use it without a live Matlab session.
+      % This reflects the current trackParams at save time.
+      trkConfigPath = fullfile(projtempdir,'tracking_config.json');
+      try
+        if ~isempty(obj.tracker) && isa(obj.tracker,'DeepTracker') && ~isempty(obj.tracker.trnLastDMC)
+          obj.tracker.trkCreateConfig(trkConfigPath);
+          allModelFiles{end+1} = trkConfigPath;
+        end
+      catch ME
+        warningNoTrace('Could not generate tracking_config.json for apt-track-wrapper: %s',ME.message);
+      end
+
       pat = [regexprep(projtempdir,'\\','\\\\') '[/\\]'];
       allModelFiles = cellfun(@(x) regexprep(x,pat,''),...
         allModelFiles,'UniformOutput',false);
@@ -16408,10 +16421,45 @@ classdef Labeler < handle
     %   result =strcmp(currentTrackerAlgoName, algoNameFromTrackersAllIndex) ;
     % end
     
-    function hlpApplyCosmetics(obj,colorSpecs,mrkrSpecs,skelSpecs)
+    function hlpApplyCosmetics(obj, colorSpecs, mrkrSpecs, skelSpecs, trajSpecs)
       obj.updateLandmarkColors(colorSpecs);
       obj.updateLandmarkCosmetics(mrkrSpecs);
       obj.updateSkeletonCosmetics(skelSpecs);
+      if exist('trajSpecs', 'var') && ~isempty(trajSpecs)
+        obj.updateTrajectoryCosmetics(trajSpecs);
+      end
+    end
+
+    function updateTrajectoryCosmetics(obj, trajSpecs)
+      % Update trajectory appearance (line width, color, font size) for all
+      % multi-animal trackers that have a trajectory visualizer.
+      flds = fieldnames(trajSpecs);
+      for iF = 1:numel(flds)
+        obj.projPrefs.Trx.(flds{iF}) = trajSpecs.(flds{iF});
+      end
+      trajSpecs = obj.projPrefs.Trx;
+
+      % prediction
+      dt = obj.tracker;
+      tv = dt.trkVizer;
+      if ~isempty(tv)
+        if isa(tv, 'TrackingVisualizerTracklets') && ~isempty(tv.tvtrx)
+          tv.tvtrx.setTrajectoryCosmetics(trajSpecs);
+        elseif isa(tv, 'TrackingVisualizerTrxMA') || isa(tv, 'TrackingVisualizerTrxMAFast')
+          tv.setTrajectoryCosmetics(trajSpecs);
+        end
+      end
+
+      %imported
+      tv = obj.labeledpos2trkViz;
+      if ~isempty(tv)
+        if isa(tv, 'TrackingVisualizerTracklets') && ~isempty(tv.tvtrx)
+          tv.tvtrx.setTrajectoryCosmetics(trajSpecs);
+        elseif isa(tv, 'TrackingVisualizerTrxMA') || isa(tv, 'TrackingVisualizerTrxMAFast')
+          tv.setTrajectoryCosmetics(trajSpecs);
+        end
+      end
+        % prefs = obj.projPrefs.Trx;
     end
 
     function gtToggleGTMode(obj)

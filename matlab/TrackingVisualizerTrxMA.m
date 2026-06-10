@@ -312,11 +312,24 @@ classdef TrackingVisualizerTrxMA < handle
     function hittest_on_all(obj)
       obj.set_hittest('on');
     end
-  
-%   Currently trx txtlbl viz controlled by lObj.showTrxIDLbl    
+
+    function setTrajectoryCosmetics(obj, prefs)
+      % Update trajectory line width, colors, and ID label font size.
+      % prefs: struct with fields from projPrefs.Trx (TrajLineWidth,
+      %   TrajColor, TrajColorCurrent, TrxIDLblFontSize).
+      if isfield(prefs, 'TrajLineWidth') && ~isempty(obj.hTraj)
+        [obj.hTraj.LineWidth] = deal(prefs.TrajLineWidth);
+      end
+      if isfield(prefs, 'TrxIDLblFontSize') && ~isempty(obj.hTrxTxt)
+        [obj.hTrxTxt.FontSize] = deal(prefs.TrxIDLblFontSize);
+      end
+      obj.updateColors();
+    end
+
+%   Currently trx txtlbl viz controlled by lObj.showTrxIDLbl
 %     function setHideTextLbls(obj,tfshow)
 %     end
-    
+
   end
-  
+
 end

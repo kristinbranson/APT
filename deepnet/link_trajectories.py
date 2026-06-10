@@ -1454,6 +1454,19 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
     with open(debug_out_file,'wb') as f:
       pickle.dump(debug_data,f)
 
+  for linked_trk, out_file, mov_file in zip(trk_out, out_files, mov_files):
+
+    # This trx is from output file
+    cap = movies.Movie(mov_file)
+    trx_dict = apt.get_trx_info(out_file, conf, cap.get_n_frames(),use_ht_pts=True)
+    trx = trx_dict['trx']
+    cap.close()
+
+    try:
+      generate_id_report(linked_trk, trx, out_file, mov_file, conf)
+    except Exception as report_exc:
+      logging.warning(f'Could not generate ID report for {out_file}: {report_exc}')
+
   return trk_out
 
 
@@ -3124,7 +3137,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
   pred_map_orig = pred_map.copy()
   if link_method == 'graph_cut':
-    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all)
+    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr)
     debug_data = []
   elif link_method=='motion':
     groups,pred_map,debug_data = group_tracklets_motion_all(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select)
@@ -4057,6 +4070,7 @@ def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh):
   t_sel = np.where((tlen_sel > 50) & (oa_sel < 0.4) & (occ_sel < 0.2) & (dist_diag < close_thresh))[0]
 
   dist_mat_sub = get_id_dist_mat(preds[t_sel])
+  dist_mat_sub = (dist_mat_sub+dist_mat_sub.T)/2  # symmetrize to avoid numerical issues
   np.fill_diagonal(dist_mat_sub, 0)
   distArray = ssd.squareform(dist_mat_sub)
   Z = linkage(distArray, 'average')
@@ -4065,16 +4079,13 @@ def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh):
   F = fcluster(Z, t=1.0, criterion='distance')
 
   g_sz = []
-  gr_occ = []
   for rf in range(max(F)):
     gs = np.where(F == (rf + 1))[0]
     cur_sz = 0
     cur_occ = 0
     for gxx in gs:
       cur_sz += tlen_sel[t_sel[gxx]]
-      cur_occ += occ_counts[pred_map[t_sel[gxx], 1]] * tlen_sel[t_sel[gxx]]
     g_sz.append(cur_sz)
-    gr_occ.append(cur_occ / cur_sz)
 
   g_sz = np.array(g_sz)
 
@@ -4292,7 +4303,19 @@ def get_graph_cut_group(trk, cluster_centers, pred_map, preds, mov_ndx,maxcosts)
   return labels
 
 
-def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all):
+def _best_group_link_cost(trk_idx, group_set, link_costs_mov):
+  """Return the minimum linking cost from trk_idx to/from any other tracklet in group_set.
+  Returns np.inf if no connections to group peers exist in link_costs."""
+  best = np.inf
+  for matches in link_costs_mov[trk_idx]:  # [start_matches, end_matches]
+    if len(matches) > 0:
+      for entry in matches:
+        peer = int(entry[0])
+        if peer in group_set and peer != trk_idx:
+          best = min(best, entry[1])  # entry[1] is the spatial cost
+  return best
+
+def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all,link_costs_arr):
 
     cluster_centers = get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh)
     nclusters = cluster_centers.shape[0]
@@ -4306,16 +4329,39 @@ def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_
       all_labels.append(labels.copy())
 
       ss, ee = linked_trks[mov_ndx].get_startendframes()
+
+      if False:
+        f, ax = plt.subplots(nclusters + 1, 1, figsize=(10, 30))
+        fracs = []
+        for i in range(nclusters + 1):
+          hh = np.where(labels == i)[0]
+          occ1 = np.zeros(max(ee) + 1)
+          for h in hh:
+            occ1[ss[h]:ee[h] + 1] += 1
+          ax[i].plot(occ1)
+          ax[i].set_title(f"Cluster {i}, n={len(hh)} tot:{np.sum(occ1 > 0)} frac:{np.sum(occ1 > 0) / max(ee):.2f}",
+                          fontsize=8, pad=-12)
+          if i < nclusters:
+            ax[i].set_xticks([])
+          else:
+            ax[i].tick_params(axis='x', labelsize=6)
+          fracs.append(np.sum(occ1 > 0) / max(ee))
+        f.tight_layout()
+
       tlen = ee - ss + 1
       no_group = np.where(labels == 0)[0]
       for i in range(1, nclusters + 1):
         hh = np.where(labels == i)[0]
         occ1 = np.zeros(max(ee) + 1)
-        ovv1 = np.zeros(max(ee) + 1)
         for h in hh:
           occ1[ss[h]:ee[h] + 1] += 1
 
-        hh = hh[np.argsort(tlen[hh])]  # sort by length, try to keep longer tracklets
+        # Sort best-connected tracklets first so they fill frames first; poorly-connected
+        # ones arrive later and find their frames already occupied, getting dropped preferentially.
+        # Tiebreaker: longer tracklets come first among equal link scores.
+        hh_set = set(hh.tolist())
+        link_scores = np.array([_best_group_link_cost(h, hh_set, link_costs_arr[mov_ndx]) for h in hh])
+        hh = hh[np.lexsort((-tlen[hh], link_scores))]
         keep = np.ones(len(hh), dtype=bool)
 
         for ndxh, curh in enumerate(hh):
@@ -4805,6 +4851,225 @@ def test_recognize_ids():
   
   print('finished')
   
+
+def generate_id_report(linked_trk, trx, out_trk_file, mov_file, conf, n_ex=25, seed=42):
+  """
+  Generate a PDF ID-tracking report for one movie.
+
+  Intended to be called from link_id() after linking is complete, passing
+  the variables that already exist there.  Each page covers one trajectory:
+    - A row of n_ex example cropped instances (subplot size scales with conf.imsz)
+    - Scatter plot of all landmark detections overlaid on a background frame
+    - 2D detection density histogram
+    - Frame-time coverage bar chart for all trajectories
+      (current trajectory highlighted)
+
+  Parameters
+  ----------
+  linked_trk : TrkFile.Trk
+      The linked output Trk object for this movie (one element of the
+      list returned by link_trklet_id).
+  trx : list of dicts
+      Per-target trajectory structures for this movie, as returned by
+      apt.get_trx_info (i.e. trx_dict['trx']).  Already computed in link_id.
+  out_trk_file : str
+      Output .trk file path for this movie (used to derive the PDF name
+      and as the report title).
+  mov_file : str
+      Path to the corresponding movie file.
+  conf : namespace / object
+      Configuration object.  Must expose conf.imsz ([height, width]).
+  n_ex : int
+      Number of example frames to show per trajectory (default 25).
+  seed : int
+      Base random seed for example-frame selection (default 42).
+  """
+  from matplotlib.backends.backend_pdf import PdfPages
+  import matplotlib.gridspec as gridspec
+
+  out_pdf = os.path.splitext(out_trk_file)[0] + '_id_report.pdf'
+
+  ntargets = linked_trk.ntargets
+  nlandmarks = linked_trk.nlandmarks
+  print(f'Generating ID report for {out_trk_file}: '
+        f'{ntargets} targets, {nlandmarks} landmarks')
+
+  start_frames, end_frames = linked_trk.get_startendframes()
+
+  # Only pass tracklets that have at least one frame to read_tracklet_ims
+  all_t_info = list(zip(np.arange(ntargets), start_frames, end_frames))
+  valid_t_info = [(int(idx), int(ss), int(ee))
+                  for idx, ss, ee in all_t_info if ss >= 0 and ee >= ss]
+
+  # ------------------------------------------------------------------ #
+  # Read example images – reuses trx already computed in link_id
+  # ------------------------------------------------------------------ #
+  print(f'  Reading {n_ex} example images for {len(valid_t_info)} trajectories ...')
+  ims_out = read_tracklet_ims([trx, valid_t_info, mov_file, conf, n_ex, seed])
+  # ims_out[i] = [ims_array, tgt_idx, ss, ee, frame_list]  ims_array: (n_ex, H, W, C)
+  ims_map = {entry[1]: entry for entry in ims_out}
+
+  # ------------------------------------------------------------------ #
+  # Background frame from the middle of the video
+  # ------------------------------------------------------------------ #
+  mid_frame = linked_trk.T // 2 + linked_trk.T0
+  cap_bg = cv2.VideoCapture(mov_file)
+  cap_bg.set(cv2.CAP_PROP_POS_FRAMES, mid_frame)
+  ret_bg, bg_frame_bgr = cap_bg.read()
+  cap_bg.release()
+  bg_frame = cv2.cvtColor(bg_frame_bgr, cv2.COLOR_BGR2RGB) if ret_bg else None
+
+  # ------------------------------------------------------------------ #
+  # Helper: gather all landmark detections for one target
+  # ------------------------------------------------------------------ #
+  def _get_detections(itgt):
+    sf = linked_trk.startframes[itgt]
+    ef = linked_trk.endframes[itgt]
+    if sf < 0 or ef < sf:
+      empty = np.zeros((nlandmarks, 0))
+      return empty, empty, np.zeros((nlandmarks, 0), dtype=bool)
+    if linked_trk.issparse:
+      tgt_data = linked_trk.pTrk.gettarget(itgt)
+    else:
+      sf0 = sf - linked_trk.T0
+      ef0 = ef - linked_trk.T0 + 1
+      tgt_data = linked_trk.pTrk[:, :, sf0:ef0, itgt]
+    xs = tgt_data[:, 0, :]
+    ys = tgt_data[:, 1, :]
+    valid = ~(np.isnan(xs) | np.isnan(ys))
+    return xs, ys, valid
+
+  # ------------------------------------------------------------------ #
+  # Helper: compute frame-coverage segments for one target
+  # ------------------------------------------------------------------ #
+  def _coverage_segments(itgt):
+    xs_c, _, valid_c = _get_detections(itgt)
+    sf_c = linked_trk.startframes[itgt]
+    frame_has_det = np.any(valid_c, axis=0)
+    valid_frame_indices = np.where(frame_has_det)[0] + sf_c
+    if len(valid_frame_indices) == 0:
+      return []
+    segs = []
+    seg_start = int(valid_frame_indices[0])
+    prev_fr = seg_start
+    for fr in valid_frame_indices[1:]:
+      fr = int(fr)
+      if fr > prev_fr + 1:
+        segs.append((seg_start, prev_fr - seg_start + 1))
+        seg_start = fr
+      prev_fr = fr
+    segs.append((seg_start, prev_fr - seg_start + 1))
+    return segs
+
+  # ------------------------------------------------------------------ #
+  # Figure geometry – driven by conf.imsz ([height, width])
+  # ------------------------------------------------------------------ #
+  dpi = 100
+
+  im_h_px = conf.imsz[0]
+  im_w_px = conf.imsz[1]
+
+  # Cap figure width at 20 inches to keep pages a sensible size.
+  # Images are composited into a single mosaic array to avoid per-subplot overhead.
+  fig_w_in = 20.0
+  ims_per_row = max(1, int(fig_w_in * dpi / im_w_px))
+  n_im_rows = int(np.ceil(n_ex / ims_per_row))
+  im_col_w_in = fig_w_in / ims_per_row
+  im_row_h_in = im_col_w_in * (im_h_px / im_w_px)  # height of one image row
+  total_im_h_in = im_row_h_in * n_im_rows
+
+  dist_row_h_in = 2.0
+  cov_row_h_in = 1.0
+
+  title_name = os.path.splitext(os.path.basename(out_trk_file))[0]
+
+  if bg_frame is not None:
+    frame_w_px = bg_frame.shape[1]
+    frame_h_px = bg_frame.shape[0]
+  else:
+    frame_w_px, frame_h_px = 800, 600
+
+  # ------------------------------------------------------------------ #
+  # One PDF page per trajectory
+  # ------------------------------------------------------------------ #
+  with PdfPages(out_pdf) as pdf:
+    for itgt in range(ntargets):
+      fig, axes = plt.subplots(
+        2, 3,
+        figsize=(fig_w_in, dist_row_h_in + cov_row_h_in + total_im_h_in),
+        dpi=dpi,
+        gridspec_kw={
+          'height_ratios': [dist_row_h_in + cov_row_h_in, total_im_h_in],
+          'hspace': 0.4, 'wspace': 0.25,
+        },
+      )
+      fig.suptitle(
+        f'{title_name}  —  Trajectory {itgt}  '
+        f'(frames {int(start_frames[itgt])}–{int(end_frames[itgt])})',
+        fontsize=11,
+      )
+
+      # Row 0: density | coverage  (two equal columns)
+      axes[0, 2].set_visible(False)
+      xs_d, ys_d, valid_d = _get_detections(itgt)
+
+      ax_dn = axes[0, 0]
+      all_x = xs_d[valid_d].flatten()
+      all_y = ys_d[valid_d].flatten()
+      if len(all_x) > 0:
+        if bg_frame is not None:
+          ax_dn.imshow(bg_frame, alpha=0.4)
+        ax_dn.hist2d(all_x, all_y, bins=80,
+                     range=[[0, frame_w_px], [0, frame_h_px]],
+                     cmin=1, cmap='hot')
+      ax_dn.set_title('Detection density (all landmarks)', fontsize=8)
+      ax_dn.axis('off')
+
+      ax_cov = axes[0, 1]
+      segs = _coverage_segments(itgt)
+      if len(segs) > 0:
+        ax_cov.broken_barh(segs, (0 - 0.35, 0.7),
+                           facecolors=cm.tab10(itgt / ntargets), alpha=0.9)
+      ax_cov.set_xlabel('Frame', fontsize=8)
+      ax_cov.set_yticks([])
+      ax_cov.tick_params(axis='x', labelsize=7)
+      ax_cov.set_title('Frame coverage', fontsize=8)
+
+      # Row 1: example image mosaic spanning all three columns
+      axes[1, 1].set_visible(False)
+      axes[1, 2].set_visible(False)
+      ax_ims = axes[1, 0]
+      ax_ims.set_position(
+        [axes[1, 0].get_position().x0,
+         axes[1, 0].get_position().y0,
+         axes[1, 2].get_position().x1 - axes[1, 0].get_position().x0,
+         axes[1, 0].get_position().height]
+      )
+      if itgt in ims_map:
+        ims_arr = ims_map[itgt][0]  # (n_ex, H, W, C)
+        n_pad = n_im_rows * ims_per_row - n_ex
+        if n_pad > 0:
+          pad_shape = (n_pad, im_h_px, im_w_px, ims_arr.shape[3])
+          ims_padded = np.concatenate([ims_arr, np.zeros(pad_shape, dtype=ims_arr.dtype)], axis=0)
+        else:
+          ims_padded = ims_arr
+        mosaic = (ims_padded.reshape(n_im_rows, ims_per_row, im_h_px, im_w_px, -1)
+                             .transpose(0, 2, 1, 3, 4)
+                             .reshape(n_im_rows * im_h_px, ims_per_row * im_w_px, -1))
+        ax_ims.imshow(mosaic.astype('uint8'))
+        ax_ims.set_title('Example instances', fontsize=8, loc='left')
+      else:
+        ax_ims.text(0.5, 0.5, 'No valid frames', ha='center', va='center',
+                    transform=ax_ims.transAxes, fontsize=9, color='grey')
+      ax_ims.axis('off')
+
+      plt.tight_layout()
+      pdf.savefig(fig, bbox_inches='tight')
+      plt.close(fig)
+      print(f'  Page {itgt + 1}/{ntargets}: trajectory {itgt}')
+
+  print(f'Report saved → {out_pdf}')
+
 
 if __name__ == '__main__':
   # test_match_frame()

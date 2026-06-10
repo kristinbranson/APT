@@ -285,6 +285,7 @@ class config(object):
         self.link_id_keep_all_preds = False
         self.link_id_batch_size = 16
         self.link_id_ignore_far = False
+        self.link_id_method = 'graph_cut' # other option is 'motion' or 'none'
         self.link_id_motion_link = False
         self.link_id_save_int_wts = False
 

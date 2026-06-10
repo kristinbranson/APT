@@ -90,5 +90,5 @@ ROOT:
           - link_id_cropsz_height: ['Crop height for ID Linking',signed,true,'Height of the crop to use for ID linking after the animal is aligned to face up',-1,'ParameterVisualizationTgtCropRadiusID','Beginner',['ma'],true]
           - link_id_cropsz_width: ['Crop width for ID Linking',signed,true,'Width of the crop to use for ID linking after the animal is aligned to face up',-1,'ParameterVisualizationTgtCropRadiusID','Beginner',['ma'],true]
 
-          - link_id_motion_link: ['Use motion linking before grouping by identity',signed,true,'Crop size to use ID linking. If less than 0, the automatically computed crop size is used',false,'','Advanced',['ma'],true]
+          - link_id_motion_link: ['Use motion linking before grouping by identity',boolean,true,'If true, use motion-based linking before grouping tracklets by identity.',false,'','Advanced',['ma'],true]
 

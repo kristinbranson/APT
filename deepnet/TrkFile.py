@@ -6,35 +6,41 @@ from tqdm import tqdm
 import h5py
 import logging
 
-def convert(in_data,to_python):
+def convert(in_data,to_python,inplace=False):
   """
   Convert from/to matlab data formatting to/from python data formatting.
+  inplace=True modifies arrays in-place (safe when caller owns the data, e.g. freshly read from h5py).
   """
   if type(in_data) in [list,tuple]:
     out_data=[]
     for i in in_data:
-      out_data.append(convert(i,to_python))
+      out_data.append(convert(i,to_python,inplace=inplace))
   elif type(in_data) is dict:
     out_data={}
     for i in in_data.keys():
-      out_data[i]=convert(in_data[i],to_python)
+      out_data[i]=convert(in_data[i],to_python,inplace=inplace)
   elif isinstance(in_data,bool) or (isinstance(in_data,np.ndarray) and (in_data.dtype=='bool')):
     out_data = in_data
   elif in_data is None:
     out_data=None
   else:
     offset=-1 if to_python else 1
-    out_data=in_data+offset
+    if inplace and isinstance(in_data,np.ndarray) and not (offset < 0 and np.issubdtype(in_data.dtype, np.unsignedinteger)):
+      in_data += offset
+      out_data = in_data
+    else:
+      out_data=in_data+offset
   return out_data
 
-def to_py(in_data,dtype=None):
+def to_py(in_data,dtype=None,inplace=False):
   """
   Convert from matlab to python data by decrementing various things by 1.
+  inplace=True modifies arrays in-place; safe when caller owns the data (e.g. freshly loaded from h5py).
   """
   if dtype==bool:
     return in_data
   else:
-    return convert(in_data,to_python=True)
+    return convert(in_data,to_python=True,inplace=inplace)
 
 def to_mat(in_data):
   """
@@ -418,11 +424,13 @@ def hdf5_to_py(A, h5file):
   elif isinstance(A,h5py._hl.group.Group):
     out = {}
     for key, val in A.items():
+      if key == '#refs#':
+        continue  # referenced datasets are read when dereferenced; reading here would double-load all tracklet data
       out[key] = hdf5_to_py(val, h5file)
   elif isinstance(A,h5py.h5r.Reference):
     out = hdf5_to_py(h5file[A],h5file)
   elif isinstance(A,np.ndarray) and A.dtype=='O':
-    out = np.array([hdf5_to_py(x,h5file) for x in A])
+    out = [hdf5_to_py(x,h5file) for x in A]  # plain list avoids np.array(ragged) shape-inference overhead
   else:
     out = A
   return out
@@ -626,7 +634,7 @@ class Tracklet:
       endframes = endframes.flatten()
 
     if ismatlab:
-      self.data = to_py(data,dtype=self.dtype)
+      self.data = to_py(data,dtype=self.dtype,inplace=True)
       self.startframes = to_py(startframes)
       self.endframes = to_py(endframes)
     elif docopy:
