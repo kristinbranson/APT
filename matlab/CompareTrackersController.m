@@ -16,6 +16,12 @@ classdef CompareTrackersController < handle
     gridLayout_  % the figure's top-level uigridlayout
     previewAxes_  % uiaxes showing the selected bout's max-distance frame
     previewImage_  % image object in previewAxes_
+    connectorLineGroup_
+      % hggroup holding the ref-to-test connector lines, created between
+      % the image and the scatters so the lines render below the markers
+    connectorLines_ = gobjects(0, 1)
+      % [landmarkCount x 1] line objects, each connecting a ref landmark
+      % to the corresponding test landmark
     refScatter_  % scatter object for the reference tracker's pose
     testScatter_  % scatter object for the test tracker's pose
   end
@@ -286,6 +292,9 @@ classdef CompareTrackersController < handle
         'Visible', 'off', ...
         'Tag', 'compare_trackers_preview_image') ;
       colormap(previewAxes, 'gray') ;
+      obj.connectorLineGroup_ = hggroup('Parent', previewAxes, ...
+                                        'Tag', 'compare_trackers_preview_connector_group') ;
+      obj.connectorLines_ = gobjects(0, 1) ;
       obj.refScatter_ = scatter(previewAxes, nan, nan, ...
         'Visible', 'off', ...
         'Tag', 'compare_trackers_preview_ref_scatter') ;
@@ -322,6 +331,7 @@ classdef CompareTrackersController < handle
         obj.previewImage_.Visible = 'off' ;
         obj.refScatter_.Visible = 'off' ;
         obj.testScatter_.Visible = 'off' ;
+        set(obj.connectorLines_, 'Visible', 'off') ;
         return
       end
 
@@ -351,6 +361,7 @@ classdef CompareTrackersController < handle
                              refMarker, sizeData, markerProps.LineWidth) ;
       updatePoseScatterBang_(obj.testScatter_, preview.testPoseXy, pointColors, ...
                              testMarker, sizeData, markerProps.LineWidth) ;
+      obj.updateConnectorLines_(preview.refPoseXy, preview.testPoseXy, pointColors) ;
 
       % Zoom to an invisible square bounding box around all the
       % landmarks of both poses.
@@ -358,6 +369,46 @@ classdef CompareTrackersController < handle
         squareLimitsFromPoses_(preview.refPoseXy, preview.testPoseXy, imageWidth, imageHeight) ;
       obj.previewAxes_.XLim = xLimits ;
       obj.previewAxes_.YLim = yLimits ;
+    end  % function
+
+    function updateConnectorLines_(obj, refPoseXy, testPoseXy, pointColors)
+      % Update the lines connecting each ref landmark to the
+      % corresponding test landmark in the preview axes, one line per
+      % landmark, colored like the landmark.  Lines whose endpoints are
+      % not both finite are hidden.
+      landmarkCount = size(pointColors, 1) ;
+      isDrawable = ...
+        size(refPoseXy, 1) == landmarkCount && size(testPoseXy, 1) == landmarkCount ;
+      if ~isDrawable
+        set(obj.connectorLines_, 'Visible', 'off') ;
+        return
+      end
+      if numel(obj.connectorLines_) ~= landmarkCount
+        delete(obj.connectorLines_) ;
+        obj.connectorLines_ = gobjects(landmarkCount, 1) ;
+        for landmarkIndex = 1 : landmarkCount
+          obj.connectorLines_(landmarkIndex) = ...
+            line('Parent', obj.connectorLineGroup_, ...
+                 'XData', nan, ...
+                 'YData', nan, ...
+                 'LineWidth', 1, ...
+                 'Visible', 'off', ...
+                 'Tag', 'compare_trackers_preview_connector_line') ;
+        end
+      end
+      for landmarkIndex = 1 : landmarkCount
+        lineHandle = obj.connectorLines_(landmarkIndex) ;
+        endpointXy = [refPoseXy(landmarkIndex, :) ; testPoseXy(landmarkIndex, :)] ;
+        if all(isfinite(endpointXy(:)))
+          set(lineHandle, ...
+              'XData', endpointXy(:, 1), ...
+              'YData', endpointXy(:, 2), ...
+              'Color', pointColors(landmarkIndex, :), ...
+              'Visible', 'on') ;
+        else
+          lineHandle.Visible = 'off' ;
+        end
+      end
     end  % function
 
     function [items, itemsData] = trackerDropdownItems_(obj)

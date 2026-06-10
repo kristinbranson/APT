@@ -103,6 +103,14 @@ if ~strcmp(testScatter.Visible, 'on')
   error('Expected the test pose overlay to be shown after selecting a bout') ;
 end
 
+% Each landmark's ref and test predictions are joined by a connector
+% line; at least one should be visible for the selected bout.
+connectorLines = findall(0, 'Tag', 'compare_trackers_preview_connector_line') ;
+isVisibleFromConnectorIndex = arrayfun(@(h)(strcmp(h.Visible, 'on')), connectorLines) ;
+if isempty(connectorLines) || ~any(isVisibleFromConnectorIndex)
+  error('Expected at least one visible connector line after selecting a bout') ;
+end
+
 % The preview axes limits should bound all the finite overlaid landmarks.
 previewAxes = findall(0, 'Tag', 'compare_trackers_preview_axes') ;
 overlayX = [refScatter.XData(:) ; testScatter.XData(:)] ;
