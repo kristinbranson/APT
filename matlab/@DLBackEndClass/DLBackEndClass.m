@@ -52,7 +52,7 @@ classdef DLBackEndClass < handle
     default_jrcgpuqueue = 'gpu_a100'
     default_jrcnslots_train = 4
     default_jrcnslots_track = 4
-    default_jrcJobDuration = 2880  % in minutes; 2880 = 48 hours
+    default_jrcJobDuration = 10080  % in minutes; 10080 = 7 days
 
     default_conda_env = 'apt-20250626-tf215-pytorch21-hopper'
     DEFAULT_SINGULARITY_IMAGE_PATH = apt.MetaPath('/groups/branson/bransonlab/apt/sif/apt-20250626-tf215-pytorch21-hopper.sif', 'wsl', 'universal')
@@ -1352,6 +1352,12 @@ classdef DLBackEndClass < handle
         result = obj.awsec2.fileExists(wslFilePath) ;
       else
         nativeFilePathAsChar = nativeFilePath.charUnescaped() ;
+        % Refresh NFS attribute cache before checking, to avoid false negatives
+        % when a remote job (bsub/cluster) has just written the file.
+        parent = fileparts(nativeFilePathAsChar) ;
+        if ~isempty(parent)
+          dir(parent) ;
+        end
         result = logical(exist(nativeFilePathAsChar, 'file')) ;
       end
     end  % function

@@ -223,6 +223,13 @@ class coco_loader(torch.utils.data.Dataset):
         if (im.shape[1] != osz[1]) or (im.shape[2] != osz[0]):
             im = cv2.resize(im[0,...],osz)[None,...]
             mask = cv2.resize(mask[0,...].astype(np.float32),osz)[None,...]
+
+        if im.shape[0]%32 != 0 or im.shape[1]%32 != 0:
+            new_sz = (int(np.ceil(im.shape[1]/32)*32), int(np.ceil(im.shape[2]/32)*32))
+            pad_amt = (new_sz[0]-im.shape[1], new_sz[1]-im.shape[2])
+            im = cv2.copyMakeBorder(im[0,...], 0, pad_amt[0], 0, pad_amt[1], cv2.BORDER_CONSTANT)[None,...]
+            mask = cv2.copyMakeBorder(mask[0,...].astype(np.float32), 0, pad_amt[0], 0, pad_amt[1], cv2.BORDER_CONSTANT)[None,...]
+
         im = np.transpose(im[0,...] / 255., [2, 0, 1])
         mask = mask[0,...]
         if not self.conf.is_multi:

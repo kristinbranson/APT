@@ -162,6 +162,37 @@ class my_convnext(nn.Module):
         return {'0':x[0],'1':x[1],'2':x[2],'3':x1[-1]}
 
 
+def my_swin_backbone(im_sz):
+    from mmpretrain.models.backbones.swin_transformer import SwinTransformer
+    backbone = SwinTransformer(arch='base',
+        img_size=im_sz,
+        window_size=7,
+        out_indices=(0, 1, 2, 3),
+        frozen_stages=2,
+        init_cfg=dict(
+            type='Pretrained',
+            checkpoint='https://download.openmmlab.com/mmclassification/v0/swin-transformer/convert/swin_base_patch4_window7_224_22kto1k-f967f799.pth'))
+    backbone.init_weights()
+    return backbone
+
+def my_swin_neck():
+    from mmpose.models.necks.fpn import FPN
+    neck = FPN([128, 256, 512, 1024], out_channels=1024, add_extra_convs=True, num_outs=4)
+    neck.init_weights()
+    return neck
+
+class my_swin(nn.Module):
+    def __init__(self, im_sz):
+        super(my_swin, self).__init__()
+        self.backbone = my_swin_backbone(im_sz)
+        self.neck = my_swin_neck()
+
+    def forward(self, x):
+        x1 = self.backbone(x)
+        x = self.neck(x1)
+        return {'0': x[0], '1': x[1], '2': x[2], '3': x1[-1]}
+
+
 def my_hrnet_fpn_backbone():
     from mmpose.models import HRNet
     extra = dict(
@@ -283,6 +314,9 @@ class mdn_joint(nn.Module):
                 n_ftrs = 768
             elif backbone_type == 'convnext':
                 backbone = my_convnext()
+                n_ftrs = 1024
+            elif backbone_type == 'swin':
+                backbone = my_swin(im_sz)
                 n_ftrs = 1024
             else:
                 backbone = my_hrnet_fpn_backbone()
@@ -411,6 +445,9 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             elif conf.get('mdn_backbone', 'resnet50') == 'convnext':
                 self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num', 3)
                 self.fpn_ref_layer = self.conf.get('mdn_joint_ref_layer_num', 0)
+            elif conf.get('mdn_backbone', 'resnet50') == 'swin':
+                self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num', 3)
+                self.fpn_ref_layer = self.conf.get('mdn_joint_ref_layer_num', 0)
             else: #hrnet
                 self.fpn_joint_layer = 0
                 self.fpn_ref_layer = 0
@@ -440,7 +477,11 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         self.hmap_loss = self.conf.get('mdn_hmap_loss',False)
         if self.hmap_loss:
             from mmpose.datasets.pipelines.bottom_up_transform import HeatmapGenerator
-            self.heatmap_gen = HeatmapGenerator([int(self.conf.imsz[1]//4),int(self.conf.imsz[0]//4)],self.conf.n_classes,2)
+            in_sz = [self.conf.imsz[0]/self.conf.resize,self.conf.imsz[1]/self.conf.resize]
+            in_sz = [int(np.ceil(in_sz[0]/32)*32), int(np.ceil(in_sz[1]/32)*32)]
+            hmap_sz = [int(in_sz[1]//4),int(in_sz[0]//4)]
+            self.heatmap_gen = HeatmapGenerator(hmap_sz,self.conf.n_classes,2)
+            # self.heatmap_gen = HeatmapGenerator([int(self.conf.imsz[1]//4),int(self.conf.imsz[0]//4)],self.conf.n_classes,2)
         self.min_hmap_sz = self.conf.get('mdn_min_hmap_sz',10)
         self.version = 3
         self.do_dist_pred = True
@@ -491,7 +532,8 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         else:
             use_hrnet = self.conf.get('mdn_use_hrnet',False)
         dropout = self.conf.get('mdn_dropout',0.0)
-        return mdn_joint(self.conf.n_classes, self.device,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm, k_j=self.k_j, k_r=self.k_r, wt_offset=self.wt_offset,fpn_joint_layer=self.fpn_joint_layer,fpn_ref_layer=self.fpn_ref_layer,pred_occluded=self.conf.predict_occluded,backbone_type=backbone_type,use_hrnet=use_hrnet,dropout=dropout,do_dist_pred=self.do_dist_pred,hmap_loss=self.hmap_loss,im_sz=self.conf.imsz)
+        im_sz = [int(ii//self.conf.rescale) for ii in self.conf.imsz]
+        return mdn_joint(self.conf.n_classes, self.device,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm, k_j=self.k_j, k_r=self.k_r, wt_offset=self.wt_offset,fpn_joint_layer=self.fpn_joint_layer,fpn_ref_layer=self.fpn_ref_layer,pred_occluded=self.conf.predict_occluded,backbone_type=backbone_type,use_hrnet=use_hrnet,dropout=dropout,do_dist_pred=self.do_dist_pred,hmap_loss=self.hmap_loss,im_sz=im_sz)
 
     def loss_slow(self, preds, labels):
         n_classes = self.conf.n_classes
@@ -1009,7 +1051,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         assert ll_joint_flat.shape[1] >= n_min, f'The max number of animals with image size {self.conf.imsz} is {ll_joint_flat.shape[1]} while the minimum animals set is {n_min}'
         top_k_factor = self.top_k_factor
 
-        k_sz = 9 if self.conf.mdn_use_hrnet else 3
+        k_sz = 9 if (self.offset<16) else 3
         p_sz = (k_sz-1)//2
         k = np.clip(n_max * 5, n_min, ll_joint_flat.shape[1])
         # cur_wt_batch was only using max_pool for k_joint_i = 0, so only compute that one. 
