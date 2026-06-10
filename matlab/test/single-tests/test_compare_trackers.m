@@ -73,11 +73,49 @@ if ~isempty(listbox.ValueIndex)
   error('Expected no listbox item to be selected initially, but ValueIndex is %d', listbox.ValueIndex) ;
 end
 
+% With no bout selected, the preview image and pose overlays are hidden.
+previewImage = findall(0, 'Tag', 'compare_trackers_preview_image') ;
+refScatter = findall(0, 'Tag', 'compare_trackers_preview_ref_scatter') ;
+testScatter = findall(0, 'Tag', 'compare_trackers_preview_test_scatter') ;
+if strcmp(previewImage.Visible, 'on')
+  error('Expected the preview image to be hidden when no bout is selected') ;
+end
+if strcmp(refScatter.Visible, 'on') || strcmp(testScatter.Visible, 'on')
+  error('Expected the pose overlays to be hidden when no bout is selected') ;
+end
+
 % Selecting a bout through the model should select the matching listbox
 % item.
 labeler.compareTrackersCurrentBoutIndexMaybe = 1 ;
 if ~isequal(listbox.ValueIndex, 1)
   error('Expected listbox ValueIndex to be 1 after selecting bout 1') ;
+end
+
+% Selecting a bout populates the preview: the bout's max-distance frame
+% image is shown and both trackers' poses are overlaid.
+if ~strcmp(previewImage.Visible, 'on') || isempty(previewImage.CData)
+  error('Expected the preview image to be shown after selecting a bout') ;
+end
+if ~strcmp(refScatter.Visible, 'on')
+  error('Expected the reference pose overlay to be shown after selecting a bout') ;
+end
+if ~strcmp(testScatter.Visible, 'on')
+  error('Expected the test pose overlay to be shown after selecting a bout') ;
+end
+
+% The preview axes limits should bound all the finite overlaid landmarks.
+previewAxes = findall(0, 'Tag', 'compare_trackers_preview_axes') ;
+overlayX = [refScatter.XData(:) ; testScatter.XData(:)] ;
+overlayY = [refScatter.YData(:) ; testScatter.YData(:)] ;
+isFinitePoint = isfinite(overlayX) & isfinite(overlayY) ;
+if ~any(isFinitePoint)
+  error('Expected at least one finite overlaid landmark in the preview') ;
+end
+if any(overlayX(isFinitePoint) < previewAxes.XLim(1)) || ...
+   any(overlayX(isFinitePoint) > previewAxes.XLim(2)) || ...
+   any(overlayY(isFinitePoint) < previewAxes.YLim(1)) || ...
+   any(overlayY(isFinitePoint) > previewAxes.YLim(2))
+  error('Expected the preview axes limits to bound all overlaid landmarks') ;
 end
 
 % Clicking the already-selected item should still navigate: this is how

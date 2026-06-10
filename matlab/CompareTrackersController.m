@@ -13,6 +13,11 @@ classdef CompareTrackersController < handle
     thresholdEdit_  % uieditfield for threshold
     thresholdHint_  % uilabel showing the absolute distance threshold
     listbox_  % uilistbox handle
+    gridLayout_  % the figure's top-level uigridlayout
+    previewAxes_  % uiaxes showing the selected bout's max-distance frame
+    previewImage_  % image object in previewAxes_
+    refScatter_  % scatter object for the reference tracker's pose
+    testScatter_  % scatter object for the test tracker's pose
   end
 
   properties (Dependent, Access=private)
@@ -139,6 +144,8 @@ classdef CompareTrackersController < handle
         obj.listbox_.ValueIndex = boutIndexMaybe ;
       end
 
+      obj.updatePreviewAxes_() ;
+
       obj.figure_.Visible = 'on' ;
       if ~wasFigureVisible
         waitForFigureToSync(obj.figure_) ;
@@ -175,19 +182,24 @@ classdef CompareTrackersController < handle
   methods (Access=private)
     function createFigure_(obj)
       % Create the uifigure and all child controls.
-      figurePosition = [200 200 480 520] ;
+      figurePosition = [200 200 480 880] ;
       obj.figure_ = uifigure(...
         'Name', 'Compare Trackers', ...
         'Position', figurePosition, ...
         'Tag', 'compare_trackers_figure', ...
         'Visible', 'off', ...
-        'CloseRequestFcn', @(src, evt)(obj.hideRequested())) ;
+        'CloseRequestFcn', @(src, evt)(obj.hideRequested()), ...
+        'AutoResizeChildren', 'off', ...
+        'SizeChangedFcn', @(src, evt)(obj.updatePreviewRowHeight_())) ;
+          % AutoResizeChildren must be off for SizeChangedFcn to fire;
+          % the grid layout handles resizing the children regardless.
 
       labelerController = obj.labelerController_ ;
 
-      gridLayout = uigridlayout(obj.figure_, [4, 1]) ;
-      gridLayout.RowHeight = {22, 22, 22, '1x'} ;
+      gridLayout = uigridlayout(obj.figure_, [5, 1]) ;
+      gridLayout.RowHeight = {22, 22, 22, '1x', 460} ;
       gridLayout.ColumnWidth = {'1x'} ;
+      obj.gridLayout_ = gridLayout ;
 
       % Row 1: reference tracker
       referenceRow = uigridlayout(gridLayout, [1, 2]) ;
@@ -254,8 +266,98 @@ classdef CompareTrackersController < handle
         'ClickedFcn', ...
           @(src, evt)(labelerController.controlActuated('compare_trackers_listbox_clicked', src, evt))) ;
 
+      % Row 5: preview axes, showing the selected bout's max-distance
+      % frame with both trackers' poses overlaid.  Kept square (matching
+      % the listbox width) by updatePreviewRowHeight_().
+      obj.previewAxes_ = uiaxes(gridLayout, ...
+        'Tag', 'compare_trackers_preview_axes') ;
+      previewAxes = obj.previewAxes_ ;
+      previewAxes.XTick = [] ;
+      previewAxes.YTick = [] ;
+      previewAxes.XColor = 'none' ;
+      previewAxes.YColor = 'none' ;
+      previewAxes.YDir = 'reverse' ;
+      previewAxes.DataAspectRatio = [1 1 1] ;
+      previewAxes.NextPlot = 'add' ;
+      previewAxes.Toolbar.Visible = 'off' ;
+      disableDefaultInteractivity(previewAxes) ;
+      obj.previewImage_ = image(previewAxes, ...
+        'CData', zeros(0, 0), ...
+        'Visible', 'off', ...
+        'Tag', 'compare_trackers_preview_image') ;
+      colormap(previewAxes, 'gray') ;
+      obj.refScatter_ = scatter(previewAxes, nan, nan, ...
+        'Visible', 'off', ...
+        'Tag', 'compare_trackers_preview_ref_scatter') ;
+      obj.testScatter_ = scatter(previewAxes, nan, nan, ...
+        'Visible', 'off', ...
+        'Tag', 'compare_trackers_preview_test_scatter') ;
+
+      obj.updatePreviewRowHeight_() ;
       mainFigurePosition = obj.labelerController_.mainFigurePixelPosition() ;
       centerOnOtherFigureGivenPositionBang(obj.figure_, mainFigurePosition) ;
+    end  % function
+
+    function updatePreviewRowHeight_(obj)
+      % Keep the preview axes square by pinning its grid row height to
+      % the grid's inner width.
+      if ~obj.hasValidFigure_ || isempty(obj.gridLayout_) || ~isvalid(obj.gridLayout_)
+        return
+      end
+      figureWidth = obj.figure_.Position(3) ;
+      padding = obj.gridLayout_.Padding ;
+      innerWidth = figureWidth - padding(1) - padding(3) ;
+      rowHeight = obj.gridLayout_.RowHeight ;
+      rowHeight{5} = max(innerWidth, 50) ;
+      obj.gridLayout_.RowHeight = rowHeight ;
+    end  % function
+
+    function updatePreviewAxes_(obj)
+      % Sync the preview axes to the model's currently-selected bout:
+      % show the bout's max-distance frame, zoomed to an invisible
+      % bounding box around both trackers' poses, with the poses
+      % overlaid in the main window's predicted-landmark colors.
+      preview = obj.model_.currentBoutPreviewMaybe() ;
+      if isempty(preview)
+        obj.previewImage_.Visible = 'off' ;
+        obj.refScatter_.Visible = 'off' ;
+        obj.testScatter_.Visible = 'off' ;
+        return
+      end
+
+      % Show the frame image.  Grayscale frames render through the axes'
+      % gray colormap; CDataMapping is ignored for RGB frames.
+      imageMatrix = preview.imageMatrix ;
+      imageHeight = size(imageMatrix, 1) ;
+      imageWidth = size(imageMatrix, 2) ;
+      set(obj.previewImage_, ...
+          'CData', imageMatrix, ...
+          'CDataMapping', 'scaled', ...
+          'XData', [1, imageWidth], ...
+          'YData', [1, imageHeight], ...
+          'Visible', 'on') ;
+
+      % Overlay the poses, using the main window's predicted-landmark
+      % colors and marker cosmetics.  The two trackers share landmark
+      % colors in the main window, so the test pose gets a distinct
+      % marker shape.
+      labeler = obj.labeler_ ;
+      pointColors = labeler.PredictPointColors() ;
+      markerProps = labeler.predPointsPlotInfo.MarkerProps ;
+      refMarker = markerProps.Marker ;
+      testMarker = fif(strcmp(refMarker, 'o'), 'square', 'o') ;
+      sizeData = markerProps.MarkerSize ^ 2 ;
+      updatePoseScatterBang_(obj.refScatter_, preview.refPoseXy, pointColors, ...
+                             refMarker, sizeData, markerProps.LineWidth) ;
+      updatePoseScatterBang_(obj.testScatter_, preview.testPoseXy, pointColors, ...
+                             testMarker, sizeData, markerProps.LineWidth) ;
+
+      % Zoom to an invisible square bounding box around all the
+      % landmarks of both poses.
+      [xLimits, yLimits] = ...
+        squareLimitsFromPoses_(preview.refPoseXy, preview.testPoseXy, imageWidth, imageHeight) ;
+      obj.previewAxes_.XLim = xLimits ;
+      obj.previewAxes_.YLim = yLimits ;
     end  % function
 
     function [items, itemsData] = trackerDropdownItems_(obj)
@@ -283,6 +385,72 @@ classdef CompareTrackersController < handle
     end  % function
   end  % methods
 end  % classdef
+
+
+
+function updatePoseScatterBang_(scatterHandle, poseXy, pointColors, marker, sizeData, lineWidth)
+% Update one pose-overlay scatter object in place to show the given pose
+% ([landmarkCount x 2], possibly empty) with per-landmark colors.
+landmarkCount = size(poseXy, 1) ;
+if landmarkCount == 0 || size(pointColors, 1) ~= landmarkCount
+  scatterHandle.Visible = 'off' ;
+  return
+end
+set(scatterHandle, ...
+    'XData', poseXy(:, 1)', ...
+    'YData', poseXy(:, 2)', ...
+    'CData', pointColors, ...
+    'Marker', marker, ...
+    'SizeData', sizeData, ...
+    'LineWidth', lineWidth, ...
+    'Visible', 'on') ;
+end  % function
+
+
+
+function [xLimits, yLimits] = squareLimitsFromPoses_(refPoseXy, testPoseXy, imageWidth, imageHeight)
+% Compute square axes limits bounding all the finite landmarks of both
+% poses, with some margin, shifted/clipped to lie within the image.
+% Falls back to the whole image when there are no finite landmarks.
+allXy = [refPoseXy ; testPoseXy] ;
+isRowFinite = all(isfinite(allXy), 2) ;
+finiteXy = allXy(isRowFinite, :) ;
+if isempty(finiteXy)
+  xLimits = [0.5, imageWidth + 0.5] ;
+  yLimits = [0.5, imageHeight + 0.5] ;
+  return
+end
+minXy = min(finiteXy, [], 1) ;
+maxXy = max(finiteXy, [], 1) ;
+centerXy = (minXy + maxXy) / 2 ;
+marginFactor = 2 ;
+minimumHalfSpan = 10 ;
+% Pad each dimension proportionally, then square up to the larger of the
+% two padded half-spans.
+paddedHalfSpanXy = (maxXy - minXy) / 2 * marginFactor ;
+halfSpan = max(max(paddedHalfSpanXy), minimumHalfSpan) ;
+xLimits = shiftIntervalIntoRange_(centerXy(1) + [-1, 1] * halfSpan, [0.5, imageWidth + 0.5]) ;
+yLimits = shiftIntervalIntoRange_(centerXy(2) + [-1, 1] * halfSpan, [0.5, imageHeight + 0.5]) ;
+end  % function
+
+
+
+function shifted = shiftIntervalIntoRange_(interval, range)
+% Shift the given interval to lie within range if possible, preserving
+% its width; if it is wider than range, return range itself.
+width = diff(interval) ;
+if width >= diff(range)
+  shifted = range ;
+  return
+end
+if interval(1) < range(1)
+  shifted = [range(1), range(1) + width] ;
+elseif interval(2) > range(2)
+  shifted = [range(2) - width, range(2)] ;
+else
+  shifted = interval ;
+end
+end  % function
 
 
 

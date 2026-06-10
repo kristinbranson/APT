@@ -24,8 +24,21 @@ classdef CompareTrackersModel < handle
     endFrameFromBoutIndex_  % [N x 1] last frame of each bout
     maxDistanceFrameFromBoutIndex_  % [N x 1] frame where the per-bout max distance occurs
     trackletIndexFromBoutIndex_  % [N x 1] ref-tracklet indices (into the ref TrkFile)
+    testTrackletIndexFromBoutIndex_
+      % [N x 1] test-tracklet indices (into the test TrkFile) matched to
+      % the ref tracklet at each bout's max-distance frame
     targetIndexFromBoutIndex_  % [N x 1] target indices (for navigation)
     maxDistanceFromBoutIndex_  % [N x 1] per-bout max landmark distance
+    refTrkFile_ = []
+      % TrkFile the bouts were computed from, for the reference tracker.
+      % Kept around so bout poses can be fetched for the preview image.
+    testTrkFile_ = []
+      % TrkFile the bouts were computed from, for the test tracker.
+    cachedPreviewImage_ = []
+      % Most recently read preview frame image, so repeated update()
+      % calls do not re-read the movie.
+    cachedPreviewImageFrameIndexMaybe_ = []
+      % Movie frame index of cachedPreviewImage_, or empty if none.
     absoluteDistanceThreshold_ = nan
       % scalar double, the quantile-derived absolute pixel-distance
       % threshold used to filter bouts.
@@ -65,6 +78,7 @@ classdef CompareTrackersModel < handle
       obj.endFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.maxDistanceFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.trackletIndexFromBoutIndex_ = zeros(0, 1) ;
+      obj.testTrackletIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.maxDistanceFromBoutIndex_ = zeros(0, 1) ;
     end  % function
@@ -249,6 +263,45 @@ classdef CompareTrackersModel < handle
               'Current bout index must be a positive integer in 1:%d', nBouts) ;
       end
     end  % function
+
+    function result = currentBoutPreviewMaybe(obj)
+      % Return the data needed to draw the preview image for the
+      % currently selected bout, or [] if no bout is selected or the
+      % needed data is unavailable.  On success the result is a struct
+      % with fields frameIndex (the bout's max-distance frame),
+      % imageMatrix (that frame's image, view 1), refPoseXy and
+      % testPoseXy (each [landmarkCount x 2], possibly empty if the
+      % corresponding tracklet has no pose at that frame).
+      result = [] ;
+      boutIndex = obj.currentBoutIndexMaybe_ ;
+      if isempty(boutIndex) || ~obj.isLaden
+        return
+      end
+      if isempty(obj.refTrkFile_) || isempty(obj.testTrkFile_)
+        return
+      end
+      labeler = obj.labeler_ ;
+      movieReader = labeler.movieReader ;
+      if isempty(movieReader) || ~movieReader(1).isOpen
+        return
+      end
+      frameIndex = obj.maxDistanceFrameFromBoutIndex_(boutIndex) ;
+      if isequal(obj.cachedPreviewImageFrameIndexMaybe_, frameIndex)
+        imageMatrix = obj.cachedPreviewImage_ ;
+      else
+        imageMatrix = movieReader(1).readframe(frameIndex) ;
+        obj.cachedPreviewImage_ = imageMatrix ;
+        obj.cachedPreviewImageFrameIndexMaybe_ = frameIndex ;
+      end
+      refPoseXy = ...
+        poseAtFrame_(obj.refTrkFile_, obj.trackletIndexFromBoutIndex_(boutIndex), frameIndex) ;
+      testPoseXy = ...
+        poseAtFrame_(obj.testTrkFile_, obj.testTrackletIndexFromBoutIndex_(boutIndex), frameIndex) ;
+      result = struct('frameIndex', frameIndex, ...
+                      'imageMatrix', imageMatrix, ...
+                      'refPoseXy', refPoseXy, ...
+                      'testPoseXy', testPoseXy) ;
+    end  % function
   end  % methods
 
   methods (Access=private)
@@ -310,6 +363,7 @@ classdef CompareTrackersModel < handle
        obj.endFrameFromBoutIndex_, ...
        obj.maxDistanceFrameFromBoutIndex_, ...
        obj.trackletIndexFromBoutIndex_, ...
+       obj.testTrackletIndexFromBoutIndex_, ...
        obj.targetIndexFromBoutIndex_, ...
        obj.maxDistanceFromBoutIndex_, ...
        obj.absoluteDistanceThreshold_] = ...
@@ -318,6 +372,12 @@ classdef CompareTrackersModel < handle
                                      labeler.nframes, ...
                                      obj.quantileThreshold_, ...
                                      obj.matchDistanceThreshold_) ;
+      % Keep the source TrkFiles so the per-bout poses can be fetched for
+      % the preview image without re-loading anything from disk.
+      obj.refTrkFile_ = refTrkFile ;
+      obj.testTrkFile_ = testTrkFile ;
+      obj.cachedPreviewImage_ = [] ;
+      obj.cachedPreviewImageFrameIndexMaybe_ = [] ;
       % The bout list has been rebuilt, so any previously selected bout
       % index refers to the old list.  Reset to no selection.
       obj.currentBoutIndexMaybe_ = [] ;
@@ -330,9 +390,14 @@ classdef CompareTrackersModel < handle
       obj.endFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.maxDistanceFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.trackletIndexFromBoutIndex_ = zeros(0, 1) ;
+      obj.testTrackletIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.maxDistanceFromBoutIndex_ = zeros(0, 1) ;
       obj.absoluteDistanceThreshold_ = nan ;
+      obj.refTrkFile_ = [] ;
+      obj.testTrkFile_ = [] ;
+      obj.cachedPreviewImage_ = [] ;
+      obj.cachedPreviewImageFrameIndexMaybe_ = [] ;
       obj.currentBoutIndexMaybe_ = [] ;
       obj.isFresh_ = true ;
     end  % function
@@ -366,6 +431,25 @@ function result = isTrackerInHistory_(tracker, trackerHistory)
 % Return whether the given tracker handle is one of the trackers in
 % trackerHistory (compared by identity).
 result = ~isempty(trackerHistoryIndexFromTracker_(trackerHistory, tracker)) ;
+end  % function
+
+
+
+function xy = poseAtFrame_(trkFile, trackletIndex, frameIndex)
+% Return the [landmarkCount x 2] pose of the given tracklet at the given
+% movie frame, or [] if the tracklet index is invalid or the tracklet has
+% no pose at that frame.
+xy = [] ;
+if ~isfinite(trackletIndex) || trackletIndex < 1 || trackletIndex > trkFile.ntracklets
+  return
+end
+[xyFromLandmarkAxisAndLocalFrame, ~, frameIndexFromLocalFrameIndex] = ...
+  trkFile.getPTrkTgt(trackletIndex) ;
+localFrameIndex = find(frameIndexFromLocalFrameIndex == frameIndex, 1) ;
+if isempty(localFrameIndex)
+  return
+end
+xy = xyFromLandmarkAxisAndLocalFrame(:, :, localFrameIndex) ;
 end  % function
 
 

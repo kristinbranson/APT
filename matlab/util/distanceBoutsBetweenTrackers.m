@@ -2,6 +2,7 @@ function [firstFrameIndexFromSortedBoutIndex, ...
           lastFrameIndexFromSortedBoutIndex, ...
           maxDistanceFrameIndexFromSortedBoutIndex, ...
           trackletIndexFromSortedBoutIndex, ...
+          testTrackletIndexFromSortedBoutIndex, ...
           targetIndexFromSortedBoutIndex, ...
           maxDistanceFromSortedBoutIndex, ...
           absoluteDistanceThreshold] = ...
@@ -34,6 +35,11 @@ function [firstFrameIndexFromSortedBoutIndex, ...
 %     above which a ref pose and a test pose are considered unrelated
 %     and left unmatched
 %
+% testTrackletIndexFromSortedBoutIndex gives, for each bout, the index of
+% the test-tracker tracklet (into the test TrkFile) that was
+% Hungarian-matched to the bout's ref tracklet at the bout's max-distance
+% frame.
+%
 % Returns empty column vectors and NaN threshold when there are no bouts.
 
 % Sanity-check the inputs.
@@ -64,6 +70,7 @@ testPosesFromFrameIndex = buildPosesFromFrameIndex_(testTrkFile, nframes) ;
 % pairs with mean landmark distance >= matchDistanceThreshold unmatched.
 refTrackletCount = refTrkFile.ntracklets ;
 distanceFromFrameIndexAndTrackletIndex = nan(nframes, refTrackletCount) ;
+testTrackletIndexFromFrameIndexAndTrackletIndex = nan(nframes, refTrackletCount) ;
 costOfNonAssignment = matchDistanceThreshold / 2 ;
 for frameIndex = 1 : nframes
   refPoses = refPosesFromFrameIndex{frameIndex} ;
@@ -102,6 +109,8 @@ for frameIndex = 1 : nframes
     end
     trackletIndex = refPoses(refPoseIndex).trackletIndex ;
     distanceFromFrameIndexAndTrackletIndex(frameIndex, trackletIndex) = maxLandmarkDistance ;
+    testTrackletIndexFromFrameIndexAndTrackletIndex(frameIndex, trackletIndex) = ...
+      testPoses(testPoseIndex).trackletIndex ;
   end
 end
 
@@ -135,6 +144,17 @@ end
                                    targetIndexFromTrackletIndex, ...
                                    interestFromTrackletFrameIndexFromTrackletIndex, ...
                                    quantileThreshold) ;
+
+% Look up, for each bout, the test tracklet that was matched to the ref
+% tracklet at the bout's max-distance frame.
+boutCount = numel(maxDistanceFrameIndexFromSortedBoutIndex) ;
+testTrackletIndexFromSortedBoutIndex = nan(boutCount, 1) ;
+for boutIndex = 1 : boutCount
+  maxDistanceFrameIndex = maxDistanceFrameIndexFromSortedBoutIndex(boutIndex) ;
+  refTrackletIndex = trackletIndexFromSortedBoutIndex(boutIndex) ;
+  testTrackletIndexFromSortedBoutIndex(boutIndex) = ...
+    testTrackletIndexFromFrameIndexAndTrackletIndex(maxDistanceFrameIndex, refTrackletIndex) ;
+end
 
 end  % function
 
