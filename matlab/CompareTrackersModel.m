@@ -5,9 +5,10 @@ classdef CompareTrackersModel < handle
   properties (Access=private)
     quantileThreshold_ = 0.99
       % scalar double, the quantile threshold (0-1) for filtering bouts.
-    centroidMatchThreshold_ = 50
-      % scalar double, pixel distance above which a ref tracklet and the
-      % closest test tracklet at a given frame are considered unrelated.
+    matchDistanceThreshold_ = 50
+      % scalar double, mean-over-landmarks pixel distance at or above
+      % which a ref pose and a test pose at a given frame are considered
+      % unrelated and left unmatched by the per-frame Hungarian matching.
       % Hardcoded; no UI control for now.
   end
 
@@ -316,7 +317,7 @@ classdef CompareTrackersModel < handle
                                      testTrkFile, ...
                                      labeler.nframes, ...
                                      obj.quantileThreshold_, ...
-                                     obj.centroidMatchThreshold_) ;
+                                     obj.matchDistanceThreshold_) ;
       obj.isFresh_ = true ;
     end  % function
 
