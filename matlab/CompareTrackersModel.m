@@ -318,6 +318,9 @@ classdef CompareTrackersModel < handle
                                      labeler.nframes, ...
                                      obj.quantileThreshold_, ...
                                      obj.matchDistanceThreshold_) ;
+      % The bout list has been rebuilt, so any previously selected bout
+      % index refers to the old list.  Reset to no selection.
+      obj.currentBoutIndexMaybe_ = [] ;
       obj.isFresh_ = true ;
     end  % function
 
@@ -330,6 +333,7 @@ classdef CompareTrackersModel < handle
       obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.maxDistanceFromBoutIndex_ = zeros(0, 1) ;
       obj.absoluteDistanceThreshold_ = nan ;
+      obj.currentBoutIndexMaybe_ = [] ;
       obj.isFresh_ = true ;
     end  % function
   end  % methods

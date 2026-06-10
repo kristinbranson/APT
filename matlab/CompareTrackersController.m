@@ -94,7 +94,7 @@ classdef CompareTrackersController < handle
       % the reference item when it is present in the list.  In older
       % releases, fall back to flagging the whole control pink when the
       % test selection coincides with the reference.
-      if verLessThan('matlab', '9.14')  % R2023a
+      if verLessThan('matlab', '9.14')  %#ok<VERLESSMATLAB>  % R2023a
         obj.testDropdown_.BackgroundColor = ...
           fif(model.isTestTrackerChoiceValid, [1 1 1], [1 0.8 0.85]) ;
       else
@@ -117,14 +117,7 @@ classdef CompareTrackersController < handle
       end
 
       if model.isLaden
-        strings = model.displayStringFromBoutIndex ;
-        entryCount = numel(strings) ;
-        obj.listbox_.Items = strings ;
-        previousIndex = obj.listbox_.ValueIndex ;
-        if isempty(previousIndex)
-          previousIndex = 1 ;
-        end
-        obj.listbox_.ValueIndex = max(1, min(previousIndex, entryCount)) ;
+        obj.listbox_.Items = model.displayStringFromBoutIndex ;
         obj.listbox_.FontAngle = 'normal' ;
         obj.listbox_.Enable = 'on' ;
       elseif ~model.isTestTrackerChoiceValid
@@ -135,6 +128,15 @@ classdef CompareTrackersController < handle
         obj.listbox_.Items = {} ;
         obj.listbox_.FontAngle = 'normal' ;
         obj.listbox_.Enable = 'off' ;
+      end
+      % The listbox selection mirrors the model's currentBoutIndexMaybe;
+      % empty means no item selected.  This must come after assigning
+      % Items, since that auto-selects the first item.
+      boutIndexMaybe = model.currentBoutIndexMaybe ;
+      if isempty(boutIndexMaybe)
+        obj.listbox_.Value = {} ;
+      else
+        obj.listbox_.ValueIndex = boutIndexMaybe ;
       end
 
       obj.figure_.Visible = 'on' ;

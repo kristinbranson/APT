@@ -67,6 +67,19 @@ if strcmp(listbox.FontAngle, 'italic')
   error('Listbox should be in normal font when bouts are present, but FontAngle is italic') ;
 end
 
+% The model starts with no current bout, so no listbox item should be
+% selected.
+if ~isempty(listbox.ValueIndex)
+  error('Expected no listbox item to be selected initially, but ValueIndex is %d', listbox.ValueIndex) ;
+end
+
+% Selecting a bout through the model should select the matching listbox
+% item.
+labeler.compareTrackersCurrentBoutIndexMaybe = 1 ;
+if ~isequal(listbox.ValueIndex, 1)
+  error('Expected listbox ValueIndex to be 1 after selecting bout 1') ;
+end
+
 % No test-dropdown item is flagged pink while the current tracker is
 % absent from the list.
 pinkColor = [1 0.8 0.85] ;
@@ -92,6 +105,12 @@ end
 if numel(listbox.Items) < expectedListboxItemCount
   error('Expected >= %d bout items in listbox for a distinct test, but got %d', ...
         expectedListboxItemCount, numel(listbox.Items)) ;
+end
+
+% The bout list was rebuilt when the test tracker changed, so the bout
+% selection should have been reset to none.
+if ~isempty(listbox.ValueIndex)
+  error('Expected listbox selection to reset after the bout list was rebuilt, but ValueIndex is %d', listbox.ValueIndex) ;
 end
 
 % Now make the selected test tracker the current tracker.  Because the
