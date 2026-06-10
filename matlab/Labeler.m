@@ -10512,9 +10512,14 @@ classdef Labeler < handle
       obj.notify_('updateTimelinePopupMenus');
       % obj.notify_('updateTimelineSelection');
 
+      % The reference tracker for Compare Trackers is always the current
+      % tracker, so changing the current tracker makes the comparison
+      % data stale.  Resync it (a no-op unless that window is open).
+      obj.compareTrackersModel_.syncFromPredictions() ;
+
       % Send the notifications
       obj.notify_('didSetCurrTracker') ;
-      % obj.notify_('update_menu_track_tracking_algorithm_quick') ;      
+      % obj.notify_('update_menu_track_tracking_algorithm_quick') ;
       obj.notify_('update_menu_track_tracker_history') ;
       obj.notify_('update_text_trackerinfo') ;
     end  % function
@@ -10705,12 +10710,17 @@ classdef Labeler < handle
       obj.infoTimelineModel_.didChangeCurrentTracker(auxPropList) ;
       obj.notify_('updateTimelinePopupMenus');
       % obj.notify_('updateTimelineSelection');
-      
+
+      % The reference tracker for Compare Trackers is always the current
+      % tracker, so inserting a new current tracker makes the comparison
+      % data stale.  Resync it (a no-op unless that window is open).
+      obj.compareTrackersModel_.syncFromPredictions() ;
+
       % Send the needed notifications
-      obj.notify_('didSetCurrTracker') ;      
+      obj.notify_('didSetCurrTracker') ;
       % obj.notify_('update_menu_track_tracking_algorithm_quick') ;
-      obj.notify_('update_menu_track_tracker_history') ;      
-      obj.notify_('update_text_trackerinfo') ;      
+      obj.notify_('update_menu_track_tracker_history') ;
+      obj.notify_('update_text_trackerinfo') ;
     end  % function
 
     % function trackMakeNewTrackerGivenAlgoName(obj, algoName, varargin)

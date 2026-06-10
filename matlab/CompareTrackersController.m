@@ -56,31 +56,52 @@ classdef CompareTrackersController < handle
       [items, itemsData] = obj.trackerDropdownItems_() ;
       obj.referenceDropdown_.Items = items ;
       obj.referenceDropdown_.ItemsData = itemsData ;
-      obj.testDropdown_.Items = items ;
-      obj.testDropdown_.ItemsData = itemsData ;
-      if isempty(itemsData)
-        obj.testDropdown_.Enable = 'off' ;
-      else
-        obj.testDropdown_.Enable = 'on' ;
+      if ~isempty(itemsData)
         obj.referenceDropdown_.Value = clampDropdownValue_(model.referenceTrackerHistoryIndex, itemsData) ;
-        obj.testDropdown_.Value = clampDropdownValue_(model.testTrackerHistoryIndex, itemsData) ;
       end
       obj.referenceDropdown_.Enable = 'off' ;
+
+      % The test dropdown lists every tracker except the current
+      % (reference) tracker, unless the current tracker is itself
+      % selected as the test tracker -- in which case include it so the
+      % selection is displayable (and flagged pink).
+      referenceTrackerHistoryIndex = model.referenceTrackerHistoryIndex ;
+      isCurrentTrackerSelectedAsTest = isequal(model.testTrackerHistoryIndex, referenceTrackerHistoryIndex) ;
+      if isCurrentTrackerSelectedAsTest
+        testItems = items ;
+        testItemsData = itemsData ;
+      else
+        areTestCandidates = ~cellfun(@(d)(isequal(d, referenceTrackerHistoryIndex)), itemsData) ;
+        testItems = items(areTestCandidates) ;
+        testItemsData = itemsData(areTestCandidates) ;
+      end
+      if isempty(testItemsData)
+        obj.testDropdown_.Items = {''} ;
+        obj.testDropdown_.ItemsData = {} ;
+        obj.testDropdown_.Enable = 'off' ;
+      else
+        obj.testDropdown_.Items = testItems ;
+        obj.testDropdown_.ItemsData = testItemsData ;
+        obj.testDropdown_.Enable = 'on' ;
+        obj.testDropdown_.Value = clampDropdownValue_(model.testTrackerHistoryIndex, testItemsData) ;
+      end
 
       % Indicate the reference (== current) tracker in the test dropdown,
       % since selecting it as the test tracker yields no comparison.  In
       % R2023a and later, per-item dropdown styling is available, so pink
-      % just the reference item (always the first item) in the list.  In
-      % older releases, fall back to flagging the whole control pink when
-      % the test selection coincides with the reference.
+      % the reference item when it is present in the list.  In older
+      % releases, fall back to flagging the whole control pink when the
+      % test selection coincides with the reference.
       if verLessThan('matlab', '9.14')  % R2023a
         obj.testDropdown_.BackgroundColor = ...
           fif(model.isTestTrackerChoiceValid, [1 1 1], [1 0.8 0.85]) ;
       else
         removeStyle(obj.testDropdown_) ;
-        if ~isempty(itemsData)
+        referenceItemPosition = ...
+          find(cellfun(@(d)(isequal(d, referenceTrackerHistoryIndex)), testItemsData), 1) ;
+        if ~isempty(referenceItemPosition)
           pinkStyle = uistyle('BackgroundColor', [1 0.8 0.85]) ;
-          addStyle(obj.testDropdown_, pinkStyle, 'item', 1) ;
+          addStyle(obj.testDropdown_, pinkStyle, 'item', referenceItemPosition) ;
         end
       end
 

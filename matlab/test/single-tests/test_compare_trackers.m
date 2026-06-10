@@ -25,16 +25,20 @@ end
 % Open the Compare Trackers window.
 controller.controlActuated('menu_evaluate_compare_trackers') ;
 
-% Both dropdowns should be populated with one item per tracker.
+% The reference dropdown lists every tracker; the test dropdown omits
+% the current (reference) tracker, so it has one fewer item.
 referenceDropdown = findall(0, 'Tag', 'compare_trackers_reference_dropdown') ;
 testDropdown = findall(0, 'Tag', 'compare_trackers_test_dropdown') ;
 if numel(referenceDropdown.Items) ~= trackerCount
   error('Reference dropdown has %d items, expected %d', ...
         numel(referenceDropdown.Items), trackerCount) ;
 end
-if numel(testDropdown.Items) ~= trackerCount
+if numel(testDropdown.Items) ~= trackerCount - 1
   error('Test dropdown has %d items, expected %d', ...
-        numel(testDropdown.Items), trackerCount) ;
+        numel(testDropdown.Items), trackerCount - 1) ;
+end
+if any(cellfun(@(d)(isequal(d, 1)), testDropdown.ItemsData))
+  error('Test dropdown should omit the current tracker (index 1) when it is not selected as the test tracker') ;
 end
 
 % The reference dropdown is disabled and always shows the current
@@ -47,8 +51,8 @@ if referenceDropdown.Value ~= 1
         referenceDropdown.Value) ;
 end
 
-% Defaults: reference = first tracker, test = second.  The two should
-% differ, so the listbox should contain at least one bout.
+% Defaults: reference = first tracker, test = second.  The two differ,
+% so the listbox should contain at least one bout.
 if referenceDropdown.Value == testDropdown.Value
   error('Expected default reference and test selections to differ') ;
 end
@@ -62,27 +66,31 @@ if strcmp(listbox.FontAngle, 'italic')
   error('Listbox should be in normal font when bouts are present, but FontAngle is italic') ;
 end
 
-% The reference (current) tracker should be flagged pink in the test
-% dropdown.  In R2023a and later this is a per-item style on the first
-% item, shown regardless of the current test selection; in older
-% releases the whole control turns pink only when the test selection
-% coincides with the reference.
+% No test-dropdown item is flagged pink while the current tracker is
+% absent from the list.
 pinkColor = [1 0.8 0.85] ;
+if ~verLessThan('matlab', '9.14') && isReferenceItemPink_(testDropdown, pinkColor)  % R2023a
+  error('Test dropdown should not flag any item pink when the current tracker is not in the list') ;
+end
+
+% Selecting the current tracker as the test tracker is the graceful
+% case: the test dropdown then includes the current tracker (flagged
+% pink), and the listbox shows a single italic warning entry.
 model = labeler.compareTrackersModel_ ;
+model.testTrackerHistoryIndex = model.referenceTrackerHistoryIndex ;
+if numel(testDropdown.Items) ~= trackerCount
+  error('Test dropdown should include the current tracker when it is selected as test; got %d items, expected %d', ...
+        numel(testDropdown.Items), trackerCount) ;
+end
 if verLessThan('matlab', '9.14')  % R2023a
-  model.testTrackerHistoryIndex = model.referenceTrackerHistoryIndex ;
   if ~isequal(testDropdown.BackgroundColor, pinkColor)
     error('Expected test dropdown background to be pink when ref==test') ;
   end
 else
   if ~isReferenceItemPink_(testDropdown, pinkColor)
-    error('Expected the reference tracker item in the test dropdown to have a pink background') ;
+    error('Expected the current tracker item in the test dropdown to be pink when selected as test') ;
   end
 end
-
-% Set the test selection equal to the reference; the listbox should
-% switch to a single italic warning entry.
-model.testTrackerHistoryIndex = model.referenceTrackerHistoryIndex ;
 if numel(listbox.Items) ~= 1
   error('Expected listbox to have a single warning entry when ref==test, but got %d items', ...
         numel(listbox.Items)) ;
@@ -94,10 +102,14 @@ if ~strcmp(listbox.Enable, 'off')
   error('Expected listbox to be disabled when ref==test, but got Enable=%s', listbox.Enable) ;
 end
 
-% Restore the test selection to a different tracker; listbox should
-% repopulate.
+% Restore the test selection to a different tracker; the current tracker
+% drops out of the list and the listbox repopulates.
 otherTrackerIndex = 1 + mod(model.referenceTrackerHistoryIndex, trackerCount) ;
 model.testTrackerHistoryIndex = otherTrackerIndex ;
+if numel(testDropdown.Items) ~= trackerCount - 1
+  error('Test dropdown should omit the current tracker after restoring a distinct test; got %d items, expected %d', ...
+        numel(testDropdown.Items), trackerCount - 1) ;
+end
 if numel(listbox.Items) < expectedListboxItemCount
   error('Expected >= %d bout items in listbox after restoring distinct test, but got %d', ...
         expectedListboxItemCount, numel(listbox.Items)) ;
@@ -106,13 +118,30 @@ if strcmp(listbox.FontAngle, 'italic')
   error('Listbox should be in normal font after restoring distinct test') ;
 end
 
+% Changing the current tracker should refresh the window, since the
+% reference tracker is always the current tracker.
+originalCurrentTracker = labeler.tracker ;
+labeler.trackMakeExistingTrackerCurrentGivenIndex(2) ;
+if isequal(labeler.tracker, originalCurrentTracker)
+  error('Expected the current tracker to change after trackMakeExistingTrackerCurrentGivenIndex(2)') ;
+end
+if referenceDropdown.Value ~= 1
+  error(['Expected reference dropdown to show the current tracker (index 1) ' ...
+         'after the current tracker changed, but Value=%d'], referenceDropdown.Value) ;
+end
+if numel(listbox.Items) < expectedListboxItemCount
+  error('Expected the listbox to repopulate after the current tracker changed, but got %d items', ...
+        numel(listbox.Items)) ;
+end
+
 end  % function
 
 
 
 function result = isReferenceItemPink_(dropdown, pinkColor)
-% Return whether the dropdown has a per-item style giving the first
-% (reference) item the given background color.
+% Return whether the dropdown has a per-item style giving its first item
+% (the current/reference tracker, when present) the given background
+% color.
 result = false ;
 styleConfigurations = dropdown.StyleConfigurations ;
 for styleIndex = 1 : height(styleConfigurations)
