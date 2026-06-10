@@ -160,8 +160,10 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
         xy = xy(:,:,tf);
       end
 
+      lObj = obj.parent_.labeler_ ;
+      ppi = lObj.(tvm.ptsPlotInfoFld) ;
       TrackingVisualizerMTFast.updateSkelStc(...
-                          obj.hSkel, tvm.skelEdges, tvm.nPts, xy);
+                          obj.hSkel, tvm.skelEdges, tvm.nPts, xy, 'linewidth', ppi.SkeletonProps.LineWidth) ;
     end
   end
 

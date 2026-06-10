@@ -1867,6 +1867,8 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         if conf.multi_loss_mask:
             curl = np.nanmean(curl[sel],axis=1)
             cur_mask_pts = np.round(curl).astype('int')
+            cur_mask_pts[..., 0] = np.clip(cur_mask_pts[..., 0], 0, mask.shape[1]-1)
+            cur_mask_pts[..., 1] = np.clip(cur_mask_pts[..., 1], 0, mask.shape[0]-1)
             pt_mask = mask[cur_mask_pts[...,1],cur_mask_pts[...,0]]
             final_sel = sel[pt_mask]
         else:

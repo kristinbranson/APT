@@ -304,8 +304,9 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         xy = xy(:,:,itgtshow);
       end
 
+      ppi = lObj.(tvm.ptsPlotInfoFld) ;
       TrackingVisualizerMTFast.updateSkelStc(obj.hSkel, se, npts, xy, ...
-        'linestyle', tvm.skel_linestyle) ;
+        'linestyle', tvm.skel_linestyle, 'linewidth', ppi.SkeletonProps.LineWidth) ;
     end
 
     function setShowSkeleton(obj, tf)

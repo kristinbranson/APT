@@ -959,6 +959,10 @@ classdef DeepTracker < LabelTracker
         prev_models0 = cell(1,0) ;
       else
         prev_models0 = obj.trnLastDMC.trainFinalModelLnx ;
+        prev_models0_meta = cellfun(@(x) apt.MetaPath(apt.Path(x)),prev_models0,'UniformOutput',false);
+        if ~exist(prev_models0{1},'file') && ~obj.backend.fileExists_(prev_models0_meta{1})
+          prev_models0 = obj.trnLastDMC.trainCurrModelLnx;
+        end
       end
       [tfDoProceed, modelChainID, prev_models] = ...
         obj.determineModelChainIDAndPreviousModels_(prev_models0, ...
@@ -2578,7 +2582,16 @@ classdef DeepTracker < LabelTracker
 
       if strcmp(train_or_track,'track') && obj.needs_id_linking
         obj.partialCleanupBeforeIDLinking()
-        prev_trk_files = obj.totrackinfo.trkfiles;
+        linkStageStr = obj.sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch.link_stage;
+        switch linkStageStr
+          case 'first'
+            linkStageNum = obj.totrackinfo.stages(1);
+          case 'second'
+            linkStageNum = obj.totrackinfo.stages(end);
+          otherwise
+            linkStageNum = obj.totrackinfo.stages(end);
+        end
+        prev_trk_files = obj.totrackinfo.getTrkFiles('stage', linkStageNum);
         out_trks = obj.trkfiles;
         obj.trkfiles = [];
         obj.idlinkSpawn_(obj.lObj.trackDLBackEnd,'detect_trks',prev_trk_files,'out_trks',out_trks,'projTempDir',obj.lObj.projTempDir);
