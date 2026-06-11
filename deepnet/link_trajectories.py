@@ -1542,6 +1542,9 @@ async def get_id_train_images(linked_trks, all_trx, mov_files, conf):
     mov_file = mov_files[ndx]
     sel_trk_info = all_sel_trk[ndx]
 
+    if len(sel_trk_info) == 0:
+      all_data.append([])
+      continue
     data = await read_ims_par(trx, sel_trk_info, mov_file, conf)
     # data = read_data_files(data_files)
     all_data.append(data)
@@ -1778,7 +1781,7 @@ async def read_ims_par(trx, trk_info, mov_file, conf):
   await asyncio.sleep(1)
   n_ex = conf.link_id_tracklet_samples
   n_trk = len(trk_info)
-  max_pool = len(os.sched_getaffinity(0))//2
+  max_pool = max(1, len(os.sched_getaffinity(0))//2)
   if n_trk < max_pool:
     n_pool = n_trk
     n_batches = n_trk
@@ -2191,7 +2194,11 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
   # Set mining distances to identical dummy values initially
   trk_data = []
   mining_dists = []
+  all_data_filtered = []
   for data, trk in zip(all_data,trks):
+    if len(data) == 0:
+      continue
+    all_data_filtered.append(data)
     ss, ee = trk.get_startendframes()
     tgt_id = np.array([r[1] for r in data])
     ss_t = ss[tgt_id]
@@ -2205,7 +2212,7 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
 
   # Create the dataset and dataloaders. worker_init_fn is set conditionally: not needed when using spawn (workers get independent OS-seeded random states), but used with fork to ensure distinct seeds per worker.
   distort = True
-  train_dset = id_dset(all_data, mining_dists, trk_data, confd, rescale, valid=False, distort=distort, debug=debug)
+  train_dset = id_dset(all_data_filtered, mining_dists, trk_data, confd, rescale, valid=False, distort=distort, debug=debug)
   n_workers = min(3,len(os.sched_getaffinity(0))//2) if not debug else 0
   # number of threads is now limited by memory that needs to be transferred to workers since we need to spawn the threads instead of forking because of async data loading. Each worker now gets a copy of the data which is around 10GB. Larger number of threads are probably counterproductive
   worker_init_fn = None if mp.get_start_method() == 'spawn' else lambda id: np.random.seed(id)
@@ -2248,21 +2255,25 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
       net = net.eval()
       mining_dists = []
       trk_data = []
+      all_data_filtered = []
       for data, trk in zip(all_data, trks):
+        if len(data) == 0:
+          continue
+        all_data_filtered.append(data)
         ss, ee = trk.get_startendframes()
         tgt_id = np.array([r[1] for r in data])
         ss_t = ss[tgt_id]
         ee_t = ee[tgt_id]
         trk_data.append([ss_t, ee_t, tgt_id])
 
-      for data, cur_trk_data in zip(all_data,trk_data):
+      for data, cur_trk_data in zip(all_data_filtered,trk_data):
         cur_dists = compute_mining_data(net, data, cur_trk_data, rescale, confd)
         mining_dists.append(cur_dists)
 
       # net = net.train()
       net =net.eval()
       del train_iter, train_loader, train_dset
-      train_dset =  id_dset(all_data,mining_dists,trk_data,confd,rescale,valid=True, distort=distort, debug=debug)
+      train_dset =  id_dset(all_data_filtered,mining_dists,trk_data,confd,rescale,valid=True, distort=distort, debug=debug)
       worker_init_fn = None if mp.get_start_method() == 'spawn' else lambda id: np.random.seed(id * epoch)
       train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers, worker_init_fn=worker_init_fn)
       train_iter = iter(train_loader)
