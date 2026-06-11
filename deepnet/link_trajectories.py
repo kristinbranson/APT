@@ -1596,6 +1596,8 @@ class id_dset(torch.utils.data.IterableDataset):
       n_tr = len(data)
 
       info = []
+      max_attempts = n_tr * 10
+      n_attempts = 0
       while len(curims) < 1:
 
         # Select principal tracklet with equal prob. based on 1) overall how far the samples from same tracklet are. 2) overall how close the images are to overlapping tracklets.
@@ -1624,7 +1626,11 @@ class id_dset(torch.utils.data.IterableDataset):
           t_dist_all = dists[curidx][1]
 
         # no overlapping tracklet. can't be used for training
-        if overlap_tgts.size < 1: continue
+        n_attempts += 1
+        if overlap_tgts.size < 1:
+          if n_attempts >= max_attempts:
+            break  # try a different movie
+          continue
 
         # Choose the first image such that image that is away from others has higher prob. 0.2 is added so that we don't end up concentrating on a small set in pathological cases
         wt_self = (t_dist_self + 0.2).sum(axis=1)
