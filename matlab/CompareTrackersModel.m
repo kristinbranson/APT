@@ -10,6 +10,8 @@ classdef CompareTrackersModel < handle
       % which a ref pose and a test pose at a given frame are considered
       % unrelated and left unmatched by the per-frame Hungarian matching.
       % Hardcoded; no UI control for now.
+    mode_ = CompareTrackersMode.MaximumLandmarkDistance
+      % CompareTrackersMode, the quantity bouts are computed from.
   end
 
   properties (Transient, Access=private)
@@ -22,13 +24,27 @@ classdef CompareTrackersModel < handle
       % is not stored here.
     startFrameFromBoutIndex_  % [N x 1] first frame of each bout
     endFrameFromBoutIndex_  % [N x 1] last frame of each bout
-    maxDistanceFrameFromBoutIndex_  % [N x 1] frame where the per-bout max distance occurs
-    trackletIndexFromBoutIndex_  % [N x 1] ref-tracklet indices (into the ref TrkFile)
+    peakFrameFromBoutIndex_
+      % [N x 1] the frame to show/navigate to for each bout: the frame at
+      % which the per-bout peak interest occurs (max distance in
+      % MaximumLandmarkDistance mode, max unmatched count in
+      % UnmatchedAnimalCount mode).
+    trackletIndexFromBoutIndex_
+      % [N x 1] ref-tracklet indices (into the ref TrkFile).  Empty in
+      % UnmatchedAnimalCount mode, which has no per-bout tracklet.
     testTrackletIndexFromBoutIndex_
       % [N x 1] test-tracklet indices (into the test TrkFile) matched to
-      % the ref tracklet at each bout's max-distance frame
-    targetIndexFromBoutIndex_  % [N x 1] target indices (for navigation)
-    maxDistanceFromBoutIndex_  % [N x 1] per-bout max landmark distance
+      % the ref tracklet at each bout's peak frame.  Empty in
+      % UnmatchedAnimalCount mode.
+    targetIndexFromBoutIndex_
+      % [N x 1] target indices (for navigation).  Empty in
+      % UnmatchedAnimalCount mode.
+    maxDistanceFromBoutIndex_
+      % [N x 1] per-bout max landmark distance.  Empty in
+      % UnmatchedAnimalCount mode.
+    unmatchedCountFromBoutIndex_
+      % [N x 1] per-bout max unmatched animal count.  Empty in
+      % MaximumLandmarkDistance mode.
     refTrkFile_ = []
       % TrkFile the bouts were computed from, for the reference tracker.
       % Kept around so bout poses can be fetched for the preview image.
@@ -52,6 +68,7 @@ classdef CompareTrackersModel < handle
   properties (Dependent)
     isLaden
     isVisible
+    mode
     absoluteDistanceThreshold
     quantileThreshold
     referenceTracker
@@ -76,16 +93,18 @@ classdef CompareTrackersModel < handle
       obj.labeler_ = labeler ;
       obj.startFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.endFrameFromBoutIndex_ = zeros(0, 1) ;
-      obj.maxDistanceFrameFromBoutIndex_ = zeros(0, 1) ;
+      obj.peakFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.trackletIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.testTrackletIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.maxDistanceFromBoutIndex_ = zeros(0, 1) ;
+      obj.unmatchedCountFromBoutIndex_ = zeros(0, 1) ;
     end  % function
 
     function result = get.isLaden(obj)
-      % Return whether there is anything to show.
-      result = ~isempty(obj.maxDistanceFromBoutIndex_) ;
+      % Return whether there is anything to show.  Uses a per-bout array
+      % that is populated in both modes.
+      result = ~isempty(obj.startFrameFromBoutIndex_) ;
     end  % function
 
     function result = get.isVisible(obj)
@@ -98,6 +117,28 @@ classdef CompareTrackersModel < handle
       obj.syncFromPredictionsIfStaleAndVisible_() ;
       obj.labeler_.notifyRetrograde('updateCompareTrackers') ;
       obj.labeler_.notifyRetrograde('didSetCompareTrackersIsVisible') ;
+    end  % function
+
+    function result = get.mode(obj)
+      % Return the current mode (a CompareTrackersMode).
+      result = obj.mode_ ;
+    end  % function
+
+    function set.mode(obj, newValue)
+      % Set the mode, then resync and notify.  Changing the mode rebuilds
+      % the bout list from a different quantity, so any current bout
+      % selection is dropped by the resync.
+      isValid = isscalar(newValue) && isa(newValue, 'CompareTrackersMode') ;
+      if isValid
+        obj.mode_ = newValue ;
+        obj.isFresh_ = false ;
+        obj.syncFromPredictionsIfStaleAndVisible_() ;
+      end
+      obj.labeler_.notifyRetrograde('didSetCompareTrackersMode') ;
+      if ~isValid
+        error('APT:invalidPropertyValue', ...
+              'Mode must be a CompareTrackersMode') ;
+      end
     end  % function
 
     function result = get.absoluteDistanceThreshold(obj)
@@ -193,6 +234,10 @@ classdef CompareTrackersModel < handle
         result = {} ;
         return
       end
+      if obj.mode_ == CompareTrackersMode.UnmatchedAnimalCount
+        result = obj.unmatchedCountDisplayStrings_() ;
+        return
+      end
       boutCount = numel(obj.startFrameFromBoutIndex_) ;
       result = cell(boutCount, 1) ;
       isMA = obj.labeler_.maIsMA ;
@@ -225,10 +270,30 @@ classdef CompareTrackersModel < handle
       end
     end  % function
 
+    function result = unmatchedCountDisplayStrings_(obj)
+      % Return the listbox strings for UnmatchedAnimalCount mode.  Each
+      % line shows the bout's frame range and its max unmatched count, with
+      % no tracklet index.
+      boutCount = numel(obj.startFrameFromBoutIndex_) ;
+      result = cell(boutCount, 1) ;
+      for boutIndex = 1 : boutCount
+        startFrameIndex = obj.startFrameFromBoutIndex_(boutIndex) ;
+        endFrameIndex = obj.endFrameFromBoutIndex_(boutIndex) ;
+        count = obj.unmatchedCountFromBoutIndex_(boutIndex) ;
+        isSingleFrame = (startFrameIndex == endFrameIndex) ;
+        if isSingleFrame
+          result{boutIndex} = sprintf('Frm %d  UnmatchedCount %d', startFrameIndex, count) ;
+        else
+          result{boutIndex} = sprintf('Frm %d-%d  UnmatchedCount %d', startFrameIndex, endFrameIndex, count) ;
+        end
+      end
+    end  % function
+
     function [frameIndex, trackletIndex, targetIndex] = frameTrackletAndTargetIndexFromCurrentBoutIndex(obj)
-      % Return the max-distance frame, ref-tracklet index, and target
-      % index for the currently selected bout.  Errors if no bout is
-      % selected.
+      % Return the peak frame, ref-tracklet index, and target index for the
+      % currently selected bout.  In UnmatchedAnimalCount mode the tracklet
+      % and target indices are NaN (the bout has no associated tracklet).
+      % Errors if no bout is selected.
       boutIndex = obj.currentBoutIndexMaybe_ ;
       if isempty(boutIndex)
         error('APT:invalidPropertyValue', ...
@@ -238,11 +303,17 @@ classdef CompareTrackersModel < handle
     end  % function
 
     function [frameIndex, trackletIndex, targetIndex] = frameTrackletAndTargetIndexFromBoutIndex_(obj, boutIndex)
-      % Return the max-distance frame and ref-tracklet index for the
-      % given bout.
-      frameIndex = obj.maxDistanceFrameFromBoutIndex_(boutIndex) ;
-      trackletIndex = obj.trackletIndexFromBoutIndex_(boutIndex) ;
-      targetIndex = obj.targetIndexFromBoutIndex_(boutIndex) ;
+      % Return the peak frame and ref-tracklet/target index for the given
+      % bout.  In UnmatchedAnimalCount mode the tracklet and target indices
+      % are NaN.
+      frameIndex = obj.peakFrameFromBoutIndex_(boutIndex) ;
+      if obj.mode_ == CompareTrackersMode.UnmatchedAnimalCount
+        trackletIndex = nan ;
+        targetIndex = nan ;
+      else
+        trackletIndex = obj.trackletIndexFromBoutIndex_(boutIndex) ;
+        targetIndex = obj.targetIndexFromBoutIndex_(boutIndex) ;
+      end
     end  % function
 
     function result = get.currentBoutIndexMaybe(obj)
@@ -275,10 +346,11 @@ classdef CompareTrackersModel < handle
       % Return the data needed to draw the preview image for the
       % currently selected bout, or [] if no bout is selected or the
       % needed data is unavailable.  On success the result is a struct
-      % with fields frameIndex (the bout's max-distance frame),
-      % imageMatrix (that frame's image, view 1), refPoseXy and
-      % testPoseXy (each [landmarkCount x 2], possibly empty if the
-      % corresponding tracklet has no pose at that frame).
+      % with fields frameIndex (the bout's peak frame), imageMatrix (that
+      % frame's image, view 1), refPoseXy and testPoseXy (each
+      % [landmarkCount x 2], possibly empty if the corresponding tracklet
+      % has no pose at that frame).  In UnmatchedAnimalCount mode both
+      % poses are empty, so the whole frame is shown with no decorations.
       result = [] ;
       boutIndex = obj.currentBoutIndexMaybe_ ;
       if isempty(boutIndex) || ~obj.isLaden
@@ -292,7 +364,7 @@ classdef CompareTrackersModel < handle
       if isempty(movieReader) || ~movieReader(1).isOpen
         return
       end
-      frameIndex = obj.maxDistanceFrameFromBoutIndex_(boutIndex) ;
+      frameIndex = obj.peakFrameFromBoutIndex_(boutIndex) ;
       if isequal(obj.cachedPreviewImageFrameIndexMaybe_, frameIndex)
         imageMatrix = obj.cachedPreviewImage_ ;
       else
@@ -300,10 +372,15 @@ classdef CompareTrackersModel < handle
         obj.cachedPreviewImage_ = imageMatrix ;
         obj.cachedPreviewImageFrameIndexMaybe_ = frameIndex ;
       end
-      refPoseXy = ...
-        poseAtFrame_(obj.refTrkFile_, obj.trackletIndexFromBoutIndex_(boutIndex), frameIndex) ;
-      testPoseXy = ...
-        poseAtFrame_(obj.testTrkFile_, obj.testTrackletIndexFromBoutIndex_(boutIndex), frameIndex) ;
+      if obj.mode_ == CompareTrackersMode.UnmatchedAnimalCount
+        refPoseXy = [] ;
+        testPoseXy = [] ;
+      else
+        refPoseXy = ...
+          poseAtFrame_(obj.refTrkFile_, obj.trackletIndexFromBoutIndex_(boutIndex), frameIndex) ;
+        testPoseXy = ...
+          poseAtFrame_(obj.testTrkFile_, obj.testTrackletIndexFromBoutIndex_(boutIndex), frameIndex) ;
+      end
       result = struct('frameIndex', frameIndex, ...
                       'imageMatrix', imageMatrix, ...
                       'refPoseXy', refPoseXy, ...
@@ -366,19 +443,39 @@ classdef CompareTrackersModel < handle
         return
       end
 
-      [obj.startFrameFromBoutIndex_, ...
-       obj.endFrameFromBoutIndex_, ...
-       obj.maxDistanceFrameFromBoutIndex_, ...
-       obj.trackletIndexFromBoutIndex_, ...
-       obj.testTrackletIndexFromBoutIndex_, ...
-       obj.targetIndexFromBoutIndex_, ...
-       obj.maxDistanceFromBoutIndex_, ...
-       obj.absoluteDistanceThreshold_] = ...
-        distanceBoutsBetweenTrackers(refTrkFile, ...
-                                     testTrkFile, ...
-                                     labeler.nframes, ...
-                                     obj.quantileThreshold_, ...
-                                     obj.matchDistanceThreshold_) ;
+      if obj.mode_ == CompareTrackersMode.UnmatchedAnimalCount
+        [obj.startFrameFromBoutIndex_, ...
+         obj.endFrameFromBoutIndex_, ...
+         obj.peakFrameFromBoutIndex_, ...
+         obj.unmatchedCountFromBoutIndex_, ...
+         obj.absoluteDistanceThreshold_] = ...
+          unmatchedCountBoutsBetweenTrackers(refTrkFile, ...
+                                             testTrkFile, ...
+                                             labeler.nframes, ...
+                                             obj.quantileThreshold_, ...
+                                             obj.matchDistanceThreshold_) ;
+        % This mode has no per-bout tracklet/target or distance.
+        obj.trackletIndexFromBoutIndex_ = zeros(0, 1) ;
+        obj.testTrackletIndexFromBoutIndex_ = zeros(0, 1) ;
+        obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
+        obj.maxDistanceFromBoutIndex_ = zeros(0, 1) ;
+      else
+        [obj.startFrameFromBoutIndex_, ...
+         obj.endFrameFromBoutIndex_, ...
+         obj.peakFrameFromBoutIndex_, ...
+         obj.trackletIndexFromBoutIndex_, ...
+         obj.testTrackletIndexFromBoutIndex_, ...
+         obj.targetIndexFromBoutIndex_, ...
+         obj.maxDistanceFromBoutIndex_, ...
+         obj.absoluteDistanceThreshold_] = ...
+          distanceBoutsBetweenTrackers(refTrkFile, ...
+                                       testTrkFile, ...
+                                       labeler.nframes, ...
+                                       obj.quantileThreshold_, ...
+                                       obj.matchDistanceThreshold_) ;
+        % This mode has no per-bout unmatched count.
+        obj.unmatchedCountFromBoutIndex_ = zeros(0, 1) ;
+      end
       % Keep the source TrkFiles so the per-bout poses can be fetched for
       % the preview image without re-loading anything from disk.
       obj.refTrkFile_ = refTrkFile ;
@@ -395,11 +492,12 @@ classdef CompareTrackersModel < handle
       % Reset to empty state.
       obj.startFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.endFrameFromBoutIndex_ = zeros(0, 1) ;
-      obj.maxDistanceFrameFromBoutIndex_ = zeros(0, 1) ;
+      obj.peakFrameFromBoutIndex_ = zeros(0, 1) ;
       obj.trackletIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.testTrackletIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.targetIndexFromBoutIndex_ = zeros(0, 1) ;
       obj.maxDistanceFromBoutIndex_ = zeros(0, 1) ;
+      obj.unmatchedCountFromBoutIndex_ = zeros(0, 1) ;
       obj.absoluteDistanceThreshold_ = nan ;
       obj.refTrkFile_ = [] ;
       obj.testTrkFile_ = [] ;

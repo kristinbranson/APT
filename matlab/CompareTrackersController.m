@@ -7,6 +7,7 @@ classdef CompareTrackersController < handle
     labeler_  % Labeler
     model_  % CompareTrackersModel
     figure_  % uifigure handle
+    modeDropdown_  % uidropdown for the mode (CompareTrackersMode)
     referenceDropdown_  % uidropdown for the reference tracker
     testDropdown_  % uidropdown for the test tracker
     thresholdLabel_  % uilabel for threshold
@@ -61,6 +62,8 @@ classdef CompareTrackersController < handle
         obj.createFigure_() ;
       end
       wasFigureVisible = strcmp(obj.figure_.Visible, 'on') ;
+
+      obj.modeDropdown_.Value = model.mode ;
 
       % Refresh dropdown items and selection from the current
       % trackerHistory, in case trackers were added since the last
@@ -186,6 +189,12 @@ classdef CompareTrackersController < handle
       % tracker handle.
       obj.model_.testTracker = src.Value ;
     end  % function
+
+    function compare_trackers_mode_dropdown_actuated_(obj, src)
+      % Handle mode dropdown change.  src.Value is the selected
+      % CompareTrackersMode.
+      obj.model_.mode = src.Value ;
+    end  % function
   end  % methods
 
   methods (Access=private)
@@ -205,12 +214,30 @@ classdef CompareTrackersController < handle
 
       labelerController = obj.labelerController_ ;
 
-      gridLayout = uigridlayout(obj.figure_, [5, 1]) ;
-      gridLayout.RowHeight = {22, 22, 22, '1x', 460} ;
+      gridLayout = uigridlayout(obj.figure_, [6, 1]) ;
+      gridLayout.RowHeight = {22, 22, 22, 22, '1x', 460} ;
       gridLayout.ColumnWidth = {'1x'} ;
       obj.gridLayout_ = gridLayout ;
 
-      % Row 1: reference tracker
+      % Row 1: mode
+      modeRow = uigridlayout(gridLayout, [1, 2]) ;
+      modeRow.RowHeight = {'1x'} ;
+      modeRow.ColumnWidth = {80, '1x'} ;
+      modeRow.Padding = [0, 0, 0, 0] ;
+      uilabel(modeRow, ...
+        'Text', 'Mode:', ...
+        'HorizontalAlignment', 'right', ...
+        'Tag', 'compare_trackers_mode_label') ;
+      modeValues = enumeration('CompareTrackersMode') ;
+      modeItems = arrayfun(@(m)(char(m.prettyStr)), modeValues, 'UniformOutput', false) ;
+      obj.modeDropdown_ = uidropdown(modeRow, ...
+        'Items', modeItems, ...
+        'ItemsData', modeValues, ...
+        'Tag', 'compare_trackers_mode_dropdown', ...
+        'ValueChangedFcn', ...
+          @(src, evt)(labelerController.controlActuated('compare_trackers_mode_dropdown', src, evt))) ;
+
+      % Row 2: reference tracker
       referenceRow = uigridlayout(gridLayout, [1, 2]) ;
       referenceRow.RowHeight = {'1x'} ;
       referenceRow.ColumnWidth = {80, '1x'} ;
@@ -226,7 +253,7 @@ classdef CompareTrackersController < handle
         'Enable', 'off', ...
         'Tag', 'compare_trackers_reference_dropdown') ;
 
-      % Row 2: test tracker
+      % Row 3: test tracker
       testRow = uigridlayout(gridLayout, [1, 2]) ;
       testRow.RowHeight = {'1x'} ;
       testRow.ColumnWidth = {80, '1x'} ;
@@ -241,7 +268,7 @@ classdef CompareTrackersController < handle
         'ValueChangedFcn', ...
           @(src, evt)(labelerController.controlActuated('compare_trackers_test_dropdown', src, evt))) ;
 
-      % Row 3: threshold
+      % Row 4: threshold
       thresholdRow = uigridlayout(gridLayout, [1, 3]) ;
       thresholdRow.RowHeight = {'1x'} ;
       thresholdRow.ColumnWidth = {80, 80, '1x'} ;
@@ -264,7 +291,7 @@ classdef CompareTrackersController < handle
         'Visible', 'off', ...
         'Tag', 'compare_trackers_threshold_hint') ;
 
-      % Row 4: listbox.  ClickedFcn is registered in addition to
+      % Row 5: listbox.  ClickedFcn is registered in addition to
       % ValueChangedFcn so that clicking the already-selected item (which
       % does not fire ValueChangedFcn) still navigates to the bout.
       obj.listbox_ = uilistbox(gridLayout, ...
@@ -275,9 +302,9 @@ classdef CompareTrackersController < handle
         'ClickedFcn', ...
           @(src, evt)(labelerController.controlActuated('compare_trackers_listbox_clicked', src, evt))) ;
 
-      % Row 5: preview axes, showing the selected bout's max-distance
-      % frame with both trackers' poses overlaid.  Kept square (matching
-      % the listbox width) by updatePreviewRowHeight_().
+      % Row 6: preview axes, showing the selected bout's peak frame with
+      % both trackers' poses overlaid.  Kept square (matching the listbox
+      % width) by updatePreviewRowHeight_().
       obj.previewAxes_ = uiaxes(gridLayout, ...
         'Tag', 'compare_trackers_preview_axes') ;
       previewAxes = obj.previewAxes_ ;
@@ -333,7 +360,7 @@ classdef CompareTrackersController < handle
       padding = obj.gridLayout_.Padding ;
       innerWidth = figureWidth - padding(1) - padding(3) ;
       rowHeight = obj.gridLayout_.RowHeight ;
-      rowHeight{5} = max(innerWidth, 50) ;
+      rowHeight{6} = max(innerWidth, 50) ;
       obj.gridLayout_.RowHeight = rowHeight ;
     end  % function
 

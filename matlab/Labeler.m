@@ -202,6 +202,7 @@ classdef Labeler < handle
     didSetCompareTrackersThreshold
     didSetCompareTrackersIsVisible
     didSetCompareTrackersTrackerSelection
+    didSetCompareTrackersMode
   end
 
   events  % used to come from labeler.tracker
@@ -14539,7 +14540,11 @@ classdef Labeler < handle
       ctm = obj.compareTrackersModel_ ;
       ctm.currentBoutIndexMaybe = newValue ;  % will error if newValue is invalid
       [frameIndex, trackletIndex, targetIndex] = ctm.frameTrackletAndTargetIndexFromCurrentBoutIndex() ;
-      if obj.maIsMA
+      if ctm.mode == CompareTrackersMode.UnmatchedAnimalCount
+        % This mode's bouts have no associated tracklet, so just navigate
+        % to the frame.
+        obj.setFrame(frameIndex) ;
+      elseif obj.maIsMA
         obj.setFrameAndTracklet(frameIndex, trackletIndex) ;
       else
         obj.setFrameAndTarget(frameIndex, targetIndex) ;

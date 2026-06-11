@@ -67,6 +67,16 @@ if strcmp(listbox.FontAngle, 'italic')
   error('Listbox should be in normal font when bouts are present, but FontAngle is italic') ;
 end
 
+% The mode dropdown offers both modes and defaults to Maximum Landmark
+% Distance.
+modeDropdown = findall(0, 'Tag', 'compare_trackers_mode_dropdown') ;
+if numel(modeDropdown.Items) ~= 2
+  error('Mode dropdown has %d items, expected 2', numel(modeDropdown.Items)) ;
+end
+if modeDropdown.Value ~= CompareTrackersMode.MaximumLandmarkDistance
+  error('Expected the mode dropdown to default to Maximum Landmark Distance') ;
+end
+
 % The model starts with no current bout, so no listbox item should be
 % selected.
 if ~isempty(listbox.ValueIndex)
@@ -224,6 +234,112 @@ if numel(listbox.Items) < expectedListboxItemCount
 end
 if strcmp(listbox.FontAngle, 'italic')
   error('Listbox should be in normal font after the current tracker changed') ;
+end
+
+% ---- Unmatched Animal Count mode ----
+% Switching the mode through the dropdown rebuilds the listbox from the
+% per-frame unmatched-animal count.  Exercise the full actuation path.
+modeDropdown.Value = CompareTrackersMode.UnmatchedAnimalCount ;
+modeSwitchException = ...
+  controller.controlActuated('compare_trackers_mode_dropdown', modeDropdown, struct()) ;
+if ~isempty(modeSwitchException)
+  error('Switching to Unmatched Animal Count mode raised an exception: %s', modeSwitchException{1}.message) ;
+end
+if model.mode ~= CompareTrackersMode.UnmatchedAnimalCount
+  error('Expected the model mode to be UnmatchedAnimalCount after switching the dropdown') ;
+end
+if numel(listbox.Items) < expectedListboxItemCount
+  error('Expected >= %d bout items in the listbox in Unmatched Animal Count mode, but got %d', ...
+        expectedListboxItemCount, numel(listbox.Items)) ;
+end
+if strcmp(listbox.FontAngle, 'italic')
+  error('Listbox should be in normal font when unmatched-count bouts are present') ;
+end
+
+% Rebuilding the bout list resets the selection to none.
+if ~isempty(listbox.ValueIndex)
+  error('Expected the bout selection to reset after switching mode, but ValueIndex is %d', listbox.ValueIndex) ;
+end
+
+% Each line follows the "Frm <range>  UnmatchedCount <n>" format, with no
+% tracklet/target index or distance.
+firstUnmatchedLine = listbox.Items{1} ;
+boutFrameTokens = ...
+  regexp(firstUnmatchedLine, '^Frm (\d+)(?:-(\d+))?  UnmatchedCount (\d+)$', 'tokens', 'once') ;
+if isempty(boutFrameTokens)
+  error('Unexpected unmatched-count listbox line format: "%s"', firstUnmatchedLine) ;
+end
+if contains(firstUnmatchedLine, 'Trklet') || contains(firstUnmatchedLine, 'Tgt') || ...
+   contains(firstUnmatchedLine, 'MaxDist')
+  error('Unmatched-count listbox line should not contain a tracklet index or distance: "%s"', ...
+        firstUnmatchedLine) ;
+end
+
+% Selecting a bout shows the whole peak frame with no pose decorations.
+labeler.compareTrackersCurrentBoutIndexMaybe = 1 ;
+if ~isequal(listbox.ValueIndex, 1)
+  error('Expected listbox ValueIndex to be 1 after selecting bout 1 in unmatched-count mode') ;
+end
+if ~strcmp(previewImage.Visible, 'on') || isempty(previewImage.CData)
+  error('Expected the preview image to be shown after selecting an unmatched-count bout') ;
+end
+if strcmp(placeholderText.Visible, 'on')
+  error('Expected the placeholder text to be hidden after selecting an unmatched-count bout') ;
+end
+if strcmp(refScatter.Visible, 'on') || strcmp(testScatter.Visible, 'on')
+  error('Expected no pose overlays to be shown in unmatched-count mode') ;
+end
+unmatchedConnectorLines = findall(0, 'Tag', 'compare_trackers_preview_connector_line') ;
+if any(arrayfun(@(h)(strcmp(h.Visible, 'on')), unmatchedConnectorLines))
+  error('Expected no visible connector lines in unmatched-count mode') ;
+end
+
+% The preview shows the whole frame: the axes limits span the full image.
+imageHeight = size(previewImage.CData, 1) ;
+imageWidth = size(previewImage.CData, 2) ;
+expectedXLim = [0.5, imageWidth + 0.5] ;
+expectedYLim = [0.5, imageHeight + 0.5] ;
+if ~isequal(previewAxes.XLim, expectedXLim) || ~isequal(previewAxes.YLim, expectedYLim)
+  error('Expected the preview axes to span the whole frame in unmatched-count mode') ;
+end
+
+% Navigation lands on a frame within the selected bout's range.  Parse the
+% range with explicit single- and multi-frame patterns rather than one
+% pattern with an optional group: regexp's 'once' option collapses a
+% non-participating optional group, which would shift the token indices.
+rangeTokens = regexp(firstUnmatchedLine, '^Frm (\d+)-(\d+)  UnmatchedCount \d+$', 'tokens', 'once') ;
+singleTokens = regexp(firstUnmatchedLine, '^Frm (\d+)  UnmatchedCount \d+$', 'tokens', 'once') ;
+if ~isempty(rangeTokens)
+  boutStartFrame = str2double(rangeTokens{1}) ;
+  boutEndFrame = str2double(rangeTokens{2}) ;
+elseif ~isempty(singleTokens)
+  boutStartFrame = str2double(singleTokens{1}) ;
+  boutEndFrame = boutStartFrame ;
+else
+  error('Unexpected unmatched-count listbox line format: "%s"', firstUnmatchedLine) ;
+end
+if labeler.currFrame < boutStartFrame || labeler.currFrame > boutEndFrame
+  error('Expected to navigate to a frame within bout 1''s range [%d, %d], but currFrame is %d', ...
+        boutStartFrame, boutEndFrame, labeler.currFrame) ;
+end
+
+% Switching back to Maximum Landmark Distance restores that mode's
+% distance-based listbox.
+modeDropdown.Value = CompareTrackersMode.MaximumLandmarkDistance ;
+modeRestoreException = ...
+  controller.controlActuated('compare_trackers_mode_dropdown', modeDropdown, struct()) ;
+if ~isempty(modeRestoreException)
+  error('Switching back to Maximum Landmark Distance mode raised an exception: %s', modeRestoreException{1}.message) ;
+end
+if model.mode ~= CompareTrackersMode.MaximumLandmarkDistance
+  error('Expected the model mode to be MaximumLandmarkDistance after switching back') ;
+end
+if numel(listbox.Items) < expectedListboxItemCount
+  error('Expected >= %d bout items after switching back to Maximum Landmark Distance mode, but got %d', ...
+        expectedListboxItemCount, numel(listbox.Items)) ;
+end
+if ~contains(listbox.Items{1}, 'MaxDist')
+  error('Expected the distance-mode listbox lines to contain MaxDist, but got "%s"', listbox.Items{1}) ;
 end
 
 end  % function

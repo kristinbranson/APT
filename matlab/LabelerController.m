@@ -516,6 +516,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didSetCompareTrackersTrackerSelection', ...
                     @(s,e)(obj.didSetCompareTrackersTrackerSelection())) ;
+        addlistener(labeler, 'didSetCompareTrackersMode', ...
+                    @(s,e)(obj.didSetCompareTrackersMode())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'newMovie',@(s,e)(obj.cbkNewMovie(s,e)));
       obj.listeners_(end+1) = ...
@@ -3768,6 +3770,12 @@ classdef LabelerController < handle
       ctc.update() ;
     end  % function
 
+    function didSetCompareTrackersMode(obj)
+      % Update the compare-trackers controller after the mode changes.
+      ctc = obj.compareTrackersController_ ;
+      ctc.update() ;
+    end  % function
+
     function menu_evaluate_compare_trackers_actuated_(obj, src, evt)  %#ok<INUSD>
       % Make the "Compare Trackers" figure visible.
       labeler = obj.labeler_ ;
@@ -3787,6 +3795,12 @@ classdef LabelerController < handle
       % Handle test-tracker dropdown change.
       ctc = obj.compareTrackersController_ ;
       ctc.compare_trackers_test_dropdown_actuated_(src) ;
+    end  % function
+
+    function compare_trackers_mode_dropdown_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Handle mode dropdown change.
+      ctc = obj.compareTrackersController_ ;
+      ctc.compare_trackers_mode_dropdown_actuated_(src) ;
     end  % function
 
     function compare_trackers_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
