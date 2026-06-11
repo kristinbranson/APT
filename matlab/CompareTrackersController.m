@@ -24,6 +24,9 @@ classdef CompareTrackersController < handle
       % to the corresponding test landmark
     refScatter_  % scatter object for the reference tracker's pose
     testScatter_  % scatter object for the test tracker's pose
+    previewPlaceholderText_
+      % text object shown centered in the preview axes when no bout is
+      % selected
   end
 
   properties (Dependent, Access=private)
@@ -285,6 +288,7 @@ classdef CompareTrackersController < handle
       previewAxes.YDir = 'reverse' ;
       previewAxes.DataAspectRatio = [1 1 1] ;
       previewAxes.NextPlot = 'add' ;
+      previewAxes.Color = 'k' ;
       previewAxes.Toolbar.Visible = 'off' ;
       disableDefaultInteractivity(previewAxes) ;
       obj.previewImage_ = image(previewAxes, ...
@@ -301,6 +305,18 @@ classdef CompareTrackersController < handle
       obj.testScatter_ = scatter(previewAxes, nan, nan, ...
         'Visible', 'off', ...
         'Tag', 'compare_trackers_preview_test_scatter') ;
+      % Normalized units keep the placeholder centered regardless of the
+      % axes limits left over from the last-shown image.
+      obj.previewPlaceholderText_ = text('Parent', previewAxes, ...
+        'Units', 'normalized', ...
+        'Position', [0.5, 0.5], ...
+        'String', '(No bout selected)', ...
+        'HorizontalAlignment', 'center', ...
+        'VerticalAlignment', 'middle', ...
+        'FontSize', 14, ...
+        'Color', [1, 1, 1], ...
+        'Visible', 'on', ...
+        'Tag', 'compare_trackers_preview_placeholder_text') ;
 
       obj.updatePreviewRowHeight_() ;
       mainFigurePosition = obj.labelerController_.mainFigurePixelPosition() ;
@@ -332,8 +348,10 @@ classdef CompareTrackersController < handle
         obj.refScatter_.Visible = 'off' ;
         obj.testScatter_.Visible = 'off' ;
         set(obj.connectorLines_, 'Visible', 'off') ;
+        obj.previewPlaceholderText_.Visible = 'on' ;
         return
       end
+      obj.previewPlaceholderText_.Visible = 'off' ;
 
       % Show the frame image.  Grayscale frames render through the axes'
       % gray colormap; CDataMapping is ignored for RGB frames.

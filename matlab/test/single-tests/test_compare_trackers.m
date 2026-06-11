@@ -83,6 +83,10 @@ end
 if strcmp(refScatter.Visible, 'on') || strcmp(testScatter.Visible, 'on')
   error('Expected the pose overlays to be hidden when no bout is selected') ;
 end
+placeholderText = findall(0, 'Tag', 'compare_trackers_preview_placeholder_text') ;
+if ~strcmp(placeholderText.Visible, 'on')
+  error('Expected the placeholder text to be shown when no bout is selected') ;
+end
 
 % Selecting a bout through the model should select the matching listbox
 % item.
@@ -95,6 +99,9 @@ end
 % image is shown and both trackers' poses are overlaid.
 if ~strcmp(previewImage.Visible, 'on') || isempty(previewImage.CData)
   error('Expected the preview image to be shown after selecting a bout') ;
+end
+if strcmp(placeholderText.Visible, 'on')
+  error('Expected the placeholder text to be hidden after selecting a bout') ;
 end
 if ~strcmp(refScatter.Visible, 'on')
   error('Expected the reference pose overlay to be shown after selecting a bout') ;
