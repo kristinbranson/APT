@@ -15,6 +15,7 @@ classdef CompareTrackersController < handle
     thresholdHint_  % uilabel showing the absolute distance threshold
     listbox_  % uilistbox handle
     gridLayout_  % the figure's top-level uigridlayout
+    previewPanel_  % uipanel filling the preview grid cell; holds previewAxes_
     previewAxes_  % uiaxes showing the selected bout's max-distance frame
     previewImage_  % image object in previewAxes_
     connectorLineGroup_
@@ -218,16 +219,14 @@ classdef CompareTrackersController < handle
         'Position', figurePosition, ...
         'Tag', 'compare_trackers_figure', ...
         'Visible', 'off', ...
-        'CloseRequestFcn', @(src, evt)(obj.hideRequested()), ...
-        'AutoResizeChildren', 'off', ...
-        'SizeChangedFcn', @(src, evt)(obj.updatePreviewRowHeight_())) ;
-          % AutoResizeChildren must be off for SizeChangedFcn to fire;
-          % the grid layout handles resizing the children regardless.
+        'CloseRequestFcn', @(src, evt)(obj.hideRequested())) ;
 
       labelerController = obj.labelerController_ ;
 
       gridLayout = uigridlayout(obj.figure_, [6, 1]) ;
-      gridLayout.RowHeight = {22, 22, 22, 22, '1x', 460} ;
+      % The four control rows have fixed heights; the listbox and preview
+      % rows split the remaining vertical space equally.
+      gridLayout.RowHeight = {22, 22, 22, 22, '1x', '1x'} ;
       gridLayout.ColumnWidth = {'1x'} ;
       obj.gridLayout_ = gridLayout ;
 
@@ -314,10 +313,18 @@ classdef CompareTrackersController < handle
         'ClickedFcn', ...
           @(src, evt)(labelerController.controlActuated('compare_trackers_listbox_clicked', src, evt))) ;
 
-      % Row 6: preview axes, showing the selected bout's peak frame with
-      % both trackers' poses overlaid.  Kept square (matching the listbox
-      % width) by updatePreviewRowHeight_().
-      obj.previewAxes_ = uiaxes(gridLayout, ...
+      % Row 6: preview, showing the selected bout's peak frame with both
+      % trackers' poses overlaid.  The axes lives in a panel that fills the
+      % cell; updatePreviewAxesPosition_ keeps the axes the largest square
+      % that fits in the panel, centered, so it never exceeds its cell.
+      obj.previewPanel_ = uipanel(gridLayout, ...
+        'BorderType', 'none', ...
+        'Units', 'pixels', ...
+        'AutoResizeChildren', 'off', ...
+        'Tag', 'compare_trackers_preview_panel', ...
+        'SizeChangedFcn', @(src, evt)(obj.updatePreviewAxesPosition_())) ;
+      obj.previewAxes_ = uiaxes(obj.previewPanel_, ...
+        'Units', 'pixels', ...
         'Tag', 'compare_trackers_preview_axes') ;
       previewAxes = obj.previewAxes_ ;
       previewAxes.XTick = [] ;
@@ -393,39 +400,27 @@ classdef CompareTrackersController < handle
         'Visible', 'on', ...
         'Tag', 'compare_trackers_preview_placeholder_text') ;
 
-      obj.updatePreviewRowHeight_() ;
+      obj.updatePreviewAxesPosition_() ;
       mainFigurePosition = obj.labelerController_.mainFigurePixelPosition() ;
       centerOnOtherFigureGivenPositionBang(obj.figure_, mainFigurePosition) ;
     end  % function
 
-    function updatePreviewRowHeight_(obj)
-      % Size the preview row to keep the axes square (its height pinned to
-      % the grid's inner width) without letting it overflow its cell: cap
-      % the height to the vertical space left after the fixed control rows,
-      % a minimum listbox height, the grid padding, and the row spacing.
-      % On a short, wide window the uncapped square height would exceed the
-      % figure, forcing the cell -- and the axes filling it -- larger than
-      % the available space.
-      if ~obj.hasValidFigure_ || isempty(obj.gridLayout_) || ~isvalid(obj.gridLayout_)
+    function updatePreviewAxesPosition_(obj)
+      % Position the preview axes as the largest square that fits in its
+      % panel, centered.  The panel fills its (generally non-square) grid
+      % cell, so the axes square side is the smaller of the panel's width
+      % and height -- keeping the axes square and no bigger than its cell.
+      if isempty(obj.previewPanel_) || ~isvalid(obj.previewPanel_) || ...
+         isempty(obj.previewAxes_) || ~isvalid(obj.previewAxes_)
         return
       end
-      figureWidth = obj.figure_.Position(3) ;
-      figureHeight = obj.figure_.Position(4) ;
-      padding = obj.gridLayout_.Padding ;
-      rowSpacing = obj.gridLayout_.RowSpacing ;
-      rowHeight = obj.gridLayout_.RowHeight ;
-      innerWidth = figureWidth - padding(1) - padding(3) ;
-      % Vertical space everything except the preview row needs: the four
-      % fixed control rows (1-4), a minimum height for the listbox (row 5),
-      % the top/bottom padding, and the spacing between all six rows.
-      fixedRowsHeight = rowHeight{1} + rowHeight{2} + rowHeight{3} + rowHeight{4} ;
-      minimumListboxHeight = 60 ;
-      rowCount = numel(rowHeight) ;
-      reservedHeight = padding(2) + padding(4) + rowSpacing * (rowCount - 1) + ...
-                       fixedRowsHeight + minimumListboxHeight ;
-      availableHeight = figureHeight - reservedHeight ;
-      rowHeight{6} = max(min(innerWidth, availableHeight), 50) ;
-      obj.gridLayout_.RowHeight = rowHeight ;
+      panelSize = obj.previewPanel_.Position(3:4) ;
+      panelWidth = panelSize(1) ;
+      panelHeight = panelSize(2) ;
+      side = max(min(panelWidth, panelHeight), 1) ;
+      xOffset = (panelWidth - side) / 2 ;
+      yOffset = (panelHeight - side) / 2 ;
+      obj.previewAxes_.Position = [xOffset, yOffset, side, side] ;
     end  % function
 
     function updatePreviewAxes_(obj)
