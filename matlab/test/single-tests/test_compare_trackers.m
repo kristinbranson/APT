@@ -309,6 +309,23 @@ if centroidCount ~= expectedCentroidCount
         expectedCentroidCount, centroidCount) ;
 end
 
+% The matched reference tracks' centroids are marked too, in a distinct
+% (blue) color, and the matched and unmatched marker sets are disjoint.
+matchedCentroidScatter = findall(0, 'Tag', 'compare_trackers_preview_matched_centroid_scatter') ;
+if ~isequal(matchedCentroidScatter.MarkerEdgeColor, [0 0 1])
+  error('Expected the matched-centroid markers to be blue') ;
+end
+if ~isequal(centroidScatter.MarkerEdgeColor, [1 0 0])
+  error('Expected the unmatched-centroid markers to be red') ;
+end
+if strcmp(matchedCentroidScatter.Visible, 'on')
+  matchedPointsXy = [matchedCentroidScatter.XData(:), matchedCentroidScatter.YData(:)] ;
+  unmatchedPointsXy = [centroidScatter.XData(:), centroidScatter.YData(:)] ;
+  if ~isempty(intersect(matchedPointsXy, unmatchedPointsXy, 'rows'))
+    error('Matched and unmatched centroid markers should not coincide') ;
+  end
+end
+
 % The preview shows the whole frame: the axes limits span the full image.
 imageHeight = size(previewImage.CData, 1) ;
 imageWidth = size(previewImage.CData, 2) ;
@@ -365,6 +382,9 @@ if ~strcmp(refScatter.Visible, 'on') || ~strcmp(testScatter.Visible, 'on')
 end
 if strcmp(centroidScatter.Visible, 'on')
   error('Expected the unmatched-centroid markers to be hidden in Maximum Landmark Distance mode') ;
+end
+if strcmp(matchedCentroidScatter.Visible, 'on')
+  error('Expected the matched-centroid markers to be hidden in Maximum Landmark Distance mode') ;
 end
 
 end  % function

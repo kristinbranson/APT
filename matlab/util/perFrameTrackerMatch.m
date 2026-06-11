@@ -2,7 +2,8 @@ function [distanceFromFrameIndexAndTrackletIndex, ...
           testTrackletIndexFromFrameIndexAndTrackletIndex, ...
           refPoseCountFromFrameIndex, ...
           unmatchedRefCountFromFrameIndex, ...
-          isUnmatchedRefFromFrameIndexAndTrackletIndex] = ...
+          isUnmatchedRefFromFrameIndexAndTrackletIndex, ...
+          isMatchedRefFromFrameIndexAndTrackletIndex] = ...
   perFrameTrackerMatch(refTrkFile, ...
                        testTrkFile, ...
                        nframes, ...
@@ -39,6 +40,9 @@ function [distanceFromFrameIndexAndTrackletIndex, ...
 %   isUnmatchedRefFromFrameIndexAndTrackletIndex --
 %     [nframes x refTrackletCount] logical, true where the ref tracklet is
 %     present at the frame but the matcher left it without a test partner
+%   isMatchedRefFromFrameIndexAndTrackletIndex --
+%     [nframes x refTrackletCount] logical, true where the ref tracklet is
+%     present at the frame and the matcher paired it with a test pose
 
 % Precompute per-frame pose data for both trackers.
 refPosesFromFrameIndex = buildPosesFromFrameIndex_(refTrkFile, nframes) ;
@@ -55,6 +59,7 @@ testTrackletIndexFromFrameIndexAndTrackletIndex = nan(nframes, refTrackletCount)
 refPoseCountFromFrameIndex = zeros(nframes, 1) ;
 unmatchedRefCountFromFrameIndex = zeros(nframes, 1) ;
 isUnmatchedRefFromFrameIndexAndTrackletIndex = false(nframes, refTrackletCount) ;
+isMatchedRefFromFrameIndexAndTrackletIndex = false(nframes, refTrackletCount) ;
 costOfNonAssignment = matchDistanceThreshold / 2 ;
 for frameIndex = 1 : nframes
   refPoses = refPosesFromFrameIndex{frameIndex} ;
@@ -108,7 +113,9 @@ for frameIndex = 1 : nframes
     isRefPoseMatched(matchedPoseIndexPairs(:, 1)) = true ;
   end
   for refPoseIndex = 1 : refPoseCount
-    if ~isRefPoseMatched(refPoseIndex)
+    if isRefPoseMatched(refPoseIndex)
+      isMatchedRefFromFrameIndexAndTrackletIndex(frameIndex, refPoses(refPoseIndex).trackletIndex) = true ;
+    else
       isUnmatchedRefFromFrameIndexAndTrackletIndex(frameIndex, refPoses(refPoseIndex).trackletIndex) = true ;
     end
   end
