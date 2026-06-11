@@ -78,6 +78,15 @@ for frameIndex = 1 : nframes
   if isempty(refPoses) || isempty(testPoses)
     continue
   end
+  % Two distances are computed per (ref, test) pose pair, each answering
+  % a different question.  The mean over landmarks ("are these the same
+  % animal?") is the matching cost: it represents the pose as a whole and
+  % is robust to a single wild landmark, so one bad point can't block an
+  % otherwise-obvious correspondence.  The max over landmarks ("how badly
+  % do the trackers disagree about this animal?") is the per-frame
+  % interest signal used downstream to form bouts: a single flipped or
+  % swapped landmark is exactly the kind of disagreement we want to
+  % surface, and the mean would dilute it.
   refPoseCount = numel(refPoses) ;
   testPoseCount = numel(testPoses) ;
   meanDistanceFromRefAndTestPoseIndex = nan(refPoseCount, testPoseCount) ;
@@ -129,9 +138,10 @@ for trackletIndex = 1 : refTrackletCount
     distanceFromFrameIndexAndTrackletIndex(isValidFromFrameIndex, trackletIndex) ;
 end
 
-% Run the shared bout-formation / quantile / sort pipeline.  Distance is
-% already an interest signal (higher = more interesting), so no
-% sign-flipping at the boundary.
+% Run the shared bout-formation / quantile / sort pipeline.  The interest
+% signal here is the per-frame max-over-landmarks distance (see above for
+% why max rather than the mean used for matching); it is already oriented
+% so that higher = more interesting, so no sign-flipping at the boundary.
 [firstFrameIndexFromSortedBoutIndex, ...
  lastFrameIndexFromSortedBoutIndex, ...
  maxDistanceFrameIndexFromSortedBoutIndex, ...
