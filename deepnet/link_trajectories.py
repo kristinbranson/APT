@@ -1693,6 +1693,8 @@ def process_id_ims(curims, conf, distort, rescale):
   """
   Applies preprocessing to the images
   """
+  if curims.ndim == 3:
+    curims = curims[..., np.newaxis]
   if curims.shape[3] == 1:
     curims = np.tile(curims, [1, 1, 1, 3])
   dummy_locs = np.ones([curims.shape[0],2,2]) * curims.shape[1]/2
