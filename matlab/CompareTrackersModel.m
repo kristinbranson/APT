@@ -110,7 +110,9 @@ classdef CompareTrackersModel < handle
     end  % function
 
     function set.quantileThreshold(obj, newValue)
-      % Set the quantile threshold, then resync and notify.
+      % Set the quantile threshold, then resync and notify.  The current
+      % bout selection is preserved across the resync if it is still a
+      % legal bout index afterwards; otherwise no bout is selected.
       isValid = isscalar(newValue) && ...
                 isnumeric(newValue) && ...
                 isreal(newValue) && ...
@@ -119,8 +121,13 @@ classdef CompareTrackersModel < handle
                 newValue <= 1 ;
       if isValid
         obj.quantileThreshold_ = newValue ;
+        oldBoutIndexMaybe = obj.currentBoutIndexMaybe_ ;
         obj.isFresh_ = false ;
         obj.syncFromPredictionsIfStaleAndVisible_() ;
+        boutCount = numel(obj.startFrameFromBoutIndex_) ;
+        if ~isempty(oldBoutIndexMaybe) && oldBoutIndexMaybe <= boutCount
+          obj.currentBoutIndexMaybe_ = oldBoutIndexMaybe ;
+        end
       end
       obj.labeler_.notifyRetrograde('didSetCompareTrackersThreshold') ;
       if ~isValid
