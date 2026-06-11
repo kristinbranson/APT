@@ -31,6 +31,12 @@ classdef CompareTrackersController < handle
     matchedCentroidScatter_
       % scatter object marking the centroids of the matched reference
       % tracks (UnmatchedAnimalCount mode only)
+    unmatchedTestCentroidScatter_
+      % scatter object marking the centroids of the unmatched test tracks
+      % (UnmatchedAnimalCount mode only)
+    matchedTestCentroidScatter_
+      % scatter object marking the centroids of the matched test tracks
+      % (UnmatchedAnimalCount mode only)
     previewPlaceholderText_
       % text object shown centered in the preview axes when no bout is
       % selected
@@ -357,6 +363,23 @@ classdef CompareTrackersController < handle
         'SizeData', 144, ...
         'Visible', 'off', ...
         'Tag', 'compare_trackers_preview_matched_centroid_scatter') ;
+      % Test tracks' centroids use the same red/blue (unmatched/matched)
+      % convention but an 'o' marker to distinguish them from the ref
+      % tracks' 'x' markers.
+      obj.unmatchedTestCentroidScatter_ = scatter(previewAxes, nan, nan, ...
+        'Marker', 'o', ...
+        'MarkerEdgeColor', [1 0 0], ...
+        'LineWidth', 2, ...
+        'SizeData', 144, ...
+        'Visible', 'off', ...
+        'Tag', 'compare_trackers_preview_unmatched_test_centroid_scatter') ;
+      obj.matchedTestCentroidScatter_ = scatter(previewAxes, nan, nan, ...
+        'Marker', 'o', ...
+        'MarkerEdgeColor', [0 0 1], ...
+        'LineWidth', 2, ...
+        'SizeData', 144, ...
+        'Visible', 'off', ...
+        'Tag', 'compare_trackers_preview_matched_test_centroid_scatter') ;
       % Normalized units keep the placeholder centered regardless of the
       % axes limits left over from the last-shown image.
       obj.previewPlaceholderText_ = text('Parent', previewAxes, ...
@@ -401,6 +424,8 @@ classdef CompareTrackersController < handle
         obj.testScatter_.Visible = 'off' ;
         obj.unmatchedCentroidScatter_.Visible = 'off' ;
         obj.matchedCentroidScatter_.Visible = 'off' ;
+        obj.unmatchedTestCentroidScatter_.Visible = 'off' ;
+        obj.matchedTestCentroidScatter_.Visible = 'off' ;
         set(obj.connectorLines_, 'Visible', 'off') ;
         obj.previewPlaceholderText_.Visible = 'on' ;
         return
@@ -435,11 +460,13 @@ classdef CompareTrackersController < handle
                              testMarker, sizeData, markerProps.LineWidth) ;
       obj.updateConnectorLines_(preview.refPoseXy, preview.testPoseXy, pointColors) ;
 
-      % Mark the unmatched (red) and matched (blue) reference tracks'
-      % centroids (UnmatchedAnimalCount mode); empty in the other mode, in
-      % which case the markers are hidden.
+      % Mark the unmatched (red) and matched (blue) reference tracks' ('x')
+      % and test tracks' ('o') centroids (UnmatchedAnimalCount mode); empty
+      % in the other mode, in which case the markers are hidden.
       updateCentroidScatterBang_(obj.unmatchedCentroidScatter_, preview.unmatchedCentroidsXy) ;
       updateCentroidScatterBang_(obj.matchedCentroidScatter_, preview.matchedCentroidsXy) ;
+      updateCentroidScatterBang_(obj.unmatchedTestCentroidScatter_, preview.unmatchedTestCentroidsXy) ;
+      updateCentroidScatterBang_(obj.matchedTestCentroidScatter_, preview.matchedTestCentroidsXy) ;
 
       % Zoom to an invisible square bounding box around all the
       % landmarks of both poses.

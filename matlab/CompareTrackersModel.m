@@ -60,6 +60,14 @@ classdef CompareTrackersModel < handle
       % present and matched.  Populated only in UnmatchedAnimalCount mode,
       % where it is used to draw the matched animals' centroids in the
       % preview.
+    isUnmatchedTestFromFrameIndexAndTrackletIndex_ = []
+      % [nframes x testTrackletCount] logical, true where a test tracklet
+      % is present but unmatched.  Populated only in UnmatchedAnimalCount
+      % mode, for drawing the unmatched test centroids in the preview.
+    isMatchedTestFromFrameIndexAndTrackletIndex_ = []
+      % [nframes x testTrackletCount] logical, true where a test tracklet
+      % is present and matched.  Populated only in UnmatchedAnimalCount
+      % mode, for drawing the matched test centroids in the preview.
     cachedPreviewImage_ = []
       % Most recently read preview frame image, so repeated update()
       % calls do not re-read the movie.
@@ -359,11 +367,13 @@ classdef CompareTrackersModel < handle
       % with fields frameIndex (the bout's peak frame), imageMatrix (that
       % frame's image, view 1), refPoseXy and testPoseXy (each
       % [landmarkCount x 2], possibly empty if the corresponding tracklet
-      % has no pose at that frame), and unmatchedCentroidsXy /
-      % matchedCentroidsXy (each [K x 2]).  In UnmatchedAnimalCount mode
-      % both poses are empty and the centroid fields hold the centroids of
-      % the unmatched and matched ref tracks at the peak frame; in
-      % MaximumLandmarkDistance mode the centroid fields are empty.
+      % has no pose at that frame), and four centroid fields (each
+      % [K x 2]): unmatchedCentroidsXy / matchedCentroidsXy for the ref
+      % tracker and unmatchedTestCentroidsXy / matchedTestCentroidsXy for
+      % the test tracker.  In UnmatchedAnimalCount mode both poses are
+      % empty and the centroid fields hold the unmatched/matched tracks'
+      % centroids at the peak frame; in MaximumLandmarkDistance mode the
+      % centroid fields are empty.
       result = [] ;
       boutIndex = obj.currentBoutIndexMaybe_ ;
       if isempty(boutIndex) || ~obj.isLaden
@@ -389,9 +399,13 @@ classdef CompareTrackersModel < handle
         refPoseXy = [] ;
         testPoseXy = [] ;
         unmatchedCentroidsXy = ...
-          obj.centroidsAtFrame_(frameIndex, obj.isUnmatchedRefFromFrameIndexAndTrackletIndex_) ;
+          centroidsAtFrame_(obj.refTrkFile_, frameIndex, obj.isUnmatchedRefFromFrameIndexAndTrackletIndex_) ;
         matchedCentroidsXy = ...
-          obj.centroidsAtFrame_(frameIndex, obj.isMatchedRefFromFrameIndexAndTrackletIndex_) ;
+          centroidsAtFrame_(obj.refTrkFile_, frameIndex, obj.isMatchedRefFromFrameIndexAndTrackletIndex_) ;
+        unmatchedTestCentroidsXy = ...
+          centroidsAtFrame_(obj.testTrkFile_, frameIndex, obj.isUnmatchedTestFromFrameIndexAndTrackletIndex_) ;
+        matchedTestCentroidsXy = ...
+          centroidsAtFrame_(obj.testTrkFile_, frameIndex, obj.isMatchedTestFromFrameIndexAndTrackletIndex_) ;
       else
         refPoseXy = ...
           poseAtFrame_(obj.refTrkFile_, obj.trackletIndexFromBoutIndex_(boutIndex), frameIndex) ;
@@ -399,37 +413,17 @@ classdef CompareTrackersModel < handle
           poseAtFrame_(obj.testTrkFile_, obj.testTrackletIndexFromBoutIndex_(boutIndex), frameIndex) ;
         unmatchedCentroidsXy = zeros(0, 2) ;
         matchedCentroidsXy = zeros(0, 2) ;
+        unmatchedTestCentroidsXy = zeros(0, 2) ;
+        matchedTestCentroidsXy = zeros(0, 2) ;
       end
       result = struct('frameIndex', frameIndex, ...
                       'imageMatrix', imageMatrix, ...
                       'refPoseXy', refPoseXy, ...
                       'testPoseXy', testPoseXy, ...
                       'unmatchedCentroidsXy', unmatchedCentroidsXy, ...
-                      'matchedCentroidsXy', matchedCentroidsXy) ;
-    end  % function
-
-    function centroidsXy = centroidsAtFrame_(obj, frameIndex, isFlaggedFromFrameIndexAndTrackletIndex)
-      % Return the [K x 2] centroids of the ref tracklets flagged for the
-      % given frame in the supplied mask, one row per flagged tracklet.
-      % Each centroid is the mean of that tracklet's landmark positions.
-      % Returns a 0x2 matrix when the mask is empty or no flagged tracklet
-      % has a finite centroid.
-      centroidsXy = zeros(0, 2) ;
-      if isempty(isFlaggedFromFrameIndexAndTrackletIndex) || isempty(obj.refTrkFile_)
-        return
-      end
-      flaggedTrackletIndices = ...
-        find(isFlaggedFromFrameIndexAndTrackletIndex(frameIndex, :)) ;
-      candidateCentroidsXy = nan(numel(flaggedTrackletIndices), 2) ;
-      for flaggedIndex = 1 : numel(flaggedTrackletIndices)
-        xy = poseAtFrame_(obj.refTrkFile_, flaggedTrackletIndices(flaggedIndex), frameIndex) ;
-        if isempty(xy)
-          continue
-        end
-        candidateCentroidsXy(flaggedIndex, :) = mean(xy, 1, 'omitnan') ;
-      end
-      isRowFinite = all(isfinite(candidateCentroidsXy), 2) ;
-      centroidsXy = candidateCentroidsXy(isRowFinite, :) ;
+                      'matchedCentroidsXy', matchedCentroidsXy, ...
+                      'unmatchedTestCentroidsXy', unmatchedTestCentroidsXy, ...
+                      'matchedTestCentroidsXy', matchedTestCentroidsXy) ;
     end  % function
   end  % methods
 
@@ -495,7 +489,9 @@ classdef CompareTrackersModel < handle
          obj.unmatchedCountFromBoutIndex_, ...
          obj.absoluteDistanceThreshold_, ...
          obj.isUnmatchedRefFromFrameIndexAndTrackletIndex_, ...
-         obj.isMatchedRefFromFrameIndexAndTrackletIndex_] = ...
+         obj.isMatchedRefFromFrameIndexAndTrackletIndex_, ...
+         obj.isUnmatchedTestFromFrameIndexAndTrackletIndex_, ...
+         obj.isMatchedTestFromFrameIndexAndTrackletIndex_] = ...
           unmatchedCountBoutsBetweenTrackers(refTrkFile, ...
                                              testTrkFile, ...
                                              labeler.nframes, ...
@@ -524,6 +520,8 @@ classdef CompareTrackersModel < handle
         obj.unmatchedCountFromBoutIndex_ = zeros(0, 1) ;
         obj.isUnmatchedRefFromFrameIndexAndTrackletIndex_ = [] ;
         obj.isMatchedRefFromFrameIndexAndTrackletIndex_ = [] ;
+        obj.isUnmatchedTestFromFrameIndexAndTrackletIndex_ = [] ;
+        obj.isMatchedTestFromFrameIndexAndTrackletIndex_ = [] ;
       end
       % Keep the source TrkFiles so the per-bout poses can be fetched for
       % the preview image without re-loading anything from disk.
@@ -552,6 +550,8 @@ classdef CompareTrackersModel < handle
       obj.testTrkFile_ = [] ;
       obj.isUnmatchedRefFromFrameIndexAndTrackletIndex_ = [] ;
       obj.isMatchedRefFromFrameIndexAndTrackletIndex_ = [] ;
+      obj.isUnmatchedTestFromFrameIndexAndTrackletIndex_ = [] ;
+      obj.isMatchedTestFromFrameIndexAndTrackletIndex_ = [] ;
       obj.cachedPreviewImage_ = [] ;
       obj.cachedPreviewImageFrameIndexMaybe_ = [] ;
       obj.currentBoutIndexMaybe_ = [] ;
@@ -606,6 +606,31 @@ if isempty(localFrameIndex)
   return
 end
 xy = xyFromLandmarkAxisAndLocalFrame(:, :, localFrameIndex) ;
+end  % function
+
+
+
+function centroidsXy = centroidsAtFrame_(trkFile, frameIndex, isFlaggedFromFrameIndexAndTrackletIndex)
+% Return the [K x 2] centroids of the trkFile tracklets flagged for the
+% given frame in the supplied mask, one row per flagged tracklet.  Each
+% centroid is the mean of that tracklet's landmark positions.  Returns a
+% 0x2 matrix when the mask or trkFile is empty, or no flagged tracklet has
+% a finite centroid.
+centroidsXy = zeros(0, 2) ;
+if isempty(isFlaggedFromFrameIndexAndTrackletIndex) || isempty(trkFile)
+  return
+end
+flaggedTrackletIndices = find(isFlaggedFromFrameIndexAndTrackletIndex(frameIndex, :)) ;
+candidateCentroidsXy = nan(numel(flaggedTrackletIndices), 2) ;
+for flaggedIndex = 1 : numel(flaggedTrackletIndices)
+  xy = poseAtFrame_(trkFile, flaggedTrackletIndices(flaggedIndex), frameIndex) ;
+  if isempty(xy)
+    continue
+  end
+  candidateCentroidsXy(flaggedIndex, :) = mean(xy, 1, 'omitnan') ;
+end
+isRowFinite = all(isfinite(candidateCentroidsXy), 2) ;
+centroidsXy = candidateCentroidsXy(isRowFinite, :) ;
 end  % function
 
 

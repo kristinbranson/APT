@@ -325,6 +325,36 @@ if strcmp(matchedCentroidScatter.Visible, 'on')
     error('Matched and unmatched centroid markers should not coincide') ;
   end
 end
+% The reference centroids use 'x' markers.
+if ~strcmp(centroidScatter.Marker, 'x') || ~strcmp(matchedCentroidScatter.Marker, 'x')
+  error('Expected the reference centroid markers to be x markers') ;
+end
+
+% The test tracks' centroids are marked too, with the same red/blue
+% (unmatched/matched) convention but 'o' markers.
+unmatchedTestCentroidScatter = findall(0, 'Tag', 'compare_trackers_preview_unmatched_test_centroid_scatter') ;
+matchedTestCentroidScatter = findall(0, 'Tag', 'compare_trackers_preview_matched_test_centroid_scatter') ;
+if ~isequal(unmatchedTestCentroidScatter.MarkerEdgeColor, [1 0 0]) || ...
+   ~strcmp(unmatchedTestCentroidScatter.Marker, 'o')
+  error('Expected the unmatched test centroids to be red o markers') ;
+end
+if ~isequal(matchedTestCentroidScatter.MarkerEdgeColor, [0 0 1]) || ...
+   ~strcmp(matchedTestCentroidScatter.Marker, 'o')
+  error('Expected the matched test centroids to be blue o markers') ;
+end
+% Each match pairs one ref pose with one test pose, so at the peak frame
+% the matched ref and matched test centroids are shown together and in
+% equal numbers.
+isRefMatchedShown = strcmp(matchedCentroidScatter.Visible, 'on') ;
+isTestMatchedShown = strcmp(matchedTestCentroidScatter.Visible, 'on') ;
+if isRefMatchedShown ~= isTestMatchedShown
+  error('Expected matched reference and matched test centroids to be shown together') ;
+end
+if isRefMatchedShown && ...
+   numel(matchedCentroidScatter.XData) ~= numel(matchedTestCentroidScatter.XData)
+  error('Expected equal matched reference (%d) and matched test (%d) centroid counts', ...
+        numel(matchedCentroidScatter.XData), numel(matchedTestCentroidScatter.XData)) ;
+end
 
 % The preview shows the whole frame: the axes limits span the full image.
 imageHeight = size(previewImage.CData, 1) ;
@@ -385,6 +415,9 @@ if strcmp(centroidScatter.Visible, 'on')
 end
 if strcmp(matchedCentroidScatter.Visible, 'on')
   error('Expected the matched-centroid markers to be hidden in Maximum Landmark Distance mode') ;
+end
+if strcmp(unmatchedTestCentroidScatter.Visible, 'on') || strcmp(matchedTestCentroidScatter.Visible, 'on')
+  error('Expected the test-centroid markers to be hidden in Maximum Landmark Distance mode') ;
 end
 
 end  % function
