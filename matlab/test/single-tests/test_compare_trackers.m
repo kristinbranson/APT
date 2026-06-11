@@ -294,6 +294,21 @@ if any(arrayfun(@(h)(strcmp(h.Visible, 'on')), unmatchedConnectorLines))
   error('Expected no visible connector lines in unmatched-count mode') ;
 end
 
+% Instead, the unmatched reference tracks' centroids are marked, one per
+% unmatched animal -- so the marker count should match the bout's listed
+% UnmatchedCount (the max-unmatched count, which occurs at the peak frame).
+centroidScatter = findall(0, 'Tag', 'compare_trackers_preview_unmatched_centroid_scatter') ;
+if ~strcmp(centroidScatter.Visible, 'on')
+  error('Expected the unmatched-centroid markers to be shown after selecting an unmatched-count bout') ;
+end
+countTokens = regexp(firstUnmatchedLine, 'UnmatchedCount (\d+)$', 'tokens', 'once') ;
+expectedCentroidCount = str2double(countTokens{1}) ;
+centroidCount = numel(centroidScatter.XData) ;
+if centroidCount ~= expectedCentroidCount
+  error('Expected %d unmatched-centroid markers (matching the listed UnmatchedCount), but got %d', ...
+        expectedCentroidCount, centroidCount) ;
+end
+
 % The preview shows the whole frame: the axes limits span the full image.
 imageHeight = size(previewImage.CData, 1) ;
 imageWidth = size(previewImage.CData, 2) ;
@@ -340,6 +355,16 @@ if numel(listbox.Items) < expectedListboxItemCount
 end
 if ~contains(listbox.Items{1}, 'MaxDist')
   error('Expected the distance-mode listbox lines to contain MaxDist, but got "%s"', listbox.Items{1}) ;
+end
+
+% Selecting a distance-mode bout shows the pose overlays, not the unmatched
+% centroids.
+labeler.compareTrackersCurrentBoutIndexMaybe = 1 ;
+if ~strcmp(refScatter.Visible, 'on') || ~strcmp(testScatter.Visible, 'on')
+  error('Expected the pose overlays to be shown again in Maximum Landmark Distance mode') ;
+end
+if strcmp(centroidScatter.Visible, 'on')
+  error('Expected the unmatched-centroid markers to be hidden in Maximum Landmark Distance mode') ;
 end
 
 end  % function

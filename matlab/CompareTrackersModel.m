@@ -50,6 +50,11 @@ classdef CompareTrackersModel < handle
       % Kept around so bout poses can be fetched for the preview image.
     testTrkFile_ = []
       % TrkFile the bouts were computed from, for the test tracker.
+    isUnmatchedRefFromFrameIndexAndTrackletIndex_ = []
+      % [nframes x refTrackletCount] logical, true where a ref tracklet is
+      % present but unmatched.  Populated only in UnmatchedAnimalCount
+      % mode, where it is used to draw the unmatched animals' centroids in
+      % the preview.
     cachedPreviewImage_ = []
       % Most recently read preview frame image, so repeated update()
       % calls do not re-read the movie.
@@ -349,8 +354,11 @@ classdef CompareTrackersModel < handle
       % with fields frameIndex (the bout's peak frame), imageMatrix (that
       % frame's image, view 1), refPoseXy and testPoseXy (each
       % [landmarkCount x 2], possibly empty if the corresponding tracklet
-      % has no pose at that frame).  In UnmatchedAnimalCount mode both
-      % poses are empty, so the whole frame is shown with no decorations.
+      % has no pose at that frame), and unmatchedCentroidsXy ([K x 2]).  In
+      % UnmatchedAnimalCount mode both poses are empty and
+      % unmatchedCentroidsXy holds the centroids of the unmatched ref
+      % tracks at the peak frame; in MaximumLandmarkDistance mode
+      % unmatchedCentroidsXy is empty.
       result = [] ;
       boutIndex = obj.currentBoutIndexMaybe_ ;
       if isempty(boutIndex) || ~obj.isLaden
@@ -375,16 +383,43 @@ classdef CompareTrackersModel < handle
       if obj.mode_ == CompareTrackersMode.UnmatchedAnimalCount
         refPoseXy = [] ;
         testPoseXy = [] ;
+        unmatchedCentroidsXy = obj.unmatchedCentroidsAtFrame_(frameIndex) ;
       else
         refPoseXy = ...
           poseAtFrame_(obj.refTrkFile_, obj.trackletIndexFromBoutIndex_(boutIndex), frameIndex) ;
         testPoseXy = ...
           poseAtFrame_(obj.testTrkFile_, obj.testTrackletIndexFromBoutIndex_(boutIndex), frameIndex) ;
+        unmatchedCentroidsXy = zeros(0, 2) ;
       end
       result = struct('frameIndex', frameIndex, ...
                       'imageMatrix', imageMatrix, ...
                       'refPoseXy', refPoseXy, ...
-                      'testPoseXy', testPoseXy) ;
+                      'testPoseXy', testPoseXy, ...
+                      'unmatchedCentroidsXy', unmatchedCentroidsXy) ;
+    end  % function
+
+    function centroidsXy = unmatchedCentroidsAtFrame_(obj, frameIndex)
+      % Return the [K x 2] centroids of the ref tracklets that are present
+      % but unmatched at the given frame, one row per unmatched tracklet.
+      % Each centroid is the mean of that tracklet's landmark positions.
+      % Returns a 0x2 matrix when there is no unmatched mask or no
+      % unmatched tracklet with a finite centroid.
+      centroidsXy = zeros(0, 2) ;
+      if isempty(obj.isUnmatchedRefFromFrameIndexAndTrackletIndex_) || isempty(obj.refTrkFile_)
+        return
+      end
+      unmatchedTrackletIndices = ...
+        find(obj.isUnmatchedRefFromFrameIndexAndTrackletIndex_(frameIndex, :)) ;
+      candidateCentroidsXy = nan(numel(unmatchedTrackletIndices), 2) ;
+      for unmatchedIndex = 1 : numel(unmatchedTrackletIndices)
+        xy = poseAtFrame_(obj.refTrkFile_, unmatchedTrackletIndices(unmatchedIndex), frameIndex) ;
+        if isempty(xy)
+          continue
+        end
+        candidateCentroidsXy(unmatchedIndex, :) = mean(xy, 1, 'omitnan') ;
+      end
+      isRowFinite = all(isfinite(candidateCentroidsXy), 2) ;
+      centroidsXy = candidateCentroidsXy(isRowFinite, :) ;
     end  % function
   end  % methods
 
@@ -448,7 +483,8 @@ classdef CompareTrackersModel < handle
          obj.endFrameFromBoutIndex_, ...
          obj.peakFrameFromBoutIndex_, ...
          obj.unmatchedCountFromBoutIndex_, ...
-         obj.absoluteDistanceThreshold_] = ...
+         obj.absoluteDistanceThreshold_, ...
+         obj.isUnmatchedRefFromFrameIndexAndTrackletIndex_] = ...
           unmatchedCountBoutsBetweenTrackers(refTrkFile, ...
                                              testTrkFile, ...
                                              labeler.nframes, ...
@@ -473,8 +509,9 @@ classdef CompareTrackersModel < handle
                                        labeler.nframes, ...
                                        obj.quantileThreshold_, ...
                                        obj.matchDistanceThreshold_) ;
-        % This mode has no per-bout unmatched count.
+        % This mode has no per-bout unmatched count or unmatched mask.
         obj.unmatchedCountFromBoutIndex_ = zeros(0, 1) ;
+        obj.isUnmatchedRefFromFrameIndexAndTrackletIndex_ = [] ;
       end
       % Keep the source TrkFiles so the per-bout poses can be fetched for
       % the preview image without re-loading anything from disk.
@@ -501,6 +538,7 @@ classdef CompareTrackersModel < handle
       obj.absoluteDistanceThreshold_ = nan ;
       obj.refTrkFile_ = [] ;
       obj.testTrkFile_ = [] ;
+      obj.isUnmatchedRefFromFrameIndexAndTrackletIndex_ = [] ;
       obj.cachedPreviewImage_ = [] ;
       obj.cachedPreviewImageFrameIndexMaybe_ = [] ;
       obj.currentBoutIndexMaybe_ = [] ;

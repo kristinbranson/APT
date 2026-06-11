@@ -1,7 +1,8 @@
 function [distanceFromFrameIndexAndTrackletIndex, ...
           testTrackletIndexFromFrameIndexAndTrackletIndex, ...
           refPoseCountFromFrameIndex, ...
-          unmatchedRefCountFromFrameIndex] = ...
+          unmatchedRefCountFromFrameIndex, ...
+          isUnmatchedRefFromFrameIndexAndTrackletIndex] = ...
   perFrameTrackerMatch(refTrkFile, ...
                        testTrkFile, ...
                        nframes, ...
@@ -35,6 +36,9 @@ function [distanceFromFrameIndexAndTrackletIndex, ...
 %     at each frame
 %   unmatchedRefCountFromFrameIndex -- [nframes x 1] number of ref poses
 %     present at each frame that the matcher left without a test partner
+%   isUnmatchedRefFromFrameIndexAndTrackletIndex --
+%     [nframes x refTrackletCount] logical, true where the ref tracklet is
+%     present at the frame but the matcher left it without a test partner
 
 % Precompute per-frame pose data for both trackers.
 refPosesFromFrameIndex = buildPosesFromFrameIndex_(refTrkFile, nframes) ;
@@ -50,6 +54,7 @@ distanceFromFrameIndexAndTrackletIndex = nan(nframes, refTrackletCount) ;
 testTrackletIndexFromFrameIndexAndTrackletIndex = nan(nframes, refTrackletCount) ;
 refPoseCountFromFrameIndex = zeros(nframes, 1) ;
 unmatchedRefCountFromFrameIndex = zeros(nframes, 1) ;
+isUnmatchedRefFromFrameIndexAndTrackletIndex = false(nframes, refTrackletCount) ;
 costOfNonAssignment = matchDistanceThreshold / 2 ;
 for frameIndex = 1 : nframes
   refPoses = refPosesFromFrameIndex{frameIndex} ;
@@ -60,6 +65,9 @@ for frameIndex = 1 : nframes
     % With no test poses to match against, every present ref pose is
     % unmatched.  (With no ref poses, the count is trivially zero.)
     unmatchedRefCountFromFrameIndex(frameIndex) = refPoseCount ;
+    for refPoseIndex = 1 : refPoseCount
+      isUnmatchedRefFromFrameIndexAndTrackletIndex(frameIndex, refPoses(refPoseIndex).trackletIndex) = true ;
+    end
     continue
   end
   % Two distances are computed per (ref, test) pose pair, each answering
@@ -94,6 +102,16 @@ for frameIndex = 1 : nframes
   matchedPoseIndexPairs = matchpairs(costFromRefAndTestPoseIndex, costOfNonAssignment) ;
   matchedRefPoseCount = size(matchedPoseIndexPairs, 1) ;
   unmatchedRefCountFromFrameIndex(frameIndex) = refPoseCount - matchedRefPoseCount ;
+  % Flag the present ref poses the matcher did not pair as unmatched.
+  isRefPoseMatched = false(refPoseCount, 1) ;
+  if ~isempty(matchedPoseIndexPairs)
+    isRefPoseMatched(matchedPoseIndexPairs(:, 1)) = true ;
+  end
+  for refPoseIndex = 1 : refPoseCount
+    if ~isRefPoseMatched(refPoseIndex)
+      isUnmatchedRefFromFrameIndexAndTrackletIndex(frameIndex, refPoses(refPoseIndex).trackletIndex) = true ;
+    end
+  end
   for matchIndex = 1 : matchedRefPoseCount
     refPoseIndex = matchedPoseIndexPairs(matchIndex, 1) ;
     testPoseIndex = matchedPoseIndexPairs(matchIndex, 2) ;
