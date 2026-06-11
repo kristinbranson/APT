@@ -399,16 +399,32 @@ classdef CompareTrackersController < handle
     end  % function
 
     function updatePreviewRowHeight_(obj)
-      % Keep the preview axes square by pinning its grid row height to
-      % the grid's inner width.
+      % Size the preview row to keep the axes square (its height pinned to
+      % the grid's inner width) without letting it overflow its cell: cap
+      % the height to the vertical space left after the fixed control rows,
+      % a minimum listbox height, the grid padding, and the row spacing.
+      % On a short, wide window the uncapped square height would exceed the
+      % figure, forcing the cell -- and the axes filling it -- larger than
+      % the available space.
       if ~obj.hasValidFigure_ || isempty(obj.gridLayout_) || ~isvalid(obj.gridLayout_)
         return
       end
       figureWidth = obj.figure_.Position(3) ;
+      figureHeight = obj.figure_.Position(4) ;
       padding = obj.gridLayout_.Padding ;
-      innerWidth = figureWidth - padding(1) - padding(3) ;
+      rowSpacing = obj.gridLayout_.RowSpacing ;
       rowHeight = obj.gridLayout_.RowHeight ;
-      rowHeight{6} = max(innerWidth, 50) ;
+      innerWidth = figureWidth - padding(1) - padding(3) ;
+      % Vertical space everything except the preview row needs: the four
+      % fixed control rows (1-4), a minimum height for the listbox (row 5),
+      % the top/bottom padding, and the spacing between all six rows.
+      fixedRowsHeight = rowHeight{1} + rowHeight{2} + rowHeight{3} + rowHeight{4} ;
+      minimumListboxHeight = 60 ;
+      rowCount = numel(rowHeight) ;
+      reservedHeight = padding(2) + padding(4) + rowSpacing * (rowCount - 1) + ...
+                       fixedRowsHeight + minimumListboxHeight ;
+      availableHeight = figureHeight - reservedHeight ;
+      rowHeight{6} = max(min(innerWidth, availableHeight), 50) ;
       obj.gridLayout_.RowHeight = rowHeight ;
     end  % function
 
