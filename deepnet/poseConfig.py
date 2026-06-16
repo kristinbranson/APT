@@ -288,6 +288,7 @@ class config(object):
         self.link_id_method = 'graph_cut' # other option is 'motion' or 'none'
         self.link_id_motion_link = False
         self.link_id_save_int_wts = False
+        self.link_id_cluster_occ_thresh = 0.2  # max occlusion fraction for a tracklet to be used when finding ID cluster centers
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'

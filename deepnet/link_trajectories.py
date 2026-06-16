@@ -1459,8 +1459,21 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
     # This trx is from output file
     cap = movies.Movie(mov_file)
     trx_dict = apt.get_trx_info(out_file, conf, cap.get_n_frames(),use_ht_pts=True)
-    trx = trx_dict['trx']
     cap.close()
+
+    # get_trx_info packs only non-empty targets, dropping entries where eframe <= sframe.
+    # Re-index to a full-length list (one slot per linked_trk target, None for empty
+    # targets) so that trx[i] always corresponds to linked_trk target i.
+    packed_trx = trx_dict['trx']
+    sf_trk, ef_trk = linked_trk.get_startendframes()
+    trx = []
+    j = 0
+    for itgt in range(linked_trk.ntargets):
+      if sf_trk[itgt] >= 0 and ef_trk[itgt] >= sf_trk[itgt]:
+        trx.append(packed_trx[j] if j < len(packed_trx) else None)
+        j += 1
+      else:
+        trx.append(None)
 
     try:
       generate_id_report(linked_trk, trx, out_file, mov_file, conf)
@@ -1671,6 +1684,9 @@ class id_dset(torch.utils.data.IterableDataset):
         info.append([sel_ndx,curidx,idx_self1,idx_self2, overlap_tgt,overlap_im_idx])
         curims.append(np.stack([im1, im2, overlap_im], 0))
 
+      if len(curims) == 0:
+        # this movie had no overlaps, so try another one
+        continue
       curims = np.array(curims)
       info = np.array(info)
       curims = curims.reshape((-1,) + curims.shape[2:])
@@ -1751,9 +1767,11 @@ def pred_ims_par(trx, trk_info, mov_file, conf, net, rescale,debug):
   tgt_id = []
   preds = None
   debug_data  = []
-  with mp.get_context('spawn').Pool(n_pool,maxtasksperchild=10) as pool:
-    data_iter = pool.imap_unordered(read_tracklet_ims,args,chunksize=1)
-    for dat in tqdm(data_iter,desc='Reading and processing images from tracklets',total=len(args)):
+  if debug or getattr(conf, 'link_id_debug', False):
+    data_iter = map(read_tracklet_ims, args)
+  else:
+    data_iter = mp.get_context('spawn').Pool(n_pool, maxtasksperchild=10).imap_unordered(read_tracklet_ims, args, chunksize=1)
+  for dat in tqdm(data_iter,desc='Reading and processing images from tracklets',total=len(args)):
       ims = [d[0] for d in dat]
       cur_pred = tracklet_pred(ims,net,conf,rescale)
       if cur_pred.size > 0:
@@ -1815,7 +1833,7 @@ async def read_ims_par(trx, trk_info, mov_file, conf):
   loop = asyncio.get_event_loop()
   with mp.get_context('spawn').Pool(n_pool,maxtasksperchild=10) as pool:
   # with mp.dummy.Pool() as pool:
-    # remember to remove dummy after debugging
+    # remember to switch back to spawn pool for production
     logging.info('Starting starmap..')
     tt = time.time()
     async_data = pool.starmap_async(read_tracklet_ims,args,chunksize=1)
@@ -2204,7 +2222,7 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
   mining_dists = []
   all_data_filtered = []
   for data, trk in zip(all_data,trks):
-    if len(data) == 0:
+    if len(data) < 2:
       continue
     all_data_filtered.append(data)
     ss, ee = trk.get_startendframes()
@@ -2236,16 +2254,18 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
 
   load_task = None
   async_start_epoch = 0
+  data_used = True
   # for epoch in tqdm_asyncio(range(n_iters)):
   for epoch in range(n_iters):
 
     # if epoch % sampling_period == 0 and epoch > 0:
       # compute the mining data and recreate datasets and dataloaders with updated mining data
 
-    if load_task is None or load_task.done():
+    if (load_task is None or load_task.done()) and data_used:
       logging.info(f'Starting async loading task at {epoch}')
       load_task = asyncio.create_task(get_id_train_images(*train_data_args))
       async_start_epoch = epoch
+      data_used = False
       # load_task = loop.run_in_executor(executor,get_id_train_images,*train_data_args)
 
     await asyncio.sleep(0.1)
@@ -2254,7 +2274,8 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
       # if sampling is taking longer than the sampling period, we should probably just wait for it to finish before starting the next epoch to avoid training on stale data
       await load_task
 
-    if load_task.done():
+    if load_task.done() and (epoch-async_start_epoch) > (sampling_period/5):
+      # DOn't sample too often either because it can slow down training
       # logging.info(f'Async loading task done at epoch {epoch}, updating training data ...')
 
       all_data = load_task.result()
@@ -2265,7 +2286,7 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
       trk_data = []
       all_data_filtered = []
       for data, trk in zip(all_data, trks):
-        if len(data) == 0:
+        if len(data) < 2:
           continue
         all_data_filtered.append(data)
         ss, ee = trk.get_startendframes()
@@ -2285,6 +2306,8 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
       worker_init_fn = None if mp.get_start_method() == 'spawn' else lambda id: np.random.seed(id * epoch)
       train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers, worker_init_fn=worker_init_fn)
       train_iter = iter(train_loader)
+
+      data_used = True
 
 
     curims, data_info = next(train_iter)
@@ -3156,7 +3179,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
   pred_map_orig = pred_map.copy()
   if link_method == 'graph_cut':
-    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr)
+    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr,conf=conf)
     debug_data = []
   elif link_method=='motion':
     groups,pred_map,debug_data = group_tracklets_motion_all(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select)
@@ -4053,7 +4076,7 @@ def get_overlap_value(trk, n_workers=None):
 
   return np.array([np.mean(o) if o else np.nan for o in overlaps])
 
-def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh):
+def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ_thresh=0.2):
   # compute the centers of the clusters of tracklets that we will use for graph cut. We want to find clusters of tracklets that are close in the embedding space and have low overlap and low occlusion. We will use these clusters to compute the unary component for graph-cut
 
   tlen_sel = np.zeros(len(pred_map))
@@ -4086,7 +4109,7 @@ def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh):
 
   # Use the pre-computed diagonal (dist_diag) to filter tracklets, then compute the
   # distance matrix only for the selected subset instead of the full N×N matrix.
-  t_sel = np.where((tlen_sel > 50) & (oa_sel < 0.4) & (occ_sel < 0.2) & (dist_diag < close_thresh))[0]
+  t_sel = np.where((tlen_sel > 50) & (oa_sel < 0.4) & (occ_sel < occ_thresh) & (dist_diag < close_thresh))[0]
 
   dist_mat_sub = get_id_dist_mat(preds[t_sel])
   dist_mat_sub = (dist_mat_sub+dist_mat_sub.T)/2  # symmetrize to avoid numerical issues
@@ -4334,9 +4357,10 @@ def _best_group_link_cost(trk_idx, group_set, link_costs_mov):
           best = min(best, entry[1])  # entry[1] is the spatial cost
   return best
 
-def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all,link_costs_arr):
+def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all,link_costs_arr,conf=None):
 
-    cluster_centers = get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh)
+    occ_thresh = conf.link_id_cluster_occ_thresh if conf is not None else 0.2
+    cluster_centers = get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ_thresh=occ_thresh)
     nclusters = cluster_centers.shape[0]
 
     all_labels = []
