@@ -83,6 +83,7 @@ function autoparams = compute_auto_params(lobj)
   l_min = permute(nanmin(all_labels,[],1),[2,3,1]);
   l_max = permute(nanmax(all_labels,[],1),[2,3,1]);
   l_span = l_max-l_min;
+  l_span(~isfinite(l_span)) = NaN ;
   l_span_pc = prctile(l_span,[5,50,95],2);
 
   auto_multi_bbox_scale = nanmax(l_span_pc(:,3))/nanmax(l_span_pc(:,2))>2;

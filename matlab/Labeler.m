@@ -105,6 +105,7 @@ classdef Labeler < handle
     updateStatusAndPointer
     didSetTrx
     updateTrxVisibility
+    updateTrxCosmetics
     updateTrxTable
     updateFrameTableIncremental
     updateFrameTableComplete
@@ -13928,9 +13929,9 @@ classdef Labeler < handle
     % end
     
     function hlpApplyCosmetics(obj, colorSpecs, mrkrSpecs, skelSpecs, trajSpecs)
-      obj.updateLandmarkColors(colorSpecs);
-      obj.updateLandmarkCosmetics(mrkrSpecs);
-      obj.updateSkeletonCosmetics(skelSpecs);
+      obj.setLandmarkColors_(colorSpecs);
+      obj.setLandmarkCosmetics_(mrkrSpecs);
+      obj.setSkeletonCosmetics_(skelSpecs);
       if exist('trajSpecs', 'var') && ~isempty(trajSpecs)
         obj.updateTrajectoryCosmetics(trajSpecs);
       end
@@ -13945,26 +13946,7 @@ classdef Labeler < handle
       end
       trajSpecs = obj.projPrefs.Trx;
 
-      % prediction
-      dt = obj.tracker;
-      tv = dt.trkVizer;
-      if ~isempty(tv)
-        if isa(tv, 'TrackingVisualizerTracklets') && ~isempty(tv.tvtrx)
-          tv.tvtrx.setTrajectoryCosmetics(trajSpecs);
-        elseif isa(tv, 'TrxVisualizerMA') || isa(tv, 'TrackingVisualizerTrxMAFast')
-          tv.setTrajectoryCosmetics(trajSpecs);
-        end
-      end
-
-      %imported
-      tv = obj.labeledpos2trkViz;
-      if ~isempty(tv)
-        if isa(tv, 'TrackingVisualizerTracklets') && ~isempty(tv.tvtrx)
-          tv.tvtrx.setTrajectoryCosmetics(trajSpecs);
-        elseif isa(tv, 'TrxVisualizerMA') || isa(tv, 'TrackingVisualizerTrxMAFast')
-          tv.setTrajectoryCosmetics(trajSpecs);
-        end
-      end
+      obj.notify('updateTrxCosmetics') ;
     end
 
     function gtToggleGTMode(obj)
@@ -14061,6 +14043,22 @@ classdef Labeler < handle
       
       % Make a ToTrackInfo object from toTrackRaw
       toTrack = tidyToTrackStructForBatchTracking(toTrackRaw) ;
+      linkType = 'simple' ;
+      if isfield(toTrack, 'link_type') ,
+        linkType = toTrack.link_type ;
+      end
+      idMaintainIdentity = false ;
+      if isfield(toTrack, 'id_maintain_identity') ,
+        idMaintainIdentity = toTrack.id_maintain_identity ;
+      end
+      idKnownNumAnimals = false ;
+      if isfield(toTrack, 'id_known_num_animals') ,
+        idKnownNumAnimals = toTrack.id_known_num_animals ;
+      end
+      idNumAnimals = [] ;
+      if isfield(toTrack, 'id_num_animals') ,
+        idNumAnimals = toTrack.id_num_animals ;
+      end
       totrackinfo = ...
         ToTrackInfo('movfiles',toTrack.movfiles,...
                     'trxfiles',toTrack.trxfiles,...
@@ -14071,7 +14069,11 @@ classdef Labeler < handle
                     'calibrationfiles',toTrack.calibrationfiles,...
                     'frm0',toTrack.f0s,...
                     'frm1',toTrack.f1s,...
-                    'trxids',toTrack.targets);
+                    'trxids',toTrack.targets,...
+                    'link_type',linkType,...
+                    'id_maintain_identity',idMaintainIdentity,...
+                    'id_known_num_animals',idKnownNumAnimals,...
+                    'id_num_animals',idNumAnimals);
       
       % Call obj.tracker.track to do the real tracking
       obj.tracker.track('totrackinfo',totrackinfo, ...
