@@ -168,6 +168,12 @@ classdef SpecifyMovieToTrackGUI < handle
       if ~isfield(obj.movdata,'link_type'),
         obj.movdata.link_type = 'motion';
       end
+      if ~isfield(obj.movdata, 'id_known_num_animals') ,
+        obj.movdata.id_known_num_animals = false ;
+      end
+      if ~isfield(obj.movdata, 'id_num_animals') ,
+        obj.movdata.id_num_animals = [] ;
+      end
       
       obj.rowinfo = struct;
       obj.rowinfo.movie = struct;
@@ -248,9 +254,9 @@ classdef SpecifyMovieToTrackGUI < handle
     function createGUI(obj)
       
       % movies, trks, trx, crop, calibration
-      obj.nfields = 2*obj.nview + double(obj.hastrx)*(obj.nview+1) + ... 
-        double(obj.iscrop)*obj.nview + double(obj.nview>1) + ... 
-        double(obj.isma)*obj.nview + 2;
+      obj.nfields = 2*obj.nview + double(obj.hastrx)*(obj.nview+1) + ...
+        double(obj.iscrop)*obj.nview + double(obj.nview>1) + ...
+        max(double(obj.isma && obj.detailed_options)*2, double(obj.isma)*obj.nview) + 2;
       figname = 'Specify movie to track';
       
       obj.colorinfo.backgroundcolor = [0,0,0];
@@ -490,17 +496,37 @@ classdef SpecifyMovieToTrackGUI < handle
           'Tag','popupmenu_linking',...
           'Callback',@(src,evt) obj.linkingTypeChanged(src,evt));
         
-        % rowi = rowi + 1;
+        rowi = rowi + 1 ;
 
-        % for i = 1:obj.nview,
-      %     tag = 'detect';
-      %     if obj.nview > 1,
-      %       str = sprintf('Output detect view %d:',i);
-      %     else
-      %       str = 'Output detect:';
-      %     end
-      %     obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.detectfiles{i});
-        % end
+        isIdentity = strcmp(obj.movdata.link_type, 'identity') ;
+        obj.gdata.chk_known_num_animals = uicontrol(obj.gdata.fig, ...
+          'Style', 'checkbox', ...
+          'String', 'Known N animals:', ...
+          'ForegroundColor', 'w', ...
+          'BackgroundColor', obj.colorinfo.backgroundcolor, ...
+          'Value', obj.movdata.id_known_num_animals, ...
+          'Units', 'normalized', ...
+          'Position', [obj.posinfo.textx, obj.posinfo.rowys(rowi), obj.posinfo.textw, obj.posinfo.rowh], ...
+          'Enable', onIff(isIdentity), ...
+          'Tag', 'chk_known_num_animals', ...
+          'Callback', @(src,evt) obj.knownNumAnimalsChanged(src,evt)) ;
+
+        if isempty(obj.movdata.id_num_animals)
+          numAnimalsStr = '' ;
+        else
+          numAnimalsStr = num2str(obj.movdata.id_num_animals) ;
+        end
+        isNumAnimalsEnabled = isIdentity && obj.movdata.id_known_num_animals ;
+        obj.gdata.edit_num_animals = uicontrol(obj.gdata.fig, ...
+          'Style', 'edit', ...
+          'String', numAnimalsStr, ...
+          'ForegroundColor', 'w', ...
+          'BackgroundColor', obj.colorinfo.editfilecolor, ...
+          'Units', 'normalized', ...
+          'Position', [obj.posinfo.editx, obj.posinfo.rowys(rowi), obj.posinfo.editw/4, obj.posinfo.rowh], ...
+          'Enable', onIff(isNumAnimalsEnabled), ...
+          'Tag', 'edit_num_animals', ...
+          'Callback', @(src,evt) obj.numAnimalsChanged(src,evt)) ;
 
       end  % if obj.isma etc
 
@@ -957,6 +983,26 @@ classdef SpecifyMovieToTrackGUI < handle
         obj.link_type = 'motion' ;
       end
       obj.movdata.link_type = obj.link_type ;
+      isIdentity = strcmp(obj.link_type, 'identity') ;
+      if isfield(obj.gdata, 'chk_known_num_animals') && isvalid(obj.gdata.chk_known_num_animals)
+        obj.gdata.chk_known_num_animals.Enable = onIff(isIdentity) ;
+        isNumAnimalsEnabled = isIdentity && obj.movdata.id_known_num_animals ;
+        obj.gdata.edit_num_animals.Enable = onIff(isNumAnimalsEnabled) ;
+      end
+    end
+
+    function knownNumAnimalsChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the known-N-animals checkbox
+      obj.movdata.id_known_num_animals = logical(get(obj.gdata.chk_known_num_animals, 'Value')) ;
+      obj.gdata.edit_num_animals.Enable = onIff(obj.movdata.id_known_num_animals) ;
+    end
+
+    function numAnimalsChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the number-of-animals edit field
+      val = str2double(get(obj.gdata.edit_num_animals, 'String')) ;
+      if ~isnan(val) && val > 0
+        obj.movdata.id_num_animals = round(val) ;
+      end
     end
 
     function trk = genTrkfile(obj,movie,defaulttrk,varargin)
