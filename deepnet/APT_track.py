@@ -39,11 +39,10 @@ def parse_args(argv):
     parser.add_argument('-track_type',choices=['predict_link','only_predict','only_link','link_id'], default='predict_link', help='for multi-animal. Whether to link the predictions or not, or only link existing tracklets. "predict_link" both predicts and links, "only_predict" only predicts but does not link, "only_link" only links existing predictions. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option. Default is "predict_link"')
     parser.add_argument('-predict_trk_files', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, nargs='+')
     parser.add_argument('-id_wts_file', dest='id_wts_file', help='File path for ID tracking model weights. If file exists, weights are loaded. If file does not exist, trained weights are saved to this location.', default=None)
+    parser.add_argument('-id_num_animals', dest='id_num_animals', help='Known number of animals present in the videos being tracked. If specified, used to determine the number of ID clusters during identity linking instead of a fixed distance threshold.', type=int, default=None)
     parser.add_argument('-config_file', dest='config_file', help='JSON file with parameters related to tracking', default=None)
-    parser.add_argument('-continue', dest='continue_tracking', help='continue tracking from an existing .part file', action='store_true')
-
     parser.add_argument('-continue', dest='continue_tracking', action='store_true',
-                        help='Continue tracking from existing .part file.')
+                        help='Continue tracking from existing .part file. Checks for out_file.part and resumes from the last tracked frame.')
 
     parser.add_argument('-conf_params',
                         help='conf params. These will override params from lbl file. If the model is a 2 stage tracker then this will override the params only for the first stage', default=None, nargs='*')

@@ -1222,7 +1222,7 @@ def link_pure(trk, conf, do_delete_short=False, do_motion_link=True):
 
   # return l_trk
 
-def link_trklets(trk_files, conf, movs, out_files, id_wts=None):
+def link_trklets(trk_files, conf, movs, out_files, id_wts=None, num_animals=None):
   """
   Links pure tracklets using id liking or motion based on conf.link_id
   :param trk_files: trk files with pure linked trajectories
@@ -1233,6 +1233,8 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None):
   :type movs: list of str
   :param out_files: Output files. The linked trajectories are not saved. The file names are used to save intermediate files for id tracking (wts, images etc).
   :type out_files: list of str
+  :param num_animals: known number of animals in the videos. If given, used to pick the number of ID clusters during graph-cut linking instead of the fixed distance threshold.
+  :type num_animals: int or None
   :return: linked trk files
   :rtype: list
   """
@@ -1288,7 +1290,7 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None):
     #   link_method = 'motion'
     # else:
     #   link_method = 'no_motion'
-    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link, id_wts=id_wts, link_method=link_method)
+    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link, id_wts=id_wts, link_method=link_method, num_animals=num_animals)
 
     out_trks= []
     count = 0
@@ -1397,7 +1399,7 @@ def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
   return trk
 
 
-def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method='motion',save_debug_data=False):
+def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method='motion',save_debug_data=False,num_animals=None):
   '''
   Link traj. based on identity
   :param trks:
@@ -1447,7 +1449,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
   def_params = get_default_params(conf)
 
   data_out_file = wt_out_file.replace('.p','_data.p')
-  trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale,out_file=data_out_file)
+  trk_out, debug_data, n_ids = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale,out_file=data_out_file,num_animals=num_animals)
 
   if save_debug_data:
     debug_out_file = out_files[0].replace('.trk','_link_data.pkl')
@@ -1456,9 +1458,12 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
 
   for linked_trk, out_file, mov_file in zip(trk_out, out_files, mov_files):
 
-    # This trx is from output file
     cap = movies.Movie(mov_file)
+
+    # save it temporarily to get the trx info. The trx info is required to generate the ID report. This will get overwritten by APT_interface's main call
+    linked_trk.save(out_file)
     trx_dict = apt.get_trx_info(out_file, conf, cap.get_n_frames(),use_ht_pts=True)
+
     cap.close()
 
     # get_trx_info packs only non-empty targets, dropping entries where eframe <= sframe.
@@ -1476,7 +1481,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
         trx.append(None)
 
     try:
-      generate_id_report(linked_trk, trx, out_file, mov_file, conf)
+      generate_id_report(linked_trk, trx, out_file, mov_file, conf, n_ids=n_ids)
     except Exception as report_exc:
       logging.warning(f'Could not generate ID report for {out_file}: {report_exc}')
 
@@ -1534,8 +1539,12 @@ async def get_id_train_images(linked_trks, all_trx, mov_files, conf):
       # ignore small tracklets
       min_trx_len = conf.link_id_min_train_track_len
       # incase all traj are small
-      if np.count_nonzero((ee - ss + 1) > min_trx_len) < conf.max_n_animals:
-        min_trx_len = min(1, np.percentile((ee - ss + 1), 20) - 1)
+      if np.count_nonzero((ee - ss + 1) > min_trx_len) < min(5,conf.max_n_animals):
+        # if there are too few trajectories to begin with, then select most else select top 20
+        if len(ee) < 20:
+          min_trx_len = min(1, np.percentile((ee - ss + 1), 20) - 1)
+        else:
+          min_trx_len = np.sort((ee - ss + 1))[-20]-1
 
       rand_fr = np.random.randint(trk.T0, trk.T1 + 1) # select a random frame and find tracklets that are alive at that frame
       trk_fr = (ss <= rand_fr) & (ee >= rand_fr)
@@ -1559,6 +1568,8 @@ async def get_id_train_images(linked_trks, all_trx, mov_files, conf):
       all_data.append([])
       continue
     data = await read_ims_par(trx, sel_trk_info, mov_file, conf)
+    # each element of data is a tuple of [ims, trk_id, trk_id_startframe, trk_id_endframe, list_to_sample]
+
     # data = read_data_files(data_files)
     all_data.append(data)
 
@@ -1931,11 +1942,9 @@ def merge_parallel(data):
   return data
 
 def do_pred(zz1,net):
-  # zz2 = zz1.astype('float32')
-  # zz = torch.tensor(zz2).cuda()
+  device = next(net.parameters()).device
   with torch.no_grad():
-    oo = net(zz1.cuda()).cpu().numpy()
-  # del zz2,zz
+    oo = net(zz1.to(device)).cpu().numpy()
   return oo
 
 
@@ -2122,17 +2131,18 @@ def compute_dists(t_preds, ss_t, ee_t, all_xx):
   return dists
 
 def load_id_wts(id_wts):
+  device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
   net = get_id_net()
-  cpt = torch.load(id_wts)
+  cpt = torch.load(id_wts, map_location=device)
   net.load_state_dict(cpt['model_state_params'])
-  return net.cuda()
+  return net.to(device)
 
 def get_id_net():
   # model to use. we embed the animal images into 32 dim space
+  device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
   net = models.resnet.resnet34(pretrained=True)
   net.fc = torch.nn.Linear(in_features=512, out_features=32, bias=True)
-
-  net = net.cuda()
+  net = net.to(device)
   return net
 
 async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=None, bsz=16):
@@ -2213,8 +2223,9 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
   debug = conf.get('link_id_debug',False)
 
   logging.info('Training ID network ...')
+  device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
   net.eval()
-  net = net.cuda()
+  net = net.to(device)
 
   all_data = await get_id_train_images(*train_data_args)
   # Set mining distances to identical dummy values initially
@@ -2248,8 +2259,9 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
   # Save example training images for debugging.
   ex_ims, ex_info = next(train_iter)
   ex_ims = ex_ims.numpy()
+  ex_info = ex_info.numpy()
   im_save_file = os.path.splitext(save_file)[0]+'_ims.mat'
-  hdf5storage.savemat(im_save_file,{'example_ims':ex_ims})
+  hdf5storage.savemat(im_save_file,{'example_ims':ex_ims,'example_info':ex_info})
   logging.info(f'Saved sampled ID training images to {im_save_file}')
 
   load_task = None
@@ -2311,7 +2323,7 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
 
 
     curims, data_info = next(train_iter)
-    curims = curims.cuda()
+    curims = curims.to(device)
     curims = curims.reshape((-1,)+ curims.shape[2:])
     optimizer.zero_grad()
     output = net(curims)
@@ -3118,7 +3130,7 @@ def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_
   return grs, new_pred_map, debug_data
 
 
-def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False,link_method='motion',out_file=None):
+def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False,link_method='motion',out_file=None,num_animals=None):
   '''
   Links the pure tracklets using identity
 
@@ -3179,12 +3191,15 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
   pred_map_orig = pred_map.copy()
   if link_method == 'graph_cut':
-    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr,conf=conf)
+    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr,conf=conf,num_animals=num_animals)
     debug_data = []
   elif link_method=='motion':
     groups,pred_map,debug_data = group_tracklets_motion_all(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select)
   else:
     groups,pred_map,debug_data = group_tracklets(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select,preds)
+
+
+  n_detected_ids = len(groups)
 
   if False:
     # to visualize the clusters
@@ -3253,7 +3268,8 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   #     trk.__dict__[k] = np.delete(trk.__dict__[k], to_remove, -1)
   # trk.ntargets = trk.ntargets - len(to_remove)
 
-  logging.info(f'Deleting short trajectories with length less than {conf.link_maxframes_delete}')
+  if not keep_all_preds:
+    logging.info(f'Deleting short trajectories with length less than {conf.link_maxframes_delete}')
 
   params = get_default_params(conf)
   for cur_id, cur_trk in zip(ids, linked_trks):
@@ -3275,17 +3291,20 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
     isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids, cur_id.T))
     isdummy.allocate((1,), t0s, t1s)
 
-    cur_id, ids_short = delete_short(cur_id, isdummy, params)
-    if len(linked_trks)<2:
-      _, cur_id = cur_id.unique()
+    ids_short = []
+    if not keep_all_preds:
+      cur_id, ids_short = delete_short(cur_id, isdummy, params)
+      if len(linked_trks)<2:
+        _, cur_id = cur_id.unique()
 
     ids_left = [i for i in range(nids) if (i not in ids_short) and (i not in ids_remove)]
     # Apply the ids to trk.
     cur_trk.apply_ids(cur_id)
     cur_trk.pTrkiTgt = np.array(ids_left)
-    interpolate_gaps(cur_trk)
+    if not keep_all_preds:
+      interpolate_gaps(cur_trk)
 
-  return linked_trks,debug_data
+  return linked_trks,debug_data,n_detected_ids
 
 
 def interpolate_gaps(trk):
@@ -3302,10 +3321,18 @@ def interpolate_gaps(trk):
   max_gap = 3
   ss,ee = trk.get_startendframes()
   for xx in range(trk.ntargets):
-#      if (ee[xx]==0) and (ss[xx]==0):
-#        continue
       if (ee[xx]<0) or (ss[xx]<0):
         continue
+
+      # Fast check: look for NaN directly in raw data before paying the cost
+      # of gettargetframe. Most tracklets have no gaps so this skips them cheaply.
+      if trk.issparse:
+        raw_jj = trk.pTrk.data[xx][0, 0, :]
+      else:
+        raw_jj = trk.pTrk[0, 0, ss[xx]-trk.T0:ee[xx]-trk.T0+1, xx]
+      if not np.any(np.isnan(raw_jj)):
+        continue
+
       pp = trk.gettargetframe(xx,np.arange(ss[xx],ee[xx]+1))
       jj = pp[0, 0, :, 0]
       qq = np.ones(jj.shape[0]+2)>0
@@ -3314,6 +3341,7 @@ def interpolate_gaps(trk):
       qq1 = np.where(   qq[:-2]   & (~qq[1:-1]) )[0]
       qq2 = np.where( (~qq[1:-1]) &   qq[2:] )[0]
       rr = qq1[1:]-qq2[:-1]-1
+      did_interpolate = False
       for ndx in range(rr.size):
           a1 = pp[:,:,qq1[ndx+1],0]
           a2 = pp[:,:,qq2[ndx],0]
@@ -3329,9 +3357,10 @@ def interpolate_gaps(trk):
           if (rr[ndx]<= max_gap) and (dd/csz < thresh):
             for dim in range(pp.shape[1]):
               ii = PoseTools.linspacev(a1[:,dim],a2[:,dim],rr[ndx]+2)
-
               pp[:,dim,qq2[ndx]+1:qq1[ndx+1],0] = ii[:,1:-1]
-      trk.settarget(pp[...,0],xx,ss[xx],ee[xx])
+            did_interpolate = True
+      if did_interpolate:
+        trk.settarget(pp[...,0],xx,ss[xx],ee[xx])
 
 
 def get_dist(p1, p2):
@@ -4076,7 +4105,7 @@ def get_overlap_value(trk, n_workers=None):
 
   return np.array([np.mean(o) if o else np.nan for o in overlaps])
 
-def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ_thresh=0.2):
+def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ_thresh=0.2,num_animals=None):
   # compute the centers of the clusters of tracklets that we will use for graph cut. We want to find clusters of tracklets that are close in the embedding space and have low overlap and low occlusion. We will use these clusters to compute the unary component for graph-cut
 
   tlen_sel = np.zeros(len(pred_map))
@@ -4118,7 +4147,11 @@ def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ
   Z = linkage(distArray, 'average')
   # plt.figure(); dn = dendrogram(Z); xde = plt.xticks(fontsize=8)
 
-  F = fcluster(Z, t=1.0, criterion='distance')
+  if num_animals is not None and num_animals > 0:
+    # known number of animals -- pick that many clusters instead of cutting at a fixed distance
+    F = fcluster(Z, t=num_animals, criterion='maxclust')
+  else:
+    F = fcluster(Z, t=1.0, criterion='distance')
 
   g_sz = []
   for rf in range(max(F)):
@@ -4134,7 +4167,7 @@ def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ
   cluster_centers = []
   sel_clus = []
   for i in range(1, np.max(F) + 1):
-    if g_sz[i - 1] / sum(len_mov) < 0.05:
+    if num_animals is None and g_sz[i - 1] / sum(len_mov) < 0.05:
       # small cluster, ignore
       continue
     cur_sel = t_sel[np.where(F == i)[0]]  # np.where(F==i)[0] #
@@ -4357,10 +4390,10 @@ def _best_group_link_cost(trk_idx, group_set, link_costs_mov):
           best = min(best, entry[1])  # entry[1] is the spatial cost
   return best
 
-def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all,link_costs_arr,conf=None):
+def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all,link_costs_arr,conf=None,num_animals=None):
 
     occ_thresh = conf.link_id_cluster_occ_thresh if conf is not None else 0.2
-    cluster_centers = get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ_thresh=occ_thresh)
+    cluster_centers = get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ_thresh=occ_thresh,num_animals=num_animals)
     nclusters = cluster_centers.shape[0]
 
     all_labels = []
@@ -4895,38 +4928,19 @@ def test_recognize_ids():
   print('finished')
   
 
-def generate_id_report(linked_trk, trx, out_trk_file, mov_file, conf, n_ex=25, seed=42):
+def generate_id_report(linked_trk, trx, out_trk_file, mov_file, conf, n_ids=None,n_ex=25, seed=42):
   """
   Generate a PDF ID-tracking report for one movie.
 
-  Intended to be called from link_id() after linking is complete, passing
-  the variables that already exist there.  Each page covers one trajectory:
-    - A row of n_ex example cropped instances (subplot size scales with conf.imsz)
-    - Scatter plot of all landmark detections overlaid on a background frame
-    - 2D detection density histogram
-    - Frame-time coverage bar chart for all trajectories
-      (current trajectory highlighted)
-
-  Parameters
-  ----------
-  linked_trk : TrkFile.Trk
-      The linked output Trk object for this movie (one element of the
-      list returned by link_trklet_id).
-  trx : list of dicts
-      Per-target trajectory structures for this movie, as returned by
-      apt.get_trx_info (i.e. trx_dict['trx']).  Already computed in link_id.
-  out_trk_file : str
-      Output .trk file path for this movie (used to derive the PDF name
-      and as the report title).
-  mov_file : str
-      Path to the corresponding movie file.
-  conf : namespace / object
-      Configuration object.  Must expose conf.imsz ([height, width]).
-  n_ex : int
-      Number of example frames to show per trajectory (default 25).
-  seed : int
-      Base random seed for example-frame selection (default 42).
+  Each page covers one trajectory:
+    - Detection density histogram overlaid on a background frame
+    - Frame-coverage bar chart with sampled-frame markers
+    - Grid of n_ex example cropped instances sorted by frame number,
+      with pose landmarks overlaid (green = visible, red = occluded)
+      and frame number shown above each image
   """
+  import math
+  import multiResData
   from matplotlib.backends.backend_pdf import PdfPages
   import matplotlib.gridspec as gridspec
 
@@ -4934,27 +4948,26 @@ def generate_id_report(linked_trk, trx, out_trk_file, mov_file, conf, n_ex=25, s
 
   ntargets = linked_trk.ntargets
   nlandmarks = linked_trk.nlandmarks
+  has_tag = linked_trk.pTrkTag is not None
+  if n_ids is None:
+    n_ids = ntargets
+  else:
+    n_ids = min(n_ids, ntargets)
   print(f'Generating ID report for {out_trk_file}: '
-        f'{ntargets} targets, {nlandmarks} landmarks')
+        f'{ntargets} targets, {nlandmarks} landmarks (reporting first {n_ids})')
 
   start_frames, end_frames = linked_trk.get_startendframes()
 
-  # Only pass tracklets that have at least one frame to read_tracklet_ims
   all_t_info = list(zip(np.arange(ntargets), start_frames, end_frames))
   valid_t_info = [(int(idx), int(ss), int(ee))
-                  for idx, ss, ee in all_t_info if ss >= 0 and ee >= ss]
+                  for idx, ss, ee in all_t_info if idx < n_ids and ss >= 0 and ee >= ss]
 
-  # ------------------------------------------------------------------ #
-  # Read example images – reuses trx already computed in link_id
-  # ------------------------------------------------------------------ #
   print(f'  Reading {n_ex} example images for {len(valid_t_info)} trajectories ...')
   ims_out = read_tracklet_ims([trx, valid_t_info, mov_file, conf, n_ex, seed])
   # ims_out[i] = [ims_array, tgt_idx, ss, ee, frame_list]  ims_array: (n_ex, H, W, C)
   ims_map = {entry[1]: entry for entry in ims_out}
 
-  # ------------------------------------------------------------------ #
   # Background frame from the middle of the video
-  # ------------------------------------------------------------------ #
   mid_frame = linked_trk.T // 2 + linked_trk.T0
   cap_bg = cv2.VideoCapture(mov_file)
   cap_bg.set(cv2.CAP_PROP_POS_FRAMES, mid_frame)
@@ -4963,7 +4976,7 @@ def generate_id_report(linked_trk, trx, out_trk_file, mov_file, conf, n_ex=25, s
   bg_frame = cv2.cvtColor(bg_frame_bgr, cv2.COLOR_BGR2RGB) if ret_bg else None
 
   # ------------------------------------------------------------------ #
-  # Helper: gather all landmark detections for one target
+  # Helper: all landmark detections for one target (for density plot)
   # ------------------------------------------------------------------ #
   def _get_detections(itgt):
     sf = linked_trk.startframes[itgt]
@@ -4983,7 +4996,7 @@ def generate_id_report(linked_trk, trx, out_trk_file, mov_file, conf, n_ex=25, s
     return xs, ys, valid
 
   # ------------------------------------------------------------------ #
-  # Helper: compute frame-coverage segments for one target
+  # Helper: frame-coverage segments for one target
   # ------------------------------------------------------------------ #
   def _coverage_segments(itgt):
     xs_c, _, valid_c = _get_detections(itgt)
@@ -5005,24 +5018,83 @@ def generate_id_report(linked_trk, trx, out_trk_file, mov_file, conf, n_ex=25, s
     return segs
 
   # ------------------------------------------------------------------ #
-  # Figure geometry – driven by conf.imsz ([height, width])
+  # Helper: landmarks + occlusion at a single frame for one target
+  # ------------------------------------------------------------------ #
+  def _get_frame_data(itgt, fr):
+    """Return (locs_xy (n_lm, 2) in world 0-indexed coords, occ bool or None)."""
+    locs = linked_trk.pTrk.gettargetframe(itgt, fr)  # (n_lm, 2, 1, 1)
+    locs_xy = locs[:, :, 0, 0]  # (n_lm, 2)
+    occ_val = None
+    if has_tag:
+      try:
+        occ_data = linked_trk.pTrkTag.gettargetframe(itgt, fr)  # (1, 1)
+        occ_val = bool(occ_data.flat[0])
+      except Exception:
+        pass
+    return locs_xy, occ_val
+
+  # ------------------------------------------------------------------ #
+  # Helper: transform world landmarks into crop-image coordinates.
+  # Replicates the affine transform used in multiResData.crop_patch_trx.
+  # trx_i['x'] / ['y'] are stored 1-indexed (Matlab convention from
+  # get_trx_info), so we subtract 1 to get 0-indexed crop-centre coords.
+  # ------------------------------------------------------------------ #
+  def _locs_to_crop(locs_xy, itgt, fr):
+    sf = linked_trk.startframes[itgt]
+    fi = int(fr - sf)
+    trx_i = trx[itgt]
+    if trx_i is None:
+      return None
+    cx = float(trx_i['x'][0, fi]) - 1.0   # 0-indexed
+    cy = float(trx_i['y'][0, fi]) - 1.0
+    theta_orig = float(trx_i['theta'][0, fi])
+    a_val = float(trx_i['a'][0, fi])
+    theta_crop = theta_orig + math.pi / 2  # matches crop_patch_trx
+
+    psz_x = conf.imsz[1]
+    psz_y = conf.imsz[0]
+
+    if getattr(conf, 'multi_scale_by_bbox', False):
+      dx = abs(a_val * 4 * math.sin(theta_orig))
+      dy = abs(a_val * 4 * math.cos(theta_orig))
+      bbox = [cx - dx, cy - dy, cx + dx, cy + dy]
+      scale = multiResData.get_scale_bbox(bbox, [psz_x, psz_y]) / conf.multi_pad
+    else:
+      scale = 1.0
+
+    T_mat = np.array([[1, 0, 0],
+                       [0, 1, 0],
+                       [-cx + psz_x / 2 - 0.5, -cy + psz_y / 2 - 0.5, 1]],
+                      dtype=np.float64)
+    if getattr(conf, 'trx_align_theta', True):
+      R1 = cv2.getRotationMatrix2D((psz_x / 2 - 0.5, psz_y / 2 - 0.5),
+                                    theta_crop * 180.0 / math.pi, scale)
+    else:
+      R1 = cv2.getRotationMatrix2D((psz_x / 2 - 0.5, psz_y / 2 - 0.5), 0.0, scale)
+    R = np.eye(3)
+    R[:, :2] = R1.T
+    A = (T_mat @ R)[:, :2].T.astype(np.float32)
+
+    valid = ~(np.isnan(locs_xy[:, 0]) | np.isnan(locs_xy[:, 1]))
+    result = np.full((nlandmarks, 2), np.nan)
+    if np.any(valid):
+      pts = locs_xy[valid].reshape(-1, 1, 2).astype(np.float32)
+      result[valid] = cv2.transform(pts, A).reshape(-1, 2)
+    return result
+
+  # ------------------------------------------------------------------ #
+  # Figure geometry
   # ------------------------------------------------------------------ #
   dpi = 100
-
   im_h_px = conf.imsz[0]
   im_w_px = conf.imsz[1]
-
-  # Cap figure width at 20 inches to keep pages a sensible size.
-  # Images are composited into a single mosaic array to avoid per-subplot overhead.
   fig_w_in = 20.0
   ims_per_row = max(1, int(fig_w_in * dpi / im_w_px))
   n_im_rows = int(np.ceil(n_ex / ims_per_row))
   im_col_w_in = fig_w_in / ims_per_row
-  im_row_h_in = im_col_w_in * (im_h_px / im_w_px)  # height of one image row
+  im_row_h_in = im_col_w_in * (im_h_px / im_w_px)
   total_im_h_in = im_row_h_in * n_im_rows
-
-  dist_row_h_in = 2.0
-  cov_row_h_in = 1.0
+  analysis_h_in = 3.0
 
   title_name = os.path.splitext(os.path.basename(out_trk_file))[0]
 
@@ -5032,19 +5104,18 @@ def generate_id_report(linked_trk, trx, out_trk_file, mov_file, conf, n_ex=25, s
   else:
     frame_w_px, frame_h_px = 800, 600
 
+  tgt_colors = cm.tab10(np.linspace(0, 1, max(ntargets, 1), endpoint=False))
+
   # ------------------------------------------------------------------ #
   # One PDF page per trajectory
   # ------------------------------------------------------------------ #
   with PdfPages(out_pdf) as pdf:
-    for itgt in range(ntargets):
-      fig, axes = plt.subplots(
-        2, 3,
-        figsize=(fig_w_in, dist_row_h_in + cov_row_h_in + total_im_h_in),
-        dpi=dpi,
-        gridspec_kw={
-          'height_ratios': [dist_row_h_in + cov_row_h_in, total_im_h_in],
-          'hspace': 0.4, 'wspace': 0.25,
-        },
+    for itgt in range(n_ids):
+      fig = plt.figure(figsize=(fig_w_in, analysis_h_in + total_im_h_in), dpi=dpi)
+      outer_gs = gridspec.GridSpec(
+        2, 1, figure=fig,
+        height_ratios=[analysis_h_in, total_im_h_in],
+        hspace=0.3,
       )
       fig.suptitle(
         f'{title_name}  —  Trajectory {itgt}  '
@@ -5052,11 +5123,12 @@ def generate_id_report(linked_trk, trx, out_trk_file, mov_file, conf, n_ex=25, s
         fontsize=11,
       )
 
-      # Row 0: density | coverage  (two equal columns)
-      axes[0, 2].set_visible(False)
-      xs_d, ys_d, valid_d = _get_detections(itgt)
+      # --- Row 0: density + coverage ---
+      top_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=outer_gs[0], wspace=0.3)
+      ax_dn = fig.add_subplot(top_gs[0])
+      ax_cov = fig.add_subplot(top_gs[1])
 
-      ax_dn = axes[0, 0]
+      xs_d, ys_d, valid_d = _get_detections(itgt)
       all_x = xs_d[valid_d].flatten()
       all_y = ys_d[valid_d].flatten()
       if len(all_x) > 0:
@@ -5068,48 +5140,75 @@ def generate_id_report(linked_trk, trx, out_trk_file, mov_file, conf, n_ex=25, s
       ax_dn.set_title('Detection density (all landmarks)', fontsize=8)
       ax_dn.axis('off')
 
-      ax_cov = axes[0, 1]
       segs = _coverage_segments(itgt)
+      sampled_frs = []
+      if itgt in ims_map:
+        sampled_frs = sorted(set(fl[0] for fl in ims_map[itgt][4]))
       if len(segs) > 0:
-        ax_cov.broken_barh(segs, (0 - 0.35, 0.7),
-                           facecolors=cm.tab10(itgt / ntargets), alpha=0.9)
+        ax_cov.broken_barh(segs, (-0.35, 0.7),
+                           facecolors=tgt_colors[itgt], alpha=0.9)
+      for sfr in sampled_frs:
+        ax_cov.axvline(sfr, color='k', linewidth=0.6, alpha=0.5, zorder=3)
       ax_cov.set_xlabel('Frame', fontsize=8)
       ax_cov.set_yticks([])
       ax_cov.tick_params(axis='x', labelsize=7)
-      ax_cov.set_title('Frame coverage', fontsize=8)
+      ax_cov.set_title('Frame coverage  (| = sampled frames)', fontsize=8)
 
-      # Row 1: example image mosaic spanning all three columns
-      axes[1, 1].set_visible(False)
-      axes[1, 2].set_visible(False)
-      ax_ims = axes[1, 0]
-      ax_ims.set_position(
-        [axes[1, 0].get_position().x0,
-         axes[1, 0].get_position().y0,
-         axes[1, 2].get_position().x1 - axes[1, 0].get_position().x0,
-         axes[1, 0].get_position().height]
-      )
+      # --- Row 1: image grid ---
       if itgt in ims_map:
-        ims_arr = ims_map[itgt][0]  # (n_ex, H, W, C)
-        n_pad = n_im_rows * ims_per_row - n_ex
-        if n_pad > 0:
-          pad_shape = (n_pad, im_h_px, im_w_px, ims_arr.shape[3])
-          ims_padded = np.concatenate([ims_arr, np.zeros(pad_shape, dtype=ims_arr.dtype)], axis=0)
-        else:
-          ims_padded = ims_arr
-        mosaic = (ims_padded.reshape(n_im_rows, ims_per_row, im_h_px, im_w_px, -1)
-                             .transpose(0, 2, 1, 3, 4)
-                             .reshape(n_im_rows * im_h_px, ims_per_row * im_w_px, -1))
-        ax_ims.imshow(mosaic.astype('uint8'))
-        ax_ims.set_title('Example instances', fontsize=8, loc='left')
-      else:
-        ax_ims.text(0.5, 0.5, 'No valid frames', ha='center', va='center',
-                    transform=ax_ims.transAxes, fontsize=9, color='grey')
-      ax_ims.axis('off')
+        ims_arr = ims_map[itgt][0]    # (n_ex, H, W, C)
+        frame_list = ims_map[itgt][4]  # [[fr, tgt_idx], ...]
 
-      plt.tight_layout()
+        # sort by frame number
+        sort_order = np.argsort([fl[0] for fl in frame_list])
+        ims_arr = ims_arr[sort_order]
+        frame_list = [frame_list[i] for i in sort_order]
+
+        im_gs = gridspec.GridSpecFromSubplotSpec(
+          n_im_rows, ims_per_row, subplot_spec=outer_gs[1],
+          hspace=0.15, wspace=0.02,
+        )
+        for idx in range(n_ex):
+          row_i = idx // ims_per_row
+          col_i = idx % ims_per_row
+          ax_im = fig.add_subplot(im_gs[row_i, col_i])
+          ax_im.imshow(ims_arr[idx].astype('uint8'))
+          ax_im.axis('off')
+
+          fr = frame_list[idx][0]
+          ax_im.set_title(f'fr {fr}', fontsize=5, pad=1)
+
+          # overlay landmarks
+          try:
+            locs_xy, occ_val = _get_frame_data(itgt, fr)
+            crop_locs = _locs_to_crop(locs_xy, itgt, fr)
+            if crop_locs is not None:
+              valid_lm = ~(np.isnan(crop_locs[:, 0]) | np.isnan(crop_locs[:, 1]))
+              if np.any(valid_lm):
+                lm_color = 'r' if occ_val else 'lime'
+                ax_im.scatter(crop_locs[valid_lm, 0], crop_locs[valid_lm, 1],
+                              s=6, c=lm_color, linewidths=0, zorder=5)
+          except Exception:
+            pass
+
+        # blank cells for any unused grid slots
+        for idx in range(n_ex, n_im_rows * ims_per_row):
+          row_i = idx // ims_per_row
+          col_i = idx % ims_per_row
+          fig.add_subplot(im_gs[row_i, col_i]).axis('off')
+
+        fig.text(0.01, 0.005,
+                 '● lime = not occluded   ● red = occluded',
+                 fontsize=6, color='grey', va='bottom')
+      else:
+        ax_no = fig.add_subplot(outer_gs[1])
+        ax_no.text(0.5, 0.5, 'No valid frames', ha='center', va='center',
+                   fontsize=9, color='grey')
+        ax_no.axis('off')
+
       pdf.savefig(fig, bbox_inches='tight')
       plt.close(fig)
-      print(f'  Page {itgt + 1}/{ntargets}: trajectory {itgt}')
+      print(f'  Page {itgt + 1}/{n_ids}: trajectory {itgt}')
 
   print(f'Report saved → {out_pdf}')
 

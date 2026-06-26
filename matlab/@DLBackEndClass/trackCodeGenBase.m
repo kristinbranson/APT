@@ -149,6 +149,9 @@ switch trackType
     command12 = command11.append('-track_type', 'only_predict');
   case apt.TrackType.id_link
     command12 = command11.append('-track_type', 'link_id').append('-id_wts_file', totrackinfo.idmodelfile);
+    if totrackinfo(1).id_known_num_animals && ~isempty(totrackinfo(1).id_num_animals)
+      command12 = command12.append('-id_num_animals', num2str(totrackinfo(1).id_num_animals)) ;
+    end
   case apt.TrackType.track
     if strcmp(totrackinfo(1).link_type, 'simple')
       command12 = command11.append('-track_type', 'only_predict');

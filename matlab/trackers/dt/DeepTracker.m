@@ -2271,15 +2271,15 @@ classdef DeepTracker < LabelTracker
 
       if isprop(totrackinfo,'link_type') || isfield(totrackinfo,'link_type')
         if strcmp(totrackinfo.link_type,'identity')
-          track_type = 'detect';
+          trackType = apt.TrackType.detect;
           obj.needs_id_linking = true;
           obj.trkfiles = totrackinfo.trkfiles;
           totrackinfo.setTrkFilesWithDetectSuffix();
         elseif strcmp(totrackinfo.link_type,'simple')
-          track_type = 'detect';
+          trackType = apt.TrackType.detect;
           obj.needs_id_linking = false;
         else
-          track_type = 'track';
+          trackType = apt.TrackType.track;
           obj.needs_id_linking = false;
         end
       else
@@ -2316,7 +2316,16 @@ classdef DeepTracker < LabelTracker
 
         backend.registerTrackingJob(totrackinfojob, obj, gpuids(ijob), trackType) ;
         backend.prepareFilesForTracking(totrackinfojob);
-        obj.trkCreateConfig(totrackinfojob.trackconfigfile);
+        try
+          obj.trkCreateConfig(totrackinfojob.trackconfigfile);
+        catch ME
+          obj.lObj.messageUser_( ...
+            sprintf(['You do not have write permissions to the output directory:\n%s\n\n' ...
+                     'Please choose a different output location.'], ...
+                    fileparts(totrackinfojob.trackconfigfile)), ...
+            'Tracking Error') ;
+          return ;
+        end
 
         if ijob == 1,
           totrackinfojobs = totrackinfojob;
@@ -2436,7 +2445,7 @@ classdef DeepTracker < LabelTracker
       end
 
       obj.trkSysInfo = ToTrackInfoSet(totrackinfo);
-      poller = BgTrackPoller('movie', obj.trnLastDMC, backend, obj.trkSysInfo,'link_type','id_link') ;
+      poller = BgTrackPoller(apt.TrackStyle.movie, obj.trnLastDMC, backend, obj.trkSysInfo,'link_type','id_link') ;
 
       % Create the TrackMonitorViz, and the BgMonitor, and set them up for
       % monitoring.
@@ -2522,9 +2531,38 @@ classdef DeepTracker < LabelTracker
     
     function trkCreateConfig(obj, configFilePathNativeAsChar, varargin)
       % trkCreateConfig(obj,'sPrmAll',[])
-      % 
+      %
       [sPrmAll] = myparse(varargin,'sPrmAll',[]);
-      
+
+      % For multi-animal projects: if the ID linking crop sizes have not been
+      % computed yet (default value is -1, set by params_ma.yaml), compute them
+      % now from the labeling data so the backend always gets valid values even
+      % when the user has never opened the training-parameters GUI.
+      if isempty(sPrmAll) && obj.lObj.maIsMA
+        curStitch = obj.sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch ;
+        needsIDCropSz = isfield(curStitch, 'link_id_cropsz_height') && ...
+                        isfield(curStitch, 'link_id_cropsz_width') && ...
+                        (curStitch.link_id_cropsz_height <= 0 || ...
+                         curStitch.link_id_cropsz_width <= 0) ;
+        if needsIDCropSz
+          try
+            autoparams = apt.compute_auto_params(obj.lObj) ;
+            updatedPrm = APTParameters.all2TrackParams(obj.sPrmAll, false) ;
+            keyH = 'MultiAnimal.Track.TrackletStitch.link_id_cropsz_height' ;
+            keyW = 'MultiAnimal.Track.TrackletStitch.link_id_cropsz_width' ;
+            if isKey(autoparams, keyH)
+              updatedPrm.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_height = autoparams(keyH) ;
+            end
+            if isKey(autoparams, keyW)
+              updatedPrm.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_width = autoparams(keyW) ;
+            end
+            sPrmAll = updatedPrm ;
+          catch ME
+            warningNoTrace('Could not auto-compute ID crop size for tracking config: %s', ME.message) ;
+          end
+        end
+      end
+
       s = struct();
       s.projectFile = wsl_path_from_native(obj.lObj.projectfile) ;
       s.projname = obj.lObj.projname;

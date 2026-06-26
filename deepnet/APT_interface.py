@@ -2672,7 +2672,9 @@ def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
                 # Theta 0 zero indicates animal facing right. So when theta is 0 the images are rotated by 90 degree so that they face upwards. To disable any rotation theta needs to be -90. Ideally conf.trx_align_theta should be false and this shouldn't be used, but adding it as a safeguard.
                 theta = np.ones_like(cur_pts[...,0,0])*(-np.pi/2)
                 ctr = cur_pts.mean(-1)
-                a = np.linalg.norm(cur_pts[...,0]-cur_pts[...,1],axis=-1)/4
+                width = np.nanmax(cur_pts[...,0,:],axis=-1) - np.nanmin(cur_pts[...,0,:],axis=-1)
+                height = np.nanmax(cur_pts[...,1,:],axis=-1) - np.nanmin(cur_pts[...,1,:],axis=-1)
+                a = np.maximum(height,width)/4
             else:
                 if use_ht_pts:
                     h_pts = cur_pts[...,:,conf.ht_pts[0]]
@@ -4137,7 +4139,7 @@ def link(args, view, view_ndx):
     raw_files = []
     for mov_ndx in range(nmov):
         raw_files.append(raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx]))
-    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files, id_wts=args.id_wts_file)
+    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files, id_wts=args.id_wts_file, num_animals=args.id_num_animals)
     [trk_linked[mov_ndx].save(out_files[mov_ndx], saveformat='tracklet') for mov_ndx in range(nmov)]
 
 
@@ -4849,6 +4851,7 @@ def parse_args(argv):
     parser_classify.add_argument('-no_except', dest='no_except', action='store_true', help='Call main function without wrapping in try-except.  Useful for debugging.')
     #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
     parser_classify.add_argument('-id_wts_file', dest='id_wts_file', help='File path for ID tracking model weights. If file exists, weights are loaded for ID detection. If file does not exist, trained weights are saved to this location.', default=None)
+    parser_classify.add_argument('-id_num_animals', dest='id_num_animals', help='Known number of animals present in the videos being tracked. If specified, used to determine the number of ID clusters during identity linking instead of a fixed distance threshold.', type=int, default=None)
     parser_classify.add_argument('-continue', dest='continue_tracking', action='store_true', help='Continue tracking from existing .part file. Checks for out_file.part and resumes from the last tracked frame.')
     #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
 

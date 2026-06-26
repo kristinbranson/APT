@@ -93,9 +93,15 @@ classdef TrackBatchGUI < handle
       if ~isfield(obj.toTrack,'id_maintain_identity'),
         obj.toTrack.id_maintain_identity = false;
       end
+      if ~isfield(obj.toTrack,'id_known_num_animals'),
+        obj.toTrack.id_known_num_animals = false;
+      end
+      if ~isfield(obj.toTrack,'id_num_animals'),
+        obj.toTrack.id_num_animals = [];
+      end
       obj.nmovies = size(obj.toTrack.movfiles,1);
     end
-    
+
     function createGUI(obj)
       
       figname = 'Select movies to track';
@@ -360,9 +366,10 @@ classdef TrackBatchGUI < handle
           nextRow = 3;
         end
         
-        % Create a sub-grid for the radio buttons and checkbox
-        linking_grid = uigridlayout(grid,'RowHeight',{'1x'},'ColumnWidth',{'3x','1x'},...
-          'BackgroundColor',backgroundcolor,'Padding',[0 0 0 0],'RowSpacing',5);
+        % Create a sub-grid for the radio buttons and checkboxes -- all id linking
+        % options live on a single row.
+        linking_grid = uigridlayout(grid,'RowHeight',{'1x'},'ColumnWidth',{'2x','1.6x','1.6x','0.6x'},...
+          'BackgroundColor',backgroundcolor,'Padding',[0 0 0 0],'RowSpacing',5,'ColumnSpacing',5);
         linking_grid.Layout.Row = nextRow;
         linking_grid.Layout.Column = [1 2];
         obj.gdata.linking_grid = linking_grid;
@@ -397,6 +404,28 @@ classdef TrackBatchGUI < handle
           'ValueChangedFcn',@(h,e) obj.idMaintainIdentityChanged(h,e));
         obj.gdata.chk_maintain_identities.Layout.Row = 1;
         obj.gdata.chk_maintain_identities.Layout.Column = 2;
+
+        % Known number of animals checkbox (only relevant/enabled when maintaining identities)
+        obj.gdata.chk_known_num_animals = uicheckbox(linking_grid,...
+          'Text','Known number of animals in videos',...
+          'FontSize',FONTSIZE,'FontColor','w',...
+          'Value',obj.toTrack.id_known_num_animals,...
+          'Enable',obj.toTrack.id_maintain_identity,...
+          'ValueChangedFcn',@(h,e) obj.knownNumAnimalsChanged(h,e));
+        obj.gdata.chk_known_num_animals.Layout.Row = 1;
+        obj.gdata.chk_known_num_animals.Layout.Column = 3;
+
+        % Number of animals edit field (only enabled when known number of animals is checked)
+        obj.gdata.edit_num_animals = uieditfield(linking_grid,'numeric',...
+          'Limits',[1 Inf],'RoundFractionalValues','on',...
+          'FontColor','w','BackgroundColor',editfilecolor,...
+          'Enable',obj.toTrack.id_maintain_identity && obj.toTrack.id_known_num_animals,...
+          'ValueChangedFcn',@(h,e) obj.numAnimalsChanged(h,e));
+        if ~isempty(obj.toTrack.id_num_animals)
+          obj.gdata.edit_num_animals.Value = obj.toTrack.id_num_animals;
+        end
+        obj.gdata.edit_num_animals.Layout.Row = 1;
+        obj.gdata.edit_num_animals.Layout.Column = 4;
       end
       
 %        obj.gdata.apply_macro = uicontrol('Style','pushbutton','String','Apply',...
@@ -1094,6 +1123,12 @@ classdef TrackBatchGUI < handle
         if ~isfield(obj.toTrack, 'id_maintain_identity')
           obj.toTrack.id_maintain_identity = false;
         end
+        if ~isfield(obj.toTrack, 'id_known_num_animals')
+          obj.toTrack.id_known_num_animals = false;
+        end
+        if ~isfield(obj.toTrack, 'id_num_animals')
+          obj.toTrack.id_num_animals = [];
+        end
 
         obj.page = 1;
         obj.setNPages();
@@ -1616,12 +1651,44 @@ classdef TrackBatchGUI < handle
           obj.toTrack.id_maintain_identity = false;
         end
       end
+
+      % Cascade the enable/disable state down to the known-number-of-animals controls
+      obj.updateKnownNumAnimalsControls();
     end
-    
+
     function idMaintainIdentityChanged(obj, h, evt)
       % Callback for maintain identities checkbox
       obj.toTrack.id_maintain_identity = h.Value;
       obj.needsSave = true;
+      obj.updateKnownNumAnimalsControls();
+    end
+
+    function knownNumAnimalsChanged(obj, h, evt)
+      % Callback for known number of animals checkbox
+      obj.toTrack.id_known_num_animals = h.Value;
+      obj.needsSave = true;
+      obj.updateKnownNumAnimalsControls();
+    end
+
+    function numAnimalsChanged(obj, h, evt)
+      % Callback for number of animals edit field
+      obj.toTrack.id_num_animals = h.Value;
+      obj.needsSave = true;
+    end
+
+    function updateKnownNumAnimalsControls(obj)
+      % Enable/disable the known-number-of-animals checkbox and edit field
+      % based on whether maintain identities is selected.
+      if isfield(obj.gdata, 'chk_known_num_animals') && isvalid(obj.gdata.chk_known_num_animals)
+        obj.gdata.chk_known_num_animals.Enable = obj.toTrack.id_maintain_identity;
+        if ~obj.toTrack.id_maintain_identity
+          obj.gdata.chk_known_num_animals.Value = false;
+          obj.toTrack.id_known_num_animals = false;
+        end
+      end
+      if isfield(obj.gdata, 'edit_num_animals') && isvalid(obj.gdata.edit_num_animals)
+        obj.gdata.edit_num_animals.Enable = obj.toTrack.id_maintain_identity && obj.toTrack.id_known_num_animals;
+      end
     end
 
     function updateLinkingControls(obj)
@@ -1639,6 +1706,15 @@ classdef TrackBatchGUI < handle
         obj.gdata.chk_maintain_identities.Value = obj.toTrack.id_maintain_identity;
         obj.gdata.chk_maintain_identities.Enable = strcmp(obj.toTrack.link_type, 'identity');
       end
+
+      % Update known number of animals checkbox and edit field
+      if isfield(obj.gdata, 'chk_known_num_animals') && isvalid(obj.gdata.chk_known_num_animals)
+        obj.gdata.chk_known_num_animals.Value = obj.toTrack.id_known_num_animals;
+      end
+      if isfield(obj.gdata, 'edit_num_animals') && isvalid(obj.gdata.edit_num_animals) && ~isempty(obj.toTrack.id_num_animals)
+        obj.gdata.edit_num_animals.Value = obj.toTrack.id_num_animals;
+      end
+      obj.updateKnownNumAnimalsControls();
     end
 
     function userChoice = checkAndPromptForDetectFiles(obj)
