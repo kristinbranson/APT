@@ -391,6 +391,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxVisibility', @(source,event)(obj.updateTrxVisibility(source, event))) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateTrxCosmetics', @(s,e)(obj.updateTrxCosmetics())) ;
+      obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxTable', @(s,e)(obj.updateTrxTable())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateFrameTableIncremental', @(s,e)(obj.updateFrameTableIncremental())) ;
@@ -851,6 +853,18 @@ classdef LabelerController < handle
       tv = obj.tvTrx_ ;
       tv.setShow(tfShow);
       tv.updateTrx(tfShow);
+    end
+
+    function updateTrxCosmetics(obj)
+      % Apply updated trajectory cosmetics (line width, font size) to all trx visualizers.
+      prefs = obj.labeler_.projPrefs.Trx ;
+      if ~isempty(obj.tvTrx_)
+        obj.tvTrx_.setTrajectoryCosmetics(prefs) ;
+      end
+      tv = obj.tvTrkPred_ ;
+      if ~isempty(tv) && isa(tv, 'TrackingVisualizerTracklets')
+        tv.setTrajectoryCosmetics(prefs) ;
+      end
     end
 
     function updateTrxTable(obj)
@@ -6284,7 +6298,7 @@ classdef LabelerController < handle
     function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       cbkApply = @(varargin)(labeler.hlpApplyCosmetics(varargin{:})) ;
-      LandmarkColors_App(labeler, cbkApply);
+      LandmarkColors_App(obj, labeler, cbkApply);
     end
 
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
