@@ -4,7 +4,7 @@ classdef Labeler < handle
   properties (Constant, Hidden)
     VERSION = '3.1'
     DEFAULT_LBLFILENAME = '%s.lbl'
-    DEFAULT_CFG_FILENAME = Labeler.defaultCfgFilePath()
+    %DEFAULT_CFG_FILENAME = Labeler.defaultCfgFilePath()
     MAX_MOVIENAME_LENGTH = 80
     
     % non-config props
@@ -2130,7 +2130,7 @@ classdef Labeler < handle
       viewCfg = obj.viewConfig_ ;
       if isempty(viewCfg)
         % No controller present (batch mode); use defaults
-        s = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+        s = apt.readDefaultCfg();
         viewCfg = repmat(s.View, obj.nview, 1);
       end
       for i=1:obj.nview
@@ -2191,7 +2191,7 @@ classdef Labeler < handle
   methods (Static)
     
     function cfg = cfgGetLastProjectConfigNoView
-      cfgBase = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfgBase = apt.readDefaultCfg();
       cfg = RC.getprop('lastProjectConfig');
       if isempty(cfg)
         cfg = cfgBase;
@@ -2245,7 +2245,7 @@ classdef Labeler < handle
 
       cfg = Labeler.cfgModernizeBase(cfg);
       
-      cfgBase = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfgBase = apt.readDefaultCfg();
       
       cfg = structoverlay(cfgBase,cfg,'dontWarnUnrecog',true,...
         'allowedUnrecogFlds',{'Colors'});% 'ColorsSets'});
@@ -2256,7 +2256,7 @@ classdef Labeler < handle
     function cfg = cfgDefaultOrder(cfg)
       % Reorder fields of cfg struct to default order
       
-      cfg0 = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfg0 = apt.readDefaultCfg();
       flds0 = fieldnames(cfg0);
       flds = fieldnames(cfg);
       flds0 = flds0(ismember(flds0,flds)); 
@@ -14169,11 +14169,11 @@ classdef Labeler < handle
     end
   end  % methods
 
-  methods (Static)
-    function result = defaultCfgFilePath()
-      result = fullfile(APT.Root, 'matlab', 'config.default.yaml') ;
-    end  % function
-  end  % methods (Static)
+  % methods (Static)
+  %   function result = defaultCfgFilePath()
+  %     result = fullfile(APT.Root, 'matlab', 'config.default.yaml') ;
+  %   end  % function
+  % end  % methods (Static)
 
   methods
     function updateTrainingMonitorRetrograde(obj)

@@ -819,6 +819,9 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       
       if ~verLessThan('matlab','9.6') && batchStartupOptionUsed
+        % Running headless (e.g. in a test): there's no user to prompt, so just
+        % proceed.
+        is_ok_to_proceed = true ;
         return
       end
 
