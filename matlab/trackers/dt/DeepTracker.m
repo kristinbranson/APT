@@ -3408,7 +3408,7 @@ classdef DeepTracker < LabelTracker
       end
     end    
     
-    function [trkfileObj, tfsuccload] = hlpLoadTrk(tfile, varargin)
+    function [trkfileObj, tfsuccload] = hlpLoadTrk(trkfilename, varargin)
       % why in the world is this here and not TrkFile? MK 20230509
       [movfile,movnframes] = myparse(varargin,...
         'movfile','',...
@@ -3416,12 +3416,12 @@ classdef DeepTracker < LabelTracker
         );
             
       try
-        trkfileObj = TrkFile.load(tfile,'issilent',true,'movfile',movfile,...
+        trkfileObj = TrkFile.load(trkfilename,'issilent',true,'movfile',movfile,...
                                   'movnframes',movnframes);
         tfsuccload = true;
       catch ME
         warningNoTrace('Failed to load trkfile: ''%s''. Error: %s',...
-          tfile,ME.message);
+          trkfilename,ME.message);
         trkfileObj = [];
         tfsuccload  = false;
       end
