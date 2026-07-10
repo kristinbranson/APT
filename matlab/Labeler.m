@@ -7268,92 +7268,6 @@ classdef Labeler < handle
       end
     end
 
-    function labelImportTrk(obj,iMovs,trkfiles)
-      mIdx = MovieIndex(iMovs,obj.gtIsGTMode);
-      obj.labelImportTrkGeneric(mIdx, trkfiles);
-      obj.syncLabelsToCurrFrame_(true);
-      obj.syncPropsMovieFilesAllHaveLabels_() ;
-      obj.notify_('updateFrameTableComplete');
-      if obj.gtIsGTMode
-        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
-      else
-        obj.lastLabelChangeTS = now;
-      end
-      obj.labeledposNeedsSave = true;
-      obj.notify_('dataImported');
-      obj.rcSaveProp('lastTrkFileImported',trkfiles{end});
-    end
-%     
-%     function labelPosSetUnmarkedFramesMovieFramesUnmarked(obj,xy,iMov,frms)
-%       % Set all unmarked labels for given movie, frames. Newly-labeled 
-%       % points are NOT marked in .labeledposmark
-%       %
-%       % xy: [nptsx2xnumel(frms)xntgts]
-%       % iMov: scalar movie index
-%       % frms: frames for iMov; labels 3rd dim of xy
-%       
-%       assert(~obj.gtIsGTMode);
-%       
-%       npts = obj.nLabelPoints;
-%       ntgts = obj.nTargets;
-%       nfrmsSpec = numel(frms);
-%       assert(size(xy,1)==npts);
-%       assert(size(xy,2)==2);
-%       assert(size(xy,3)==nfrmsSpec);
-%       assert(size(xy,4)==ntgts);
-%       validateattributes(iMov,{'numeric'},{'scalar' 'positive' 'integer' '<=' obj.nmovies});
-%       nfrmsMov = obj.movieInfoAll{iMov,1}.nframes;
-%       validateattributes(frms,{'numeric'},{'vector' 'positive' 'integer' '<=' nfrmsMov});    
-%       
-%       lposmarked = obj.labeledposMarked{iMov};      
-%       tfFrmSpec = false(npts,nfrmsMov,ntgts);
-%       tfFrmSpec(:,frms,:) = true;
-%       tfSet = tfFrmSpec & ~lposmarked;
-%       tfSet = reshape(tfSet,[npts 1 nfrmsMov ntgts]);
-%       tfLPosSet = repmat(tfSet,[1 2]); % [npts x 2 x nfrmsMov x ntgts]
-%       tfXYSet = ~lposmarked(:,frms,:); % [npts x nfrmsSpec x ntgts]
-%       tfXYSet = reshape(tfXYSet,[npts 1 nfrmsSpec ntgts]);
-%       tfXYSet = repmat(tfXYSet,[1 2]); % [npts x 2 x nfrmsSpec x ntgts]
-%       obj.labeledpos{iMov}(tfLPosSet) = xy(tfXYSet);
-%       
-%       obj.updateFrameTableComplete();
-%       if obj.gtIsGTMode
-%         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
-%       else
-%         obj.lastLabelChangeTS = now;
-%       end
-%       obj.labeledposNeedsSave = true;  
-%       
-% %       for iTgt = 1:ntgts
-% %       for iFrm = 1:nfrmsSpec
-% %         f = frms(iFrm);
-% %         tfset = ~lposmarked(:,f,iTgt); % [npts x 1]
-% %         tfset = repmat(tfset,[1 2]); % [npts x 2]
-% %         lposFrmTgt = lpos(:,:,f,iTgt);
-% %         lposFrmTgt(tfset) = xy(:,:,iFrm,iTgt);
-% %         lpos(:,:,f,iTgt) = lposFrmTgt;
-% %       end
-% %       end
-% %       obj.labeledpos{iMov} = lpos;
-%     end
-    
-%     function labelPosSetUnmarked(obj)
-%       % Clear .labeledposMarked for current movie/frame/target
-%       
-%       assert(~obj.gtIsGTMode);
-%       iMov = obj.currMovie;
-%       iFrm = obj.currFrame;
-%       iTgt = obj.currTarget;
-%       obj.labeledposMarked{iMov}(:,iFrm,iTgt) = false;
-%     end
-    
-%     function labelPosSetAllMarked(obj,val)
-%       % Clear .labeledposMarked for current movie, all frames/targets
-% 
-%       assert(~obj.gtIsGTMode);
-%       obj.labeledposMarked{iMov}(:) = val;
-%     end
-        
     % Was only called from HT mode (now removed).  Retained as reasonable API.
     function labelPosSetOccludedI(obj,iPt)
       % Occluded is "pure occluded" here
@@ -7365,37 +7279,11 @@ classdef Labeler < handle
       ts = now;
       obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = ts;
       if ~obj.gtIsGTMode
-%         obj.labeledposMarked{iMov}(iPt,iFrm,iTgt) = true;
         obj.lastLabelChangeTS = ts;
       end
       obj.labeledposNeedsSave = true;
     end
         
-%     function labelPosTagSetI(obj,iPt)
-%       x = rand;
-%       if x > 0.5
-%         obj.labelPosTagSetI_Old(iPt);
-%         obj.labelPosTagSetI_New(iPt);
-%       else
-%         obj.labelPosTagSetI_New(iPt);
-%         obj.labelPosTagSetI_Old(iPt);        
-%       end
-%     end
-%     function labelPosTagSetI_Old(obj,iPt)
-%       % Set a single tag onto points
-%       %
-%       % iPt: can be vector
-%       %
-%       % The same tag value will be set to all elements of iPt.      
-%       
-%       iMov = obj.currMovie;
-%       iFrm = obj.currFrame;
-%       iTgt = obj.currTarget;
-%       PROPS = obj.gtGetSharedProps_();
-%       obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
-%       obj.(PROPS.LPOSTAG){iMov}(iPt,iFrm,iTgt) = true;
-%     end
-
     function labelPosTagSetI(obj,iPt)
       % Set a single tag onto points
       %
@@ -8155,57 +8043,6 @@ classdef Labeler < handle
 
   end
   
-  methods (Static)
-	
-    function [trkfilesCommon,kwCommon,trkfilesAll] = ...
-                      getTrkFileNamesForImport(movfiles)
-      % Find available trkfiles for import
-      %
-      % movfiles: cellstr of movieFilesAllFull
-      %
-      % trkfilesCommon: [size(movfiles)] cell-of-cellstrs.
-      % trkfilesCommon{i} is a cellstr with numel(kwCommon) elements.
-      % trkfilesCommon{i}{j} contains the jth common trkfile found for
-      % movfiles{i}, where j indexes kwCommon.
-      % kwCommon: [nCommonKeywords] cellstr of common keywords found.
-      % trkfilesAll: [size(movfiles)] cell-of-cellstrs. trkfilesAll{i}
-      % contains all trkfiles found for movfiles{i}, a superset of
-      % trkfilesCommon{i}.
-      %
-      % "Common" trkfiles are those that share the same naming pattern
-      % <moviename>_<keyword>.trk and are present for all movfiles.
-      
-      trkfilesAll = cell(size(movfiles));
-      keywords = cell(size(movfiles));
-      for i=1:numel(movfiles)
-        mov = movfiles{i};
-        if exist(mov,'file')==0
-          error('Labeler:noMovie','Cannot find movie: %s.',mov);
-        end
-        
-        [movdir,movname] = fileparts(mov);
-        trkpat = [movname '*.trk'];
-        dd = dir(fullfile(movdir,trkpat));
-        trkfilesAllShort = {dd.name}';
-        trkfilesAll{i} = cellfun(@(x)fullfile(movdir,x),trkfilesAllShort,'uni',0);
-        
-        trkpatRE = sprintf('%s(?<kw>.*).trk',movname);
-        re = regexp(trkfilesAllShort,trkpatRE,'names');
-        re = cellfun(@(x)x.kw,re,'uni',0);
-        keywords{i} = re;
-        
-        assert(numel(trkfilesAll{i})==numel(keywords{i}));
-      end
-      
-      % Find common keywords
-      kwUn = unique(cat(1,keywords{:}));
-      tfKwUnCommon = cellfun(@(zKW) all(cellfun(@(x)any(strcmp(x,zKW)),keywords(:))),kwUn);
-      kwCommon = kwUn(tfKwUnCommon);
-      trkfilesCommon = cellfun(@(zTFs,zKWs) cellfun(@(x)zTFs(strcmp(zKWs,x)),kwCommon), ...
-        trkfilesAll,keywords,'uni',0);
-    end  % function
-  end
-
   methods
     function toTrack = mIdx2TrackList(obj, mIdx)
       % Make a toTrack struct from selected movies in the project, suitable for
@@ -8402,60 +8239,6 @@ classdef Labeler < handle
       obj.messageUser_(sprintf('Results for %d moviesets exported.', nMov), 'Export Complete') ;
     end
     
-    function labelImportTrkGeneric(obj, mIdx, trkfiles)
-      % Import (iMovSets,trkfiles) into labels fields
-      %
-      % mIdx: [N] vector of MovieIndex'es
-      % trkfiles: [Nxnview] cellstr of trk filenames
-
-      assert(isa(mIdx,'MovieIndex'));
-
-      nMovSets = numel(mIdx);
-      nView = obj.nview;
-      szassert(trkfiles,[nMovSets nView]);
-      tfMV = obj.isMultiView;
-
-      for i=1:nMovSets
-        if tfMV
-          fprintf('MovieSet %d...\n',mIdx(i));
-        end
-
-        mIdxI = mIdx(i);
-        movnframes = obj.getNFramesMovIdx(mIdxI);
-
-        scell = cell(1,nView);
-        for iVw = 1:nView
-          tfile = trkfiles{i,iVw};
-          scell{iVw} = TrkFile.load(tfile,'movnframes',movnframes);
-      	  if iVw == 1
-            nLabelPointsInFile = scell{iVw}.npts;
-            if nLabelPointsInFile ~= obj.nPhysPoints
-              warning('Number of landmarks in the trk file does not match with the project')
-            end
-          end
-          % Display when .trk file was last updated
-          tfileDir = dir(tfile);
-          disp(['  trk file last modified: ',tfileDir.date]);
-
-          scell{iVw} = Labels.fromTrkfile(scell{iVw});
-        end
-
-        if tfMV
-          sarr = cell2mat(scell);
-          s = Labels.mergeviews(sarr);
-        else
-          s = scell{1};
-        end
-
-        % AL20201223 matlab indexing/language bug 2020b
-        %[iMov,isGT] = mIdx(i).get();
-        [iMov,isGT] = mIdxI.get();
-        PROPS = obj.gtGetSharedPropsStc_(isGT);
-        lblFld = PROPS.LBL ;
-        obj.(lblFld){iMov} = s;
-      end
-    end
-
     function importTrackingResults(obj, iMov, trkfiles)
       % Import tracking results from .trk files into the persisted tracker
       % store (trkPathFromImovAndViewIndex).
