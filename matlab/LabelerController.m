@@ -5179,7 +5179,7 @@ classdef LabelerController < handle
       % Import tracking results from .trk file(s) for the current movie
       labeler = obj.labeler_ ;
       iMov = labeler.currMovie ;
-      obj.labelImportTrkPromptGenericSimple(iMov, 'importTrackingResults') ;
+      obj.importTrackingResultsPrompt(iMov) ;
     end
 
     function menu_file_export_labels_trks_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -8189,33 +8189,25 @@ classdef LabelerController < handle
       labeler.dialogLandingPad = answer ;
     end  % function
 
-    function labelImportTrkPromptGenericSimple(obj, iMov, importFcn, varargin)
-      % Prompt user for trkfiles to import and import them with given 
-      % importFcn. User can cancel to abort
+    function importTrackingResultsPrompt(obj, iMov)
+      % Prompt user for trkfiles and import them as tracking results.
+      % User can cancel to abort.
       %
       % iMov: scalar positive index into .movieFilesAll. GT mode not
       %   allowed.
 
       labeler = obj.labeler_ ;
-            
+
       if ~labeler.hasMovie
         error('Labeler:noMovie','No movie is loaded.');
       end
-      
+
       % labeler.pushBusyStatus('Importing tracking results...');
       % oc = onCleanup(@()(labeler.popBusyStatus())) ;
-      
-      gtok = myparse(varargin,...
-        'gtok',false ... % if true, obj.gtIsGTMode can be true, and iMov 
-                  ...% refers per GT state. importFcn needs to support GT
-                  ...% state
-                  );
-      
-      assert(isscalar(iMov));      
-      if ~gtok
-        assert(~labeler.gtIsGTMode);
-      end
-      
+
+      assert(isscalar(iMov));
+      assert(~labeler.gtIsGTMode);
+
       movs = labeler.movieFilesAllFullGTaware(iMov,:);
       movdirs = cellfun(@fileparts,movs,'uni',0);
       nvw = labeler.nview;
@@ -8232,9 +8224,9 @@ classdef LabelerController < handle
         end
         trkfiles{ivw} = fullfile(pth,fname);
       end
-      
-      % Call the Labeler function to actual do stuff to the model
-      feval(importFcn, labeler, iMov, trkfiles) ;
+
+      % Call the Labeler method to actually do stuff to the model
+      labeler.importTrackingResults(iMov, trkfiles) ;
     end  % function
     
   end  % methods
