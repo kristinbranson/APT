@@ -2791,7 +2791,7 @@ classdef DeepTracker < LabelTracker
 
         assert(numel(trkfiles)==nvw);
         [trks,tfsucc] = ...
-          cellfun(@(x)DeepTracker.hlpLoadTrk(x,'rawload',true),trkfiles,'uni',0);
+          cellfun(@(x)(DeepTracker.loadRawTrackFile(x)),trkfiles,'uni',0);
         tfsucc = cell2mat(tfsucc);
         if ~all(tfsucc)
           ivwFailed = find(~tfsucc);
@@ -3395,21 +3395,29 @@ classdef DeepTracker < LabelTracker
 
   methods (Static)
     
-    function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile,varargin)
+    function [trkfileStruct, tfsuccload] = loadRawTrackFile(trackfilename)
+      % Load a track file just as a plain .mat file.
+      try
+        trkfileStruct = load(trackfilename,'-mat');
+        tfsuccload = true;
+      catch ME
+        warningNoTrace('Failed to load trkfile: ''%s''. Error: %s',...
+          trackfilename,ME.message);
+        trkfileStruct = [];
+        tfsuccload  = false;
+      end
+    end    
+    
+    function [trkfileObj, tfsuccload] = hlpLoadTrk(tfile, varargin)
       % why in the world is this here and not TrkFile? MK 20230509
-      [rawload,movfile,movnframes] = myparse(varargin,...
-        'rawload',false,...
+      [movfile,movnframes] = myparse(varargin,...
         'movfile','',...
         'movnframes',[] ...
         );
             
       try
-        if rawload
-          trkfileObj = load(tfile,'-mat');
-        else
-          trkfileObj = TrkFile.load(tfile,'issilent',true,'movfile',movfile,...
-                                    'movnframes',movnframes);
-        end
+        trkfileObj = TrkFile.load(tfile,'issilent',true,'movfile',movfile,...
+                                  'movnframes',movnframes);
         tfsuccload = true;
       catch ME
         warningNoTrace('Failed to load trkfile: ''%s''. Error: %s',...
@@ -3417,7 +3425,7 @@ classdef DeepTracker < LabelTracker
         trkfileObj = [];
         tfsuccload  = false;
       end
-    end    
+    end  % function    
     
     function [tfsucc,augims] = loadAugmentedData(outfile,nview)
 
