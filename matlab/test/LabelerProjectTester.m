@@ -98,13 +98,14 @@ classdef LabelerProjectTester < handle
       % Optional arguments allow caller to change algorithm name, backend from those
       % specified in the .lbl file.  Will throw if something goes wrong during
       % tracking.  Will perform some basic checks that tracking succeeded.
-      [algo_name, backend_type_as_string, backend_params, ~, ~] = ...
+      [algo_name, backend_type_as_string, backend_params, ~, ~, do_track_whole_movie] = ...
         myparse(varargin,...
                 'algo_name',{},...
                 'backend','',...
                 'backend_params',struct(), ...
                 'training_params', [], ...
-                'niters', []);
+                'niters', [], ...
+                'do_track_whole_movie', false);
       % Note that training_params and niters are unused, but we want to accept them
       % without warning if they are passed in, to simplify argument-handling in
       % test_training_then_tracking().
@@ -123,7 +124,20 @@ classdef LabelerProjectTester < handle
       obj.set_backend_params_(backend_type_as_string, backend_params) ;
 
       % Track
-      labeler.track() ;
+      if do_track_whole_movie ,
+        % Track all frames of the current movie, like the GUI's
+        % Track > Current Movie... menu item.  Leave the trkfiles unset so
+        % that the default trkfile locations (inside the per-session APT
+        % cache dir) get used.
+        toTrack = labeler.mIdx2TrackList(labeler.currMovIdx) ;
+        toTrack.trkfiles = cell(size(toTrack.trkfiles)) ;
+        toTrack.detectfiles = cell(size(toTrack.detectfiles)) ;
+        labeler.trackBatch(toTrack) ;
+      else
+        % Ad-hoc tracking of whatever frames the project's current track
+        % mode specifies (e.g. current frame +/- some range)
+        labeler.track() ;
+      end
     
       % block, waiting for tracking to finish
       pause(2) ;

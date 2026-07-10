@@ -1,8 +1,8 @@
 function test_roian_MA_tracking_save_reload()
-  % Track the last movie of a project, save the project, close APT (which
-  % deletes the per-session APT cache dir), then relaunch APT and load the
-  % saved project.  The tracking results should survive the
-  % save+close+reload cycle.
+  % Do whole-movie tracking of the last movie of a project, save the
+  % project, close APT (which deletes the per-session APT cache dir), then
+  % relaunch APT and load the saved project.  The tracking results should
+  % survive the save+close+reload cycle.
   %
   % As of 2026-07-10 this test fails: the .trk files holding the tracking
   % results live in the per-session cache dir and are not bundled into the
@@ -31,12 +31,13 @@ function test_roian_MA_tracking_save_reload()
     error('Expected the last movie of the project to be the 500-frame movie, but it is %s', lastMoviePath) ;
   end
 
-  % Track the last movie
+  % Track all frames of the last movie
   backend = 'conda' ;
   backend_params = synthesize_backend_params(backend) ;
   tester.test_tracking('algo_name', 'magrone', ...
                        'backend', backend, ...
-                       'backend_params', backend_params) ;
+                       'backend_params', backend_params, ...
+                       'do_track_whole_movie', true) ;
 
   % The tracking results should have been written to a .trk file inside the
   % per-session APT cache dir
