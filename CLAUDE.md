@@ -55,6 +55,15 @@ test_function_name()          % Run a single test for debugging --
                               % just call the test function directly
 ```
 
+### Bug-fix workflow
+When we find a bug, we first write a test that reproduces it: the
+test asserts the *desired* behavior, and so fails as long as the
+bug is present.  We run the test to confirm it fails for the
+expected reason, then commit the failing test on its own.  Only
+then do we fix the bug, in one or more subsequent commits, and
+confirm that the fix makes the test pass.  This ordering documents
+the bug, proves the fix, and guards against regressions.
+
 ## Key Directories
 - `matlab/`: Core Matlab codebase including GUI, algorithms, and tests
 - `deepnet/`: Python deep learning implementations and training code
