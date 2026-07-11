@@ -168,16 +168,30 @@ classdef DeepTracker < LabelTracker
       % Only meaningful if training has been run at least once in the current session.
       % Defaults to EndCause.undefined if training has not been run in the current session.
       % In other words not persisted to the .lbl file in any way.
-    lastTrackEndCause  
+    lastTrackEndCause
       % Did the last bout of tracking complete or error or was it aborted by user.
       % Only meaningful if tracking has been run at least once in the current session.
       % Defaults to EndCause.undefined if tracking has not been run in the current session.
       % In other words not persisted to the .lbl file in any way.
+    isCurrentBoutPersistent
+      % Whether the current (or most recent) bout of tracking is a "persistent"
+      % bout, i.e. one whose result trkfile paths belong in
+      % .trkPathFromImovAndViewIndex (which is persisted to the .lbl file).
+      % Whole-movie tracking bouts (e.g. via the Track > Current Movie... menu
+      % item) are persistent; ad-hoc bouts (e.g. via the big Track button) are
+      % not.  Only meaningful if tracking has been run at least once in the
+      % current session.
+    isCurrentBoutAdhoc
+      % Always the negation of isCurrentBoutPersistent.
   end
 
   properties (Transient)
     lastTrainEndCause_ = EndCause.undefined
     lastTrackEndCause_ = EndCause.undefined
+    isCurrentBoutPersistent_ = false
+      % Backing store for isCurrentBoutPersistent.  Set near the start of
+      % track().  Defaults to false so that a bout that somehow bypasses
+      % track() does not get its trkfile paths persisted spuriously.
   end
 
   properties    
@@ -2010,7 +2024,7 @@ classdef DeepTracker < LabelTracker
       % obj.syncInfoFromDMC_() ;
     end  % function
     
-    function track(obj,varargin)
+    function track(obj, varargin)
       [totrackinfo,trackType,isexternal,backend,do_call_apt_interface_dot_py,projTempDir] = ...
         myparse(varargin, ...
                 'totrackinfo',[], ...
@@ -2022,7 +2036,15 @@ classdef DeepTracker < LabelTracker
 
       % Verify that everything is in order for tracking
       obj.validateAndSetupForTracking_(totrackinfo, backend) ;
-      
+
+      % Record whether this bout is a persistent (whole-movie) bout or an
+      % ad-hoc one.  Ad-hoc bouts (see Labeler.trackCore_) always specify
+      % the frames to track via a tblMFT table; whole-movie/batch bouts
+      % (see Labeler.trackBatch) specify frame ranges and leave the tblMFT
+      % unset.  This must be determined before the retracking logic below,
+      % which can add a tblMFT to a whole-movie bout.
+      obj.isCurrentBoutPersistent_ = ~totrackinfo.tblMFTIsSet() ;
+
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked
       willLoad = any(obj.lObj.getMovIdxMovieFilesAllFull(totrackinfo.getMovfiles));
@@ -2045,7 +2067,7 @@ classdef DeepTracker < LabelTracker
         end
         obj.cleanOutOfDateTrackingResults_();
       end
-      if ~isexternal && isCurr, % saving somewhere
+      if ~isexternal && isCurr
         % remove frames that are already tracked
         tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true,'aliveonly',true);
         if ~isempty(tblMFTTracked),
@@ -3972,6 +3994,16 @@ classdef DeepTracker < LabelTracker
 
     function result = get.lastTrackEndCause(obj)
       result = obj.lastTrackEndCause_ ;
+    end
+
+    function result = get.isCurrentBoutPersistent(obj)
+      % Getter method for isCurrentBoutPersistent.
+      result = obj.isCurrentBoutPersistent_ ;
+    end
+
+    function result = get.isCurrentBoutAdhoc(obj)
+      % Getter method for isCurrentBoutAdhoc.
+      result = ~obj.isCurrentBoutPersistent_ ;
     end
 
     function result = get.nFramesToTrack(obj)
