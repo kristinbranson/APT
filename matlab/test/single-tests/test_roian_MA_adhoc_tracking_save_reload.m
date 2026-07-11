@@ -5,11 +5,13 @@ function test_roian_MA_adhoc_tracking_save_reload()
   % dir), then relaunch APT and load the saved project.  Reloading should
   % not warn about missing .trk files.
   %
-  % As of 2026-07-10 this test fails: ad-hoc tracking writes its results to
-  % .trk files inside the per-session cache dir, and their paths are
-  % persisted in the project (DeepTracker.trkPathFromImovAndViewIndex), so
-  % after the cache dir is deleted the reload warns about a missing .trk
-  % file.  This is thought to reproduce the bug Alexandra encountered.
+  % This guards against a bug (encountered in the wild, 2026-07-09) where
+  % ad-hoc tracking wrote its results to .trk files inside the per-session
+  % cache dir but persisted their paths in the project
+  % (DeepTracker.trkPathFromImovAndViewIndex), so that after the cache dir
+  % was deleted, reloading the project warned about (and, worse, once
+  % crashed on) the missing .trk file.  Ad-hoc bouts' trkfile paths now go
+  % to the session-only ad-hoc map instead.
   if ispc()
     warning('conda backend is not supported on Windows, so %s always passes on Windows', mfilename());
     return

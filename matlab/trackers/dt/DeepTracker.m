@@ -2702,7 +2702,12 @@ classdef DeepTracker < LabelTracker
           [tffound,mIdx] = obj.lObj.getMovIdxMovieFilesAllFull(movfiles);
           if tffound,
             [iMov, gt] = mIdx.get() ;
-            if ~gt ,
+            if ~gt && obj.isCurrentBoutPersistent ,
+              % Only whole-movie tracking bouts get their trkfile paths
+              % recorded in .trkPathFromImovAndViewIndex, which is persisted
+              % to the .lbl file.  Ad-hoc bouts write to the session-only
+              % ad-hoc map, since their trkfiles typically live in the
+              % per-session APT cache dir, which is deleted when APT exits.
               nviewTrk = numel(trkfiles) ;
               for vwi = 1:nviewTrk ,
                 obj.trkPathFromImovAndViewIndex{iMov, vwi} = trkfiles{vwi} ;
