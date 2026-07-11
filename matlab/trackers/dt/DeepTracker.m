@@ -3251,15 +3251,20 @@ classdef DeepTracker < LabelTracker
       % both the persistent store and the ad-hoc store.  Missing ad-hoc
       % trkfiles are removed even if they are currently shadowed by a
       % persistent one.
+      %
+      % In both stores, a movie's [1 x nview] set of trkfiles is treated
+      % as a unit: if any view's trkfile is missing, the whole set is
+      % removed.  Downstream code (e.g. trackCurrResUpdate,
+      % checkTrackingResultsCurrent_) cannot handle a partial set.
 
       % Check the persistent store (non-GT movies only)
       [iMov, gt] = mIdx.get() ;
       if ~gt && iMov <= size(obj.trkPathFromImovAndViewIndex, 1) ,
         row = obj.trkPathFromImovAndViewIndex(iMov, :) ;
-        for vwi = 1:numel(row) ,
-          if ~isempty(row{vwi}) && ~exist(row{vwi}, 'file') ,
-            obj.trkPathFromImovAndViewIndex{iMov, vwi} = '' ;
-          end
+        isRowSet = ~all(cellfun(@isempty, row)) ;
+        doesRowSurvive = all(cellfun(@(x) logical(exist(x, 'file')), row)) ;
+        if isRowSet && ~doesRowSurvive ,
+          obj.trkPathFromImovAndViewIndex(iMov, :) = {''} ;
         end
       end
 
