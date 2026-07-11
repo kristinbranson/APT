@@ -10969,23 +10969,24 @@ classdef Labeler < handle
                     'calibrationdata',caldata) ;
 
       % Call the Tracker object to do the heavy lifting of tracking
-      tObj.track('totrackinfo', totrackinfo, 'isexternal', false, args{:}, 'projTempDir', obj.projTempDir) ;
+      tObj.track('totrackinfo', totrackinfo, 'isexternal', false, args{:}, 'projTempDir', obj.projTempDir, ...
+                 'ispersistent', false) ;
 
       % For template mode to see new tracking results
       obj.syncLabelsToCurrFrame_(true);
     end  % track() function
     
-    function trackTbl(obj,tblMFT,varargin)
+    function trackTbl(obj, tblMFT, varargin)  %#ok<INUSD>
       assert(false,'This is not supported')
-      tObj = obj.tracker;
-      if isempty(tObj)
-        error('Labeler:track','No tracker set.');
-      end
-      tObj.track(tblMFT,varargin{:});
-      % For template mode to see new tracking results
-      obj.syncLabelsToCurrFrame_(true);
-      
-      fprintf('Tracking complete at %s.\n',datestr(now));
+      % tObj = obj.tracker;
+      % if isempty(tObj)
+      %   error('Labeler:track','No tracker set.');
+      % end
+      % tObj.track(tblMFT,varargin{:});
+      % % For template mode to see new tracking results
+      % obj.syncLabelsToCurrFrame_(true);
+      % 
+      % fprintf('Tracking complete at %s.\n',datestr(now));
     end
     
     function deleteOldTrackers(obj)
@@ -13807,6 +13808,7 @@ classdef Labeler < handle
       obj.tracker.track('totrackinfo',totrackinfo, ...
                         'trackType', trackType, ...
                         'isexternal',true, ...
+                        'ispersistent', true, ...
                         leftoverArgs{:});
     end  % function
 

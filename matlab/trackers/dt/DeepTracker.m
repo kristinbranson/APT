@@ -2025,25 +2025,28 @@ classdef DeepTracker < LabelTracker
     end  % function
     
     function track(obj, varargin)
-      [totrackinfo,trackType,isexternal,backend,do_call_apt_interface_dot_py,projTempDir] = ...
+      [totrackinfo,trackType,isexternal,backend,do_call_apt_interface_dot_py,projTempDir,ispersistent] = ...
         myparse(varargin, ...
                 'totrackinfo',[], ...
                 'trackType', apt.TrackType.track, ...
                 'isexternal',false, ...
                 'backend',obj.lObj.trackDLBackEnd, ...
                 'do_call_apt_interface_dot_py', true, ...
-                'projTempDir',[]) ;
+                'projTempDir',[], ...
+                'ispersistent',[]) ;
 
       % Verify that everything is in order for tracking
       obj.validateAndSetupForTracking_(totrackinfo, backend) ;
 
-      % Record whether this bout is a persistent (whole-movie) bout or an
-      % ad-hoc one.  Ad-hoc bouts (see Labeler.trackCore_) always specify
-      % the frames to track via a tblMFT table; whole-movie/batch bouts
-      % (see Labeler.trackBatch) specify frame ranges and leave the tblMFT
-      % unset.  This must be determined before the retracking logic below,
-      % which can add a tblMFT to a whole-movie bout.
-      obj.isCurrentBoutPersistent_ = ~totrackinfo.tblMFTIsSet() ;
+      % Record whether this bout is a persistent (whole-movie) bout, whose
+      % result trkfile paths belong in the persisted
+      % .trkPathFromImovAndViewIndex, or an ad-hoc one.  Callers must say
+      % which explicitly: Labeler.trackBatch passes ispersistent==true,
+      % Labeler.trackCore_ passes ispersistent==false.
+      if ~islogical(ispersistent) || ~isscalar(ispersistent)
+        error('''ispersistent'' argument to DeepTracker.track() is mandatory, and must be a logical scalar') ;
+      end
+      obj.isCurrentBoutPersistent_ = ispersistent ;
 
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked
