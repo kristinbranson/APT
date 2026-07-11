@@ -126,13 +126,17 @@ classdef LabelerProjectTester < handle
       % Track
       if do_track_whole_movie ,
         % Track all frames of the current movie, like the GUI's
-        % Track > Current Movie... menu item.  Leave the trkfiles unset so
-        % that the default trkfile locations (inside the per-session APT
-        % cache dir) get used.
-        toTrack = labeler.mIdx2TrackList(labeler.currMovIdx) ;
-        toTrack.trkfiles = cell(size(toTrack.trkfiles)) ;
-        toTrack.detectfiles = cell(size(toTrack.detectfiles)) ;
-        labeler.trackBatch(toTrack) ;
+        % Track > Current Movie... menu item.  Send the output to temp
+        % trkfiles, to avoid cluttering the movie folder (which is where
+        % mIdx2TrackList sends output by default).
+        toTrackStruct = labeler.mIdx2TrackList(labeler.currMovIdx) ;
+        for i = 1:numel(toTrackStruct.trkfiles) ,
+          toTrackStruct.trkfiles{i} = strcat(tempname(), '.trk') ;
+        end
+        if labeler.maIsMA ,
+          toTrackStruct.detectfiles = strrep(toTrackStruct.trkfiles, '.trk', '_tracklet.trk') ;
+        end
+        labeler.trackBatch(toTrackStruct) ;
       else
         % Ad-hoc tracking of whatever frames the project's current track
         % mode specifies (e.g. current frame +/- some range)

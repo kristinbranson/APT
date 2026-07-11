@@ -1,13 +1,12 @@
 function test_roian_MA_tracking_save_reload()
-  % Do whole-movie tracking of the last movie of a project, save the
-  % project, close APT (which deletes the per-session APT cache dir), then
-  % relaunch APT and load the saved project.  The tracking results should
-  % survive the save+close+reload cycle.
-  %
-  % As of 2026-07-10 this test fails: the .trk files holding the tracking
-  % results live in the per-session cache dir and are not bundled into the
-  % .lbl file, so after the cache dir is deleted the reload warns about a
-  % missing .trk file and the results are gone.
+  % Do whole-movie tracking of the last movie of a project, with the output
+  % .trk files at explicit user-specified locations (as when tracking via
+  % the GUI's Track > Current Movie... menu item), save the project, close
+  % APT (which deletes the per-session APT cache dir), then relaunch APT
+  % and load the saved project.  The tracking results should survive the
+  % save+close+reload cycle, since the .trk files are outside the cache
+  % dir.  (See test_roian_MA_adhoc_tracking_save_reload for the case where
+  % the .trk files are inside the cache dir.)
   if ispc()
     warning('conda backend is not supported on Windows, so %s always passes on Windows', mfilename());
     return
@@ -39,12 +38,15 @@ function test_roian_MA_tracking_save_reload()
                        'backend_params', backend_params, ...
                        'do_track_whole_movie', true) ;
 
-  % The tracking results should have been written to a .trk file inside the
-  % per-session APT cache dir
+  % The tracking results should have been written to a .trk file outside
+  % the per-session APT cache dir
   cacheDirPath = labeler.projTempDir ;
   trkFilePath = labeler.tracker.trkPathFromImovAndViewIndex{movieCount, 1} ;
-  if ~startsWith(trkFilePath, cacheDirPath)
-    error('Expected the tracking-result path %s to be inside the APT cache dir %s', trkFilePath, cacheDirPath) ;
+  if isempty(trkFilePath) || ~exist(trkFilePath, 'file')
+    error('Expected a tracking-result .trk file to exist after whole-movie tracking') ;
+  end
+  if startsWith(trkFilePath, cacheDirPath)
+    error('Expected the tracking-result path %s to be outside the APT cache dir %s', trkFilePath, cacheDirPath) ;
   end
 
   % Save the project to a temp file
