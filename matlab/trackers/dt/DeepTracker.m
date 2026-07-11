@@ -3246,31 +3246,35 @@ classdef DeepTracker < LabelTracker
       end
     end  % function
 
-    function removeMissingTrkFiles(obj,mIdx)
-      % Remove entries for .trk files that no longer exist on disk.
+    function removeMissingTrkFiles(obj, mIdx)
+      % Remove entries for .trk files that no longer exist on disk, from
+      % both the persistent store and the ad-hoc store.  Missing ad-hoc
+      % trkfiles are removed even if they are currently shadowed by a
+      % persistent one.
+
+      % Check the persistent store (non-GT movies only)
       [iMov, gt] = mIdx.get() ;
-      if ~gt ,
-        paths = obj.trkPathFromImovAndViewIndex ;
-        if iMov <= size(paths, 1) && ~all(cellfun(@isempty, paths(iMov, :))) ,
-          row = paths(iMov, :) ;
-          tfexists = cellfun(@(x) isempty(x) || exist(x, 'file') > 0, row) ;
-          if ~all(tfexists) ,
-            for vwi = 1:numel(row) ,
-              if ~tfexists(vwi) ,
-                obj.trkPathFromImovAndViewIndex{iMov, vwi} = '' ;
-              end
-            end
+      if ~gt && iMov <= size(obj.trkPathFromImovAndViewIndex, 1) ,
+        row = obj.trkPathFromImovAndViewIndex(iMov, :) ;
+        for vwi = 1:numel(row) ,
+          if ~isempty(row{vwi}) && ~exist(row{vwi}, 'file') ,
+            obj.trkPathFromImovAndViewIndex{iMov, vwi} = '' ;
           end
-          return
         end
       end
-      % Fall back to ad-hoc map
-      [trkfiles, id] = obj.trackResGetTrkfiles(mIdx) ;
-      tfexists = cellfun(@(x) exist(x, 'file'), trkfiles) > 0 ;
-      if ~all(tfexists) ,
-        obj.adhocTrkFilePathsFromMidx(id) = trkfiles(tfexists) ;
+
+      % Check the ad-hoc store.  Each row holds the [1 x nview] trkfiles
+      % of one tracking bout; drop rows for which any trkfile is missing.
+      id = mIdx.id32() ;
+      m = obj.adhocTrkFilePathsFromMidx ;
+      if m.isKey(id) ,
+        trkfiles = m(id) ;
+        doesRowSurvive = all(cellfun(@(x) logical(exist(x, 'file')), trkfiles), 2) ;
+        if ~all(doesRowSurvive) ,
+          obj.adhocTrkFilePathsFromMidx(id) = trkfiles(doesRowSurvive, :) ;
+        end
       end
-    end
+    end  % function
 
     function [tfhasdata,xy,occ,sf,ef,aux,auxlbl] = ...
                             getTrackingResultsCurrMovieTgt(obj)
