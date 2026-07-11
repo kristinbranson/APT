@@ -5954,7 +5954,11 @@ classdef LabelerController < handle
     function menu_track_all_movies_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       mIdx = labeler.allMovIdx();
-      toTrackIn = labeler.mIdx2TrackList(mIdx);
+      [toTrackIn, tfok] = labeler.mIdx2TrackList(mIdx);
+      if ~tfok ,
+        % User cancelled when asked about preexisting trkfiles
+        return
+      end
       tbobj = TrackBatchGUI(labeler, obj.mainFigure_, 'toTrack', toTrackIn);
       % [toTrackOut] = tbobj.run();
       tbobj.run();
@@ -5967,7 +5971,11 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       mainFigure = obj.mainFigure_ ;
       mIdx = labeler.currMovIdx;
-      toTrackIn = labeler.mIdx2TrackList(mIdx);
+      [toTrackIn, tfok] = labeler.mIdx2TrackList(mIdx);
+      if ~tfok ,
+        % User cancelled when asked about preexisting trkfiles
+        return
+      end
       mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
       [toTrackOut,dostore] = mdobj.run();
       if ~dostore,

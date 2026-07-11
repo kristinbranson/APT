@@ -8044,9 +8044,13 @@ classdef Labeler < handle
   end
   
   methods
-    function toTrack = mIdx2TrackList(obj, mIdx)
+    function [toTrack, tfok] = mIdx2TrackList(obj, mIdx)
       % Make a toTrack struct from selected movies in the project, suitable for
-      % use with TrackBatchGUI
+      % use with TrackBatchGUI.
+      %
+      % tfok is false iff the user, when asked about preexisting trkfiles
+      % with the default output names, cancelled.  If tfok is false,
+      % toTrack is not suitable for tracking: its .trkfiles are all empty.
       if ~exist('mIdx','var') || isempty(mIdx),
         mIdx = obj.allMovIdx();
       end
