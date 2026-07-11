@@ -3384,8 +3384,7 @@ classdef DeepTracker < LabelTracker
       isCurr = true;
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
-        % some trkfiles don't exist for some reason
-        obj.removeMissingTrkFiles(mIdx);
+        obj.removeMissingTrkFiles(mIdx);  % check for missing trkfiles and remove references to them
         [trkfiles] = obj.trackResGetTrkfiles(mIdx);
         if isempty(trkfiles),
           continue
@@ -3429,9 +3428,7 @@ classdef DeepTracker < LabelTracker
     function cleanOutOfDateTrackingResults_(obj)
       obj.trackResInit();
       obj.trackCurrResInit();
-      % deleting old tracking results, so can switch to new tracker info
       obj.vizModelInit_();
-      % obj.syncInfoFromDMC_();      
     end
     
     function [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfile,ivw)
