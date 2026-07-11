@@ -8244,18 +8244,16 @@ classdef Labeler < handle
     end
     
     function importTrackingResults(obj, iMov, trkfiles)
-      % Import tracking results from .trk files into the persisted tracker
-      % store (trkPathFromImovAndViewIndex).
+      % Import tracking results from .trk files, as the persistent
+      % (whole-movie) trkfiles for the given movie.
       %
-      % iMov: scalar movie index (GT-aware)
+      % iMov: scalar movie index (non-GT)
       % trkfiles: {1 x nview} cellstr of .trk file paths
 
-      nView = obj.nview ;
-      assert(numel(trkfiles) == nView) ;
+      assert(~obj.gtIsGTMode) ;
+      assert(numel(trkfiles) == obj.nview) ;
       tracker = obj.tracker ;
-      for vwi = 1:nView
-        tracker.trkPathFromImovAndViewIndex{iMov, vwi} = trkfiles{vwi} ;
-      end
+      tracker.trackResSetPersistentTrkfile(MovieIndex(iMov), trkfiles) ;
       tracker.trackCurrResUpdate() ;
       obj.setDoesNeedSave(true, 'Imported tracking results') ;
     end
