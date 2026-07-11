@@ -3393,7 +3393,7 @@ classdef DeepTracker < LabelTracker
         newtrkfiles = trkfiles;
         for i = 1:size(trkfiles,1),
           for ivw = 1:size(trkfiles,2),
-            [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfiles{i,ivw},ivw);
+            [isCurr,tfSuccess,isOldFileName,trkInfo] = obj.checkTrkFileCurrent(trkfiles{i,ivw},ivw);
             assert(tfSuccess);
             if isOldFileName,
               isFixed = true;
