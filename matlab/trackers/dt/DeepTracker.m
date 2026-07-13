@@ -3430,12 +3430,10 @@ classdef DeepTracker < LabelTracker
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
         trkfiles = obj.trackResGetTrkfiles(mIdx);
-        for i = 1:size(trkfiles,1),  % index over trkfile sets
-          for ivw = 1:size(trkfiles,2),  % index over views
-            [isFileCurr,tfSuccess] = obj.checkTrkFileCurrent(trkfiles{i,ivw},ivw);
-            if ~tfSuccess || ~isFileCurr,
-              % A trkfile whose provenance cannot be determined (~tfSuccess)
-              % is treated as stale.
+        for i = 1:size(trkfiles,1)  % index over trkfile sets
+          for ivw = 1:size(trkfiles,2)  % index over views
+            isFileUpToDate = obj.isTrkFileUpToDate_(trkfiles{i,ivw},ivw);
+            if ~isFileUpToDate,
               result = false;
               return
             end
@@ -3450,19 +3448,21 @@ classdef DeepTracker < LabelTracker
       obj.vizModelInit_();
     end
     
-    function [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfile,ivw)
-      isCurr = true;
-      [trkInfo,tfSuccess,isOldFileName] = DeepTracker.parseTrkFileName(trkfile);
-      if ~tfSuccess,
-        return;
+    function result = isTrkFileUpToDate_(obj, trkfile, ivw)
+      [trkInfo, tfSuccess] = DeepTracker.parseTrkFileName(trkfile);
+      if ~tfSuccess
+        % A trkfile whose provenance cannot be determined
+        % is treated as stale.
+        result = false ;
+        return
       end
       curIter = obj.trnLastDMC.getIterCurr('view',ivw-1);
       if numel(curIter)>1
         % for 2 stage
         curIter = curIter(2);
       end
-      isCurr = strcmp(DeepModelChainOnDisk.getCheckSingle(obj.trnLastDMC.getModelChainID('view',ivw-1)),trkInfo.trn_ts) && ...
-        (DeepModelChainOnDisk.getCheckSingle(curIter)==trkInfo.iter);
+      result = strcmp(DeepModelChainOnDisk.getCheckSingle(obj.trnLastDMC.getModelChainID('view',ivw-1)),trkInfo.trn_ts) && ...
+               (DeepModelChainOnDisk.getCheckSingle(curIter)==trkInfo.iter);
     end
     
     function tf = isTrkFiles(obj)
