@@ -3393,7 +3393,7 @@ classdef DeepTracker < LabelTracker
         newtrkfiles = trkfiles;
         for i = 1:size(trkfiles,1),
           for ivw = 1:size(trkfiles,2),
-            [isCurr,tfSuccess,isOldFileName,trkInfo] = obj.checkTrkFileCurrent(trkfiles{i,ivw},ivw);
+            [isFileCurr,tfSuccess,isOldFileName,trkInfo] = obj.checkTrkFileCurrent(trkfiles{i,ivw},ivw);
             assert(tfSuccess);
             if isOldFileName,
               isFixed = true;
@@ -3404,10 +3404,14 @@ classdef DeepTracker < LabelTracker
                 newtrkfiles{i,ivw} = trkInfo.newName;
               end
             end
-            if ~isCurr,
+            if ~isFileCurr,
               %fprintf('Trkfile %s out of date, removing all tracking for movie %d\n',trkfiles{i},moviei);
+              isCurr = false;
               break
             end
+          end
+          if ~isCurr,
+            break
           end
         end
         if isFixed,
