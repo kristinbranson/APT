@@ -2058,7 +2058,7 @@ classdef DeepTracker < LabelTracker
       willLoad = any(obj.lObj.getMovIdxMovieFilesAllFull(totrackinfo.getMovfiles));
       obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;  % make sure up-to-date
       obj.tidyTrackingResults_();
-      isCurr = obj.checkTrackingResultsCurrent_();
+      isCurr = obj.areTrackingResultsUpToDate_();
       if willLoad && ~isCurr,
         if ~obj.lObj.isInBatchMode
           res = obj.lObj.questionUser_( ...
@@ -2885,7 +2885,7 @@ classdef DeepTracker < LabelTracker
       % moved under bgTrnIsRunning at some point, but right now there can
       % be mixed up tracking results, so let's always check.
       obj.tidyTrackingResults_() ;
-      isCurr = obj.checkTrackingResultsCurrent_() ;
+      isCurr = obj.areTrackingResultsUpToDate_() ;
       if ~isCurr
         obj.cleanOutOfDateTrackingResults_();
         obj.trackCurrResUpdate();
@@ -3257,7 +3257,7 @@ classdef DeepTracker < LabelTracker
       % In both stores, a movie's [1 x nview] set of trkfiles is treated
       % as a unit: if any view's trkfile is missing, the whole set is
       % removed.  Downstream code (e.g. trackCurrResUpdate,
-      % checkTrackingResultsCurrent_) cannot handle a partial set.
+      % areTrackingResultsUpToDate_) cannot handle a partial set.
 
       % Check the persistent store (non-GT movies only)
       [iMov, gt] = mIdx.get() ;
@@ -3380,8 +3380,7 @@ classdef DeepTracker < LabelTracker
       % Tidy the tracking-results DB.  For each movieset: remove DB entries
       % for trkfiles that no longer exist on disk, and canonicalize
       % legacy-named trkfiles (copying each to its modern name on disk and
-      % updating the DB to match).  Effectful counterpart of
-      % checkTrackingResultsCurrent_(), which should be called after this.
+      % updating the DB to match).
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
         obj.removeMissingTrkFiles(mIdx);
@@ -3416,21 +3415,21 @@ classdef DeepTracker < LabelTracker
       end  % for moviei
     end  % function
 
-    function isCurr = checkTrackingResultsCurrent_(obj)
+    function result = areTrackingResultsUpToDate_(obj)
       % Returns true iff every trkfile in the tracking-results DB was
       % produced by the currently-trained model at its current training
       % iteration.  Modifies nothing; call tidyTrackingResults_() first to
       % prune missing trkfiles and canonicalize legacy trkfile names.
-      isCurr = true;
+      result = true;
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
         trkfiles = obj.trackResGetTrkfiles(mIdx);
-        for i = 1:size(trkfiles,1),
-          for ivw = 1:size(trkfiles,2),
+        for i = 1:size(trkfiles,1),  % index over moviesets
+          for ivw = 1:size(trkfiles,2),  % index over views
             [isFileCurr,tfSuccess] = obj.checkTrkFileCurrent(trkfiles{i,ivw},ivw);
             assert(tfSuccess);
             if ~isFileCurr,
-              isCurr = false;
+              result = false;
               return
             end
           end
