@@ -3424,7 +3424,7 @@ classdef DeepTracker < LabelTracker
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
         trkfiles = obj.trackResGetTrkfiles(mIdx);
-        for i = 1:size(trkfiles,1),  % index over moviesets
+        for i = 1:size(trkfiles,1),  % index over trkfile sets
           for ivw = 1:size(trkfiles,2),  % index over views
             [isFileCurr,tfSuccess] = obj.checkTrkFileCurrent(trkfiles{i,ivw},ivw);
             assert(tfSuccess);
