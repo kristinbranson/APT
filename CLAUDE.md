@@ -51,6 +51,9 @@ interface is `APT_interface.py`.
 ```matlab
 test_apt()                    % Run all local backend tests
 test_apt('remote', true)      % Run all tests including remote backends
+test_apt('test_list', {'test_foo', 'test_bar'})
+                              % Run an explicit list of tests (overrides
+                              % 'local' and 'remote')
 test_function_name()          % Run a single test for debugging --
                               % just call the test function directly
 ```
