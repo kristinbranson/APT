@@ -2057,6 +2057,7 @@ classdef DeepTracker < LabelTracker
       % with an old tracker, or if any frames are already tracked
       willLoad = any(obj.lObj.getMovIdxMovieFilesAllFull(totrackinfo.getMovfiles));
       obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;  % make sure up-to-date
+      obj.tidyTrackingResults_();
       isCurr = obj.checkTrackingResultsCurrent_();
       if willLoad && ~isCurr,
         if ~obj.lObj.isInBatchMode
@@ -2883,6 +2884,7 @@ classdef DeepTracker < LabelTracker
       % are there tracking results from previous trackers? TODO This can be
       % moved under bgTrnIsRunning at some point, but right now there can
       % be mixed up tracking results, so let's always check.
+      obj.tidyTrackingResults_() ;
       isCurr = obj.checkTrackingResultsCurrent_() ;
       if ~isCurr
         obj.cleanOutOfDateTrackingResults_();
@@ -3374,59 +3376,66 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function isCurr = checkTrackingResultsCurrent_(obj)
-      % It seems that this function checks whether all the existing tracking results
-      % come from the current trained tracker.  It returns true if they all do,
-      % false if any do not.  It also seems to fix any issues that it uncovers where
-      % the names of the tracking files reflect the wrong model name, or something.
-      % But not 100% clear to me.  -- ALT, 2025-04-22
-
-      isCurr = true;
+    function tidyTrackingResults_(obj)
+      % Tidy the tracking-results DB.  For each movieset: remove DB entries
+      % for trkfiles that no longer exist on disk, and canonicalize
+      % legacy-named trkfiles (copying each to its modern name on disk and
+      % updating the DB to match).  Effectful counterpart of
+      % checkTrackingResultsCurrent_(), which should be called after this.
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
-        obj.removeMissingTrkFiles(mIdx);  % check for missing trkfiles and remove references to them
-        [trkfiles] = obj.trackResGetTrkfiles(mIdx);
-        if isempty(trkfiles),
-          continue
-        end        
+        obj.removeMissingTrkFiles(mIdx);
+        trkfiles = obj.trackResGetTrkfiles(mIdx);
         isFixed = false;
         newtrkfiles = trkfiles;
         for i = 1:size(trkfiles,1),
           for ivw = 1:size(trkfiles,2),
-            [isFileCurr,tfSuccess,isOldFileName,trkInfo] = obj.checkTrkFileCurrent(trkfiles{i,ivw},ivw);
+            [trkInfo,tfSuccess,isOldFileName] = DeepTracker.parseTrkFileName(trkfiles{i,ivw});
             assert(tfSuccess);
             if isOldFileName,
               isFixed = true;
               [tfSucc,msg] = copyfile(trkfiles{i,ivw},trkInfo.newName);
               if ~tfSucc,
-                warning('Could not rename %s to %s: %s',trkfiles{i,ivw},newtrkfiles{i,ivw},msg);
+                warning('Could not rename %s to %s: %s',trkfiles{i,ivw},trkInfo.newName,msg);
               else
                 newtrkfiles{i,ivw} = trkInfo.newName;
               end
             end
-            if ~isFileCurr,
-              %fprintf('Trkfile %s out of date, removing all tracking for movie %d\n',trkfiles{i},moviei);
-              isCurr = false;
-              break
-            end
-          end
-          if ~isCurr,
-            break
           end
         end
         if isFixed,
           if obj.trackResHasPersistentTrkfile(mIdx) ,
-            % The fixed row came from the persisted store, which shadows
-            % the ad-hoc store in trackResGetTrkfiles, so update it there.
+            % The fixed trkfile set came from the persisted store, which
+            % shadows the ad-hoc store in trackResGetTrkfiles, so update it
+            % there.
             obj.trackResSetPersistentTrkfile(mIdx, newtrkfiles) ;
           else
             obj.trackResSetAdhocTrkfiles(mIdx, newtrkfiles) ;
           end
         end
-        if ~isCurr,
-          break
+      end  % for moviei
+    end  % function
+
+    function isCurr = checkTrackingResultsCurrent_(obj)
+      % Returns true iff every trkfile in the tracking-results DB was
+      % produced by the currently-trained model at its current training
+      % iteration.  Modifies nothing; call tidyTrackingResults_() first to
+      % prune missing trkfiles and canonicalize legacy trkfile names.
+      isCurr = true;
+      for moviei = 1:obj.lObj.nmovies,
+        mIdx = MovieIndex(moviei);
+        trkfiles = obj.trackResGetTrkfiles(mIdx);
+        for i = 1:size(trkfiles,1),
+          for ivw = 1:size(trkfiles,2),
+            [isFileCurr,tfSuccess] = obj.checkTrkFileCurrent(trkfiles{i,ivw},ivw);
+            assert(tfSuccess);
+            if ~isFileCurr,
+              isCurr = false;
+              return
+            end
+          end
         end
-      end  % for moviei      
+      end  % for moviei
     end  % function
         
     function cleanOutOfDateTrackingResults_(obj)
