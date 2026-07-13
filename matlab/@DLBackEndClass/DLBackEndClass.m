@@ -1354,9 +1354,14 @@ classdef DLBackEndClass < handle
         nativeFilePathAsChar = nativeFilePath.charUnescaped() ;
         % Refresh NFS attribute cache before checking, to avoid false negatives
         % when a remote job (bsub/cluster) has just written the file.
+        % Capture dir()'s output: with zero output arguments, dir()
+        % *displays* the directory listing in the command window (a
+        % semicolon does not suppress this), and this code runs inside
+        % polling loops.  The NFS READDIR side effect is the same either
+        % way.
         parent = fileparts(nativeFilePathAsChar) ;
         if ~isempty(parent)
-          dir(parent) ;
+          [~] = dir(parent) ;
         end
         result = logical(exist(nativeFilePathAsChar, 'file')) ;
       end

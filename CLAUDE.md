@@ -51,9 +51,21 @@ interface is `APT_interface.py`.
 ```matlab
 test_apt()                    % Run all local backend tests
 test_apt('remote', true)      % Run all tests including remote backends
+test_apt('test_list', {'test_foo', 'test_bar'})
+                              % Run an explicit list of tests (overrides
+                              % 'local' and 'remote')
 test_function_name()          % Run a single test for debugging --
                               % just call the test function directly
 ```
+
+### Bug-fix workflow
+When we find a bug, we first write a test that reproduces it: the
+test asserts the *desired* behavior, and so fails as long as the
+bug is present.  We run the test to confirm it fails for the
+expected reason, then commit the failing test on its own.  Only
+then do we fix the bug, in one or more subsequent commits, and
+confirm that the fix makes the test pass.  This ordering documents
+the bug, proves the fix, and guards against regressions.
 
 ## Key Directories
 - `matlab/`: Core Matlab codebase including GUI, algorithms, and tests
