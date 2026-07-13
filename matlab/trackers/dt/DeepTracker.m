@@ -3390,7 +3390,13 @@ classdef DeepTracker < LabelTracker
         for i = 1:size(trkfiles,1),
           for ivw = 1:size(trkfiles,2),
             [trkInfo,tfSuccess,isOldFileName] = DeepTracker.parseTrkFileName(trkfiles{i,ivw});
-            assert(tfSuccess);
+            if ~tfSuccess,
+              % The trkfile's provenance cannot be determined from its name
+              % or contents, so there is no canonical name to give it.
+              % Leave it alone.  (areTrackingResultsUpToDate_ will treat it
+              % as stale.)
+              continue
+            end
             if isOldFileName,
               isFixed = true;
               [tfSucc,msg] = copyfile(trkfiles{i,ivw},trkInfo.newName);
@@ -3427,8 +3433,9 @@ classdef DeepTracker < LabelTracker
         for i = 1:size(trkfiles,1),  % index over trkfile sets
           for ivw = 1:size(trkfiles,2),  % index over views
             [isFileCurr,tfSuccess] = obj.checkTrkFileCurrent(trkfiles{i,ivw},ivw);
-            assert(tfSuccess);
-            if ~isFileCurr,
+            if ~tfSuccess || ~isFileCurr,
+              % A trkfile whose provenance cannot be determined (~tfSuccess)
+              % is treated as stale.
               result = false;
               return
             end
