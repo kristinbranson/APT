@@ -2660,24 +2660,17 @@ classdef DeepTracker < LabelTracker
         % the job(s) to exit before proceeding.
 
       try
-        % Put things into some local vars
-        backend  = obj.backend ;
-
         % Ask the backend to do the heavy lifting
         movfiles = obj.trkSysInfo.getMovfiles() ;        
-        backend.downloadTrackingFilesIfNecessary(pollingResult, movfiles) ;
+        obj.backend.downloadTrackingFilesIfNecessary(pollingResult, movfiles) ;
 
-        % Don't need this anymore since the paths in obj.trkSysInfo are kept local in
-        % all cases now.
-        % % For remote file systems, relocate the tracking info, so that paths are right
-        % obj.trkSysInfo.changePathsToLocalFromRemote(localCacheRoot, backend) ;
-
-        %[nMovies,nViews,nStgs] = size(res);
+        % Put some things into local vars
         nMovies = obj.trkSysInfo.nmovies;
         stages = obj.trkSysInfo.stages;
         views = obj.trkSysInfo.views;
         islistjob = obj.trkSysInfo.islistjob;
 
+        % Special case for a list job
         if islistjob
           obj.createTrkfilesFromListout();
           stages = stages(end);
