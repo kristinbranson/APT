@@ -1108,7 +1108,6 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Spawning training job...') ;  % Want to do this here, b/c the stuff in this method can take a while
       oc = onCleanup(@()(labeler.popBusyStatus()));
-      drawnow;
 
       % Check for project, movie
       [doTheyExist, message] = labeler.doProjectAndMovieExist() ;
