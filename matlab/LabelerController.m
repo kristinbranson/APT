@@ -8195,6 +8195,12 @@ classdef LabelerController < handle
         answer = params.default ;
       end
       labeler.dialogLandingPad = answer ;
+      obj.updateStatusAndPointer() ;
+        % A modal questdlg leaves the underlying figure's displayed cursor as a
+        % stale arrow, even though its Pointer property may be 'watch' from an
+        % in-progress busy operation.  Re-render the pointer to match the model
+        % so the watch cursor shows during any long work that follows the dialog
+        % (e.g. spawning a tracking job before the Tracking Monitor appears).
     end  % function
 
     function importTrackingResultsPrompt(obj, iMov)
