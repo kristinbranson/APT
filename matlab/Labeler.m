@@ -13782,7 +13782,12 @@ classdef Labeler < handle
       % Batch Tracking: Track the movies specifies by toTrackRaw.
       % toTrackRaw seems to be essentially a struct that contains sufficient
       % information to construct a ToTrackInfo object from it.
-    
+
+      % Show the watch cursor while we spawn the tracking job, mirroring
+      % Labeler.track().  No-op without a controller / in batch mode.
+      obj.pushBusyStatus('Spawning tracking job...') ;
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
+
       % Parse optional arguments
       [trackType, leftoverArgs] = ...
         myparse_nocheck(varargin,...
