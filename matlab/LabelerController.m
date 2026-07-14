@@ -1209,6 +1209,9 @@ classdef LabelerController < handle
       h = msgbox(msg,DIALOGTTL);
       obj.gtTrackingDialogFigure_ = h ;
       %obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
+      obj.updateStatusAndPointer() ;
+        % Re-render the pointer to match the model: raising the dialog can leave
+        % the underlying figure's displayed cursor stale during a busy operation.
     end
 
     function showGTResults(obj, source, event)  %#ok<INUSD> 
@@ -8156,6 +8159,10 @@ classdef LabelerController < handle
       result.sel = sel ;
       result.ok = ok ;
       labeler.dialogLandingPad = result ;
+      obj.updateStatusAndPointer() ;
+        % Re-render the pointer to match the model: a modal listdlg leaves the
+        % underlying figure's displayed cursor stale, so the watch cursor would
+        % otherwise not show during any busy work that follows the dialog.
     end  % function
 
     function requestMessageBox(obj)
@@ -8163,6 +8170,10 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       params = labeler.dialogLaunchPad ;
       obj.nonmodalMessageBox_(params.text, params.title) ;
+      obj.updateStatusAndPointer() ;
+        % Re-render the pointer to match the model: raising the message box can
+        % leave the underlying figure's displayed cursor stale during a busy
+        % operation.
     end  % function
 
     function updateLabelCoreTrackResForCurrentTarget(obj)
