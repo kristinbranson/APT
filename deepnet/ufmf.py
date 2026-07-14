@@ -10,8 +10,6 @@ import numpy as np
 from numpy import nan
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
-
 import time
 
 import math
