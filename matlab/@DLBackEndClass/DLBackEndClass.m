@@ -146,7 +146,7 @@ classdef DLBackEndClass < handle
     % (as if e.g. the bsub command had returned a nonzero exit code) instead of
     % actually spawning any jobs.  Used by tests to exercise the spawn-failure
     % code path without a real backend.  Not persisted to disk.
-    isSpawnForcedToFail = false
+    isSpawnForcedToFail_ = false
   end
 
   properties (Dependent)
@@ -1076,9 +1076,9 @@ classdef DLBackEndClass < handle
       % Actually spawn the jobs.  (Unless we've been asked to simulate a spawn
       % failure for testing, in which case we behave as if the spawn command --
       % e.g. bsub -- had returned a nonzero exit code, without spawning anything.)
-      if obj.isSpawnForcedToFail ,
+      if obj.isSpawnForcedToFail_ ,
         didSpawnAllJobs = false ;
-        reason = 'Simulated spawn failure (DLBackEndClass.isSpawnForcedToFail is set)' ;
+        reason = 'Simulated spawn failure (DLBackEndClass.isSpawnForcedToFail_ is set)' ;
         spawned_jobids = cell(0,1) ;
       else
         [didSpawnAllJobs, reason, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;

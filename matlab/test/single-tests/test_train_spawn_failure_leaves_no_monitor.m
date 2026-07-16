@@ -12,7 +12,7 @@ function test_train_spawn_failure_leaves_no_monitor()
   % poller, so there is no stale monitor window to confuse the user.
   %
   % The spawn failure is induced deterministically, without a real cluster, via
-  % the DLBackEndClass.isSpawnForcedToFail test hook.
+  % the DLBackEndClass.isSpawnForcedToFail_ test hook.
 
   [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
   project_file_path = fullfile(unittest_dir_path, 'four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl') ;
@@ -31,7 +31,7 @@ function test_train_spawn_failure_leaves_no_monitor()
   labeler.trackSetTrainingParams(sPrm) ;
 
   % Arrange for the job spawn to fail, mimicking a failed bsub submission.
-  labeler.trackDLBackEnd.isSpawnForcedToFail = true ;
+  labeler.trackDLBackEnd.isSpawnForcedToFail_ = true ;
 
   % Attempt to train.  The forced spawn failure should make training error out.
   didTrainingThrow = false ;
