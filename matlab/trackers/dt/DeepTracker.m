@@ -1611,17 +1611,22 @@ classdef DeepTracker < LabelTracker
         assert(tf2stg);        
       end
       
-      % Create the worker, etc used to monitor training in the background
+      % Spawn training.  Do this *before* creating the background poller and
+      % monitor (and hence the monitor window), so that if the spawn fails --
+      % e.g. the bsub submission is rejected -- we don't leave a poller/monitor
+      % (or a stale monitor window) behind.  spawnRegisteredJobs() throws if the
+      % spawn fails.
+      backend.spawnRegisteredJobs('train', ...
+                                  'jobdesc', 'training job', ...
+                                  'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
+
+      % Create the poller and monitor used to monitor training in the background,
+      % now that the jobs have been successfully spawned.
       trnWrkObj = BgTrainPoller(dmc, backend) ;
       obj.bgTrainPoller = trnWrkObj;
       bgTrnMonitor = BgMonitor(obj, 'train', trnWrkObj, 'projTempDir', projTempDir) ;
       obj.bgTrnMonitor = bgTrnMonitor;
       obj.lObj.needRefreshTrainMonitorViz() ;
-
-      % Spawn training
-      backend.spawnRegisteredJobs('train', ...
-                                  'jobdesc', 'training job', ...
-                                  'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
 
       % Start the monitor.  Do this after spawning so we can do it in foreground for
       % debuging sometimes.
@@ -2377,13 +2382,21 @@ classdef DeepTracker < LabelTracker
       assert(isempty(obj.bgTrkMonitor));
       assert(isempty(obj.bgTrackPoller));
 
-      % Create the BgTrackPoller.
+      % Spawn the jobs.  Do this *before* creating the poller and monitor (and
+      % hence the monitor window), so that if the spawn fails -- e.g. the bsub
+      % submission is rejected -- we don't leave a poller/monitor (or a stale
+      % monitor window) behind.  spawnRegisteredJobs() throws if the spawn fails.
+      backend.spawnRegisteredJobs('track', ...
+                                  'jobdesc','tracking job', ...
+                                  'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+
+      % Create the BgTrackPoller, now that the jobs have been successfully spawned.
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
       poller = BgTrackPoller(trackStyle, obj.trnLastDMC, backend, obj.trkSysInfo) ;
       obj.bgTrackPoller = poller;
 
       % Print a message about how many frames are being tracked.
-      nFramesToTrack = totrackinfo.getNFramesTrack(obj.lObj);  
+      nFramesToTrack = totrackinfo.getNFramesTrack(obj.lObj);
         % When doing normal tracking (not GT), the length of nFramesToTrack is equal to the
         % number of movies.
       obj.nFramesToTrack_ = nFramesToTrack ;  % stash it so it's available for TrackMonitorViz() in controller
@@ -2395,11 +2408,6 @@ classdef DeepTracker < LabelTracker
       bgTrkMonitorObj = ...
         BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir) ;
       obj.bgTrkMonitor = bgTrkMonitorObj;
-
-      % Spawn the jobs
-      backend.spawnRegisteredJobs('track', ...
-                                  'jobdesc','tracking job', ...
-                                  'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
 
       % Actually start the background tracking monitor.  We start this *after*
       % spawning the jobs so that when we need to debug the background process by
@@ -2451,27 +2459,27 @@ classdef DeepTracker < LabelTracker
         return
       end
 
-      obj.trkSysInfo = ToTrackInfoSet(totrackinfo);
-      poller = BgTrackPoller('movie', obj.trnLastDMC, backend, obj.trkSysInfo,'link_type','id_link') ;
-
-      % Create the TrackMonitorViz, and the BgMonitor, and set them up for
-      % monitoring.
-      obj.bgTrackPoller = poller;
-      %trkVizObj = TrackMonitorViz(totrackinfo.nviews, obj, bgTrkWorkerObj, backend.type, nFramesTrack) ;
-
-      bgTrkMonitorObj = ...
-        BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir) ;
-
+      % Sanity-check to make sure there is no leftover monitor from an old bout.
       if ~isempty(obj.bgTrkMonitor)
         error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
       end
-      obj.bgTrkMonitor = bgTrkMonitorObj;
-      % bgTrkMonitorObj.start();
 
-      % spawn the jobs
+      % Spawn the jobs.  Do this *before* creating the poller and monitor, so
+      % that if the spawn fails -- e.g. the bsub submission is rejected -- we
+      % don't leave a poller/monitor behind.  spawnRegisteredJobs() throws if the
+      % spawn fails.
       backend.spawnRegisteredJobs('track', ...
                                   'jobdesc','tracking job', ...
                                   'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+
+      % Create the poller and monitor, now that the jobs have been successfully
+      % spawned.
+      obj.trkSysInfo = ToTrackInfoSet(totrackinfo);
+      poller = BgTrackPoller('movie', obj.trnLastDMC, backend, obj.trkSysInfo,'link_type','id_link') ;
+      obj.bgTrackPoller = poller;
+      bgTrkMonitorObj = ...
+        BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir) ;
+      obj.bgTrkMonitor = bgTrkMonitorObj;
 
       % Actually start the background tracking monitor.  We start this *after*
       % spawning the jobs so that when we need to debug the background process by
