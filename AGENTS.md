@@ -114,11 +114,23 @@ Additionally, the `LabelerController` contains a set of `update*()`
 methods, each of which synchronizes some aspect of the GUI with the
 current state of the `Labeler`.  The most fundamental of these is the
 `update()` method, which synchronizes *all* aspects of the GUI with
-the current state of the `Labeler`.  Other `update*()` methods
-synchronize specific aspects of the GUI to the Labeler state, and are
-invoked as a performance optimization when we can guarantee that only
-some aspect of the GUI need to be updated following a particular type
-of model mutation.
+the current state of the `Labeler`.
+
+Ideally, each `update*()` method should synchronize the UI elements
+it touches with the model *regardless of the current state of the
+`Labeler`*: it reads whatever model state it needs and produces the
+correct UI for every possible state, rather than assuming it is
+called only at a particular moment (e.g. only just after a
+training/tracking bout ends).  This matters because `update()`, and
+other callers, may invoke it in any state, so a method that is
+correct in only some states will sometimes leave the view stale.
+Not all existing `update*()` methods live up to this, but new and
+modified code should move toward it.
+
+Other `update*()` methods synchronize specific aspects of the GUI to
+the Labeler state, and are invoked as a performance optimization when
+we can guarantee that only some aspect of the GUI need to be updated
+following a particular type of model mutation.
 
 Each controller method should be either an actuation method or an
 update method.  Actuation methods should never touch any of the GUI
