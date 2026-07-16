@@ -3,7 +3,7 @@ classdef EndCause
   % to an end.
   enumeration
     complete   % training/tracking succeeded, completed normally
-    abort      % training/tracking was abort by the user
+    abort      % training/tracking was aborted by the user
     error      % training/tracking encountered an error and could not proceed
     undefined  % training/tracking has not been run yet
   end

@@ -1616,15 +1616,9 @@ classdef DeepTracker < LabelTracker
       obj.bgTrainPoller = trnWrkObj;
       bgTrnMonitor = BgMonitor(obj, 'train', trnWrkObj, 'projTempDir', projTempDir) ;
       obj.bgTrnMonitor = bgTrnMonitor;
-      % trnVizObj = TrainMonitorViz(dmc, ...
-      %                             obj, ...
-      %                             trnWrkObj,...
-      %                             backend.type, ...
-      %                             'trainSplits',trainSplits) ;                
       obj.lObj.needRefreshTrainMonitorViz() ;
-      %trnMonObj.start();  % Moved this after spawning, see below
 
-      % spawn training
+      % Spawn training
       backend.spawnRegisteredJobs('train', ...
                                   'jobdesc', 'training job', ...
                                   'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
@@ -2379,39 +2373,30 @@ classdef DeepTracker < LabelTracker
         return
       end
 
-      % start track monitor
+      % Sanity-check to make sure there is no leftover cruft from old bouts.
       assert(isempty(obj.bgTrkMonitor));
       assert(isempty(obj.bgTrackPoller));
 
-      %bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview, obj.trnLastDMC, backend, trackStyle);
+      % Create the BgTrackPoller.
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
-      %bgTrkWorkerObj.initFiles(obj.trkSysInfo);
       poller = BgTrackPoller(trackStyle, obj.trnLastDMC, backend, obj.trkSysInfo) ;
+      obj.bgTrackPoller = poller;
 
-      % KB 20190115: adding trkviz
+      % Print a message about how many frames are being tracked.
       nFramesToTrack = totrackinfo.getNFramesTrack(obj.lObj);  
         % When doing normal tracking (not GT), the length of nFramesToTrack is equal to the
         % number of movies.
+      obj.nFramesToTrack_ = nFramesToTrack ;  % stash it so it's available for TrackMonitorViz() in controller
       nFramesToTrackSum = sum(nFramesToTrack);
       fprintf('Tracking %d frames.\n',nFramesToTrackSum);
 
-      % Create the TrackMonitorViz, and the BgMonitor, and set them up for
-      % monitoring.
-      obj.bgTrackPoller = poller;
-      %trkVizObj = TrackMonitorViz(totrackinfo.nviews, obj, bgTrkWorkerObj, backend.type, nFramesTrack) ;
-      obj.nFramesToTrack_ = nFramesToTrack ;  % stash it so it's available for TrackMonitorViz() in controller
-      obj.lObj.needRefreshTrackMonitorViz() ;
-
+      % Create the BgMonitor.
+      obj.lObj.needRefreshTrackMonitorViz() ;  % Does this do anything?
       bgTrkMonitorObj = ...
         BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir) ;
-      %obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
-      if ~isempty(obj.bgTrkMonitor)
-        error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
-      end
       obj.bgTrkMonitor = bgTrkMonitorObj;
-      % bgTrkMonitorObj.start();
 
-      % spawn the jobs
+      % Spawn the jobs
       backend.spawnRegisteredJobs('track', ...
                                   'jobdesc','tracking job', ...
                                   'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
