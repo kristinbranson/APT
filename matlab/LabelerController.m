@@ -6421,6 +6421,8 @@ classdef LabelerController < handle
       end
       sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
       sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;
+      sendMaybe(obj.trainingMonitorVisualizer_, 'updateStatusLine') ;
+      sendMaybe(obj.trackingMonitorVisualizer_, 'updateStatusLine') ;
       sendMaybe(obj.uncertainFramesController_, 'update') ;
     end
     
