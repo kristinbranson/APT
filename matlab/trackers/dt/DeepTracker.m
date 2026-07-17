@@ -197,6 +197,13 @@ classdef DeepTracker < LabelTracker
       % Backing store for isCurrentBoutPersistent.  Set near the start of
       % track().  Defaults to false so that a bout that somehow bypasses
       % track() does not get its trkfile paths persisted spuriously.
+    forcedPollErrorIndex_ = 0
+      % Test hook.  When a positive integer n, the BgMonitor for the current
+      % training/tracking bout forces the bout to error out (as if a mid-run
+      % error had been detected) upon obtaining its n-th poll result, instead
+      % of waiting for a real error.  Zero (the default) disables the hook.
+      % Used by tests to exercise the mid-run error-handling path without a
+      % real job actually failing.  Not persisted to disk.
   end
 
   properties    
