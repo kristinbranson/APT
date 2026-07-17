@@ -339,16 +339,22 @@ classdef TrainMonitorViz < handle
         obj.resLast = pollingResult;
       end
 
-      obj.updateStatusLine() ;
+      obj.syncStatusLineToPollingResult() ;
       obj.updateStopButton() ;
     end  % function resultsReceived()
     
-    function updateStatusLine(obj)
-      % Sync the status line (text_clusterstatus) to the current state of the
-      % Labeler.  This is a conventional update method: it produces the correct
-      % status for whatever state the Labeler is in -- a bout running, a bout
-      % ended in completion/error/abort, or no bout ever run -- so it is safe to
-      % call at any time, not just at particular moments.
+    function syncStatusLineToPollingResult(obj)
+      % Render the status line (text_clusterstatus) from the monitor's
+      % accumulated poll state.  This is NOT a state-independent update method
+      % -- hence the syncStatusLineToPollingResult name rather than an update*
+      % one: its source of truth is mostly the monitor's own state
+      % (obj.resLast, obj.wasAborted, obj.lastTrainIter),
+      % which is written as poll results arrive in resultsReceived().  Only a
+      % thin slice of what it reads is genuine model state
+      % (labeler.bgTrnIsRunning, labeler.lastTrainEndCause).  It is really the
+      % tail end of the resultsReceived() pipeline, not a model->view
+      % synchronizer, so calling it in isolation with a stale or empty resLast
+      % need not reflect the Labeler alone.
       labeler = obj.labeler_ ;
       pollingResult = obj.resLast ;  % most recent poll result received, or [] if none yet
 
@@ -373,7 +379,7 @@ classdef TrainMonitorViz < handle
             status = 'No training jobs running.' ;
             isAllGood = true ;
           otherwise ,
-            error('APT:internalError', 'Unrecognized EndCause in TrainMonitorViz.updateStatusLine()') ;
+            error('APT:internalError', 'Unrecognized EndCause in TrainMonitorViz.syncStatusLineToPollingResult()') ;
         end
       elseif isempty(pollingResult) ,
         status = 'Initializing training.' ;

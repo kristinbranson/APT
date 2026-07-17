@@ -385,7 +385,7 @@ classdef TrackMonitorViz < handle
       obj.resLast = pollingResult ;
 
       obj.updateErrDisplay(pollingResult);
-      obj.updateStatusLine() ;
+      obj.syncStatusLineToPollingResult() ;
       obj.updateStopButton() ;
     end
 
@@ -510,12 +510,20 @@ classdef TrackMonitorViz < handle
       TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
     end
 
-    function updateStatusLine(obj)
-      % Sync the status line (text_clusterstatus) to the current state of the
-      % Labeler.  This is a conventional update method: it produces the correct
-      % status for whatever state the Labeler is in -- a bout running, a bout
-      % ended in completion/error/abort, or no bout ever run -- so it is safe to
-      % call at any time, not just at particular moments.
+    function syncStatusLineToPollingResult(obj)
+      % Render the status line (text_clusterstatus) from the monitor's
+      % accumulated poll state.  This is NOT a state-independent update method
+      % -- hence the syncStatusLineToPollingResult name rather than an update*
+      % one: its source of truth is mostly the monitor's own state
+      % (obj.resLast, obj.wasAborted, obj.nFramesTracked,
+      % obj.bulkMovTracked), which is written as poll results arrive in
+      % resultsReceived().  Only a thin slice of what it reads is genuine model
+      % state (labeler.bgTrkIsRunning, labeler.lastTrackEndCause).  It also
+      % mutates other view state -- on completion it calls updateStatusFinal()
+      % off the poll result -- so it does not merely paint the status line.  It
+      % is really the tail end of the resultsReceived() pipeline, not a
+      % model->view synchronizer, so calling it in isolation with a stale or
+      % empty resLast need not reflect the Labeler alone.
       labeler = obj.labeler_ ;
       pollingResult = obj.resLast ;  % most recent poll result processed, or [] if none yet
 
@@ -539,7 +547,7 @@ classdef TrackMonitorViz < handle
             status = 'No tracking jobs running.' ;
             isAllGood = true ;
           otherwise ,
-            error('APT:internalError', 'Unrecognized EndCause in TrackMonitorViz.updateStatusLine()') ;
+            error('APT:internalError', 'Unrecognized EndCause in TrackMonitorViz.syncStatusLineToPollingResult()') ;
         end
       else
         % A tracking bout is in progress: derive the message from the most
