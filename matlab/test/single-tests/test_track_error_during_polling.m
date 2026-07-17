@@ -44,4 +44,23 @@ function test_track_error_during_polling()
   % ... and it should have ended because of an error.
   assert(labeler.lastTrackEndCause == EndCause.error, ...
          'Tracking bout should have ended with EndCause.error, but ended with %s', char(labeler.lastTrackEndCause)) ;
+
+  % The tracking monitor's status line should be red (not a stale green
+  % "in progress"/"complete" message) after the error.  This guards the fix in
+  % "Sync monitor status line to Labeler state": the line is resynced from the
+  % authoritative lastTrackEndCause on trackEnd, so an errored bout shows a red
+  % error message rather than whatever the last poll happened to say.
+  controller = tester.controller ;
+  trackMonitorViz = controller.trackingMonitorVisualizer_ ;
+  assert(~isempty(trackMonitorViz) && isvalid(trackMonitorViz), ...
+         'No tracking monitor visualizer was present after the error') ;
+  drawnow() ;  % ensure any pending status-line repaint has been applied
+  handles = guidata(trackMonitorViz.hfig) ;
+  statusColor = get(handles.text_clusterstatus, 'ForegroundColor') ;
+  assert(isequal(statusColor, [1 0 0]), ...
+         'Tracking monitor status line should be red after the error, but its color was [%g %g %g]', ...
+         statusColor(1), statusColor(2), statusColor(3)) ;
+  statusString = get(handles.text_clusterstatus, 'String') ;
+  assert(any(contains(string(statusString), "Error")), ...
+         'Tracking monitor status line should report an error, but reads: %s', char(strjoin(string(statusString), ' '))) ;
 end  % function
