@@ -137,7 +137,7 @@ classdef TrackMonitorViz < handle
       %obj.hannlastupdated.String = 'Cluster status: Initializing...';
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: Initializing...', clusterstr) ;
-      obj.setStatusDisplayLine(str, true) ;
+      obj.setStatusDisplayLine_(str, true) ;
       handles.text_clusterinfo.String = '...';
       % set info about current tracker
       s = obj.dtObj.getTrackerInfoString();
@@ -240,14 +240,11 @@ classdef TrackMonitorViz < handle
       obj.resultsReceived() ;
     end
 
-    function [tfSucc,msg] = resultsReceived(obj, pollingResult, forceupdate)
+    function resultsReceived(obj, pollingResult, forceupdate)
       % Callback executed when new result received from monitor BG
       % worker
       %
       % trnComplete: scalar logical, true when all views done
-      
-      tfSucc = false;
-      msg = '';  %#ok<NASGU> 
       
       if ~exist('pollingResult', 'var') || isempty(pollingResult) ,
         pollingResult = obj.labeler_.tracker.bgTrkMonitor.pollingResult ;
@@ -257,21 +254,17 @@ classdef TrackMonitorViz < handle
       end
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
-        msg = 'Monitor closed.';
         TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
         return
       end
 
       if obj.wasAborted,
         obj.updateStopButton() ;
-        msg = 'Tracking jobs killed.';
         TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
         return
       end
       
       if isempty(pollingResult) ,
-        tfSucc = true ;
-        msg = 'No one will read this.' ;
         obj.updateStopButton() ;
         return
       end
@@ -392,7 +385,7 @@ classdef TrackMonitorViz < handle
       obj.resLast = pollingResult ;
 
       obj.updateErrDisplay(pollingResult);
-      [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);
+      obj.syncStatusLineToPollingResult() ;
       obj.updateStopButton() ;
     end
 
@@ -517,70 +510,84 @@ classdef TrackMonitorViz < handle
       TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
     end
 
-    function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
-      % pollsuccess: [nview] logical
-      % pollts: [nview] timestamps
-      
-      tfSucc = true;
-      nJobs = numel(pollingResult.tfComplete);  % nJobs == nmovies * nviews * nstages
-      pollsuccess = true(1,nJobs);
-      isTrackComplete = false;
-      isErr = false;
-      isLogFile = false;
-      if ~isempty(pollingResult),
-        isTrackComplete = all([pollingResult.tfComplete]);
-        isErr = any([pollingResult.errFileExists(:)]) ;
-        isLogFile = any([pollingResult.logFileExists(:)]);
-      end
-      
-      if ~isempty(pollingResult) && isfield(pollingResult,'isRunning')
-        isRunning = any([pollingResult.isRunning(:)]);
-      else
-        isRunning = true ;
-      end
-      
-      if obj.wasAborted,
-        status = 'Tracking process aborted.';
-        tfSucc = false;
-      elseif isTrackComplete
-        status = 'Tracking complete.';
-        obj.updateStatusFinal(nJobs)
-      elseif ~isRunning,
-        if isErr,
-          status = 'Error while tracking.';
-        else
-          status = 'No tracking jobs running.';
-        end
-        % handles = guidata(obj.hfig);
-        % TrackMonitorViz.updateStartStopButton(handles,false,false);        
-        obj.updateStopButton() ;
-        tfSucc = false;
-      elseif isErr,
-        status = 'Error while tracking.';
-        tfSucc = false;
-      elseif isfield(pollingResult,'result_type')&& strcmp(pollingResult.result_type,'id_link')
-        if isLogFile && pollingResult.jsonFileExist && numel(pollingResult.idstep)>0
-            status = sprintf('ID Training in progress. %d iterations completed',pollingResult.idstep(end));
-        else
-          status = 'Initializing Training for ID Linking. ';
-        end
-      elseif isLogFile,
-        if obj.bulkAxsIsBulkMode
-          status = sprintf('Tracking in progress. %d/%d movies tracked.',...
-            nnz(obj.bulkMovTracked),numel(obj.bulkMovTracked));
-        elseif nJobs > 1,
-          status = sprintf('Tracking in progress. %s frames tracked.',mat2str(obj.nFramesTracked));
-        else
-          status = sprintf('Tracking in progress. %d frames tracked.',obj.nFramesTracked);
+    function syncStatusLineToPollingResult(obj)
+      % Render the status line (text_clusterstatus) from the monitor's
+      % accumulated poll state.  This is NOT a state-independent update method
+      % -- hence the syncStatusLineToPollingResult name rather than an update*
+      % one: its source of truth is mostly the monitor's own state
+      % (obj.resLast, obj.wasAborted, obj.nFramesTracked,
+      % obj.bulkMovTracked), which is written as poll results arrive in
+      % resultsReceived().  Only a thin slice of what it reads is genuine model
+      % state (labeler.bgTrkIsRunning, labeler.lastTrackEndCause).  It also
+      % mutates other view state -- on completion it calls updateStatusFinal()
+      % off the poll result -- so it does not merely paint the status line.  It
+      % is really the tail end of the resultsReceived() pipeline, not a
+      % model->view synchronizer, so calling it in isolation with a stale or
+      % empty resLast need not reflect the Labeler alone.
+      labeler = obj.labeler_ ;
+      pollingResult = obj.resLast ;  % most recent poll result processed, or [] if none yet
+
+      if ~labeler.bgTrkIsRunning ,
+        % No tracking bout is running: reflect the authoritative outcome of the
+        % last bout, as recorded by the tracker.
+        switch labeler.lastTrackEndCause
+          case EndCause.complete ,
+            status = 'Tracking complete.' ;
+            isAllGood = true ;
+            if ~isempty(pollingResult) ,
+              obj.updateStatusFinal(numel(pollingResult.tfComplete)) ;
+            end
+          case EndCause.error ,
+            status = 'Error while tracking.  See error messages for details.' ;
+            isAllGood = false ;
+          case EndCause.abort ,
+            status = 'Tracking process aborted.' ;
+            isAllGood = false ;
+          case EndCause.undefined ,
+            status = 'No tracking jobs running.' ;
+            isAllGood = true ;
+          otherwise ,
+            error('APT:internalError', 'Unrecognized EndCause in TrackMonitorViz.syncStatusLineToPollingResult()') ;
         end
       else
-        status = 'Initializing tracking.';
+        % A tracking bout is in progress: derive the message from the most
+        % recent poll result.
+        if isempty(pollingResult) ,
+          status = 'Initializing tracking.' ;
+          isAllGood = true ;
+        else
+          isErr = any([pollingResult.errFileExists(:)]) ;
+          isLogFile = any([pollingResult.logFileExists(:)]) ;
+          if isErr ,
+            status = 'Error while tracking.' ;
+            isAllGood = false ;
+          elseif isfield(pollingResult,'result_type') && strcmp(pollingResult.result_type,'id_link') ,
+            if isLogFile && pollingResult.jsonFileExist && numel(pollingResult.idstep)>0 ,
+              status = sprintf('ID Training in progress. %d iterations completed',pollingResult.idstep(end)) ;
+            else
+              status = 'Initializing Training for ID Linking. ' ;
+            end
+            isAllGood = true ;
+          elseif isLogFile ,
+            if obj.bulkAxsIsBulkMode ,
+              status = sprintf('Tracking in progress. %d/%d movies tracked.',...
+                nnz(obj.bulkMovTracked),numel(obj.bulkMovTracked)) ;
+            elseif numel(pollingResult.tfComplete) > 1 ,
+              status = sprintf('Tracking in progress. %s frames tracked.',mat2str(obj.nFramesTracked)) ;
+            else
+              status = sprintf('Tracking in progress. %d frames tracked.',obj.nFramesTracked) ;
+            end
+            isAllGood = true ;
+          else
+            status = 'Initializing tracking.' ;
+            isAllGood = true ;
+          end
+        end
       end
-      
+
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
-      isAllGood = all(pollsuccess) && ~isErr ;
-      obj.setStatusDisplayLine(str, isAllGood) ;
+      obj.setStatusDisplayLine_(str, isAllGood) ;
     end  % function
     
     function updateErrDisplay(obj, pollingResult)
@@ -628,7 +635,7 @@ classdef TrackMonitorViz < handle
         warning('trackWorkerObj is empty -- cannot kill process');
         return;
       end
-      obj.setStatusDisplayLine('Killing tracking jobs...', false) ;
+      obj.setStatusDisplayLine_('Killing tracking jobs...', false) ;
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
@@ -644,7 +651,7 @@ classdef TrackMonitorViz < handle
       % end
       % TrackMonitorViz.updateStartStopButton(handles,false,false);
       obj.updateStopButton() ;
-      obj.setStatusDisplayLine('Tracking process killed.', false);
+      obj.setStatusDisplayLine_('Tracking process killed.', false);
       drawnow;
 
     end
@@ -855,32 +862,14 @@ classdef TrackMonitorViz < handle
   end  % methods (Static)
 
   methods
-    function setStatusDisplayLine(obj, str, isallgood)
-      % Set either or both of the status message line and the color of the status
-      % message.  Any of the two (non-obj) args can be empty, in which case that
-      % aspect is not changed.  obj.hfig's guidata must have a text_clusterstatus
-      % field containing the handle of an 'text' appropriate graphics object.
-
-      hfig = obj.hfig ;
-      handles = guidata(hfig);
+    function setStatusDisplayLine_(obj, str, isallgood)
+      % Set the status message line and its color (green if isallgood, else red).
+      % obj.hfig's guidata must have a text_clusterstatus field containing the
+      % handle of an appropriate 'text' graphics object.
+      handles = guidata(obj.hfig) ;
       text_h = handles.text_clusterstatus ;
-      if ~exist('str', 'var') ,
-        str = [] ;
-      end
-      if ~exist('isallgood', 'var') ,
-        isallgood = [] ;
-      end
-      if isempty(str) ,
-        % do nothing
-      else
-        set(text_h, 'String', str) ;
-      end
-      if isempty(isallgood) ,
-        % do nothing
-      else
-        color = fif(isallgood, 'g', 'r') ;
-        set(text_h, 'ForegroundColor',color) ;
-      end
+      set(text_h, 'String', str) ;
+      set(text_h, 'ForegroundColor', fif(isallgood, 'g', 'r')) ;
       drawnow('limitrate', 'nocallbacks') ;
     end  % function
     
