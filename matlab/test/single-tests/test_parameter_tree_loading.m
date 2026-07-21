@@ -41,6 +41,13 @@ for i = 1 : nodeCount
                 (iscellstr(data.Type) && ~isempty(data.Type)) ;  %#ok<ISCLSTR>
   assert(isTypeValid, ...
          'Leaf %s has an invalid Type (class %s)', data.Field, class(data.Type)) ;
+  % For an enumerated (cellstr-typed) leaf, the default must be one of
+  % the allowed options -- the new-style GUI's uidropdown errors otherwise
+  if iscell(data.Type)
+    assert(ismember(data.DefaultValue, data.Type), ...
+           'Leaf %s has DefaultValue ''%s'' that is not among its Type options', ...
+           data.Field, char(string(data.DefaultValue))) ;
+  end
   % The PropertiesGUIProp constructor normalizes Level to an enum, so a
   % char Level (the declared property default) should never appear in a
   % loaded tree
