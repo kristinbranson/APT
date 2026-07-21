@@ -1,7 +1,7 @@
 function test_ratcity_MA_magrone_tracking(varargin)
   [backend] = myparse(varargin,'backend','');
-  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, 'ratCity_round12_movie_size.lbl') ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/ratCity_round12_movie_size.lbl' ;
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
   if strcmp(backend,'')
     backend = docker_unless_janelia_cluster_then_conda() ;
   end

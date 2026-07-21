@@ -14,8 +14,8 @@ function test_train_error_during_polling()
   % Unlike test_train_spawn_failure_leaves_no_monitor, the job spawn itself
   % succeeds here; the error is injected later, during background polling.
 
-  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, 'four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl') ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
   backend = docker_unless_janelia_cluster_then_conda() ;  % Should work on Linux or Windows
   backend_params = synthesize_backend_params(backend) ;
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;

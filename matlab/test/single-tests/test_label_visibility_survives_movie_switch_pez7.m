@@ -6,8 +6,10 @@ function test_label_visibility_survives_movie_switch_pez7()
 % LabelCoreModel was destroyed and recreated.
 
 % Start APT with an SA project without trx (b/c only one animal)
-projectFile = '/groups/branson/bransonlab/apt/unittest/pez7_al_updated_20241015.lbl' ;
+linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/pez7_al_updated_20241015.lbl' ;
+[projectFile, replace_path] = localize_test_project_path(linux_project_file_path) ;
 [labeler, controller] = StartAPT('projfile', projectFile, ...
+                                 'replace_path', replace_path, ...
                                  'isInDebugMode', true, ...
                                  'isInYodaMode', true) ;
 cleanupObj = onCleanup(@()(delete(controller))) ;

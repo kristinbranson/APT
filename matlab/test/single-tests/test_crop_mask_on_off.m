@@ -14,13 +14,7 @@ function test_crop_mask_on_off_helper(doCrop, doMask)
   backend_params = synthesize_backend_params(backend) ;
 
   linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
-  if ispc()
-    project_file_path = strrep(linux_project_file_path, '/groups/branson/bransonlab', 'Z:') ;
-    replace_path = { '/groups/branson/bransonlab', 'Z:' } ;
-  else
-    project_file_path = linux_project_file_path ;
-    replace_path = [] ;
-  end
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
   [labeler, controller] = ...
     StartAPT('projfile', project_file_path, ...
              'replace_path', replace_path) ;

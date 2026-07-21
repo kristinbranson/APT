@@ -191,12 +191,18 @@ classdef Labeler < handle
     % updateLabelSkeletonCosmetics
     updatePreProcParams
     requestMacroizationGUI
-    requestMessageBox
+    requestNonmodalMessageBox
+    requestModalWarningDialog
     requestQuestionDialog
     updateLabelCoreTrackResForCurrentTarget
     updateUncertainFrames
     didSetUncertainFramesThreshold
     didSetUncertainFramesIsVisible
+    updateCompareTrackers
+    didSetCompareTrackersThreshold
+    didSetCompareTrackersIsVisible
+    didSetCompareTrackersTrackerSelection
+    didSetCompareTrackersMode
   end
 
   events  % used to come from labeler.tracker
@@ -324,6 +330,7 @@ classdef Labeler < handle
   properties (Dependent, Hidden)
     backend
     uncertainFramesCurrentBoutIndexMaybe
+    compareTrackersCurrentBoutIndexMaybe
   end
 
   %% Movie/Video
@@ -731,6 +738,11 @@ classdef Labeler < handle
     uncertainFramesModel_  % UncertainFramesModel object
   end
 
+  %% Compare Trackers
+  properties (Transient)
+    compareTrackersModel_  % CompareTrackersModel object
+  end
+
   %% PreProc
   properties
     ppdb  % PreProcDB for DL
@@ -877,6 +889,7 @@ classdef Labeler < handle
       obj.infoTimelineModel_ = InfoTimelineModel();
       obj.movieManagerModel_ = MovieManagerModel() ;
       obj.uncertainFramesModel_ = UncertainFramesModel(obj) ;
+      obj.compareTrackersModel_ = CompareTrackersModel(obj) ;
       % Set obj.isInInteractiveMode_ based on isInInteractiveModeRaw and
       % isInBatchModeRaw, treating an empty as "look at the other one" and
       % complaining if they are both nonempty and disagree.
@@ -2838,12 +2851,20 @@ classdef Labeler < handle
       % Set up the prev_axes
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode) ;
-      obj.prevAxesMode_ = pamode ;
       if pamode == PrevAxesMode.FROZEN
         modeInfoStruct = s.cfg.PrevAxes.ModeInfo ;
-        if ~isempty(fieldnames(modeInfoStruct)) && obj.hasMovie
+        if obj.hasMovie && isPrevAxesModeInfoUsable(modeInfoStruct)
+          obj.prevAxesMode_ = PrevAxesMode.FROZEN ;
           obj.corePrevAxesTargetSpec_ = CorePrevAxesTargetSpec(modeInfoStruct) ;
+        else
+          % Legacy/degenerate FROZEN state: the saved ModeInfo carries no usable
+          % target identity (e.g. old projects saved with empty iMov/frm/iTgt), so
+          % there is nothing to freeze to.  Fall back to LASTSEEN with an unset spec.
+          obj.prevAxesMode_ = PrevAxesMode.LASTSEEN ;
+          obj.corePrevAxesTargetSpec_ = [] ;
         end
+      else
+        obj.prevAxesMode_ = pamode ;
       end
       obj.notify_('updatePrevPanel') ;
 
@@ -2943,7 +2964,8 @@ classdef Labeler < handle
       if nomovie || (doAllRegularMoviesExist && doAllGTMoviesExist)
         % All is well, do nothing.
       else
-        error('Labeler:movie_missing', 'At least one movie is missing (see console for list).  Use File > Manage Movies... to fix.') ;
+        obj.warnUserModal_('At least one movie is missing (see console for list).  Use File > Manage Movies... to fix.', ...
+                           'Missing movies') ;
       end
       % Final sign-off
       fprintf('\nFinished loading project, elapsed time %f s.\n',toc(starttime)); 
@@ -5133,8 +5155,9 @@ classdef Labeler < handle
       % This need to run after the tracker is synched b/c it needs to use the
       % tracker predictions.
       obj.uncertainFramesModel_.syncFromPredictions() ;
-      
-      % Notify the controller that the movie has been changed      
+      obj.compareTrackersModel_.syncFromPredictions() ;
+
+      % Notify the controller that the movie has been changed
       edata = NewMovieEventData(isFirstMovie);
       obj.notify_('newMovie', edata) ;
 
@@ -5202,8 +5225,9 @@ classdef Labeler < handle
       % This need to run after the tracker is synched b/c it needs to use the
       % tracker predictions.
       obj.uncertainFramesModel_.syncFromPredictions() ;
+      obj.compareTrackersModel_.syncFromPredictions() ;
 
-      % Notify the controller that the movie has been changed      
+      % Notify the controller that the movie has been changed
       edata = NewMovieEventData(false);
       obj.notify_('newMovie', edata) ;
 
@@ -7949,8 +7973,25 @@ classdef Labeler < handle
         end
       else
         basename = [basename '_$trackertype'];
+        % Append the training timestamp and the user tag (if any), so that
+        % different trackers of the same type yield distinct filenames.
+        % Both are sanitized for use in a filename and come just after the
+        % tracker type.
+        tracker = obj.tracker ;
+        if ~isempty(tracker)
+          if isprop(tracker, 'trnNameLbl')
+            timestampFragment = fileNameFragmentFromString(tracker.trnNameLbl) ;
+            if ~isempty(timestampFragment)
+              basename = [basename '_' timestampFragment] ;
+            end
+          end
+          tagFragment = fileNameFragmentFromString(tracker.userTag) ;
+          if ~isempty(tagFragment)
+            basename = [basename '_' tagFragment] ;
+          end
+        end
       end
-      
+
       rawname = fullfile('$movdir',basename);
     end
 
@@ -8240,7 +8281,7 @@ classdef Labeler < handle
           fprintf('Saved labels: %s\n',outf);
         end
       end
-      obj.messageUser_(sprintf('Results for %d moviesets exported.', nMov), 'Export Complete') ;
+      obj.messageUserNonmodal_(sprintf('Results for %d moviesets exported.', nMov), 'Export Complete') ;
     end
     
     function importTrackingResults(obj, iMov, trkfiles)
@@ -9373,7 +9414,7 @@ classdef Labeler < handle
 
       nextmft = obj.gtNextUnlabeledMFT();
       if isempty(nextmft),
-        obj.messageUser_('No more unlabeled frames in to-label list.') ;
+        obj.messageUserNonmodal_('No more unlabeled frames in to-label list.') ;
         return;
       end
 
@@ -10274,9 +10315,14 @@ classdef Labeler < handle
       obj.notify_('updateTimelinePopupMenus');
       % obj.notify_('updateTimelineSelection');
 
+      % The reference tracker for Compare Trackers is always the current
+      % tracker, so changing the current tracker makes the comparison
+      % data stale.  Resync it (a no-op unless that window is open).
+      obj.compareTrackersModel_.syncFromPredictions() ;
+
       % Send the notifications
       obj.notify_('didSetCurrTracker') ;
-      % obj.notify_('update_menu_track_tracking_algorithm_quick') ;      
+      % obj.notify_('update_menu_track_tracking_algorithm_quick') ;
       obj.notify_('update_menu_track_tracker_history') ;
       obj.notify_('update_text_trackerinfo') ;
     end  % function
@@ -10467,12 +10513,17 @@ classdef Labeler < handle
       obj.infoTimelineModel_.didChangeCurrentTracker(auxPropList) ;
       obj.notify_('updateTimelinePopupMenus');
       % obj.notify_('updateTimelineSelection');
-      
+
+      % The reference tracker for Compare Trackers is always the current
+      % tracker, so inserting a new current tracker makes the comparison
+      % data stale.  Resync it (a no-op unless that window is open).
+      obj.compareTrackersModel_.syncFromPredictions() ;
+
       % Send the needed notifications
-      obj.notify_('didSetCurrTracker') ;      
+      obj.notify_('didSetCurrTracker') ;
       % obj.notify_('update_menu_track_tracking_algorithm_quick') ;
-      obj.notify_('update_menu_track_tracker_history') ;      
-      obj.notify_('update_text_trackerinfo') ;      
+      obj.notify_('update_menu_track_tracker_history') ;
+      obj.notify_('update_text_trackerinfo') ;
     end  % function
 
     % function trackMakeNewTrackerGivenAlgoName(obj, algoName, varargin)
@@ -13754,10 +13805,12 @@ classdef Labeler < handle
       tracker = obj.tracker ;
       if ~isempty(tracker)
         tracker.clearTrackingResults() ;
+        obj.uncertainFramesModel_.syncFromPredictions() ;
+        obj.compareTrackersModel_.syncFromPredictions() ;
         obj.notify_('updateTimeline') ;
         obj.setDoesNeedSave(true, 'Cleared tracking results') ;
       end
-    end  % function    
+    end  % function
     
     function replaceMovieAndTrxPathPrefixes(obj, oldPrefix, newPrefix)
       % For all the movie and trx file paths, does macro-substitution, then replaces
@@ -13860,6 +13913,9 @@ classdef Labeler < handle
       if endCause == EndCause.complete
         obj.infoTimelineModel_.invalidateTraceCache() ;
         obj.setDoesNeedSave(true, 'New frames tracked') ;
+        % New predictions invalidate the satellite windows' caches.
+        obj.uncertainFramesModel_.syncFromPredictions() ;
+        obj.compareTrackersModel_.syncFromPredictions() ;
       elseif endCause == EndCause.error
         obj.printErrorInfo_('track', pollingResultOrEmpty)
       end
@@ -14183,9 +14239,9 @@ classdef Labeler < handle
       obj.notify_('updatePrevPanel') ;
     end
 
-    function messageUser_(obj, text, title)
-      % Show a message to the user via the controller, or print to console if
-      % no controller is present.
+    function messageUserNonmodal_(obj, text, title)
+      % Show a nonmodal message to the user via the controller, or print to console
+      % if no controller is present.
       if ~exist('title', 'var') ,
         title = 'Message' ;
       end
@@ -14194,9 +14250,26 @@ classdef Labeler < handle
           % every value wrapped in a cell so struct() always produces a
           % scalar struct, regardless of whether any field value is a
           % cell array.
-        obj.notify_('requestMessageBox') ;
+        obj.notify_('requestNonmodalMessageBox') ;
       else
         fprintf('%s\n', text) ;
+      end
+    end  % function
+
+    function warnUserModal_(obj, text, title)
+      % Show a modal warning dialog to the user via the controller, or print to
+      % console if no controller is present.
+      if ~exist('title', 'var') ,
+        title = 'Warning' ;
+      end
+      if obj.isInInteractiveMode
+        obj.dialogLaunchPad_ = struct('text', {text}, 'title', {title}) ;
+          % every value wrapped in a cell so struct() always produces a
+          % scalar struct, regardless of whether any field value is a
+          % cell array.
+        obj.notify_('requestModalWarningDialog') ;
+      else
+        warningNoTrace(text) ;
       end
     end  % function
 
@@ -14241,6 +14314,29 @@ classdef Labeler < handle
       ufm.currentBoutIndexMaybe = newValue ;  % will error if newValue is invalid
       [frameIndex, trackletIndex, targetIndex] = ufm.frameTrackletAndTargetIndexFromCurrentBoutIndex() ;
       if obj.maIsMA
+        obj.setFrameAndTracklet(frameIndex, trackletIndex) ;
+      else
+        obj.setFrameAndTarget(frameIndex, targetIndex) ;
+      end
+    end  % function
+
+    function result = get.compareTrackersCurrentBoutIndexMaybe(obj)
+      % Return the currently selected compare-trackers bout index, or [] if none.
+      result = obj.compareTrackersModel_.currentBoutIndexMaybe ;
+    end  % function
+
+    function set.compareTrackersCurrentBoutIndexMaybe(obj, newValue)
+      % Setter method for compareTrackersCurrentBoutIndexMaybe.  Stores
+      % the selected bout index on the model and then navigates the
+      % Labeler to the corresponding frame and ref-tracklet/target.
+      ctm = obj.compareTrackersModel_ ;
+      ctm.currentBoutIndexMaybe = newValue ;  % will error if newValue is invalid
+      [frameIndex, trackletIndex, targetIndex] = ctm.frameTrackletAndTargetIndexFromCurrentBoutIndex() ;
+      if ctm.mode == CompareTrackersMode.UnmatchedAnimalCount
+        % This mode's bouts have no associated tracklet, so just navigate
+        % to the frame.
+        obj.setFrame(frameIndex) ;
+      elseif obj.maIsMA
         obj.setFrameAndTracklet(frameIndex, trackletIndex) ;
       else
         obj.setFrameAndTarget(frameIndex, targetIndex) ;

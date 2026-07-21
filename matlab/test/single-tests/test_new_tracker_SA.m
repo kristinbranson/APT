@@ -1,7 +1,7 @@
 function test_new_tracker_SA()
   % Test creation of new trackers in an SA project.
-  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, 'multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved_3.lbl');  
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved_3.lbl' ;
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
 
   % Launch APT
   [labeler, controller] = StartAPT();

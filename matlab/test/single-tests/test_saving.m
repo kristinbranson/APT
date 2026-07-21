@@ -1,12 +1,6 @@
 function test_saving()
   linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
-  if ispc()
-    project_file_path = strrep(linux_project_file_path, '/groups/branson/bransonlab', 'Z:') ;
-    replace_path = { '/groups/branson/bransonlab', 'Z:' } ;
-  else
-    project_file_path = linux_project_file_path ;
-    replace_path = [] ;
-  end
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
 
   % Start APT, load project, do save-as, then close APT
   temp_file_path = load_project_and_save_as(project_file_path, replace_path) ;
