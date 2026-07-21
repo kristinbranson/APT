@@ -5,7 +5,7 @@ function test_training_params_dialog()
 % user level in the dropdown never decreases the number of table rows.
 
 linuxProjectFilePath = ...
-  '/groups/branson/bransonlab/apt/unittest/alice/multitarget_bubble_expandedbehavior_20180425_allGT_MK_MDN04182019_updated_20250306.lbl' ;
+  '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
 [projectFilePath, replacePath] = localize_test_project_path(linuxProjectFilePath) ;
 [labeler, controller] = StartAPT('projfile', projectFilePath, ...
                                  'replace_path', replacePath) ;
@@ -48,6 +48,8 @@ end
 
 % The dialog should have had a healthy number of rows even at the most
 % basic level
+fprintf('%s: shown property counts by level: %s\n', ...
+        mfilename(), mat2str(rowCountFromSweepIndex)) ;
 assert(rowCountFromSweepIndex(1) > 10, ...
        'Expected more than 10 rows at the most basic level, found %d', ...
        rowCountFromSweepIndex(1)) ;

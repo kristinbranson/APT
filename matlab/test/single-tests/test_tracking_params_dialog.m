@@ -6,7 +6,7 @@ function test_tracking_params_dialog()
 % table rows.
 
 linuxProjectFilePath = ...
-  '/groups/branson/bransonlab/apt/unittest/alice/multitarget_bubble_expandedbehavior_20180425_allGT_MK_MDN04182019_updated_20250306.lbl' ;
+  '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
 [projectFilePath, replacePath] = localize_test_project_path(linuxProjectFilePath) ;
 [labeler, controller] = StartAPT('projfile', projectFilePath, ...
                                  'replace_path', replacePath) ;
@@ -46,12 +46,14 @@ if ~isempty(dialogError)
 end
 
 % The dialog should show the whole tracking tree at the highest level.
-% For a single-animal single-view DL project that is small: the Track
-% category plus the three NFrames* leaves.  (ChunkSize requires isCPR,
-% MultiAnimal.Track requires an MA project, and PostProcess's
-% reconcile3dType requires a multiview project.)
-assert(rowCountFromSweepIndex(end) >= 4, ...
-       'Expected at least 4 rows at the highest level, found %d', ...
+% For an MA project that includes the MultiAnimal.Track subtree as well
+% as the Track category with its three NFrames* leaves.  (ChunkSize
+% requires isCPR, and PostProcess's reconcile3dType requires a
+% multiview project.)
+fprintf('%s: shown property counts by level: %s\n', ...
+        mfilename(), mat2str(rowCountFromSweepIndex)) ;
+assert(rowCountFromSweepIndex(end) > 10, ...
+       'Expected more than 10 rows at the highest level, found %d', ...
        rowCountFromSweepIndex(end)) ;
 
 % Raising the level should never decrease the number of rows, and the
