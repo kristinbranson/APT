@@ -1,8 +1,10 @@
 function test_training_params_dialog()
 % Test that the training-parameters dialog (Track > Configure tracking
 % parameters) opens from the menu with a populated table, that some
-% commonly-used training parameters appear in it, and that raising the
-% user level in the dropdown never decreases the number of table rows.
+% commonly-used training parameters appear in it, that raising the
+% user level in the dropdown never decreases the number of table rows,
+% and that editing a parameter in the table and pressing Apply
+% propagates the new value to the Labeler.
 
 linuxProjectFilePath = ...
   '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
@@ -21,6 +23,14 @@ labeler.trackAutoSetParams = false ;
 spotCheckFieldPaths = { 'ROOT.DeepTrack.GradientDescent.dl_steps', ...
                         'ROOT.DeepTrack.GradientDescent.batch_size', ...
                         'ROOT.DeepTrack.DataAugmentation.rrange' } ;
+
+% The parameter to edit through the table, and the value to set it to.
+% The FQN is relative to ROOT, matching the FQNs propertiesGUI2 stores
+% on its Java property objects.
+editFqn = 'DeepTrack.GradientDescent.dl_steps' ;
+sPrmBefore = labeler.trackGetTrainingParams() ;
+oldEditValue = sPrmBefore.ROOT.DeepTrack.GradientDescent.dl_steps ;
+newEditValue = oldEditValue + 1234 ;
 
 % State written by the timer callback while the dialog is up
 didDriveDialog = false ;
@@ -62,6 +72,14 @@ assert(all(diff(rowCountFromSweepIndex) >= 0), ...
 assert(rowCountFromSweepIndex(end) > rowCountFromSweepIndex(1), ...
        'The highest level should show more rows than the lowest') ;
 
+% The edit made in the dialog, applied with the Apply button, should
+% have propagated to the model
+sPrmAfter = labeler.trackGetTrainingParams() ;
+editValueFromLabeler = sPrmAfter.ROOT.DeepTrack.GradientDescent.dl_steps ;
+assert(isequal(double(editValueFromLabeler), double(newEditValue)), ...
+       'dl_steps is %g after Apply, expected %g', ...
+       double(editValueFromLabeler), double(newEditValue)) ;
+
 fprintf('test_training_params_dialog passed.\n') ;
 
   function driveDialogBang(~, ~)
@@ -72,6 +90,7 @@ fprintf('test_training_params_dialog passed.\n') ;
     end
     stop(timerObj) ;
     didDriveDialog = true ;
+    didApply = false ;
     try
       handles = guidata(hFig) ;
 
@@ -108,11 +127,40 @@ fprintf('test_training_params_dialog passed.\n') ;
         assert(ismember(expectedRowName, shownRowNames), ...
                'No table row named "%s" (for %s)', expectedRowName, fieldPath) ;
       end
+
+      % Edit one parameter through the Java table model, as a user edit
+      % would: setting the value fires the property-change callback,
+      % which updates the mirror tree that Apply reads from
+      editNamePath = displayNamePathForFqn(handles.tree, editFqn) ;
+      editProp = findJavaPropertyByNamePath(getappdata(hFig, 'propsList'), ...
+                                            editNamePath) ;
+      assert(~isempty(editProp), 'No table property with FQN %s', editFqn) ;
+      editProp.setValue(int32(newEditValue)) ;
+      didMirrorUpdate = false ;
+      for pollIndex = 1 : 50
+        drawnow ;
+        mirror = getappdata(hFig, 'mirror') ;
+        if isequal(double(mirror.getValue(editFqn)), double(newEditValue))
+          didMirrorUpdate = true ;
+          break
+        end
+        pause(0.1) ;
+      end
+      assert(didMirrorUpdate, ...
+             'The mirror tree did not pick up the edit to %s', editFqn) ;
+
+      % Apply: closes the dialog and hands the edited parameters to the
+      % blocked menu actuation, which writes them to the Labeler
+      ParameterSetup('pbApply_Callback', handles.pbApply, [], guidata(hFig)) ;
+      didApply = true ;
     catch err
       dialogError = err ;
     end
-    % Dismiss the dialog so the blocked menu actuation can return
-    if isvalid(hFig)
+    % On an error path the dialog may still be up: dismiss it so the
+    % blocked menu actuation can return.  (After Apply the figure is
+    % still valid here -- its deletion is deferred to the OutputFcn --
+    % so a second dismissal would wrongly delete it mid-uiwait.)
+    if ~didApply && isvalid(hFig)
       try
         handles = guidata(hFig) ;
         ParameterSetup('pbCancel_Callback', handles.pbCancel, [], guidata(hFig)) ;
@@ -142,6 +190,47 @@ for i = 0 : (javaPropertyList.size() - 1)
   if ~isempty(children) && children.size() > 0
     childNames = collectShownPropertyNames(children) ;
     names = [names ; childNames] ;  %#ok<AGROW>
+  end
+end
+end  % function
+
+
+function namePath = displayNamePathForFqn(tree, fqn)
+% Convert a ROOT-relative FQN into the corresponding path of display
+% names, which is how propertiesGUI2 names its Java property objects.
+fieldNames = strsplit(fqn, '.') ;
+namePath = cell(1, numel(fieldNames)) ;
+partialFqn = 'ROOT' ;
+for i = 1 : numel(fieldNames)
+  partialFqn = [partialFqn '.' fieldNames{i}] ;  %#ok<AGROW>
+  node = tree.findnode(partialFqn) ;
+  assert(~isempty(node), 'No tree node %s', partialFqn) ;
+  namePath{i} = node.Data.DispNameUse ;
+end
+end  % function
+
+
+function prop = findJavaPropertyByNamePath(javaPropertyList, namePath)
+% Recursively find the Java property whose display-name path matches
+% namePath (a cellstr).  Returns [] if not found.
+prop = [] ;
+if isempty(javaPropertyList) || isempty(namePath)
+  return
+end
+for i = 0 : (javaPropertyList.size() - 1)
+  candidate = javaPropertyList.get(i) ;
+  if strcmp(char(candidate.getName()), namePath{1})
+    if isscalar(namePath)
+      prop = candidate ;
+      return
+    end
+    children = candidate.getChildren() ;
+    if ~isempty(children) && children.size() > 0
+      prop = findJavaPropertyByNamePath(children, namePath(2:end)) ;
+      if ~isempty(prop)
+        return
+      end
+    end
   end
 end
 end  % function
