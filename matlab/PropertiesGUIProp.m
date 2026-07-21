@@ -14,7 +14,7 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
     ParamViz % optional, char concrete classname for ParameterVisualization subclass
     DefaultValue 
     Value    
-    Level = 'Important'
+    Level = PropertyLevelsEnum.Important
     Requirements = {}
     Visible = true
     AffectsTraining = true
