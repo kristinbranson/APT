@@ -21,8 +21,10 @@ function test_track_spawn_failure_leaves_no_monitor()
   % already spawned successfully, so it cannot be exercised by the single
   % isSpawnForcedToFail_ hook (which would fail the detection spawn first).
 
-  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, 'multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved_3_lightly_trained.lbl') ;
+  linux_project_file_path = ...
+    ['/groups/branson/bransonlab/apt/unittest/' ...
+     'multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved_3_lightly_trained.lbl'] ;
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
   backend = docker_unless_janelia_cluster_then_conda() ;  % Should work on Linux or Windows
   backend_params = synthesize_backend_params(backend) ;
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
