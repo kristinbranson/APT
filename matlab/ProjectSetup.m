@@ -493,12 +493,14 @@ classdef ProjectSetup < handle
       elseif viewNameCount < viewCount
         result.ViewNames(viewNameCount+1:viewCount) = {''} ;
       end
+      result.ViewNames = result.ViewNames(:) ;  % Force column so downstream shape assumptions hold
       pointNameCount = numel(result.LabelPointNames) ;
       if pointNameCount > keypointCount
         result.LabelPointNames = result.LabelPointNames(1:keypointCount) ;
       elseif pointNameCount < keypointCount
         result.LabelPointNames(pointNameCount+1:keypointCount) = {''} ;
       end
+      result.LabelPointNames = result.LabelPointNames(:) ;  % Force column; initFromConfig_ uses size(...,1) as the set count
       result.View = augmentOrTruncateVector(result.View(:), viewCount) ;
 
       result.Trx.HasTrx = hasBodyTracking ;

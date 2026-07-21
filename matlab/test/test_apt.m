@@ -8,29 +8,38 @@ function varargout = test_apt(varargin)
   % Optional arguments:
   %   'local' (true/false): Run local tests (default: true)
   %   'remote' (true/false): Run remote tests (default: false)
+  %   'test_list' (cellstr): Explicit list of test function names to run.
+  %     When nonempty, overrides 'local' and 'remote'.
 
-  [do_run_local_tests, do_run_remote_tests] = ...
+  [do_run_local_tests, do_run_remote_tests, test_list] = ...
     myparse(varargin, ...
             'local', true, ...
-            'remote', false) ;
+            'remote', false, ...
+            'test_list', cell(1,0)) ;
   this_dir_path = fileparts(mfilename('fullpath')) ;
   single_tests_dir_path = fullfile(this_dir_path, 'single-tests') ;
 
-  if do_run_local_tests    
-    test_file_name_from_local_test_index = simple_dir(fullfile(single_tests_dir_path, '*.m')) ;
-    function_name_from_local_test_index = cellfun(@(file_name)(file_name(1:end-2)), test_file_name_from_local_test_index, 'UniformOutput', false) ;
+  if ~isempty(test_list) ,
+    % An explicit test list overrides the local/remote args
+    assert(iscellstr(test_list), 'test_list must be a cell array of char arrays') ;  %#ok<ISCLSTR>
+    function_name_from_test_index = reshape(test_list, 1, []) ;
   else
-    function_name_from_local_test_index = cell(1,0) ;
-  end  
-  if do_run_remote_tests ,
-    % Get the remote tests
-    remote_tests_dir_path = fullfile(single_tests_dir_path, 'remote') ;
-    test_file_name_from_remote_test_index = simple_dir(fullfile(remote_tests_dir_path, '*.m')) ;
-    function_name_from_remote_test_index = cellfun(@(file_name)(file_name(1:end-2)), test_file_name_from_remote_test_index, 'UniformOutput', false) ;
-  else
-    function_name_from_remote_test_index = cell(1,0) ;
+    if do_run_local_tests
+      test_file_name_from_local_test_index = simple_dir(fullfile(single_tests_dir_path, '*.m')) ;
+      function_name_from_local_test_index = cellfun(@(file_name)(file_name(1:end-2)), test_file_name_from_local_test_index, 'UniformOutput', false) ;
+    else
+      function_name_from_local_test_index = cell(1,0) ;
+    end
+    if do_run_remote_tests ,
+      % Get the remote tests
+      remote_tests_dir_path = fullfile(single_tests_dir_path, 'remote') ;
+      test_file_name_from_remote_test_index = simple_dir(fullfile(remote_tests_dir_path, '*.m')) ;
+      function_name_from_remote_test_index = cellfun(@(file_name)(file_name(1:end-2)), test_file_name_from_remote_test_index, 'UniformOutput', false) ;
+    else
+      function_name_from_remote_test_index = cell(1,0) ;
+    end
+    function_name_from_test_index = horzcat(function_name_from_local_test_index, function_name_from_remote_test_index);
   end
-  function_name_from_test_index = horzcat(function_name_from_local_test_index, function_name_from_remote_test_index);
   test_count = numel(function_name_from_test_index) ;
   fprintf('Running %d tests...\n', test_count) ;
   did_pass_from_test_index = false(test_count,1) ;

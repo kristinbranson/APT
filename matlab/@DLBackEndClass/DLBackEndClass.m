@@ -52,7 +52,7 @@ classdef DLBackEndClass < handle
     default_jrcgpuqueue = 'gpu_a100'
     default_jrcnslots_train = 4
     default_jrcnslots_track = 4
-    default_jrcJobDuration = 2880  % in minutes; 2880 = 48 hours
+    default_jrcJobDuration = 10080  % in minutes; 10080 = 7 days
 
     default_conda_env = 'apt-20250626-tf215-pytorch21-hopper'
     DEFAULT_SINGULARITY_IMAGE_PATH = apt.MetaPath('/groups/branson/bransonlab/apt/sif/apt-20250626-tf215-pytorch21-hopper.sif', 'wsl', 'universal')
@@ -141,6 +141,12 @@ classdef DLBackEndClass < handle
     % This is used to keep track of whether we need to release/delete resources on
     % delete()
     doesOwnResources_ = true  % is obj a copy, or the original
+
+    % Test hook.  When true, spawnRegisteredJobs() simulates a failed job spawn
+    % (as if e.g. the bsub command had returned a nonzero exit code) instead of
+    % actually spawning any jobs.  Used by tests to exercise the spawn-failure
+    % code path without a real backend.  Not persisted to disk.
+    isSpawnForcedToFail_ = false
   end
 
   properties (Dependent)
@@ -1067,8 +1073,16 @@ classdef DLBackEndClass < handle
         obj.writeCmdToFile(syscmds,cmdfiles,jobdesc);
       end
 
-      % Actually spawn the jobs
-      [didSpawnAllJobs, reason, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
+      % Actually spawn the jobs.  (Unless we've been asked to simulate a spawn
+      % failure for testing, in which case we behave as if the spawn command --
+      % e.g. bsub -- had returned a nonzero exit code, without spawning anything.)
+      if obj.isSpawnForcedToFail_ ,
+        didSpawnAllJobs = false ;
+        reason = 'Simulated spawn failure (DLBackEndClass.isSpawnForcedToFail_ is set)' ;
+        spawned_jobids = cell(0,1) ;
+      else
+        [didSpawnAllJobs, reason, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
+      end
       % obj.ensureJobIsNotAlive(spawned_jobids{1}) ;  
       %   % USED FOR DEBUGGING, to simulate a failure of a spawned job without
       %   % production of an error file.
@@ -1352,6 +1366,17 @@ classdef DLBackEndClass < handle
         result = obj.awsec2.fileExists(wslFilePath) ;
       else
         nativeFilePathAsChar = nativeFilePath.charUnescaped() ;
+        % Refresh NFS attribute cache before checking, to avoid false negatives
+        % when a remote job (bsub/cluster) has just written the file.
+        % Capture dir()'s output: with zero output arguments, dir()
+        % *displays* the directory listing in the command window (a
+        % semicolon does not suppress this), and this code runs inside
+        % polling loops.  The NFS READDIR side effect is the same either
+        % way.
+        parent = fileparts(nativeFilePathAsChar) ;
+        if ~isempty(parent)
+          [~] = dir(parent) ;
+        end
         result = logical(exist(nativeFilePathAsChar, 'file')) ;
       end
     end  % function
