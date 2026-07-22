@@ -375,7 +375,7 @@ classdef APTParameters
     function v = all2PreProcParams(sPrmAll)
       sPrmPPandCPR = sPrmAll;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack');
-      [sPrmPPandCPRold] = cprParamNew2Old(sPrmPPandCPR,5,1); % we won't use npoints or nviews
+      [sPrmPPandCPRold] = preProcParamsNew2Old(sPrmPPandCPR,5,1); % we won't use npoints or nviews
       v = sPrmPPandCPRold.PreProc;
     end
     

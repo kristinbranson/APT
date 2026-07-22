@@ -1,5 +1,5 @@
 function [sOld,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = ...
-    cprParamNew2Old(sNew,nphyspts,nviews)
+    preProcParamsNew2Old(sNew,nphyspts,nviews)
   % Convert new-style parameters to the old-style preprocessing parameter
   % struct still consumed by the tracking pipeline. Defaults are used for
   % old fields when appropriate.
