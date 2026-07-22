@@ -3473,8 +3473,10 @@ def compute_coco_map_list(list_file, preds, info, conf, out_file):
             # pycocotools takes the sigmas as a param instead of an argument
             coco_eval = COCOeval(coco_gt, coco_dt, 'keypoints')
             coco_eval.params.kpt_oks_sigmas = sigmas
-        if conf.is_multi:
-            coco_eval.params.maxDets = [max(20, int(conf.max_n_animals))]
+        # Keep maxDets at its library default of [20]: summarize() for the
+        # 'keypoints' iouType hardcodes maxDets=20 when looking up results, so
+        # overriding params.maxDets to anything else (e.g. max_n_animals) makes
+        # that lookup miss and every stat silently come back as -1.
         coco_eval.evaluate()
         coco_eval.accumulate()
         coco_eval.summarize()
