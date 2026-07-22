@@ -1760,7 +1760,7 @@ classdef DeepTracker < LabelTracker
       % tblP: MFTable
       % ppPrms: scalar struct, preproc params only.
       % 
-      % ppdata: CPRData
+      % ppdata: PreProcData
             
       %ppdb = obj.lObj.ppdb;
       ppdb = PreProcDB();

@@ -275,7 +275,7 @@ classdef MFTable
 %       %
 %       % I: [nxnview]
 %       %
-%       % PROB REMOVE ME, dup of CPRData.getFrames. No callsites in APT
+%       % PROB REMOVE ME, dup of PreProcData.getFrames. No callsites in APT
 %       % application. Unsafe wrt preloading.
 %       
 %       movIDs = MFTable.formMultiMovieIDArray(tMF.mov); % errs if any ID separator issues

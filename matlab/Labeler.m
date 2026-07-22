@@ -2802,6 +2802,16 @@ classdef Labeler < handle
 
       % Initialize preprocessed data cache
       if isfield(s, 'ppdb') && ~isempty(s.ppdb)
+        % If the saved cache does not deserialize as a PreProcData, it was
+        % likely saved by an older APT version holding the pre-rename
+        % CPRData class. Hard-error for now (rather than silently dropping
+        % the cache) so that any such project in the test suite is caught
+        % loudly.
+        assert(isa(s.ppdb,'PreProcDB') && isa(s.ppdb.dat,'PreProcData'), ...
+          'Labeler:dataCache', ...
+          ['The saved DL data cache could not be loaded as a PreProcData ' ...
+           '(the class was renamed from CPRData); this project was likely ' ...
+           'saved by an older APT version.']) ;
         fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
         obj.ppdb = s.ppdb;
       end
@@ -9960,7 +9970,7 @@ classdef Labeler < handle
 %       %
 %       % Input args: See PreProcDataUpdate
 %       %
-%       % data: CPRData handle, equal to obj.preProcData
+%       % data: PreProcData handle, equal to obj.preProcData
 %       % dataIdx. data.I(dataIdx,:) gives the rows corresponding to tblP
 %       %   (out); order preserved
 %       % tblP (out): subset of tblP (input), rows for failed reads removed
@@ -10118,7 +10128,7 @@ classdef Labeler < handle
 %       if nNew>0
 %         fprintf(1,'Adding %d new rows to data...\n',nNew);
 % 
-%         [I,nNborMask,didread] = CPRData.getFrames(tblPNewConcrete,...
+%         [I,nNborMask,didread] = PreProcData.getFrames(tblPNewConcrete,...
 %           'wbObj',wbObj,...
 %           'forceGrayscale',obj.movieForceGrayscale,...
 %           'preload',obj.movieReadPreLoadMovies,...
@@ -10136,7 +10146,7 @@ classdef Labeler < handle
 %           % obj unchanged
 %           return;
 %         end
-%         % Include only FLDSALLOWED in metadata to keep CPRData md
+%         % Include only FLDSALLOWED in metadata to keep PreProcData md
 %         % consistent (so can be appended)
 %         
 %         didreadallviews = all(didread,2);
@@ -10167,10 +10177,10 @@ classdef Labeler < handle
 %             if tfWB
 %               wbObj.endPeriod();
 %             end
-%             dataNew = CPRData(I,tblPnewMD);            
+%             dataNew = PreProcData(I,tblPnewMD);            
 %           else
 %             J = obj.movieHistEqApplyLUTs(I,tblPnewMD.mov); 
-%             dataNew = CPRData(J,tblPnewMD);
+%             dataNew = PreProcData(J,tblPnewMD);
 %             dataNew.H0 = obj.preProcH0.hgram;
 % 
 %             if ~isPreProcParamsIn && dataCurr.N==0
@@ -10179,7 +10189,7 @@ classdef Labeler < handle
 %             end
 %           end
 %         else
-%           dataNew = CPRData(I,tblPnewMD);
+%           dataNew = PreProcData(I,tblPnewMD);
 %         end
 %                 
 %         if ~isempty(prmpp.channelsFcn)
@@ -11199,7 +11209,7 @@ classdef Labeler < handle
       if ~isempty(ppdata) % includes tfSkipPPData
 %         ppdbICache = true(ppdata.N,1);
       else
-        % De-objectize .ppdb.dat (CPRData)
+        % De-objectize .ppdb.dat (PreProcData)
         ppdata = s.ppdb.dat;
       end
       
@@ -12100,7 +12110,7 @@ classdef Labeler < handle
 %       tblMFT = table(mov,frm,iTgt);
 %       wbObj = WaitBarWithCancel('Montage');
 %       oc = onCleanup(@()delete(wbObj));      
-%       I1 = CPRData.getFrames(tblMFT,...
+%       I1 = PreProcData.getFrames(tblMFT,...
 %         'movieInvert',obj.movieInvert,...
 %         'wbObj',wbObj);
 %       I1 = cellfun(@DataAugMontage.convertIm2Double,I1,'uni',0);

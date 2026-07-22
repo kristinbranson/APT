@@ -1,7 +1,7 @@
-classdef CPRData < handle
+classdef PreProcData < handle
   
   properties
-    Name    % Name of this CPRData
+    Name    % Name of this PreProcData
     MD      % [NxR] Table of Metadata
     
     I       % [NxnView] cell vec, images
@@ -89,7 +89,7 @@ classdef CPRData < handle
 
     function v = get.iUnused(obj)
       if ~isempty(intersect(obj.iTrn,obj.iTst))
-        warning('CPRData:partition','Overlapping iTrn/iTst.');
+        warning('PreProcData:partition','Overlapping iTrn/iTst.');
       end
       iTrnTst = union(obj.iTrn,obj.iTst);
       v = setdiff(1:obj.N,iTrnTst);
@@ -149,20 +149,20 @@ classdef CPRData < handle
   %% 
   methods
     
-    function obj = CPRData(varargin)
-      % obj = CPRData(movFiles)
-      % obj = CPRData(lblFiles,tfAllFrames)
-      % obj = CPRData(I,tblP)
-      % obj = CPRData(I,tblP,bboxes)
-      % obj = CPRData(movFiles,lpos,lpostags,type,varargin)
-      % obj = CPRData(movFiles,lpos,lpostags,iMov,frms,varargin)
+    function obj = PreProcData(varargin)
+      % obj = PreProcData(movFiles)
+      % obj = PreProcData(lblFiles,tfAllFrames)
+      % obj = PreProcData(I,tblP)
+      % obj = PreProcData(I,tblP,bboxes)
+      % obj = PreProcData(movFiles,lpos,lpostags,type,varargin)
+      % obj = PreProcData(movFiles,lpos,lpostags,iMov,frms,varargin)
       
       switch nargin
         case 0
-          error('CPRData:CPRData','Invalid number of input arguments.');
+          error('PreProcData:PreProcData','Invalid number of input arguments.');
         case 1
           movFiles = varargin{1};
-          [Is,bb,md] = CPRData.readMovs(movFiles);
+          [Is,bb,md] = PreProcData.readMovs(movFiles);
           p = nan(size(Is,1),0);
         case 2
           if iscell(varargin{1}) && istable(varargin{2})
@@ -177,8 +177,8 @@ classdef CPRData < handle
             sz = cellfun(@(x) [size(x,2),size(x,1)],Is,'uni',0);
             bb = cellfun(@(x)[[1 1] x],sz,'uni',0);
           else
-            warningNoTrace('CPRData:bb',...
-              'Multiview CPRData. Deferring computation of bounding boxes.');
+            warningNoTrace('PreProcData:bb',...
+              'Multiview PreProcData. Deferring computation of bounding boxes.');
             bb = nan(size(Is,1),0);
           end
         case 3
@@ -204,7 +204,7 @@ classdef CPRData < handle
     end
     
     function append(obj,varargin)
-      % Cat/append additional CPRDatas
+      % Cat/append additional PreProcDatas
       % 
       % data.append(data1,data2,...)
 
