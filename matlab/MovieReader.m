@@ -116,16 +116,10 @@ classdef MovieReader < handle
       % imOrigType: type of original/raw image.
       % imroi: [1x4] [xlo xhi ylo yhi] roi of im-as-read. Usually, just
       %  [1 nc 1 nr]. If docrop, then the roi used to crop.
-      %
-      % 'doBGsub' is accepted for backward compatibility but must be false;
-      % background subtraction is no longer supported.
 
-      [doBGsub,docrop] = myparse(varargin,...
-        'doBGsub',false,...
+      docrop = myparse(varargin,...
         'docrop',false ... % if true, .cropInfo is used if avail
         );
-      assert(~doBGsub,'MovieReader:noBGsub',...
-             'Background subtraction is no longer supported.') ;
 
       assert(obj.isOpen,'Movie is not open.');
       im = obj.readFrameFcn(i);
