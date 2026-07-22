@@ -3219,7 +3219,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
     bsize = conf.batch_size
     n_batches = int(math.ceil(float(n) / bsize))
 
-    if conf.get('imresize_expand',False):
+    if conf.get('imresize_expand',False) or conf.batch_size == 1:
         assert conf.batch_size == 1, "imresize_expand only works with batch_size=1"
         all_f = []
     else:
@@ -3249,7 +3249,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
                 labeled_locs[cur_start + ndx, ...] = next_db['locs']
                 info.append(next_db['info'])
             else:
-                if conf.imresize_expand:
+                if conf.imresize_expand or conf.batch_size == 1:
                     all_f = next_db[0][None]
                 else:
                     all_f[ndx, ...] = next_db[0]
@@ -3426,7 +3426,11 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
 
     bsize = conf[0].batch_size
     max_n = conf[0].max_n_animals
-    all_f = np.zeros((bsize,) + tuple(conf[0].imsz) + (conf[0].img_dim,))
+    if conf[0].get('imresize_expand',False) or conf[0].batch_size == 1:
+        assert conf[0].batch_size == 1, "imresize_expand only works with batch_size=1"
+        all_f = []
+    else:
+        all_f = np.zeros((bsize,) + tuple(conf[0].imsz) + (conf[0].img_dim,))
     n_batches = int(math.ceil(float(db_len) / bsize))
     ret_dict_all = {}
     labeled_locs = np.zeros([db_len, max_n, npts, 2])
@@ -3440,7 +3444,10 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
         ppe = min(n - cur_start, bsize)
         for ndx in range(ppe):
             next_db = read_fn()
-            all_f[ndx, ...] = next_db[0]
+            if conf[0].imresize_expand or conf[0].batch_size == 1:
+                all_f = next_db[0][None]
+            else:
+                all_f[ndx, ...] = next_db[0]
             labeled_locs[cur_start + ndx, ...] = next_db[1]
             info.append(next_db[2])
 
@@ -5216,19 +5223,23 @@ def run(args):
             else:
                 assert False, 'For list classification invdividual stages are unsupported'
 
-            if conf.is_multi and args.list_file is None:
-                # update the imsz only if we are classifying the dbs which could have images that are cropped
-                setup_ma(conf)
-
             islist = False
             if args.list_file is not None:
                 db_file = args.list_file
+                conf.batch_size = 1 # this is to support classification of movies with different sizes. The batch size is set to 1 for list classification because the images in the list may have different sizes, and we cannot batch them together. The network will process each image individually.
                 islist = True
             elif args.db_file is not None:
                 db_file = args.db_file
             else:
                 val_filename = get_valfilename(conf, args.type)
                 db_file = os.path.join(conf.cachedir, val_filename)
+                # Only the internal validation DB is cropped/padded to the multi-animal
+                # imsz, so update imsz via setup_ma just for that case. A user-supplied
+                # db_file or list_file holds full frames, and the network pads them to a
+                # multiple of 32 internally (as in the tracking path, which never calls
+                # setup_ma); mutating imsz here would size the read buffer wrong.
+                if conf.is_multi:
+                    setup_ma(conf)
 
             preds, locs, info, model_files = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx],islist=islist,model_type2=args.type2,model_file2=args.model_file2[view_ndx],conf2=conf2,fullret=True)
             if cmd=='track':
