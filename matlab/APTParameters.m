@@ -234,9 +234,7 @@ classdef APTParameters
         % conceptually TD.
       
         reqs = tree.Data.Requirements;
-        if ismember('isCPR',reqs) && ~any(strcmpi('cpr',netsUsed)),
-          tree.Data.Visible = false;
-        elseif all(ismember({'hasTrx' 'isTopDown'},reqs))
+        if all(ismember({'hasTrx' 'isTopDown'},reqs))
           if ~hasTrx && ~is2stg
             % Special case/hack; if hasTrx and ma are both present, it's an
             % OR condition (rather than AND which is the default for 2+
@@ -379,11 +377,6 @@ classdef APTParameters
       v = sPrmPPandCPRold.PreProc;
     end
     
-    % all parameters to new preproc parameters
-    function v = all2PreProcParamsNew(sPrmAll)
-      v = sPrmAll.ROOT.ImageProcessing;
-    end
-    
     % all parameters to common dl parameters
     function v = all2TrackDLParams(sPrmAll)
       sPrmDT = sPrmAll.ROOT.DeepTrack;
@@ -407,11 +400,6 @@ classdef APTParameters
     
     % set subsets of all parameters
 
-    % set new format preproc parameters
-    function sPrmAll = setPreProcParamsNew(sPrmAll,sPrmPPNew)
-      sPrmAll.ROOT.ImageProcessing = sPrmPPNew;
-    end
-    
     % set common dl parameters
     function sPrmAll = setTrackDLParams(sPrmAll,sPrmDT)
       sPrmAll.ROOT.DeepTrack = structoverlay(sPrmAll.ROOT.DeepTrack,sPrmDT);      
@@ -463,20 +451,12 @@ classdef APTParameters
       tfEqual = isequaln(sPrm0.ROOT.PostProcess,sPrm1.ROOT.PostProcess);
     end
     
-    function [tfOK,msgs] = checkParams(sPrm)
+    function [tfOK,msgs] = checkParams(sPrm) %#ok<INUSD>
+      % No cross-parameter constraints to check at present. (Previously
+      % validated mutual exclusivity among the now-removed background
+      % subtraction / histogram equalization / neighbor masking options.)
       tfOK = true;
       msgs = {};
-      ppPrms = APTParameters.all2PreProcParams(sPrm);
-      if ppPrms.histeq
-        if ppPrms.BackSub.Use
-          tfOK = false;
-          msgs{end+1} = 'Histogram Equalization and Background Subtraction cannot both be enabled';
-        end
-        if ppPrms.NeighborMask.Use
-          tfOK = false;
-          msgs{end+1} = 'Histogram Equalization and Neighbor Masking cannot both be enabled';
-        end
-      end
     end
     
     function sPrmAll = modernize(sPrmAll)
@@ -486,13 +466,18 @@ classdef APTParameters
           sPrmAll.ROOT.MultiAnimal.Detect = sPrmAll.ROOT.MultiAnimalDetection;
           sPrmAll.ROOT = rmfield(sPrmAll.ROOT,'MultiAnimalDetection');
         end
-        if isfield(sPrmAll.ROOT,'ImageProcessing') && ... 
+        if isfield(sPrmAll.ROOT,'ImageProcessing') && ...
           isfield(sPrmAll.ROOT.ImageProcessing,'MultiTarget') && ...
            isfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop')
           sPrmAll.ROOT.MultiAnimal.TargetCrop = sPrmAll.ROOT.ImageProcessing.MultiTarget.TargetCrop;
-          sPrmAll.ROOT.ImageProcessing.MultiTarget = ...
-            rmfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop');
-        end        
+        end
+        % The ImageProcessing subtree (background subtraction, histogram
+        % equalization, neighbor masking) is no longer supported; drop any
+        % stale copy carried by an older project so it does not linger in
+        % the param struct.
+        if isfield(sPrmAll.ROOT,'ImageProcessing')
+          sPrmAll.ROOT = rmfield(sPrmAll.ROOT,'ImageProcessing');
+        end
         if isfield(sPrmAll.ROOT,'MultiAnimal')
           if isfield(sPrmAll.ROOT.MultiAnimal,'TargetCrop') && ...
             isfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius')

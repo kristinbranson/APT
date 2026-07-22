@@ -5074,18 +5074,11 @@ classdef Labeler < handle
       cInfo = obj.movieFilesAllCropInfoGTaware{iMov};
       tfHasCrop = ~isempty(cInfo);
 
-      ppPrms = obj.preProcParams;
-      if ~isempty(ppPrms)
-        bgsubPrms = ppPrms.BackSub;
-        bgArgs = {'bgType',bgsubPrms.BGType,'bgReadFcn',bgsubPrms.BGReadFcn};
-      else
-        bgArgs = {};
-      end        
       for iView=1:obj.nview
         mov = movsAllFull{iMov,iView};
         mr = obj.movieReader(iView);
         mr.preload = obj.movieReadPreLoadMovies;
-        mr.open(mov,bgArgs{:}); % should already be faithful to .forceGrayscale
+        mr.open(mov); % should already be faithful to .forceGrayscale
         if tfHasCrop
           mr.setCropInfo(cInfo(iView)); % cInfo(iView) is a handle/pointer!
         else
@@ -10631,17 +10624,7 @@ classdef Labeler < handle
         assert(~istrack);
         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
         obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
-        
-        bgPrms = sPrm.ROOT.ImageProcessing.BackSub;
-        mrs = obj.movieReader;
-        for i=1:numel(mrs)
-          mrs(i).open(mrs(i).filename,...
-                      'bgType',bgPrms.BGType,...
-                      'bgReadFcn',bgPrms.BGReadFcn);
-          % mrs(i) should already be faithful to .forceGrayscale,
-          % .movieInvert, cropInfo
-        end
-        
+
         if obj.maIsMA && ~istrack,
           obj.notify_('updatePreProcParams') ;
         end

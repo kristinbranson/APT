@@ -27,9 +27,6 @@ function [sOld,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = ...
     trkNFrmsNear = sNew.ROOT.Track.NFramesNeighborhood;
   end
 
-  he = sNew.ROOT.ImageProcessing.HistEq;
-  sOld.PreProc.BackSub = sNew.ROOT.ImageProcessing.BackSub;
-  sOld.PreProc.histeq = he.Use;
   sOld.PreProc.TargetCrop = sNew.ROOT.MultiAnimal.TargetCrop;
   sOld.PreProc.channelsFcn = [];
 end % function

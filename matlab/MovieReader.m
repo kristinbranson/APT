@@ -244,24 +244,15 @@ classdef MovieReader < handle
       % faithful to labeler as per:
       %   - .movieForceGrayScale 
       %   - .movieInvert(iView)
-      %   - .preProcParams.BackSub
       %   - .cropInfo for (mIdx,iView) as appropriate
       %
       % labelerr: scalar Labeler object (not mutated)
       % mIdx: scalar MovieIndex
       % iView: view index; used for .movieInvert
 
-      ppPrms = labeler.preProcParams;
-      if ~isempty(ppPrms)
-        bgsubPrms = ppPrms.BackSub;
-        bgArgs = {'bgType',bgsubPrms.BGType,'bgReadFcn',bgsubPrms.BGReadFcn};
-      else
-        bgArgs = {};
-      end
-      
       movfname = labeler.getMovieFilesAllFullMovIdx(mIdx);
       obj.preload = labeler.movieReadPreLoadMovies; % must occur before .open()
-      obj.open(movfname{iView},bgArgs{:});
+      obj.open(movfname{iView});
       obj.forceGrayscale = labeler.movieForceGrayscale;
       cInfo = labeler.getMovieFilesAllCropInfoMovIdx(mIdx);
       if ~isempty(cInfo)
