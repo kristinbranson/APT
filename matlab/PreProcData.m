@@ -360,10 +360,8 @@ classdef PreProcData < handle
       nView = size(tblMF.mov,2);
       
       [wbObj,forceGrayscale,preload,roiPadVal,...
-        rotateImsUp,isDLpipeline,... %rotateImsHeadTail,rotateImsNumPhysPts,...
-        doBGsub,...
-        bgReadFcn,bgType,trxCache,maskNeighbors,maskNeighborsMeth,empPDF,...
-        fgThresh,lObj,usePreProcData] = ...
+        rotateImsUp,isDLpipeline,...
+        trxCache,lObj,usePreProcData] = ...
         myparse(varargin,...
           'wbObj',[],... wbObj: WaitBarWithCancel. If canceled, I will be 'incomplete', ie partially filled.
           'forceGrayscale',true,...
@@ -371,19 +369,8 @@ classdef PreProcData < handle
           'roiPadVal',0,... % used when tblMF has .roi
           'rotateImsUp',false,... % if true, rotate all ims so that shape points "up" before cropping.
                               ... % assumes tblMF has .roi and trxCache is specified
-                              ... % 'rotateImsHeadTail',[],...  % used when rotateImsUp=true. [ihead itail] landmark/pt indices 
-                              ... % 'rotateImsNumPhysPts',nan,... % used when rotateImsUp=true. Number of physical points in tblMF.p. Just a check/assert
           'isDLpipeline',false,... % if true, check/assert things relevant to DL preproc pipe.
-          'doBGsub',false,... % if true, I will contain bg-subbed images
-          'bgReadFcn',[],... % [bg,bgdev] = fcn(movieFile,movInfo)
-                         ... % reads/generates bg image for given movie
-          'bgType','other',... % one of {'light on dark','dark on light','other'}
           'trxCache',[],...
-          'maskNeighbors',0,... % if true, neighbor-masking is performed
-          ...   % BEGIN USED when maskNeighbors==true;
-          'maskNeighborsMeth','Conn. Comp',...
-          'maskNeighborsEmpPDF',[],... %used if maskNeighborsMeth=='Emp. PDF'
-          'fgThresh',nan,...   % END USED for maskNeighbors
           'labeler',[],...
           'usePreProcData',false...
           );
@@ -391,10 +378,6 @@ classdef PreProcData < handle
         assert(~isempty(lObj) && ~rotateImsUp);
       end
         
-      if doBGsub && roiPadVal~=0
-        warningNoTrace('Background subtraction enabled. Setting roi pad value to 0.');
-%         roiPadVal = 0;
-      end
       tfWB = ~isempty(wbObj);
       
       N = height(tblMF);      
@@ -411,11 +394,6 @@ classdef PreProcData < handle
         %assert(size(tblMF.p,2)==nView*rotateImsNumPhysPts*2);
       end
 
-      if isDLpipeline
-        assert(~doBGsub);
-        assert(~maskNeighbors);
-      end
-      
       % Initialize outputs early, we may early return if user cancels wb.
       I = cell(N,nView);
       didread = false(N,nView);
@@ -451,7 +429,7 @@ classdef PreProcData < handle
             mr.forceGrayscale = forceGrayscale;
             mr.preload = preload;
             %mr.neednframes = false;
-            mr.open(mov,'bgType',bgType,'bgReadFcn',bgReadFcn);
+            mr.open(mov);
           end
           
           % Note: we don't setCropInfo here; cropping handled explicitly
@@ -492,84 +470,8 @@ classdef PreProcData < handle
             
             try
             
-            if maskNeighbors
-              assert(~isDLpipeline);
-              assert(~rotateImsUp,'Currently unsupported.');
-              
-              [imraw,imOrigTy] = mr.readframe(f,'doBGsub',false);
-              imdiff = PxAssign.simplebgsub(mr.bgType,double(imraw), ...
-                mr.bgIm,mr.bgDevIm);
-              % imdiff has scale per ~imOrigTy
-              
-              tfile = trow.trxFile{iVw};
-              trx = Labeler.getTrxCacheStc(trxCache,tfile,mr.nframes);
-              
-              % Currently we mask the entire image even if we only care about
-              % a zoomed-in roi
-              switch maskNeighborsMeth
-                case 'Conn. Comp'
-                  imL = PxAssign.asgnCCcore(imdiff,trx,f,fgThresh);
-                case 'GMM-EM'
-                  imL = PxAssign.asgnGMMglobalcore(imdiff,trx,f,fgThresh);
-                case 'Emp. PDF'
-                  if isempty(empPDF)
-                    error('No empirical PDF has been generated/stored for this project. Call the ''updateFGEmpiricalPDF'' Labeler method first.');
-                  end
-                  if ~isequal(empPDF.prmBackSub.BGType,bgType)
-                    warningNoTrace('Stored empirical PDF has background type (%s) that differs from current background type (%s).',...
-                      empPDF.prmNborMask.BGType,bgType);
-                  end
-                  if ~isequal(empPDF.prmNborMask.FGThresh,fgThresh)
-                    warningNoTrace('Stored empirical PDF has foreground threshold (%.2f) that differs from current foreground threshold (%.2f).',...
-                      empPDF.prmNborMask.FGThresh,fgThresh);
-                  end
-                  imL = PxAssign.asgnPDF(imdiff,trx,f,...
-                    empPDF.fgpdf,empPDF.xpdfctr,empPDF.ypdfctr,...
-                    empPDF.amu,empPDF.bmu,'fgthresh',fgThresh);
-                otherwise
-                  assert(false,'Unrecognized neighbor-masking method.');
-              end
-              
-              if doBGsub
-                % bgsub ON, nbor masking ON.
-                % We will be masking imdiff with zeros. imdiff is a double
-                % with original scale/range
-                imToMask = imdiff;
-                imBGToApply = zeros(size(imdiff));
-                % roiPadVal should be 0 here since doBGsub is on
-              else
-                % bgsub OFF, nbor masking ON.
-                % We will be masking imraw with movieReader.bgIm. imraw could
-                % have arbitrary type here, but .bgIm is expected to have the
-                % same scale.
-                imToMask = double(imraw);
-                imBGToApply = mr.bgIm;
-              end
-              
-              if tfROI
-                IMBGPADVAL = nan; % irrelevant, no effect as masking should not occur outside image
-                imToMaskRoi = padgrab(imToMask,roiPadVal,roiYlo,roiYhi,roiXlo,roiXhi);
-                imBGToApplyRoi = padgrab(imBGToApply,IMBGPADVAL,roiYlo,roiYhi,roiXlo,roiXhi);
-                imLroi = padgrab(imL,0,roiYlo,roiYhi,roiXlo,roiXhi);
-                [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
-                  imToMaskRoi,imBGToApplyRoi,imLroi,trx,iTgt,f,'imroi',roiVw);
-              else
-                [nmask(iTrl,iVw),imroi] = PxAssign.performMask(...
-                  imToMask,imBGToApply,imL,trx,iTgt,f);
-              end
-              
-              % Rescale to [0,1] for 'usual' types
-              imroi = PxAssign.imRescalePerType(imroi,imOrigTy);
-              
-              % As in other branch, imroi could have varying type here.
-            else
-              [im,imOrigTy] = mr.readframe(f,'doBGsub',doBGsub);
-              
-              if doBGsub
-                % BGsub leaves im as a double but scaled as in original
-                im = PxAssign.imRescalePerType(im,imOrigTy);
-              end
-              
+              im = mr.readframe(f);
+
               if tfROI
                 if rotateImsUp
                   tfile = trow.trxFile{iVw};
@@ -610,8 +512,7 @@ classdef PreProcData < handle
               end
               
               % At this point, im could have varying type depending on movie
-              % format, doBGsub, etc. See MovieReader/readframe.
-            end
+              % format. See MovieReader/readframe.
             
             I{iTrl,iVw} = imroi;
             didread(iTrl,iVw) = true;
