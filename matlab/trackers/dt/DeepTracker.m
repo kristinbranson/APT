@@ -4095,7 +4095,8 @@ end  % classdef
 function result = reindexCellArrayRows_(cellArray, mIdxOrig2New)
 % Reindex rows of a cellstr array according to a containers.Map of old-to-new indices.
 % Only processes positive (non-GT) keys.  New index 0 means the row is removed.
-keysAll = cell2mat(mIdxOrig2New.keys(:)) ;
+keyCell = keys(mIdxOrig2New) ;  % 1xN cell; can't do mIdxOrig2New.keys(:) inline (that passes ':' to keys)
+keysAll = cell2mat(keyCell(:)) ;
 keysPos = keysAll(keysAll > 0) ;
 nview = size(cellArray, 2) ;
 % Determine the number of rows in the result

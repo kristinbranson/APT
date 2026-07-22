@@ -236,6 +236,7 @@ classdef Labeler < handle
 
   properties
     projTempDirDontClearOnDestructor = false  % transient. set to true for eg CI testing
+    movieDontAskRmMovieWithLabels = false  % If true, won't warn about removing-movies-with-labels. Public: set by the controller when the user picks "don't ask again".
   end
 
   properties (SetAccess=private)
@@ -350,7 +351,6 @@ classdef Labeler < handle
     movieReader = []  % [1xnview] MovieReader objects. init: C
     movieInfoAll = {}  % cell-of-structs, same size as movieFilesAll
     movieInfoAllGT = {}  % same as .movieInfoAll but for GT mode
-    movieDontAskRmMovieWithLabels = false  % If true, won't warn about removing-movies-with-labels    
     projectHasTrx = false  % whether there are trx files for any movie
   end
 

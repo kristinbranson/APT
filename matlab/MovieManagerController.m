@@ -164,6 +164,7 @@ classdef MovieManagerController < handle
       lObj.syncMovieAndTrxFileExistence() ;
       obj.hFig.Visible = 'on';
       waitForFigureToSync(obj.hFig) ;
+      obj.layoutFigure_();
     end
 
     function delete(obj)
@@ -471,7 +472,7 @@ classdef MovieManagerController < handle
                 'ColumnWidth', {'2x', '1x', 100}} ;
       else
         args = {'ColumnName', {movieColumnHeader 'Num Labels'}, ...
-                'ColumnWidth', {'1x', 250}} ;
+                'ColumnWidth', {'1x', 100}} ;
       end
     end
 
@@ -521,8 +522,12 @@ classdef MovieManagerController < handle
       % uitable resolves '1x'/'2x' against the table's pixel width minus
       % the fixed-width 'Num Labels' column.
       try
-        tablePos = obj.tblMain.Position ;
-        tableWidthPx = tablePos(3) ;
+        tableWidthPx = obj.tblMain.Position(3) ;
+        if tableWidthPx < 50
+          % Grid layout hasn't run yet (initial open before first render);
+          % fall back to the figure width minus grid padding.
+          tableWidthPx = obj.hFig.Position(3) - 20 ;
+        end
         [~, ~, tfTrx] = obj.mainTableProps_() ;
         if tfTrx
           % Movie=2x, Trx=1x, NumLabels=100px (constant); 20px margin.
@@ -530,8 +535,8 @@ classdef MovieManagerController < handle
           flexUnit = availableWidth / 3 ;
           w = 2 * flexUnit ;
         else
-          % Movie=1x, NumLabels=250px (constant); 20px margin.
-          w = tableWidthPx - 250 - 20 ;
+          % Movie=1x, NumLabels=100px (constant); 20px margin.
+          w = tableWidthPx - 100 - 20 ;
         end
       catch
         w = 300 ;  % fallback
@@ -723,7 +728,11 @@ classdef MovieManagerController < handle
         return
       end
       try
-        tableWidthPx = obj.tblView.Position(3) - 20 ;  % minus margin
+        tableWidthPx = obj.tblView.Position(3) ;
+        if tableWidthPx < 50
+          tableWidthPx = obj.hFig.Position(3) - 20 ;
+        end
+        tableWidthPx = tableWidthPx - 20 ;  % minus margin
         try
           origFontUnits = get(obj.tblView, 'FontUnits') ;
           set(obj.tblView, 'FontUnits', 'pixels') ;
