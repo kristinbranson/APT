@@ -148,16 +148,6 @@ classdef APTParameters
       sPrmDTspecific = sPrmDTspecific.(fld);
     end
 
-    function ppPrm0 = defaultPreProcParamsOldStyle
-      sPrm0 = APTParameters.defaultParamsOldStyle();
-      ppPrm0 = sPrm0.PreProc;
-    end
-
-    function sPrm0 = defaultCPRParamsOldStyle
-      sPrm0 = APTParameters.defaultParamsOldStyle();
-      sPrm0 = rmfield(sPrm0,'PreProc');
-    end
-
     function [tPrm,minLevel] = propagateLevelFromLeaf(tPrm)
       
       if isempty(tPrm.Children),
@@ -416,11 +406,6 @@ classdef APTParameters
       v = sPrmAll.ROOT.DeepTrack.(netType);
     end
     
-    % all parameters to new cpr parameters
-    function v = all2CPRParamsNew(sPrmAll)
-      v = sPrmAll.ROOT.CPR;
-    end
-
     % all parameters to old format cpr parameters
     function v = all2CPRParams(sPrmAll,nPhysPoints,nviews)
       if nargin < 2,
@@ -436,13 +421,6 @@ classdef APTParameters
     end
 
     % set subsets of all parameters
-
-    % set old format preproc parameters
-    function sPrmAll = setPreProcParams(sPrmAll,sPrmPPOld)
-      % convert old to new format
-      sPrmPPNew = cprParamOld2NewPPOnly(sPrmPPOld);
-      sPrmAll = structoverlay(sPrmAll,sPrmPPNew);
-    end
 
     % set new format preproc parameters
     function sPrmAll = setPreProcParamsNew(sPrmAll,sPrmPPNew)
@@ -466,44 +444,10 @@ classdef APTParameters
       sPrmAll.ROOT.DeepTrack.(netType) = sPrmDT;
     end
     
-    % set new cpr parameters
-    function sPrmAll = setCPRParamsNew(sPrmAll,sPrmCPR)
-      sPrmAll.ROOT.CPR = sPrmCPR;
-    end
-    
-    % set old cpr parameters
-    function sPrmAll = setCPRParams(sPrmAll,sPrmCPROld)
-      [sPrmCPR,sPrmAll.ROOT.Track.ChunkSize] = cprParamOld2NewCPROnly(sPrmCPROld);
-      sPrmAll.ROOT.CPR = sPrmCPR;
-    end
-    
     function sPrmAll = setNFramesTrackParams(sPrmAll,obj)
       sPrmAll.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
       sPrmAll.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
       sPrmAll.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
-    end
-    
-    function testConversions(sPrmAll)
-      
-      sPrmPPOld = APTParameters.all2PreProcParams(sPrmAll);
-      sPrmAll1 = APTParameters.setPreProcParams(sPrmAll,sPrmPPOld);
-      assert(isequaln(sPrmAll,sPrmAll1));
-      sPrmPPNew = APTParameters.all2PreProcParamsNew(sPrmAll);
-      sPrmAll1 = APTParameters.setPreProcParamsNew(sPrmAll,sPrmPPNew);
-      assert(isequaln(sPrmAll,sPrmAll1));
-      sPrmTrackDL = APTParameters.all2TrackDLParams(sPrmAll);
-      sPrmAll1 = APTParameters.setTrackDLParams(sPrmAll,sPrmTrackDL);
-      assert(isequaln(sPrmAll,sPrmAll1));
-      sPrmTrackDLMDN = APTParameters.all2DLSpecificParams(sPrmAll,'MDN');
-      sPrmAll1 = APTParameters.setDLSpecificParams(sPrmAll,'MDN',sPrmTrackDLMDN);
-      assert(isequaln(sPrmAll,sPrmAll1));
-      sPrmCPROld = APTParameters.all2CPRParams(sPrmAll);
-      sPrmAll1 = APTParameters.setCPRParams(sPrmAll,sPrmCPROld);
-      assert(isequaln(sPrmAll,sPrmAll1));
-      sPrmCPRNew = APTParameters.all2CPRParamsNew(sPrmAll);
-      sPrmAll1 = APTParameters.setCPRParamsNew(sPrmAll,sPrmCPRNew);
-      assert(isequaln(sPrmAll,sPrmAll1));
-      
     end
     
     function tfEqual = isEqualTrackDLParams(sPrm0,sPrm1)
@@ -834,14 +778,6 @@ classdef APTParameters
       uiwait(fig) ;
     end
     
-    function sPrm0 = defaultParamsOldStyle
-      tPrm0 = APTParameters.defaultParamsTree;
-      sPrm0 = tPrm0.structize();
-      % Use nan for npts, nviews; default parameters do not know about any
-      % model
-      sPrm0 = cprParamNew2Old(sPrm0,nan,nan);
-    end
-
     function [s,deepnets] = paramFileSpecs()
       % Specifies/finds yamls in APT tree.
       %

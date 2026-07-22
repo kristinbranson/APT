@@ -10658,28 +10658,6 @@ classdef Labeler < handle
     %   end
     % end  % function
     
-    function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
-        trackNFramesNear] = convertNew2OldParams(obj,sPrm) % obj CONST
-      % Conversion routine
-      % 
-      % sPrm: scalar struct containing *NEW*-style params:
-      % sPrm.ROOT.Track
-      %          .CPR
-      %          .DeepTrack
-              
-      sPrm = APTParameters.enforceConsistency(sPrm);
-      
-      sPrmDT = sPrm.ROOT.DeepTrack;
-      sPrmPPandCPR = sPrm;
-      sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
-      
-      [sPrmPPandCPRold,trackNFramesSmall,trackNFramesLarge,...
-        trackNFramesNear] = cprParamNew2Old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
-      
-      ppPrms = sPrmPPandCPRold.PreProc;
-      sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
-    end
-    
     function sPrm = trackGetTrainingParams(obj,varargin)
       % Get all user-settable parameters, including preproc etc.
       %
@@ -11525,84 +11503,6 @@ classdef Labeler < handle
       dErr = mean(dErr,2); % [nTrkLblx1] L2 err, mean across pts      
       trkErr = nan(height(tblBig),1);
       trkErr(tf) = dErr;
-    end
-    
-    function sPrm = trackGetParamsFromStruct(s)
-      % Get all parameters:
-      %  - preproc
-      %  - cpr
-      %  - common dl
-      %  - specific dl
-      %
-      % sPrm: scalar struct containing NEW-style params:
-      % sPrm.ROOT.Track
-      %          .CPR
-      %          .DeepTrack (if applicable)
-      % Top-level fields .Track, .CPR, .DeepTrack may be missing if they
-      % don't exist yet.
-      
-      % Future TODO: As in trackSetParams, currently this is hardcoded when
-      % it ideally would just be a generic loop
-      
-      if isfield(s,'trackParams'),
-        sPrm = s.trackParams;
-        return;
-      end
-      
-      prmCpr = [];
-      for iTrk=1:numel(s.trackerData)
-        if strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker') && ~isempty(s.trackerData{iTrk})
-          prmCpr = s.trackerData{iTrk}.sPrm;
-          break;
-        end
-      end
-      
-      prmPP = s.preProcParams;
-      
-      prmDLCommon = s.trackDLParams;
-      
-      prmDLSpecific = struct;
-      for i = 1:numel(s.trackerData),
-        if ~strcmp(s.trackerClass{i}{1},'DeepTracker') || isempty(s.trackerData{i}),
-          continue;
-        end
-        prmField = APTParameters.getParamField(s.trackerData{i}.trnNetType);
-        prmDLSpecific.(prmField) = s.trackerData{i}.sPrm;
-      end
-      
-      prmTrack = struct;
-      prmTrack.trackNFramesSmall = s.cfg.Track.PredictFrameStep;
-      prmTrack.trackNFramesLarge = s.cfg.Track.PredictFrameStepBig;
-      prmTrack.trackNFramesNear = s.cfg.Track.PredictNeighborhood;
-      
-      sPrm = Labeler.trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,...
-                                          prmDLSpecific,prmTrack);      
-    end
-    
-    function sPrmAll = trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,obj)
-      
-      sPrmAll = APTParameters.defaultParamsStructAll;
-      
-%      assert(~xor(isempty(prmCpr),isempty(prmPP)));
-      if ~isempty(prmCpr)
-        sPrmAll = APTParameters.setCPRParams(sPrmAll,prmCpr);
-      end
-      if ~isempty(prmPP),
-        sPrmAll = APTParameters.setPreProcParams(sPrmAll,prmPP);
-      end
-      if ~isempty(obj)
-        sPrmAll = APTParameters.setNFramesTrackParams(sPrmAll,obj);
-      end
-      if ~isempty(prmDLCommon)
-        sPrmAll = APTParameters.setTrackDLParams(sPrmAll,prmDLCommon);
-      end
-            
-      % specific parameters
-      fns = fieldnames(prmDLSpecific);
-      for i = 1:numel(fns),
-        sPrmAll = APTParameters.setDLSpecificParams(sPrmAll,fns{i},prmDLSpecific.(fns{i}));
-      end
-      
     end
     
   end
