@@ -36,7 +36,6 @@ classdef APTParameters
       trees = APTParameters.getParamTrees() ;
       tPrmPreprocess = trees.preprocess.tree;
       tPrmTrack = trees.track.tree;
-      tPrmCpr = trees.cpr.tree;
       tPrmMA = trees.ma.tree;
       tPrmDT = trees.deeptrack.tree;
       tPrmPostProc = trees.postprocess.tree;
@@ -77,7 +76,7 @@ classdef APTParameters
       
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
-        tPrmCpr.Children; tPrmMA.Children; tPrmDT.Children; tPrmPostProc.Children];
+        tPrmMA.Children; tPrmDT.Children; tPrmPostProc.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
@@ -406,20 +405,6 @@ classdef APTParameters
       v = sPrmAll.ROOT.DeepTrack.(netType);
     end
     
-    % all parameters to old format cpr parameters
-    function v = all2CPRParams(sPrmAll,nPhysPoints,nviews)
-      if nargin < 2,
-        nPhysPoints = 2;
-      end
-      if nargin < 3,
-        nviews = 1;
-      end
-      sPrmPPandCPR = sPrmAll;
-      sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack');
-      [sPrmPPandCPRold] = cprParamNew2Old(sPrmPPandCPR,nPhysPoints,nviews); % we won't use npoints or nviews
-      v = rmfield(sPrmPPandCPRold,'PreProc');
-    end
-
     % set subsets of all parameters
 
     % set new format preproc parameters
@@ -785,7 +770,6 @@ classdef APTParameters
 
       s.preprocess = 'params_preprocess.yaml';
       s.track = 'params_track.yaml';
-      s.cpr = fullfile('trackers','params_cpr.yaml');
       s.deeptrack = fullfile('trackers','dt','params_deeptrack.yaml');
       s.ma = fullfile('trackers','dt','params_ma.yaml');
       s.postprocess = 'params_postprocess.yaml';

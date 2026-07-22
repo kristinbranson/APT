@@ -3778,11 +3778,14 @@ classdef Labeler < handle
             tfCPR = strcmp(s.trackerClass{i}{1},'CPRLabelTracker');
             tfDT = strcmp(s.trackerClass{i}{1},'DeepTracker');
             s.trackerData{i}.sPrmAll = s.trackParams;
-            
+
             if tfCPR
-              CPRParams1 = APTParameters.all2CPRParams(s.trackerData{i}.sPrmAll,...
-                numel(s.cfg.LabelPointNames),s.cfg.NumViews);
-              assert(isequaln(CPRParams1,s.trackerData{i}.sPrm));
+              % Legacy CPR project: CPR is no longer supported and the
+              % tracker is dropped on load, so just keep the modernized
+              % sPrmAll and discard the old-style .sPrm below.  (This
+              % formerly round-tripped the CPR params via all2CPRParams and
+              % asserted equality, but that conversion machinery, along with
+              % the ROOT.CPR parameter subtree, has been removed.)
             elseif tfDT
               DLSpecificParams1 = APTParameters.all2DLSpecificParams(...
                 s.trackerData{i}.sPrmAll,s.trackerClass{i}{3});
