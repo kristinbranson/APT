@@ -11,7 +11,7 @@ function PlotErrorHists(errs,varargin)
 [n,nkpts,nviews] = size(errs);
 
 if isma && ~isempty(fp)
-  nplots = nkpts+1;
+  nplots = nkpts + round(nkpts/10); % a tenth of the space is for the table
   yborder = 0.05;
 else
   nplots = nkpts;
@@ -30,6 +30,12 @@ else
   else
     hax = hpar;
   end
+end
+
+if isma && ~isempty(fp)
+  set(hax(nkpts+1:end,:),'Visible','off');
+  delete(hax(nkpts+1:end,:))
+  hax = hax(1:nkpts,:);
 end
 
 if isempty(kpcolors),
@@ -70,8 +76,21 @@ for viewi = 1:nviews,
   end
 end
 set(hax,'XLim',[-1,1]*.01+[binedgesplot(1),binedgesplot(end)],'Color',axescolor,'XColor',textcolor,'YColor',textcolor)
+% Match the figure background to the axes background so the tick labels and
+% axis labels (drawn in the figure margins in textcolor) stay visible; e.g. in
+% the dark theme textcolor is near-white and would be invisible on the default
+% light figure background.
+if exist('hfig','var')
+  set(hfig,'Color',axescolor);
+end
 linkaxes(hax);
-set(hax(1:end-1,:),'XTickLabel',{});
+% Keep x tick labels on the last keypoint row (row nkpts) so the Error axis
+% values are shown; only strip the rows above it.
+set(hax(1:nkpts-1,:),'XTickLabel',{});
+% The bulk set above (and linkaxes) can leave the retained bottom row without
+% visible tick labels, so force it back to auto to guarantee the error values
+% are displayed.
+set(hax(nkpts,:),'XTickMode','auto','XTickLabelMode','auto');
 set(hax(:,2:end),'YTickLabel',{});
 ylim = get(hax(1),'YLim');
 
@@ -109,17 +128,6 @@ if ~isma || isempty(fp)
   return
 end
 
-for viewi = 1:nviews,
-  for kp = 1:nkpts,
-      pp = get(hax(kp,viewi),'Position');
-      pp(1) = pp(1) + 0.025;
-      set(hax(kp,viewi),'Position',pp);
-  end
-end
-
-pos = get(hax(end,1), 'Position');
-delete(hax(end,1));
-
 table_data = [fp fn];
 column_names = {sprintf('False Positives'), sprintf('False Negatives')};
 row_names = {'Absolute'};
@@ -128,13 +136,45 @@ if ~isempty(ntotal)
   row_names = [row_names,{'Fraction'}];
 end
 
+% Place the FP/FN table in normalized units (the same coordinate system as the
+% plots) within the bottom margin reserved above, below the last keypoint row's
+% Error-axis tick labels.  Keeping the table normalized means it scales with the
+% figure exactly as the plots do, so the two cannot overlap when the figure is
+% resized.  The plots span x in [0.1, 0.9] (left/right border 0.1); the table
+% uses the same horizontal extent.
 t5 = uitable('Parent', hfig, ...
             'Data', table_data, ...
             'ColumnName', column_names, ...
             'RowName', row_names, ...
             'Units', 'normalized', ...
-            'Position', [pos(1), 0.025, pos(3), pos(4)+0.01] ...
+            'Position', [0.1, 0.02, 0.8, 0.085] ...
             );
+% uitable has no relative column widths, so size the data columns from the
+% table's current pixel width so they fill it, and keep them updated when the
+% figure (and hence the normalized-position table) is resized.  The resize
+% callback also fires when the caller resizes the figure right after creation.
+set_table_column_widths_(t5);
+set(hfig,'SizeChangedFcn',@(s,e)set_table_column_widths_(t5));
+
+
+function set_table_column_widths_(t)
+% Size the uitable data columns so they fill the table's width.  uitable
+% column widths are pixel-valued (no relative units), so compute them from the
+% table's current pixel width.  Called at creation and on every figure resize.
+if ~isvalid(t)
+  return
+end
+oldunits = get(t,'Units');
+set(t,'Units','pixels');
+pos = get(t,'Position');
+set(t,'Units',oldunits);
+tablewidthpx = pos(3);
+rownamewidthpx = 55;  % approximate width of the row-name column
+padpx = 20;           % room for borders and a possible scroll bar
+ncols = numel(get(t,'ColumnName'));
+availpx = max(tablewidthpx - rownamewidthpx - padpx, ncols*40);
+colwidthpx = floor(availpx/ncols);
+set(t,'ColumnWidth',repmat({colwidthpx},1,ncols));
 
 
 

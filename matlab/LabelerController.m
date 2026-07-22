@@ -1314,6 +1314,9 @@ classdef LabelerController < handle
       ntotal = reshape(ntotal,[nviews,1]);
       fp_all = sum(fp,'omitmissing');
       fn_all = sum(fn,'omitmissing');
+      if ~isnan(fn_all)
+        ntotal = ntotal + fn_all;
+      end
       txtOffset = labeler.labelPointsPlotInfo.TextOffset;
       islight = plotPercentileCircles(allims,prcs,allpos,plotParams.prc_vals,fig_1,txtOffset,ntotal,fp_all,fn_all,labeler.maIsMA);
       figh = hmain*.75;

@@ -4,7 +4,7 @@ function [maErr,fp,fn] = computeMAErr(tblPred,tblLbl,hasMask)
   mov_frm_pred = [tblPred.mov tblPred.frm];
   mov_frm_lbl =  [tblLbl.mov tblLbl.frm];
   nlbl = size(mov_frm_lbl,1);
-  psz = size(tblPred.pTrk);
+  psz = size(tblLbl.p);
   npts = psz(end)/2;
   maxn = psz(2);
 
@@ -12,10 +12,10 @@ function [maErr,fp,fn] = computeMAErr(tblPred,tblLbl,hasMask)
 
   all_lbl = reshape(tblLbl.p,[nlbl,maxn,npts,2]);
   all_roi = tblLbl.roi;
-  all_pred = reshape(tblPred.pTrk,[size(tblPred,1),maxn,npts,2]);
+  all_pred = reshape(tblPred.pTrk,[size(tblPred,1),size(tblPred.pTrk,2),npts,2]);
 
   maErr = nan(nfrm,maxn,npts);  
-  fp = nan(nfrm,maxn);
+  fp = nan(nfrm,size(tblPred.pTrk,2));
   fn = nan(nfrm,maxn);
   for ndx = 1:nfrm
     elbl = []; epreds = [];    
@@ -38,14 +38,16 @@ function [dout,fp,fn] = find_dist_match(dd,hasMask,elbl,epreds,rois)
     dout = nan(size(dd(:,1,:)));
     fp = nan(size(dd(1,:,1)));
     fn = nan(size(dd(:,1,1)));
+    dd(isinf(dd)) = nan;
     yy = mean(dd,3,'omitnan');
     sel2 = any(~isnan(yy),1);
     sel1 = any(~isnan(yy),2);
     cmat = yy(sel1,:);
     cmat = cmat(:,sel2);
     if isempty(cmat)
+      vv = ~all(isnan(elbl(:,:,:,1)),3);
       % this should mean there were labels and no predictions
-      fn(:) = 1;
+      fn(vv) = 1;
       return;
     end
 
