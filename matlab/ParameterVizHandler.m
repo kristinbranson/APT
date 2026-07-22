@@ -63,9 +63,8 @@ classdef ParameterVizHandler < handle
         try
           % pvClsname comes from the matlab/**/params_*.yaml files, so a plain
           % symbol grep won't find these classes. As of this writing, the
-          % referenced classes are: ParameterVisualizationCPR,
-          % ParameterVisualizationCPRInit, ParameterVisualizationFeature,
-          % ParameterVisualizationMemory, ParameterVisualizationTgtCropRadius,
+          % referenced classes are: ParameterVisualizationMemory,
+          % ParameterVisualizationTgtCropRadius,
           % ParameterVisualizationTgtCropRadiusID.
           pvObj = feval(pvClsname);
           assert(isa(pvObj,'ParameterVisualization'),'''%s'' is not a ParameterVisualization.');
