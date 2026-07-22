@@ -1359,7 +1359,7 @@ classdef DLBackEndClass < handle
         % when a remote job (bsub/cluster) has just written the file.
         parent = fileparts(nativeFilePathAsChar) ;
         if ~isempty(parent)
-          dir(parent) ;
+          dir_out = dir(parent) ;
         end
         result = logical(exist(nativeFilePathAsChar, 'file')) ;
       end
