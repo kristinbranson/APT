@@ -9387,6 +9387,13 @@ classdef Labeler < handle
       oc = onCleanup(@()(obj.popBusyStatus())) ;
       tblMFT = obj.gtGetTblSuggAndLbled(whichlabels);
 
+      % Add the GT label positions (.p, .tfocc) to the table.  These get
+      % written into the list file as COCO-style keypoints, which lets the
+      % Python backend compute COCO mAP metrics alongside tracking and save
+      % them in the GT results mat file.  Must happen before .mov is
+      % remapped below, since labelAddLabelsMFTable needs MovieIndex movs.
+      tblMFT = obj.labelAddLabelsMFTable(tblMFT) ;
+
       % Tracking runs in a separate async process spawned by shell.
       % .showGTResults() gets called from a callback registered on the completion of
       % this async process.

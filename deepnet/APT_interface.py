@@ -3351,6 +3351,145 @@ def convert_to_orig_list(preds, info, list_file, conf):
     return preds
 
 
+def compute_coco_map_list(list_file, preds, info, conf, out_file):
+    """Compute COCO keypoint mAP (OKS-based) for list classification results.
+
+    Uses the ground-truth labels embedded in the list json ('labels', written by
+    the Matlab frontend when computing GT performance) to build an intermediate
+    COCO ground-truth json with dummy image names, converts the predictions to
+    COCO detection format, and runs COCOeval. The intermediate jsons are written
+    next to out_file (*_coco_gt.json / *_coco_dt.json) so they can be inspected.
+    Everything in the list file is 1-based (Matlab convention) and is converted
+    here to 0-based to match preds, which must already be in original movie
+    coordinates (i.e. after convert_to_orig_list). For multiview projects the
+    label keypoints hold all views concatenated in view blocks; only conf.view's
+    block is used. OKS uses a uniform per-keypoint sigma, settable through the
+    conf param coco_oks_sigma (default 0.05).
+
+    Returns a dict with the 10 standard COCO keypoint metrics (AP, AP50, AP75,
+    AP_medium, AP_large, AR, ...) plus the intermediate json paths, or None if
+    the list has no labels or the evaluation fails.
+    """
+    try:
+        labels = PoseTools.json_load(list_file).get('labels', None)
+        if labels is None or len(labels) == 0:
+            return None
+
+        npts = conf.n_classes
+        view = conf.view
+
+        im_id_map = {}
+        def im_id(mov, frm):
+            key = (int(mov), int(frm))
+            if key not in im_id_map:
+                im_id_map[key] = len(im_id_map) + 1
+            return im_id_map[key]
+
+        # Ground-truth annotations. bbox/area come from the extent of the
+        # labeled keypoints since APT has no GT bounding boxes.
+        gt_anns = []
+        for lbl in labels:
+            kp = np.array(lbl['keypoints'], dtype=float).reshape(-1, 3)
+            kp = kp[view * npts:(view + 1) * npts].copy()
+            islabeled = kp[:, 2] > 0
+            if not np.any(islabeled):
+                continue
+            kp[islabeled, :2] -= 1
+            x0 = kp[islabeled, 0].min()
+            y0 = kp[islabeled, 1].min()
+            w = max(kp[islabeled, 0].max() - x0, 1.)
+            h = max(kp[islabeled, 1].max() - y0, 1.)
+            gt_anns.append({'id': len(gt_anns) + 1,
+                            'image_id': im_id(lbl['mov'] - 1, lbl['frm'] - 1),
+                            'category_id': 1,
+                            'keypoints': kp.flatten().tolist(),
+                            'num_keypoints': int(np.count_nonzero(islabeled)),
+                            'bbox': [float(x0), float(y0), float(w), float(h)],
+                            'area': float(w * h),
+                            'iscrowd': 0})
+        if len(gt_anns) == 0:
+            logging.warning('List file %s has labels but none for view %d, skipping COCO mAP', list_file, view)
+            return None
+
+        # Detections. locs is [n x npts x 2] for single animal and
+        # [n x maxanimals x npts x 2] for multianimal; per-keypoint confidences
+        # (if present) have the same layout minus the coordinate axis.
+        locs = preds.get('locs', None)
+        if locs is None:
+            return None
+        scores = preds.get('conf', None)
+        if locs.ndim == 3:
+            locs = locs[:, None]
+            scores = scores[:, None] if scores is not None else None
+        dt_anns = []
+        for ndx, curi in enumerate(info):
+            cur_im = im_id(curi[0], curi[1])
+            for ani in range(locs.shape[1]):
+                pl = np.array(locs[ndx, ani], dtype=float)
+                isgood = np.all(np.isfinite(pl), axis=-1)
+                if not np.any(isgood):
+                    continue
+                if scores is not None:
+                    ps = np.array(scores[ndx, ani], dtype=float)
+                    ps[~np.isfinite(ps)] = 0.
+                else:
+                    ps = np.ones(npts)
+                pl[~isgood] = 0.
+                ps[~isgood] = 0.
+                kp = np.concatenate([pl, ps[:, None]], axis=1)
+                dt_anns.append({'image_id': cur_im,
+                                'category_id': 1,
+                                'keypoints': kp.flatten().tolist(),
+                                'score': float(np.mean(ps[isgood]))})
+
+        images = [{'id': iid, 'file_name': 'dummy_mov{}_frm{}.png'.format(mov, frm)}
+                  for (mov, frm), iid in im_id_map.items()]
+        categories = [{'id': 1, 'name': 'animal',
+                       'keypoints': ['pt{}'.format(i) for i in range(npts)],
+                       'skeleton': []}]
+        gt_dict = {'images': images, 'annotations': gt_anns, 'categories': categories}
+
+        base = os.path.splitext(out_file)[0]
+        gt_file = base + '_coco_gt.json'
+        dt_file = base + '_coco_dt.json'
+        with open(gt_file, 'w') as f:
+            json.dump(gt_dict, f)
+        with open(dt_file, 'w') as f:
+            json.dump(dt_anns, f)
+
+        try:
+            from xtcocotools.coco import COCO
+            from xtcocotools.cocoeval import COCOeval
+        except ImportError:
+            from pycocotools.coco import COCO
+            from pycocotools.cocoeval import COCOeval
+
+        coco_gt = COCO(gt_file)
+        coco_dt = coco_gt.loadRes(dt_file)
+        sigmas = np.full(npts, conf.get('coco_oks_sigma', 0.05))
+        try:
+            coco_eval = COCOeval(coco_gt, coco_dt, 'keypoints', sigmas=sigmas)
+        except TypeError:
+            # pycocotools takes the sigmas as a param instead of an argument
+            coco_eval = COCOeval(coco_gt, coco_dt, 'keypoints')
+            coco_eval.params.kpt_oks_sigmas = sigmas
+        if conf.is_multi:
+            coco_eval.params.maxDets = [max(20, int(conf.max_n_animals))]
+        coco_eval.evaluate()
+        coco_eval.accumulate()
+        coco_eval.summarize()
+
+        stat_names = ['AP', 'AP50', 'AP75', 'AP_medium', 'AP_large',
+                      'AR', 'AR50', 'AR75', 'AR_medium', 'AR_large']
+        results = {name: float(val) for name, val in zip(stat_names, coco_eval.stats)}
+        results['gt_json'] = gt_file
+        results['dt_json'] = dt_file
+        return results
+    except Exception:
+        logging.exception('Could not compute COCO mAP for list file %s' % list_file)
+        return None
+
+
 def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None, name='deepnet',fullret=False, img_dir='val',conf2=None,model_type2=None,name2='deepnet', model_file2=None, islist=False,**kwargs):
     '''
         Classifies examples in DB.
@@ -5242,22 +5381,34 @@ def run(args):
                     setup_ma(conf)
 
             preds, locs, info, model_files = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx],islist=islist,model_type2=args.type2,model_file2=args.model_file2[view_ndx],conf2=conf2,fullret=True)
+            if len(args.out_files)==len(views):
+                out_file = args.out_files[view_ndx]
+            else:
+                out_file = args.out_files[0] + '_{}.mat'.format(view)
+
+            coco_results = None
             if cmd=='track':
                 preds = convert_to_orig_list(preds, info, db_file, conf)
+                if islist:
+                    # If the frontend embedded GT labels in the list file (it
+                    # does when computing GT performance), also compute COCO
+                    # keypoint mAP metrics and save them with the results.
+                    coco_results = compute_coco_map_list(db_file, preds, info, conf, out_file)
 
             info = np.array(info)
             # A = convert_to_orig_list(conf,preds,locs, info)
             info = to_mat(info)
             preds = to_mat(preds)
             locs = to_mat(locs)
-            if len(args.out_files)==len(views):
-                out_file = args.out_files[view_ndx]
-            else:
-                out_file = args.out_files[0] + '_{}.mat'.format(view)
 
             out_dict = {'pred_locs': preds, 'labeled_locs': locs, 'list': info}
+            if coco_results is not None:
+                out_dict['coco_results'] = coco_results
             if db_file.endswith('.json'):
                 V = PoseTools.json_load(db_file)
+                # The labels (if present) were consumed by compute_coco_map_list
+                # above; the frontend already has them, so keep the mat file lean.
+                V.pop('labels', None)
                 if isinstance(V['movieFiles'][0],list) and len(V['movieFiles'][0])>1:
                     mf = V['movieFiles']
                     mf = [m[view_ndx] for m in mf]
