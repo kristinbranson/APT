@@ -7066,14 +7066,17 @@ classdef LabelerController < handle
       lObj = obj.labeler_;
       silent = myparse(varargin,'silent',false) || lObj.isInBatchMode;
       dotrain = true;
-      sPrm = lObj.trackGetTrainingParams();
-      [is_ma,is2stage,is_ma_net] = ParameterVisualizationMemory.getStage(lObj,'');
-      imsz = ParameterVisualizationMemory.getProjImsz(...
-        lObj,sPrm,is_ma,is2stage,1);
-      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
-        lObj,sPrm,is_ma,is2stage,1);
-      imsz = imsz/ds;
-      mem_need = get_network_size(nettype,imsz,bsz,is_ma_net);
+      isMA = lObj.maIsMA;
+      [imsz,downsample,batchsize] = lObj.trackGetTrainImageSize();
+      imsz = max(1,round(imsz./downsample));
+      nettype = lObj.trackGetNetType();
+      mem_need = 0;
+      for stage = 1:numel(downsample),
+        mem_need_curr = get_network_size(nettype{stage},imsz(:,stage),batchsize(stage),isMA);
+        if ~isempty(mem_need_curr),
+          mem_need = max(mem_need_curr,mem_need);
+        end
+      end
       try
         [~, freemem] = lObj.trackDLBackEnd.getFreeGPUs(1);
       catch
@@ -7104,36 +7107,6 @@ classdef LabelerController < handle
                      'to prevent training from crashing. Do you still want to train?'], ...
                     freemem, ...
                     round(mem_need));
-          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
-          if ~strcmpi(res,'Yes')
-            dotrain = false;
-          end
-        end
-      end
-
-      if ~is2stage || ~dotrain,
-        return
-      end
-
-      % check for 2nd stage
-      imsz = ParameterVisualizationMemory.getProjImsz(...
-        lObj,sPrm,is_ma,is2stage,2);
-      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
-        lObj,sPrm,is_ma,is2stage,2);
-      imsz = imsz/ds;
-      mem_need = get_network_size(nettype,imsz,bsz,false);
-      if ~silent,
-        if isempty(freemem),
-          % If we get here, we must have already told the user above that there are
-          % not GPUs available, and they must have said to proceed.  So no need to
-          % ask again.
-        elseif (mem_need>0.9*freemem),
-          qstr = ...
-            sprintf(['The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB).  ' ...
-                     'It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling ' ...
-                     'to prevent training from crashing. Do you still want to train?'], ...
-            freemem, ...
-            round(mem_need));
           res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
           if ~strcmpi(res,'Yes')
             dotrain = false;

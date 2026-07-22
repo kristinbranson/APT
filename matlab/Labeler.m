@@ -10909,63 +10909,6 @@ classdef Labeler < handle
       
     end
 
-    function dotrain = trackCheckGPUMemGUI(obj,varargin)
-      % Check for a GPU, and check the GPU memory against an estimate of the
-      % required GPU memory.
-      %
-      % Does UI stuff, should be moved into controller
-      silent = myparse(varargin,'silent',false) || obj.silent ;
-      dotrain = true;
-      is_ma = obj.maIsMA;
-      [imsz,downsample,batchsize] = obj.trackGetTrainImageSize();
-      imsz = max(1,round(imsz./downsample));
-      nettype = obj.trackGetNetType();
-      mem_need = 0;
-      for stage = 1:numel(downsample),
-        mem_need_curr = get_network_size(nettype{stage},imsz(:,stage),batchsize(stage),is_ma);
-        if ~isempty(mem_need_curr),
-          mem_need = max(mem_need_curr,mem_need);
-        end
-      end
-      try
-        [~, freemem] = obj.trackDLBackEnd.getFreeGPUs(1);
-      catch
-        if ~silent ,
-          qstr = [ 'Unable to get information about free GPUs.  ' ....
-                   'Training will be done on the CPU, which will likely be slow.  ' ...
-                   'Do you still want to train?' ] ;
-          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
-          if ~strcmpi(res,'Yes')
-            dotrain = false;
-          end
-        end
-        return          
-      end
-      if ~silent ,
-        if isempty(freemem) ,
-          qstr = [ 'There do not seem to be any GPUs available.  ' ....
-                   'Training will be done on the CPU, which will likely be slow.  ' ...
-                   'Do you still want to train?' ] ;
-          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
-          if ~strcmpi(res,'Yes')
-            dotrain = false;
-          end          
-        elseif (mem_need>0.9*freemem) ,
-          qstr = ...
-            sprintf(['The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB).  ' ...
-                     'It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling ' ...
-                     'to prevent training from crashing. Do you still want to train?'], ...
-                    freemem, ...
-                    round(mem_need)) ;
-          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
-          if ~strcmpi(res,'Yes')
-            dotrain = false;
-          end
-        end
-      end
-      
-    end  % function
-    
     function result = bgTrnIsRunningFromTrackerIndex(obj)
       trackers = obj.trackerHistory_ ;
       result = cellfun(@(t)(t.bgTrnIsRunning), trackers) ;
@@ -11334,13 +11277,13 @@ classdef Labeler < handle
           tblfldscontainsassert(tblPCache,MFTable.FLDSCORE);
         end
         
-        maTgtCropRad = APTParameters.getMATargetCropRadiusManual(tObj.sPrmAll);
+        prmsTgtCropTmp = APTParameters.getMATargetCropParams(tObj.sPrmAll);
 %         if tObj.trnNetMode.isTrnPack
 %           % Temp fix; prob should just skip adding imcache to stripped lbl
 %           prmsTgtCropTmp.AlignUsingTrxTheta = false;
 %         end
         [tblAddReadFailed,tfAU,locAU] = obj.ppdb.addAndUpdate(tblPCache,obj,...
-          'wbObj',wbObj,'maTgtCropRad',maTgtCropRad);
+          'wbObj',wbObj,'prmsTgtCrop',prmsTgtCropTmp);
         if tfWB && wbObj.isCancel
           tfsucc = false;
           tblPCache = [];
