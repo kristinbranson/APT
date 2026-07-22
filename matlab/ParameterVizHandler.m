@@ -61,12 +61,22 @@ classdef ParameterVizHandler < handle
         obj.addPropExisting(prop,pvObj,pvID);
       else
         try
-          % pvClsname comes from the matlab/**/params_*.yaml files, so a plain
-          % symbol grep won't find these classes. As of this writing, the
-          % referenced classes are: ParameterVisualizationMemory,
-          % ParameterVisualizationTgtCropRadius,
-          % ParameterVisualizationTgtCropRadiusID.
-          pvObj = feval(pvClsname);
+          % pvClsname comes from the ParamViz field of the
+          % matlab/**/params_*.yaml files. Construct the named class with an
+          % explicit switch rather than feval() so that the class
+          % dependencies are visible to grep and static dependency analysis.
+          % Add a case here when adding a new ParameterVisualization subclass.
+          switch pvClsname
+            case 'ParameterVisualizationMemory'
+              pvObj = ParameterVisualizationMemory() ;
+            case 'ParameterVisualizationTgtCropRadius'
+              pvObj = ParameterVisualizationTgtCropRadius() ;
+            case 'ParameterVisualizationTgtCropRadiusID'
+              pvObj = ParameterVisualizationTgtCropRadiusID() ;
+            otherwise
+              error('ParameterVizHandler:unknownParameterVisualization', ...
+                    'Unknown ParameterVisualization class ''%s''.',pvClsname) ;
+          end
           assert(isa(pvObj,'ParameterVisualization'),'''%s'' is not a ParameterVisualization.');
         catch ME
           warningNoTrace('Failed to instantiate ParameterVisualization ''%s'': %s',...
