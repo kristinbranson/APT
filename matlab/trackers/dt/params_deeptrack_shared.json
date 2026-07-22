@@ -1,0 +1,190 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "DeepTrackShared": {
+    "Description": "Hyperparameters for training all deep networks",
+    "DispName": "Deep Learning",
+    "Saving": {
+      "Description": "Saving of intermediate results during training",
+      "DispName": "",
+      "save_step": {
+        "AffectsTraining": true,
+        "DefaultValue": 1000,
+        "Description": "How often (number of iterations of gradient descent) to save intermediate networks during training. Intermediate networks can be used to test out tracking while training is in progress. But, saving the intermediate networks takes time.",
+        "DispName": "Saving interval during training",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "display_step": {
+        "AffectsTraining": true,
+        "DefaultValue": 50,
+        "Description": "How often (number of iterations of gradient descient) to compute the training error, which is shown in the training monitor during training. This affects how often the training monitor plot is updated.",
+        "DispName": "Training error interval",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "maxckpt": {
+        "AffectsTraining": true,
+        "DefaultValue": 5,
+        "Description": "Number of intermediate networks to store. ",
+        "DispName": "Number of networks to store",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      }
+    },
+    "ImageProcessing": {
+      "Description": "Processing of video frames before they are input to the network.",
+      "DispName": "Image Processing",
+      "adjustContrast": {
+        "AffectsTraining": true,
+        "DefaultValue": 0,
+        "Description": "Normalize image contrast using Contrast Limited Adaptive Histogram Equalization (CLAHE). Obsolete, a better approach is to include contrast and brightness in data augmentation.",
+        "DispName": "Histogram equalization",
+        "Level": "Obsolete",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "clahe_grid_size": {
+        "AffectsTraining": true,
+        "DefaultValue": 20,
+        "Description": "CLAHE normalizes contrast in local neighborhoods -- squares with this side length, in pixels. Obsolete, a better approach is to include contrast and brightness in data augmentation.",
+        "DispName": "Neighborhood size for histogram equalization",
+        "Level": "Obsolete",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "normalize": {
+        "AffectsTraining": true,
+        "DefaultValue": false,
+        "Description": "Normalize images by subtracting the average pixel intensity in the image. Obsolete, a better approach is to include contrast and brightness in data augmentation.",
+        "DispName": "Brightness normalization",
+        "Level": "Obsolete",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "flipud": {
+        "AffectsTraining": true,
+        "DefaultValue": 0,
+        "Description": "Whether to flip all video frames upside down. ",
+        "DispName": "Flip movie",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "imax": {
+        "AffectsTraining": true,
+        "DefaultValue": 255,
+        "Description": "Maximum pixel value in the video. Most videos' pixel intensities range from 0 to 255.",
+        "DispName": "Max pixel value",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "float",
+        "isEditable": true
+      }
+    },
+    "DataAugmentation": {
+      "Description": "To learn invariances to certain kinds of transformations, we can augment our training data by randomly transforming images and labels during training. It is important to choose the data augmentation parameters so that the transformed examples are reasonable examples you might see in your setup. Augmenting can greatly decrease the number of training labels needed. However, over-augmenting -- augmenting with transformed examples that are impossible in your setup -- can destroy structure in your data.",
+      "DispName": "Data Augmentation",
+      "crange": {
+        "AffectsTraining": true,
+        "DefaultValue": 0.1,
+        "Description": "Augment by adjusting image contrast by a random amount less than this number. 0 indicates no contrast adjustment, 1 indicates maximum contrast adjustment. Set this value to be larger if there is a lot of lighting variability in your setup/data.",
+        "DispName": "Contrast range",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "brange": {
+        "AffectsTraining": true,
+        "DefaultValue": 0.1,
+        "Description": "Augment by adjusting image brightness by a random amount less than this number. 0 indicates no brightness adjustment, 1 indicates maximum brightness adjustment. Set this value to be larger if there is a lot of lighting variability in your setup/data.",
+        "DispName": "Brightness range",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "horz_flip": {
+        "AffectsTraining": true,
+        "DefaultValue": 0,
+        "Description": "Augment by flipping the training image and labels horizontally (left to right). This is useful if your targets are bilaterally symmetric. If you enable flipping, you MUST set pairs of corresponding keypoints. When you flip an image, the left side of the target becomes the right, and vv. You need to define which keypoints are corresponding left-right pairs. If you have a side-view of your scene, then flipping horizontally makes more sense than vertically. If you have an over/underhead view of the scene and you have Rotation range radius = 180, horizontal and vertical flipping are equivalent. Enable only one of these, as they will cancel each other out.",
+        "DispName": "Flip horizontally",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "vert_flip": {
+        "AffectsTraining": true,
+        "DefaultValue": 0,
+        "Description": "Augment by flipping the training image ang labels vertically (bottom to top). If you enable flipping, you MUST set pairs of corresponding keypoints. When you flip an image, the left side of the target becomes the right, and vv. You need to define which keypoints are corresponding left-right pairs. If you have a side-view of your scene, then flipping horizontally makes more sense than vertically. If you have an over/underhead view of the scene and you have Rotation range radius = 180, horizontal and vertical flipping are equivalent. Enable only one of these, as they will cancel each other out.",
+        "DispName": "Flip vertically",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "perturb_color": {
+        "AffectsTraining": true,
+        "DefaultValue": false,
+        "Description": "Whether to augment by perturbing image color by offsetting each color channel by up to ('Max pixel value')/8. This is only useful if you have color videos and variable lighting. ",
+        "DispName": "Perturb color",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      }
+    }
+  }
+}
+   

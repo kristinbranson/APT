@@ -486,13 +486,12 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
                                    'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
 
     if conf.multi_loss_mask and conf.is_multi:
-        if extra_roi is None:
-            extra_roi_use = roi # this is for mmpose masking
-        else:
-            if roi is not None:
-                extra_roi_use = np.concatenate([roi, extra_roi], 0)
-            else:
-                extra_roi_use = extra_roi
+        extra_roi_use = np.zeros((0,4,2))
+        if roi is not None:
+            extra_roi_use = np.concatenate([extra_roi_use, roi], 0)
+        if extra_roi is not None:
+            extra_roi_use = np.concatenate([extra_roi_use, extra_roi], 0)
+            
         # add the neg roi only if using masking. Otherwise mmpose can get touchy
         for cur_roi in extra_roi_use:
             annid = coco_info['ann_ndx']
@@ -863,12 +862,12 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
 
         if isModern:
             if 'TargetCrop' in dt_params['ImageProcessing']['MultiTarget']:
-                width = int(read_entry(dt_params['ImageProcessing']['MultiTarget']['TargetCrop']['Radius'])) * 2
+                width = int(read_entry(dt_params['ImageProcessing']['MultiTarget']['TargetCrop']['ManualRadius'])) * 2
             else:
-                width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['Radius'])) * 2
+                width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['ManualRadius'])) * 2
         else:
             # KB 20190212: replaced with preprocessing
-            width = int(read_entry(lbl['preProcParams']['TargetCrop']['Radius'])) * 2
+            width = int(read_entry(lbl['preProcParams']['TargetCrop']['ManualRadius'])) * 2
         height = width
 
         if not isModern:
@@ -896,7 +895,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
     conf.sel_sz = min(conf.imsz)
 
     if 'MultiAnimal' in dt_params:
-        width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['Radius'])) * 2
+        width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['ManualRadius'])) * 2
         conf.multi_animal_crop_sz = width
 
     if isModern:
@@ -1144,6 +1143,12 @@ def modernize_params(dt_params):
             logging.warning('Modernizing parameters: moving MultiAnimal.TrackletStitch to MultiAnimal.Track.TrackletStitch')
             dt_params['MultiAnimal']['Track']['TrackletStitch'] = dt_params['MultiAnimal']['TrackletStitch']
             del dt_params['MultiAnimal']['TrackletStitch']
+            
+        # KB 20250820: moving MultiAnimal.Detect to MultiAnimalDetect
+        if 'Detect' in dt_params['MultiAnimal']:
+            logging.warning('Modernizing parameters: moving MultiAnimal.Detect to MultiAnimalDetect')
+            dt_params['MultiAnimalDetect'] = dt_params['MultiAnimal']['Detect']
+            del dt_params['MultiAnimal']['Detect']
 
 def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf_params=None, quiet=False, json_trn_file=None, first_stage=False, second_stage=False, config_file=None):
     """
@@ -1240,7 +1245,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         
     if second_stage:
         # Find out whether head-tail or bbox detector. For this we need to look at the information from the first stage
-        if A['TrackerData'][0]['sPrmAll']['ROOT']['MultiAnimal']['Detect']['multi_only_ht']:
+        if A['TrackerData'][0]['sPrmAll']['ROOT']['MultiAnimalDetect']['multi_only_ht']:
             conf.use_ht_trx = True
         else:
             conf.use_bbox_trx = True
@@ -1249,7 +1254,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     # specified by the user. If the project doesnt have trx files
     # then we use the crop size specified by user else use the whole frame.
     if conf.has_trx_file or conf.use_ht_trx or conf.use_bbox_trx:
-        width = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
+        width = dt_params['MultiAnimal']['TargetCrop']['ManualRadius'] * 2
         conf.imsz = (width, width)
     elif has_crops:
         conf.has_crops = True
@@ -1269,7 +1274,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
 
     conf.labelfile = lbl_file
     conf.sel_sz = min(conf.imsz)
-    conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
+    conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['ManualRadius'] * 2
     conf.trx_align_theta = dt_params['MultiAnimal']['TargetCrop']['AlignUsingTrxTheta']
 
     def set_all(conf, cur_set, flatten=False):
@@ -1291,10 +1296,10 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         if 'TrackletStitch' in dt_params['MultiAnimal']['Track']:
             set_all(conf, dt_params['MultiAnimal']['Track']['TrackletStitch'])            
     if 'Detect' in dt_params['MultiAnimal']:
-        set_all(conf, dt_params['MultiAnimal']['Detect'])
+        set_all(conf, dt_params['MultiAnimalDetect'])
     conf.rescale = float(conf.scale)
     delattr(conf,'scale')
-    conf.ht_pts = to_py(dt_params['MultiAnimal']['Detect']['ht_pts'])
+    conf.ht_pts = to_py(dt_params['MultiAnimalDetect']['ht_pts'])
 
     net_conf = dt_params['DeepTrack'][net_names_dict[net_type]]
     set_all(conf, net_conf)
@@ -2130,7 +2135,6 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
     # logging.info('{} number of examples added to the training dbs'.format(count))
 
     return splits, sel
-
 
 def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
     # Creates db from new trnpack format instead of stripped label files.

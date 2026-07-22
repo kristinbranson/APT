@@ -1,0 +1,126 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "ImageProcessing": {
+    "Description": "Parameters related to initial processing of the input video data before any learning happens. These parameters will affect tracking regardless of the learning algorithm used.",
+    "DispName": "",
+    "BackSub": {
+      "Description": "Parameters related to foreground/background classification. You should only use background subtraction if (1) The video background is constant, (2) You have a good model of the image background computed using some other tracking software, e.g. Ctrax, and (3) You are seeing tracking errors in which part detections are being predicted on parts of the background that seem to resemble the animal. For example, leg-shaped dust particles in our fly arena could be confused with legs, and background subtraction could help remove these errors.",
+      "DispName": "Background Subtraction",
+      "Use": {
+        "AffectsTraining": true,
+        "DefaultValue": false,
+        "Description": "Whether to use background subtraction or not. You should only use background subtraction if (1) The video background is constant, (2) You have a good model of the image background computed using some other tracking software, e.g. Ctrax, and (3) You are seeing tracking errors in which part detections are being predicted on parts of the background that seem to resemble the animal. For example, leg-shaped dust particles in our fly arena could be confused with legs, and background subtraction could help remove these errors.",
+        "DispName": "Enable",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "BGType": {
+        "AffectsTraining": true,
+        "DefaultValue": "dark on light",
+        "Description": "Whether the animals are always lighter than the background (light on dark), always darker than the background (dark on light), or neither (other).",
+        "DispName": "Background Type",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": [
+          "light on dark",
+          "dark on light",
+          "other"
+        ],
+        "isEditable": true
+      },
+      "BGReadFcn": {
+        "AffectsTraining": true,
+        "DefaultValue": "",
+        "Description": "Function that reads background for a project movie. Signature: [bg,bgdev] = fcn(movfile,movifo)",
+        "DispName": "Background Read Function",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "string",
+        "isEditable": true
+      }
+    },
+    "HistEq": {
+      "Description": "Parameters related to normalization of the image intensity range. You should use histogram equalization if lighting of the animals varies across videos, e.g. if you have different lighting setups producing videos that differ in their brightness and contrast. Histogram equalization will adjust image intensities in each video so that the distributions of intensities (i.e. the histograms) match.",
+      "DispName": "Histogram Equalization",
+      "Use": {
+        "AffectsTraining": true,
+        "DefaultValue": false,
+        "Description": "Whether to use histogram equalization (CLAHE) to normalize image intensity. You should use histogram equalization if lighting of the animals varies across videos, e.g. if you have different lighting setups producing videos that differ in their brightness and contrast.",
+        "DispName": "Enable",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      }
+    },
+    "MultiTarget": {
+      "Description": "APT tracks multiple animals by relying on another piece of software, e.g. Ctrax, to track the body positions of each animal. Using the trajectories output by e.g. Ctrax, APT crops out regions centered around each tracked animal and runs part-tracking on these image crops. These parameters describe how image patches around individual animals are cropped out.",
+      "DispName": "Body Tracking",
+      "NeighborMask": {
+        "Description": "When targets come in close proximity to each other, non-touching neighbors can be masked.",
+        "DispName": "Mask Neighbors",
+        "Use": {
+          "AffectsTraining": true,
+          "DefaultValue": false,
+          "Description": "Use simple image processing to try to mask out other, non-touching targets. This requires Background Read Function above to be set properly.",
+          "DispName": "Enable",
+          "Level": "Developer",
+          "ParamViz": "",
+          "Requirements": [
+            "hasTrx",
+            "isCPR"
+          ],
+          "Type": "boolean",
+          "isEditable": true
+        },
+        "SegmentMethod": {
+          "AffectsTraining": true,
+          "DefaultValue": "Conn. Comp",
+          "Description": "Masking algorithm/approach.",
+          "DispName": "Segmentation Method",
+          "Level": "Developer",
+          "ParamViz": "",
+          "Requirements": [
+            "hasTrx",
+            "isCPR"
+          ],
+          "Type": [
+            "Conn. Comp",
+            "GMM-EM",
+            "Emp. PDF"
+          ],
+          "isEditable": true
+        },
+        "FGThresh": {
+          "AffectsTraining": true,
+          "DefaultValue": 4,
+          "Description": "Background-subtracted pixels above this threshold are considered foreground subject to masking.",
+          "DispName": "Foreground Threshold",
+          "Level": "Developer",
+          "ParamViz": "",
+          "Requirements": [
+            "hasTrx",
+            "isCPR"
+          ],
+          "Type": "float",
+          "isEditable": true
+        }
+      }
+    }
+  }
+}

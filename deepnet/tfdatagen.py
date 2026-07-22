@@ -18,6 +18,8 @@ import time
 
 import PoseTools
 import heatmap
+import PoseCommon_pytorch
+import torch
 
 ISPY3 = sys.version_info >= (3, 0)
 
@@ -543,6 +545,93 @@ def ims_locs_preprocess_dpk_noconf_nodistort(imsraw, locsraw, conf, distort):
 def ims_locs_preprocess_dummy(imsraw, locsraw, conf, distort):
     return imsraw, locsraw, None
 
+def data_generator_coco(filename, conf, distort, shuffle, ims_locs_proc_fn,
+                        debug=False,
+                        infinite=True,
+                        instrumented=False,
+                        instrumentedname=None):
+    
+    isstr = isinstance(ims_locs_proc_fn, str) if ISPY3 else \
+        isinstance(ims_locs_proc_fn, basestring)
+
+    if isstr:
+        ims_locs_proc_fn = globals()[ims_locs_proc_fn]
+
+    batch_size = conf.batch_size
+
+    if instrumented and (instrumentedname is None):
+        instrumentedname = "Unnamed-{}".format(os.path.basename(filename))
+
+    #logr.warning("tfdatagen data gen. file={}, distort/shuf/inf={}/{}/{}, ppfun={}, N={}".format(
+    #    filename, distort, shuffle, infinite, ims_locs_proc_fn.__name__, N))
+
+    # Py 2.x workaround nested functions outer variable rebind
+    # https://www.python.org/dev/peps/pep-3104/#new-syntax-in-the-binding-outer-scope
+    class Namespace:
+        pass
+
+    ns = Namespace()
+    ns.iterator = None
+    ns.dataset = None
+    ns.dataloader = None
+
+    def iterator_reset():
+        if ns.iterator and hasattr(ns.iterator,'close'):
+            ns.iterator.close()
+        if ns.dataset is None:
+            # augment is False here because we will do this with ims_locs_proc_fn
+            ns.dataset = PoseCommon_pytorch.coco_loader(conf, filename, False) 
+            # returns
+            # features = {
+            # 'images':im,
+            # 'locs':locs[0],
+            # 'info':info,
+            # 'occ': occ[0],
+            # 'mask':mask,
+            # 'item':item
+            # }
+            ns.dataloader = torch.utils.data.DataLoader(ns.dataset,
+                                                        batch_size=batch_size,
+                                                        pin_memory=True,
+                                                        drop_last=True,
+                                                        shuffle=shuffle)
+        ns.iterator = iter(ns.dataloader)
+
+    def iterator_read_next(firsttry=True):
+        if not ns.iterator:
+            iterator_reset()
+        try:
+            if ISPY3:
+                record = next(ns.iterator)
+            else:
+                record = ns.iterator.next()
+        except StopIteration:
+            if firsttry and infinite:
+                iterator_reset()
+                record = iterator_read_next(firsttry=False)
+            else:
+                raise
+        return record
+
+    record = iterator_read_next()
+
+    # imsraw = np.stack(all_ims)  # [nread x height x width x depth]
+    # locsraw = np.stack(all_locs)  # [nread x ncls x 2]
+    # info = np.stack(all_info)  # [nread x 3]
+    
+    # B x D x H x W -> B x H x W x D 
+    imsraw = np.transpose(record['images'].numpy(), (0, 2, 3, 1))
+    locsraw = record['locs'].numpy() # B x maxntargets x ncls x 2
+    maskraw = record['mask'].numpy() if 'mask' in record else None # B x H x W
+    
+    ims, locs, targets, mask = ims_locs_proc_fn(imsraw, locsraw, conf, distort, mask=maskraw)
+
+    if debug:
+        yield [ims, mask], targets, locs, record['info']
+    else:
+        yield [ims, mask], targets
+        # (inputs, targets)
+
 def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
                    debug=False,
                    infinite=True,
@@ -598,21 +687,18 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
             ns.iterator.close()
         ns.iterator = tf.python_io.tf_record_iterator(filename)
 
-    def iterator_read_next():
+    def iterator_read_next(firsttry=True):
         if not ns.iterator:
-            ns.iterator = tf.python_io.tf_record_iterator(filename)
+            iterator_reset()
         try:
             if ISPY3:
                 record = next(ns.iterator)
             else:
                 record = ns.iterator.next()
         except StopIteration:
-            if infinite:
+            if firsttry and infinite:
                 iterator_reset()
-                if ISPY3:
-                    record = next(ns.iterator)
-                else:
-                    record = ns.iterator.next()
+                record = iterator_read_next(firsttry=False)
             else:
                 raise
         return record
@@ -706,7 +792,7 @@ def data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn,
             # (inputs, targets)
 
 
-def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn, silent=False,
+def make_data_generator(filename, conf0, distort, shuffle, ims_locs_proc_fn, silent=False,
                         batch_size=None, **kwargs):
     conf = copy.deepcopy(conf0)
 
@@ -714,8 +800,16 @@ def make_data_generator(tfrfilename, conf0, distort, shuffle, ims_locs_proc_fn, 
         conf.batch_size = batch_size
     if not silent:
         logr.warning("tfdatagen makedatagen: {}, distort/shuf={}/{}, ppfun={}, {}".format(
-            tfrfilename, distort, shuffle, ims_locs_proc_fn, kwargs))
-    return data_generator(tfrfilename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
+            filename, distort, shuffle, ims_locs_proc_fn, kwargs))
+    # if extention of filename is .tfrecord or .tfrecords, use data_generator
+    # if .json, use data_generator_coco
+    if filename.endswith('.tfrecord') or filename.endswith('.tfrecords'):
+        genfun = data_generator(filename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
+    elif filename.endswith('.json'):
+        genfun = data_generator_coco(filename, conf, distort, shuffle, ims_locs_proc_fn, **kwargs)
+    else:
+        raise ValueError("Unknown filename extension: {}".format(filename))
+    return genfun
 
 thecounter=0
 '''

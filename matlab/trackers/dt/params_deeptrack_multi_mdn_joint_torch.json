@@ -1,0 +1,50 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "MultiAnimalGRONe": {
+    "Description": "Parameters related to multi-animal GRONe",
+    "DispName": "",
+    "db_format": {
+      "AffectsTraining": true,
+      "DefaultValue": "coco",
+      "Description": "Format for the training database",
+      "DispName": "Database format",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_mdn_joint_torch",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": true
+    },
+    "mdn_joint_layer_num": {
+      "AffectsTraining": true,
+      "DefaultValue": 3,
+      "Description": "Layer number for joint pose prediction in the feature pyramid network neck. Each layer increasingly downsamples the image by a factor of 2, with the 0th layer predicting at 1/4th the scale and the 3rd layer predicting at scale 1/(4*2^3) = 1/32. ",
+      "DispName": "Layer for joint prediction",
+      "Level": "Advanced",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_mdn_joint_torch",
+        "isDeepTrack"
+      ],
+      "Type": "unsigned",
+      "isEditable": true
+    },
+    "predict_occluded": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Should we train the pose network to also predict whether keypoints are labeled as 'occluded' or not? Recall that you can label a point as 'occluded' or not. It may be helpful in your downstream task to know whether a keypoint is occluded, and this predicted category could be used for that. ",
+      "DispName": "Train 'occluded' classifier",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_mdn_joint_torch",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    }
+  }
+}

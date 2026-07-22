@@ -18,6 +18,10 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
     Requirements = {}
     Visible = true
     AffectsTraining = true
+    Index = nan % leaf number
+    FullPath = '' % path in the parameters tree to this parameter
+    UserData = [];
+    
   end
 
   properties (Dependent)
@@ -52,7 +56,7 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
   end
 
   methods 
-    function obj = PropertiesGUIProp(fld,dispname,type,editable,desc,...
+    function obj = PropertiesGUIProp(fullPath,fld,dispname,type,editable,desc,...
         dfltval,val,prmViz,level,rqts,visible,affectsTraining)
       obj.Field = fld;
       obj.DispName = dispname;
@@ -62,6 +66,7 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
       obj.DefaultValue = dfltval;      
       obj.Value = val;
       obj.ParamViz = prmViz;
+      obj.FullPath = fullPath;
       if isempty(level),
         level = 'Important';
       end
@@ -82,6 +87,61 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
     function addRequirement(obj,req)
       obj.Requirements{end+1} = req;
     end
+  end
+
+  methods (Static)
+
+    function [obj,fnsused] = initFromStruct(s,fld,prefix)
+ 
+      if nargin < 3,
+        prefix = '';
+      end
+
+      fns = {'FullPath','Field','DispName','Type','isEditable',...
+        'Description','DefaultValue','Value','ParamViz',...
+        'Level','Requirements','Visible','AffectsTraining'};
+
+      defaults = struct;
+      defaults.DispName = '';
+      defaults.Type = '';
+      defaults.isEditable = false;
+      defaults.Description = '';
+      defaults.DefaultValue = [];
+      defaults.Value = [];
+      defaults.ParamViz = '';
+      defaults.FullPath = '';
+      defaults.Level = '';
+      defaults.Requirements = {};
+      defaults.AffectsTraining = [];
+      defaults.Visible = [];
+
+      args = cell(size(fns));
+      fnsused = {};
+
+      for i = 1:numel(fns),
+        fn = fns{i};
+        if strcmp(fn,'Field'),
+          args{i} = fld;
+          continue;
+        elseif strcmp(fn,'FullPath'),
+          if isempty(prefix),
+            args{i} = fld;
+          else
+            args{i} = [prefix,'.',fld];
+          end
+        elseif isfield(s,fn) && ~isstruct(s.(fn)), % sometimes special names are also Field names...
+          args{i} = s.(fn);
+          fnsused{end+1} = fn; %#ok<AGROW>
+        elseif strcmp(fn,'Value') && isfield(s,'DefaultValue'),
+          args{i} = s.DefaultValue;
+        else
+          args{i} = defaults.(fn);
+        end
+      end
+      obj = PropertiesGUIProp(args{:});
+
+    end
+
   end
 end
     

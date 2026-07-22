@@ -1,11 +1,17 @@
 classdef APTParameters
   properties (Constant)
-    % This property stores parsetrees for yamls so that yaml files only 
+    % This property stores parsetrees for jsons so that json files only 
     % need to be parsed once.
     %
     % This property is private as these trees are handles and mutable.
     % Use getParamTrees to access copies of these trees.
-    PARAM_FILES_TREES = APTParameters.paramFilesTrees() ; 
+    PARAM_FILES_TREES = APTParameters.paramFilesTrees() ;
+    maDetectPath = 'ROOT.MultiAnimalDetect';
+    maDetectNetworkPath = [APTParameters.maDetectPath,'.DeepTrack'];
+    posePath = 'ROOT.DeepTrack';
+    deepSharedPath = 'ROOT.DeepTrackShared';
+    detectDataAugPath = [APTParameters.maDetectPath,'.DeepTrack.DataAugmentation'];
+    poseDataAugPath = [APTParameters.posePath,'.DataAugmentation'];
   end
 
   methods (Static)
@@ -29,6 +35,11 @@ classdef APTParameters
     end
     
     function tPrm0 = defaultParamsTree(varargin)
+      % tPrm0 = defaultParamsTree(...)
+      % Returns a TreeNode with the default parameter hierarchy. 
+      % These are constructed from concatenating together stuff in
+      % PARAM_FILES_TREES. If you add new .json files, they also need to be
+      % included here. 
       incDLNetSpecific = myparse(varargin,...
         'incDLNetSpecific',true...
         );
@@ -37,6 +48,8 @@ classdef APTParameters
       tPrmPreprocess = trees.preprocess.tree;
       tPrmTrack = trees.track.tree;
       tPrmMA = trees.ma.tree;
+      tPrmDetect = trees.madetect.tree;
+      tPrmDTShared = trees.deeptrack_shared.tree;
       tPrmDT = trees.deeptrack.tree;
       tPrmPostProc = trees.postprocess.tree;
       
@@ -69,75 +82,101 @@ classdef APTParameters
           tPrmDeepNetsMADetect);
         tPrmDeepNetsMAChildren = cat(1,tPrmDeepNetsMADetect.Children);
         
-        tPrmMADetectDT = tPrmMA.findnode('ROOT.MultiAnimal.Detect.DeepTrack');
+        tPrmMADetectDT = tPrmDetect.findnode(APTParameters.maDetectNetworkPath);
         tPrmMADetectDT.Children = ...
           [tPrmMADetectDT.Children; tPrmDeepNetsMAChildren];
+
+        tPrmDTShared = tPrmDTShared.findnode(APTParameters.deepSharedPath);
       end
       
       tPrm0 = tPrmPreprocess;
-      tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
-        tPrmMA.Children; tPrmDT.Children; tPrmPostProc.Children];
+      tPrm0.Children = [tPrm0.Children; tPrmMA.Children; tPrmDTShared; tPrmDetect.Children; tPrmDT.Children; tPrmPostProc.Children; tPrmTrack.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
 
     function tPrm0 = defaultTrackParamsTree(varargin)
+      % tPrm0 = defaultTrackParamsTree(...)
+      % Returns the paramter tree for tracking parameters (AffectsTraining
+      % == false), with default values. 
       tPrm0 = APTParameters.defaultParamsTree(varargin{:});
-      tPrmTrack = tPrm0.findnode('ROOT.Track');
-      tPrmMA = tPrm0.findnode('ROOT.MultiAnimal.Track');
-      tPrmMA.Data.Field = 'MultiAnimal';
-      tPrmPostProcess = tPrm0.findnode('ROOT.PostProcess');
-      tPrm0.Children = [tPrmTrack;tPrmMA;tPrmPostProcess];
+      APTParameters.setAllVisible(tPrm0);
+      APTParameters.filterPropertiesByAffectsTraining(tPrm0,false);
     end
         
-    % all parameters to tracking (not training) parameters
-    function v = all2TrackParams(sPrmAll,compress)
-      if nargin < 2,
-        compress = true;
-      end
-      v = struct() ;
-      v.ROOT = struct();
-      v.ROOT.Track = sPrmAll.ROOT.Track;
-      if compress,
-        v.ROOT.MultiAnimal = sPrmAll.ROOT.MultiAnimal.Track;
+    function v = all2TrackParams(sPrmAll,varargin)
+      % v = all2TrackParams(sPrmAll,'outputformat',outputformat)
+      % Inputs a struct with all parameters (sPrmAll), and selects and
+      % returns those related to tracking (AffectsTraining == false)
+      % Optional inputs:
+      % outputformat': 'struct' or 'tree'
+      [outputformat,rest] = myparse_nocheck(varargin,'outputformat','struct');
+      tree = APTParameters.defaultTrackParamsTree(rest{:});
+      tree.structapply(sPrmAll);
+      if strcmp(outputformat,'struct'),
+        v = tree.structize();
       else
-        v.ROOT.MultiAnimal.Track = sPrmAll.ROOT.MultiAnimal.Track;
+        v = tree;
       end
-      v.ROOT.PostProcess = sPrmAll.ROOT.PostProcess;
     end
 
     function sPrm0 = defaultParamsStruct
+      % sPrm0 = defaultParamsStruct
+      % Returns a struct with the default parameter hierarchy. This differs
+      % from defaultParamsStructAll in that it doesn't include the
+      % network-architecture specific parameters
       tPrm0 = APTParameters.defaultParamsTree('incDLNetSpecific',false);
       sPrm0 = tPrm0.structize();
       sPrm0 = sPrm0.ROOT;
     end
 
     function sPrm0 = defaultParamsStructAll
+      % sPrm0 = defaultParamsStructAll
+      % Returns a struct with the default parameter hierarchy, including
+      % network-architecture specific parameters
       tPrm0 = APTParameters.defaultParamsTree;
       sPrm0 = tPrm0.structize();
     end    
  
     function dlNetTypesPretty = getDLNetTypesPretty
+      % dlNetTypesPretty = getDLNetTypesPretty
+      % Returns names of all DL network types
       mc = ?DLNetType;
-      dlNetTypesPretty = cellfun(@APTParameters.getParamField,...
+      dlNetTypesPretty = cellfun(@APTParameters.getNetworkParamField,...
         {mc.EnumerationMemberList.Name},'Uni',0);
     end
     
-    function f = getParamField(nettype)
+    function f = getNetworkParamField(nettype)
+      % f = getNetworkParamField(nettype)
+      % returns parameter field name for network of type nettype
       if ~ischar(nettype)
         nettype = char(nettype);
       end
-      % first non-ROOT top-level field in parameter yaml 
+      % first non-ROOT top-level field in parameter json 
       f = APTParameters.PARAM_FILES_TREES.(nettype).tree.Children(1).Data.Field;      
     end
     
-    function sPrmDTcommon = defaultParamsStructDTCommon
-      tPrm = APTParameters.getParamTrees('deeptrack');
-      sPrm = tPrm.structize();
-      sPrmDTcommon = sPrm.ROOT.DeepTrack;
+    function sPrmDT = defaultParamsStructDeepTrack(varargin)
+      % sPrmDT =
+      % defaultParamsStructDeepTrack('includeshared',includeshared)
+      % Returns the DeepTrack parameter tree as a struct. If includeshared
+      % == true, then incorporates shared parameters into result. Only
+      % called by reorganizeDLParams.
+      includeshared = myparse(varargin,'includeshared',true);
+      if includeshared,
+        sPrmAll = APTParameters.defaultParamsStruct();
+        sPrmDT = APTParameters.mergeSharedDeepTrack(sPrmAll,'pose');
+      else
+        tPrm = APTParameters.getParamTrees('deeptrack');
+        sPrm = tPrm.structize();
+        sPrmDT = sPrm.ROOT.DeepTrack;
+      end
     end
 
     function sPrmDTspecific = defaultParamsStructDT(nettype)
+      % sPrmDTspecific = defaultParamsStructDT(nettype)
+      % Return the parameters related to nettype networks. Only called by
+      % reorganizeDLParams
       tPrm = APTParameters.getParamTrees(char(nettype));
       sPrmDTspecific = tPrm.structize();
       sPrmDTspecific = sPrmDTspecific.ROOT;
@@ -146,9 +185,33 @@ classdef APTParameters
       fld = fld{1};
       sPrmDTspecific = sPrmDTspecific.(fld);
     end
-
+    function leaves = getVisibleLeaves(tree)
+      % leaves = getVisibleLeaves(tree)
+      % returns an array of all visible leaf data
+      leaves = [];
+      if ~tree.Data.Visible,
+        return;
+      end
+      if isempty(tree.Children),
+        leaves = tree.Data;
+        return;
+      end
+      for i = 1:numel(tree.Children),
+        leavescurr = APTParameters.getVisibleLeaves(tree.Children(i));
+        if isempty(leavescurr),
+          continue;
+        end
+        if isempty(leaves),
+          leaves = leavescurr;
+        else
+          leaves(end+1:end+numel(leavescurr)) = leavescurr;
+        end
+      end
+    end
     function [tPrm,minLevel] = propagateLevelFromLeaf(tPrm)
-      
+      % [tPrm,minLevel] = propagateLevelFromLeaf(tPrm)
+      % Level is set in leaf nodes, set level for intermediate nodes of tree to
+      % reflect minimum level of its children (Important = 1, Obsolete = 4)
       if isempty(tPrm.Children),
         minLevel = tPrm.Data.Level;
         return;
@@ -163,7 +226,10 @@ classdef APTParameters
     end
 
     function [tPrm,rqts] = propagateRequirementsFromLeaf(tPrm)
-      
+      % [tPrm,rqts] = propagateRequirementsFromLeaf(tPrm)
+      % Requirements are set in leaf nodes, set requirements for
+      % intermediate nodes of tree to reflect intersection of requirements
+      % from leaves
       if isempty(tPrm.Children),
         rqts = tPrm.Data.Requirements;
         return;
@@ -181,7 +247,9 @@ classdef APTParameters
     end
 
     function filterPropertiesByLevel(tree,level)
-      
+      % filterPropertiesByLevel(tree,level)
+      % set nodes in tree to be Visible iff their Level is less than the
+      % input level
       if isempty(tree.Children),
         tree.Data.Visible = tree.Data.Visible && tree.Data.Level <= level;
         return;
@@ -196,9 +264,29 @@ classdef APTParameters
       end
       
     end
+
+    function filterPropertiesByAffectsTraining(tree,istrain)
+      % filterPropertiesByAffectsTraining(tree,istrain)
+      % set nodes in tree to be Visible iff
+      % isequal(AffectsTraining,istrain)
+      if isempty(tree.Children),
+        tree.Data.Visible = tree.Data.Visible && isequal(tree.Data.AffectsTraining,istrain);
+        return;
+      end
+      
+      if tree.Data.Visible,
+        tree.Data.Visible = false;
+        for i = 1:numel(tree.Children),
+          APTParameters.filterPropertiesByAffectsTraining(tree.Children(i),istrain);
+          tree.Data.Visible = tree.Data.Visible || tree.Children(i).Data.Visible;
+        end
+      end
+
+    end
     
     function tree = setAllVisible(tree)
-      
+      % tree = setAllVisible(tree)
+      % reset all nodes to be Visible
       tree.Data.Visible = true;
       for i = 1:numel(tree.Children),
         APTParameters.setAllVisible(tree.Children(i));
@@ -206,13 +294,37 @@ classdef APTParameters
       
     end
     
+    function stage = getStage(path)
+      % stage = getStage(path)
+      % based on path to node, determine if this parameter is related to
+      % the first or last stage.
+      % used in ParameterSetup to make it clear which parameters are
+      % specific for pose and detect stage.
+      if startsWith(path,[APTParameters.posePath,'.']),
+        stage = 'last';
+      elseif startsWith(path,[APTParameters.maDetectNetworkPath,'.']),
+        stage = 'first';
+      else
+        stage = 'unknown';
+      end
+        
+    end
+
     function tree = filterPropertiesByCondition(tree,labelerObj,varargin)
+      % tree = filterPropertiesByCondition(tree,labelerObj,varargin)
+      % set Visible based on Requirements and labelerObj state.
+      %
       % note on netsUsed
       % Currently, topdown trackers include 2 'netsUsed'
       
+      [stage,argsrest] = myparse_nocheck(varargin,'stage','last');
+      if strcmp(tree.Data.Field,{'Detect'})
+        stage = 'first';
+      end
+
       if isempty(tree.Children),
         
-        [netsUsed,hasTrx,trackerIsDL] = myparse(varargin,...
+        [netsUsed,hasTrx,trackerIsDL] = myparse(argsrest,...
           'netsUsed',[],'hasTrx',[],'trackerIsDL',[]);
         if isempty(netsUsed),
           netsUsed = labelerObj.trackerNetsUsed;
@@ -228,12 +340,19 @@ classdef APTParameters
         isbu = labelerObj.trackerIsBotUp;
         isod = labelerObj.trackerIsObjDet;
         isht = is2stg && ~isod;
-        
-        % AL20210901: note: in parameter yamls, the 'isTopDown' requirement
+        if strcmpi(stage,'first'),
+          netsUsed = netsUsed(1);
+        elseif strcmpi(stage,'last')
+          netsUsed = netsUsed(end);
+        end
+        % AL20210901: note: in parameter jsons, the 'isTopDown' requirement
         % is used; but this actually means "isTD-2stg"; vs SA-trx which is
         % conceptually TD.
       
         reqs = tree.Data.Requirements;
+        if isempty(reqs),
+          return;
+        end
         if all(ismember({'hasTrx' 'isTopDown'},reqs))
           if ~hasTrx && ~is2stg
             % Special case/hack; if hasTrx and ma are both present, it's an
@@ -270,9 +389,11 @@ classdef APTParameters
           dlnets = enumeration('DLNetType');
           for i=1:numel(dlnets)
             net = dlnets(i);
-            if ismember(net,reqs) && ~any(strcmp(net,netsUsed))
+            if ismember(lower(char(net)),lower(reqs)) && ~any(strcmp(net,netsUsed))
               tree.Data.Visible = false;
               break;
+            elseif ismember(['~',lower(char(net))],lower(reqs)) && any(strcmp(net,netsUsed)),
+              tree.Data.Visible = false;
             end
           end
         end
@@ -284,7 +405,7 @@ classdef APTParameters
       if tree.Data.Visible,
         tree.Data.Visible = false;
         for i = 1:numel(tree.Children),
-          APTParameters.filterPropertiesByCondition(tree.Children(i),labelerObj,varargin{:});
+          APTParameters.filterPropertiesByCondition(tree.Children(i),labelerObj,'stage',stage,argsrest{:});
           tree.Data.Visible = tree.Data.Visible || tree.Children(i).Data.Visible;
         end
       end
@@ -292,19 +413,14 @@ classdef APTParameters
     end
     
     function [tPrm] = removeFilteredProperties(tPrm)
+      % [tPrm] = removeFilteredProperties(tPrm)
+      % Remove nodes that re not visible from tree tPrm
       
       if ~tPrm.Data.Visible,
         tPrm = [];
         return;
       end
       
-      if isempty(tPrm.Children),
-        if ~tPrm.Data.AffectsTraining,
-          tPrm = [];
-        end
-        return;
-      end
-
       doremove = false(1,numel(tPrm.Children));
       for i = 1:numel(tPrm.Children),
         res = APTParameters.removeFilteredProperties(tPrm.Children(i));
@@ -320,7 +436,8 @@ classdef APTParameters
     end
     
     function [sPrmFilter,tPrm] = filterStructPropertiesByCondition(sPrm,varargin)
-      
+      % [sPrmFilter,tPrm] = filterStructPropertiesByCondition(sPrm,varargin)
+      % Return parameters of struct sPrm that correspond to 
       [tPrm,leftovers] = myparse_nocheck(varargin,'tree',[]);
       if isempty(tPrm),
         tPrm = APTParameters.defaultParamsTree;
@@ -342,6 +459,54 @@ classdef APTParameters
       sPrmFilter0 = APTParameters.filterStructPropertiesByCondition(sPrm0,'tree',tPrm0,leftovers{:});
       sPrmFilter1 = APTParameters.filterStructPropertiesByCondition(sPrm1,'tree',tPrm1,leftovers{:});
       v = isequaln(sPrmFilter0,sPrmFilter1);
+
+    end
+
+    function [minv,maxv] = numberRange(tPrm)
+      if ~tPrm.Data.Visible,
+        minv = nan;
+        maxv = nan;
+        return;
+      end
+      minv = tPrm.Data.Index;
+      maxv = tPrm.Data.Index;
+      for c = tPrm.Children(:)',
+        [minvc,maxvc] = APTParameters.numberRange(c);
+        minv = min(minv,minvc);
+        maxv = max(maxv,maxvc);
+      end
+    end
+
+    function addNumbers(tPrm,minv,maxv)
+
+      if ~tPrm.Data.Visible,
+        return;
+      end
+      if nargin < 2,
+        minv = 0;
+        maxv = 1;
+      end
+      tPrm.Data.Index = minv; %(minv+maxv)/2;
+      if isempty(tPrm.Children),
+        return;
+      end
+      n = numel(tPrm.Children);
+      isvisible = false(1,n);
+      for i = 1:n,
+        child = tPrm.Children(i);
+        isvisible(i) = child.Data.Visible;
+      end
+      if ~any(isvisible),
+        %tPrm.Data.Index = (minv+maxv)/2;
+        return;
+      end
+      idxvisible = find(isvisible);
+      n = numel(idxvisible);
+      dv = (maxv-minv)/n;
+      for i = 1:n,
+        child = tPrm.Children(idxvisible(i));
+        APTParameters.addNumbers(child,minv+dv*(i-1),minv+dv*i);
+      end
 
     end
     
@@ -393,7 +558,7 @@ classdef APTParameters
     % all parameters to specific dl parameters for input netType
     function v = all2DLSpecificParams(sPrmAll,netType)
       if ~ischar(netType),
-        netType = APTParameters.getParamField(netType);
+        netType = APTParameters.getNetworkParamField(netType);
       end
       v = sPrmAll.ROOT.DeepTrack.(netType);
     end
@@ -458,63 +623,228 @@ classdef APTParameters
       tfOK = true;
       msgs = {};
     end
-    
-    function sPrmAll = modernize(sPrmAll)
-      % 20210720 param reorg MA
-      if ~isempty(sPrmAll)
-        if isfield(sPrmAll.ROOT,'MultiAnimalDetection')
-          sPrmAll.ROOT.MultiAnimal.Detect = sPrmAll.ROOT.MultiAnimalDetection;
-          sPrmAll.ROOT = rmfield(sPrmAll.ROOT,'MultiAnimalDetection');
+
+    function prm = separateSharedDeepTrack(prm,stage)
+
+      tshared = APTParameters.PARAM_FILES_TREES.deeptrack_shared.tree.findnode(APTParameters.deepSharedPath);
+      prepath = APTParameters.DLStage2Path(stage);
+      tdt = APTParameters.defaultParamsTree.findnode(prepath);
+      relpaths = APTParameters.modernizeMoveSubTrees(tshared,tdt,'');
+      translateflds = [cellfun(@(relpath) [prepath,'.',relpath],relpaths,'Uni',0),...
+        cellfun(@(relpath) [APTParameters.deepSharedPath,'.',relpath],relpaths,'Uni',0)];
+      for i = 1:size(translateflds,1),
+        oldfld = translateflds{i,1};
+        newfld = translateflds{i,2};
+        if structisfield(prm,oldfld),
+          prm = structmvfield(prm,oldfld,newfld);
         end
-        if isfield(sPrmAll.ROOT,'ImageProcessing') && ...
-          isfield(sPrmAll.ROOT.ImageProcessing,'MultiTarget') && ...
-           isfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop')
-          sPrmAll.ROOT.MultiAnimal.TargetCrop = sPrmAll.ROOT.ImageProcessing.MultiTarget.TargetCrop;
-        end
-        % The ImageProcessing subtree (background subtraction, histogram
-        % equalization, neighbor masking) is no longer supported; drop any
-        % stale copy carried by an older project so it does not linger in
-        % the param struct.
-        if isfield(sPrmAll.ROOT,'ImageProcessing')
-          sPrmAll.ROOT = rmfield(sPrmAll.ROOT,'ImageProcessing');
-        end
-        if isfield(sPrmAll.ROOT,'MultiAnimal')
-          if isfield(sPrmAll.ROOT.MultiAnimal,'TargetCrop') && ...
-            isfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius')
-            sPrmAll.ROOT.MultiAnimal.TargetCrop.ManualRadius = ...
-               sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius;
-            sPrmAll.ROOT.MultiAnimal.TargetCrop = ...
-              rmfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius');
-          end
-          if isfield(sPrmAll.ROOT.MultiAnimal,'Detect') && ...
-            isfield(sPrmAll.ROOT.MultiAnimal.Detect,'max_n_animals')
-            sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
-            sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
-            sPrmAll.ROOT.MultiAnimal.Detect = ...
-              rmfield(sPrmAll.ROOT.MultiAnimal.Detect,{'max_n_animals' 'min_n_animals'});
-          end
-          % KB 20220516: moving tracking related parameters around
-          if isfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals')
-            sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.max_n_animals;
-            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals');
-          end
-          if isfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals')
-            sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.min_n_animals;
-            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals');
-          end
-          if isfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch'),
-            sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch = sPrmAll.ROOT.MultiAnimal.TrackletStitch;
-            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch');
-          end
-          if ~isfield(sPrmAll.ROOT.MultiAnimal.Track,'max_n_animals_user'),
-            sPrmAll.ROOT.MultiAnimal.Track.max_n_animals_user = sPrmAll.ROOT.MultiAnimal.Track.max_n_animals;
-          end
-        end
-        
-        sPrmDflt = APTParameters.defaultParamsStructAll;
-        sPrmAll = structoverlay(sPrmDflt,sPrmAll,...
-          'dontWarnUnrecog',true); % to allow removal of obsolete params
       end
+
+    end
+
+    function prm = fromDeepTrackerParams(prmsin)
+      assert(any(~cellfun(@isempty,prmsin)));
+      assert(numel(prmsin) <= 2);
+      for i = 1:numel(prmsin),
+        % modernize, as well as move shared parameters to its own branch
+        if ~isempty(prmsin{i}),
+          prmsin{i} = APTParameters.modernize(prmsin{i},'all');
+        end
+      end
+      sPrmDflt = APTParameters.defaultParamsStructAll;
+      if isempty(prmsin{1}),
+        % copy over prmsin{2} into prmsin{1}
+        prm = prmsin{2};
+      else
+        prm = prmsin{1};
+      end
+      if ~isempty(prmsin{2}),
+        % add prmsin{2}.(posePath) to prmsin{1}.(maDetectNetworkPath)
+        prm = APTParameters.setParam(prm,APTParameters.maDetectNetworkPath,...
+          APTParameters.getParam(prmsin{2},APTParameters.posePath));
+        % use stage 2 shared parameters if they are different
+        prm = APTParameters.setParam(prm,APTParameters.deepSharedPath,...
+          APTParameters.getParam(prmsin{2},APTParameters.deepSharedPath));        
+      else
+        % copy over defaults
+        prm = APTParameters.setParam(prm,APTParameters.maDetectNetworkPath,...
+          APTParameters.getParam(sPrmDflt,APTParameters.maDetectNetworkPath));
+      end
+
+      % overlay on defaults to make sure all parameters are there and
+      % remove extra added parameters
+      prm = structoverlay(sPrmDflt,prm,'dontWarnUnrecog',true);
+
+    end
+
+    function prm = toDeepTrackerParams(prm,stage)
+      if strcmp(stage,'detect'),
+        % stage 1 trackData; move Detect.DeepTrack to top-level
+        if structisfield(prm,APTParameters.maDetectNetworkPath),
+          prm = structmvfield(prm,APTParameters.maDetectNetworkPath,APTParameters.posePath);
+        end
+      elseif strcmp(stage,'pose')
+        % remove detect/DeepTrack from stage2
+        if structisfield(prm,APTParameters.maDetectNetworkPath)
+          prm = structrmfield(prm,APTParameters.maDetectNetworkPath);
+        end
+      end
+      % move shared parameters to dt
+      prm = APTParameters.setParam(prm,APTParameters.posePath,APTParameters.getPoseDeepTrackParams(prm));
+      % remove shared parameters
+      prm = structrmfield(prm,APTParameters.deepSharedPath);
+    end
+
+    function prm = duplicateSharedDeepTrackParams(prm)
+      assert(isstruct(prm));
+      prm = APTParameters.setParam(prm,APTParameters.maDetectNetworkPath,APTParameters.getDetectDeepTrackParams(prm));
+      prm = APTParameters.setParam(prm,APTParameters.posePath,APTParameters.getPoseDeepTrackParams(prm));
+      prm = structrmfield(prm,APTParameters.deepSharedPath);
+    end
+
+    function prmDT = getPoseDeepTrackParams(prm)
+      prmDT = APTParameters.mergeSharedDeepTrack(prm,'pose');
+    end
+
+    function prmMADT = getDetectDeepTrackParams(prm)
+      prmMADT = APTParameters.mergeSharedDeepTrack(prm,'detect');
+    end
+
+    function tspecific = mergeSharedDeepTrack(t,varargin)
+      if isstruct(t),
+        tspecific = APTParameters.mergeSharedDeepTrackStruct(t,varargin{:});
+      else
+        tspecific = APTParameters.mergeSharedDeepTrackTree(t,varargin{:});
+      end
+    end
+
+    function tspecific = mergeSharedDeepTrackTree(t,stage)
+
+      if ischar(stage),
+        tshared = t.findnode(APTParameters.deepSharedPath);
+        prepath = APTParameters.DLStage2Path(stage);
+        tspecific = t.findnode(prepath);
+        tspecific = tspecific.copy();
+      else
+        tshared = t;
+        tspecific = stage;
+      end
+      specflds = cellfun(@(x) x.Field, {tspecific.Children.Data},'Uni',0);
+      for sharedchild = tshared.Children(:)',
+        fld = sharedchild.Data.Field;
+        i = find(strcmp(specflds,fld),1);
+        if isempty(i),
+          tspecific.Children(end+1) = sharedchild.copy();
+        else
+          tspecific.Children(i) = APTParameters.mergeSharedDeepTrackTree(sharedchild,tspecific.Children(i));
+        end
+      end
+    end
+
+    function sspecific = mergeSharedDeepTrackStruct(s,stage)
+
+      if ischar(stage),
+        sshared = structgetfield(s,APTParameters.deepSharedPath);
+        prepath = APTParameters.DLStage2Path(stage);
+        sspecific = structgetfield(s,prepath);
+      else
+        sshared = s;
+        sspecific = stage;
+      end
+      specflds = fieldnames(sspecific);
+      sharedflds = fieldnames(sshared);
+      for j = 1:numel(sharedflds),
+        fld = sharedflds{j};
+        i = find(strcmp(specflds,fld),1);
+        if isempty(i),
+          sspecific.(fld) = sshared.(fld);
+        elseif isstruct(sshared.(fld)),
+          sspecific.(fld) = APTParameters.mergeSharedDeepTrackStruct(sshared.(fld),sspecific.(fld));
+        else
+          sspecific.(fld) = sshared.(fld);
+        end
+      end
+    end
+    
+    function fps = modernizeMoveSubTrees(tnew,told,path)
+      oldflds = cellfun(@(x) x.Field, {told.Children.Data},'Uni',0);
+      fps = cell(0,1);
+      if nargin < 3,
+        path = '';
+      end
+      for childnew = tnew.Children(:)',
+        fld = childnew.Data.Field;
+        if isempty(path),
+          fpcurr = fld;
+        else
+          fpcurr = [path,'.',fld];
+        end
+        i = find(strcmp(oldflds,fld),1);
+        if isempty(i),
+          fps{end+1,1} = fpcurr;
+        else
+          fpschild = APTParameters.modernizeMoveSubTrees(childnew,told.Children(i),fpcurr);
+          fps = [fps;fpschild];
+        end
+      end
+    end
+
+    function sPrmAll = modernize(sPrmAll,allowedUnrecogFlds)
+      % 20210720 param reorg MA
+      if isempty(sPrmAll),
+        return;
+      end
+
+      if nargin < 2,
+        allowedUnrecogFlds = {};
+      end
+
+      % translation will happen in order
+      % oldfld,newfld
+      translateflds = {
+        'ROOT.MultiAnimalDetection',APTParameters.maDetectPath
+        'ROOT.MultiAnimal.Detect',APTParameters.maDetectPath
+        'ROOT.ImageProcessing.MultiTarget.TargetCrop','ROOT.MultiAnimal.TargetCrop'
+        'ROOT.MultiAnimal.TargetCrop.Radius','ROOT.MultiAnimal.TargetCrop.ManualRadius'
+        'ROOT.MultiAnimal.TrackletStitch','ROOT.MultiAnimal.Track.TrackletStitch'
+        };
+
+      % all parameters in dtshared were in maDetectNetworkPath and posePath
+      tshared = APTParameters.PARAM_FILES_TREES.deeptrack_shared.tree.findnode(APTParameters.deepSharedPath);
+      tdt = APTParameters.PARAM_FILES_TREES.deeptrack.tree.findnode(APTParameters.posePath);
+      tmadt = APTParameters.PARAM_FILES_TREES.madetect.tree.findnode(APTParameters.maDetectNetworkPath);
+
+      relpaths_shared_madt = APTParameters.modernizeMoveSubTrees(tshared,tmadt,'');
+      relpaths_shared_dt = APTParameters.modernizeMoveSubTrees(tshared,tdt,'');
+      translateflds_shared_madt = [cellfun(@(relpath) [APTParameters.maDetectNetworkPath,'.',relpath],relpaths_shared_madt,'Uni',0),...
+        cellfun(@(relpath) [APTParameters.deepSharedPath,'.',relpath],relpaths_shared_madt,'Uni',0)];
+      translateflds_shared_dt = [cellfun(@(relpath) [APTParameters.posePath,'.',relpath],relpaths_shared_dt,'Uni',0),...
+        cellfun(@(relpath) [APTParameters.deepSharedPath,'.',relpath],relpaths_shared_dt,'Uni',0)];
+      translateflds = [translateflds;translateflds_shared_madt;translateflds_shared_dt];
+
+      for i = 1:size(translateflds,1),
+        oldfld = translateflds{i,1};
+        newfld = translateflds{i,2};
+        if structisfield(sPrmAll,oldfld),
+          sPrmAll = structmvfield(sPrmAll,oldfld,newfld);
+        end
+      end
+
+      rmflds = {'ROOT.DeepTrack.DeepPoseKit.dpk_test',
+        'ROOT.DeepTrack.MMDetect.test'
+        'ROOT.MultiAnimalDetect.DeepTrack.MMDetect.test'
+        'ROOT.DeepTrack.MMDetect_FRCNN.test',
+        'ROOT.MultiAnimalDetect.DeepTrack.MMDetect_FRCNN.test',};
+      for i = 1:numel(rmflds),
+        oldfld = rmflds{i};
+        if structisfield(sPrmAll,oldfld),
+          sPrmAll = structrmfield(sPrmAll,oldfld);
+        end
+      end
+
+      sPrmDflt = APTParameters.defaultParamsStructAll;
+      sPrmAll = structoverlay(sPrmDflt,sPrmAll,'allowedUnrecogFlds',allowedUnrecogFlds);%,...
+        %'dontWarnUnrecog',true); % to allow removal of obsolete params
     end
     
     function [tPrm,canceled,do_update] = ...
@@ -587,7 +917,7 @@ classdef APTParameters
       default = true;
 
       for ndx = 1:numel(kk)
-        nd = tPrm.findnode(['ROOT.' kk{ndx}]);
+        nd = tPrm.findnode(kk{ndx});
         prev_val = nd.Data.Value;
         cur_val = autoparams(kk{ndx});
         reldiff = (cur_val-prev_val)/(prev_val+0.001);
@@ -605,11 +935,8 @@ classdef APTParameters
 %         end
         extra_str = '';
         if ~isempty(strfind(kk{ndx},'DataAugmentation')) && lobj.maIsMA && lobj.trackerIsTwoStage
-          if strfind(kk{ndx},'MultiAnimal.Detect')
-            extra_str = ' (first stage)';
-          else
-            extra_str = ' (second stage)';
-          end
+          stage = APTParameters.getStage(kk{ndx});
+          extra_str = sprintf(' (%s stage)',stage);
         end
         v1 = sprintf('%d,',prev_val);
         v1 = v1(1:end-1);
@@ -647,7 +974,7 @@ classdef APTParameters
       
       if strcmp(res,'Update')
         for ndx = 1:numel(kk)
-          nd = tPrm.findnode(['ROOT.' kk{ndx}]);
+          nd = tPrm.findnode(kk{ndx});
           nd.Data.Value = autoparams(kk{ndx});
         end
         do_update = true;
@@ -749,21 +1076,23 @@ classdef APTParameters
     end
     
     function [s,deepnets] = paramFileSpecs()
-      % Specifies/finds yamls in APT tree.
+      % Specifies/finds jsons in APT tree.
       %
       % Deepnets are found dynamically to easy adding new nets.
 
-      s.preprocess = 'params_preprocess.yaml';
-      s.track = 'params_track.yaml';
-      s.deeptrack = fullfile('trackers','dt','params_deeptrack.yaml');
-      s.ma = fullfile('trackers','dt','params_ma.yaml');
-      s.postprocess = 'params_postprocess.yaml';
+      s.preprocess = 'params_preprocess.json';
+      s.track = 'params_track.json';
+      s.deeptrack_shared = fullfile('trackers','dt','params_deeptrack_shared.json');
+      s.deeptrack = fullfile('trackers','dt','params_deeptrack.json');
+      s.ma = fullfile('trackers','dt','params_ma.json');
+      s.madetect = fullfile('trackers','dt','params_detect.json');
+      s.postprocess = 'params_postprocess.json';
       resourceFolderPath = fullfile(APT.Root, 'matlab') ;
-      dd = dir(fullfile(resourceFolderPath,'trackers','dt','params_deeptrack_*.yaml'));
-      dtyamls = {dd.name}';
-      sre = regexp(dtyamls,'params_deeptrack_(?<net>[a-zA-Z_]+).yaml','names');
-      for i=1:numel(dtyamls)
-        s.(sre{i}.net) = fullfile('trackers','dt',dtyamls{i});
+      dd = dir(fullfile(resourceFolderPath,'trackers','dt','params_deeptrack_*.json'));
+      dtjsons = {dd.name}';
+      sre = regexp(dtjsons,'params_deeptrack_(?<net>[a-zA-Z_]+).json','names');
+      for i=1:numel(dtjsons)
+        s.(sre{i}.net) = fullfile('trackers','dt',dtjsons{i});
       end
       deepnets = cellfun(@(x)x.net,sre,'uni',0);
     end  % function
@@ -781,20 +1110,352 @@ classdef APTParameters
       for i = 1 : numel(field_names)
         fn = field_names{i} ;
         spec = specs.(fn) ;
-        yaml_file_path = fullfile(resourceFolderPath, spec) ;
-        param_tree = parseConfigYaml(yaml_file_path) ;
+        json_file_path = fullfile(resourceFolderPath, spec) ;
+        assert(exist(json_file_path,'file'),sprintf('File %s does not exist',json_file_path));
+        param_tree = parseConfigJson(json_file_path) ;
         if any(strcmp(fn,deepnets))
           % AL 20190711: automatically create requirements for all deep net
           %   param trees
           param_tree.traverse(@(x)set(x.Data,'Requirements',{fn,'isDeepTrack'})) ;
         end
-        value = struct('yaml', {yaml_file_path}, 'tree', {param_tree}) ;
+        value = struct('json', {json_file_path}, 'tree', {param_tree}) ;
         s.(fn) = value ;
       end
+      % copy structure from params_deeptrack under MultiAnimalDetect
+      if isfield(s,'madetect') && isfield(s,'deeptrack'),
+        t1 = s.madetect.tree.findnode(APTParameters.maDetectNetworkPath);
+        t2 = s.deeptrack.tree.findnode(APTParameters.posePath);
+        if isempty(t1.Children),
+          t1.Children = TreeNode.empty(0,1);
+        end      
+        for i = 1:numel(t2.Children),
+          t1.Children(end+1,1) = t2.Children(i).copy();
+        end
+        t1.traverse(@(node) node.Data.addRequirement('isTopDown'));
+      end
+      % reset full paths
+      for i = 1:numel(field_names),
+        fn = field_names{i};
+        s.(fn).tree.setFullPath();
+      end
+
       % % Print s
       % fprintf('s:\n') ;
       % fprintf('%s', formattedDisplayText(s)) ;
     end  % function
+
+    function v = getParam(prm,fld,returnval)
+      if nargin < 3,
+        returnval = true;
+      end
+      if isstruct(prm),
+        v = structgetfield(prm,fld);
+      else
+        v = prm.findnode(fld);
+      end
+      if returnval && isa(v,'TreeNode'),
+        v = v.Data.Value;
+      end
+    end
+
+    function prm = setParam(prm,fld,val)
+      if isstruct(prm),
+        prm = structsetfield(prm,fld,val);
+      else
+        node = prm.findnode(fld);
+        assert(~isempty(node),sprintf('Could not find %s',fld));
+        node.Data.Value = val;
+      end
+    end
+
+    function v = getParamNode(prm,fld,returnval)
+      if nargin < 3,
+        returnval = true;
+      end
+      if isstruct(prm),
+        v = structgetfield(prm,fld);
+      else
+        v = prm.findnode(fld);
+      end
+      if returnval && isa(v,'TreeNode')
+        v = v.structize();
+      end
+    end
+
+    function [horzflip,vertflip] = getDataAugmentationFlipParams(prm,varargin)
+      horzflip = APTParameters.getParam(prm,[APTParameters.deepSharedPath,'.DataAugmentation.horz_flip'],varargin{:});
+      vertflip = APTParameters.getParam(prm,[APTParameters.deepSharedPath,'.DataAugmentation.vert_flip'],varargin{:});
+    end
+
+    function v = getMABBoxParam(prm,varargin)
+      v = APTParameters.getParam(prm,[APTParameters.maDetectPath,'.BBox'],varargin{:});
+    end
+
+    function v = getMALossMaskParam(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.MultiAnimal.LossMask',varargin{:});
+    end
+
+    function v = getScaleParam(prm,stage,varargin)
+      prefix = APTParameters.DLStage2Path(stage);
+      fld = [prefix,'.ImageProcessing.scale'];
+      v = APTParameters.getParam(prm,fld,varargin{:});
+    end
+
+    function v = getBatchSizeParam(prm,stage,varargin)
+      prefix = APTParameters.DLStage2Path(stage);
+      fld = [prefix,'.GradientDescent.batch_size'];
+      v = APTParameters.getParam(prm,fld,varargin{:});
+    end
+
+    function skelstr = getSkeletonString(prm,stage)
+      if nargin < 2,
+        stage = 'pose';
+      end
+      prefix = APTParameters.DLStage2Path(stage);
+      skelstr = APTParameters.getParam(prm,[prefix,'.OpenPose.affinity_graph']);
+    end
+
+    function prm = setSkeletonString(prm,skelstr)
+      prm = structsetfield(prm,[APTParameters.posePath,'.OpenPose.affinity_graph'],skelstr);
+      prm = structsetfield(prm,[APTParameters.maDetectPath,'.DeepTrack.OpenPose.affinity_graph'],skelstr);
+    end
+
+    function v = getFlipLandmarkMatchStr(prm,varargin)
+      v = APTParameter.getParam(prm,[APTParameters.deepSharedPath,'.DataAugmentation.flipLandmarkMatches']);
+    end
+
+    function prm = setFlipLandmarkMatchStr(prm,matchstr)
+      prm = structsetfield(prm,[APTParameters.deepSharedPath,'.DataAugmentation.flipLandmarkMatches'],matchstr);
+    end
+
+    function s = maTargetCropRadiusManualPath()
+      s = 'ROOT.MultiAnimal.TargetCrop.ManualRadius';
+    end
+
+    function v = getMATargetCropRadiusManual(prm,varargin)
+      s = APTParameters.maTargetCropRadiusManualPath;
+      v = APTParameters.getParam(prm,s,varargin{:});
+    end
+
+    function prm = setMATargetCropRadiusManual(prm,v)
+      prm = APTParameters.setParam(prm,APTParameters.maTargetCropRadiusManualPath,v);
+    end
+
+    function v = getMATargetCropParams(prm,varargin)
+      v = APTParameters.getParamNode(prm,'ROOT.MultiAnimal.TargetCrop',varargin{:});
+    end
+
+    function prm = setMATargetCropParams(prm,v)
+      assert(isstruct(prm));
+      prm = APTParameters.setParam(prm,'ROOT.MultiAnimal.TargetCrop',v);
+    end
     
+    function prm = setMAIsMulti(prm,val)
+      prm = APTParameters.setParam(prm,'ROOT.MultiAnimal.is_multi',val);
+    end
+
+    function val = getMAMultiCropIms(prm,varargin)
+      val = APTParameters.getParam(prm,'ROOT.MultiAnimal.multi_crop_ims',varargin{:});
+    end
+
+    function prm = setMAMultiCropIms(prm,val)
+      prm = APTParameters.setParam(prm,'ROOT.MultiAnimal.multi_crop_ims',val);
+    end
+
+    function v = getMAMultCropImSz(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.MultiAnimal.multi_crop_im_sz',varargin{:});
+    end
+
+    function prm = setMAMultCropImSz(prm,v)
+      prm = APTParameters.setParam(prm,'ROOT.MultiAnimal.multi_crop_im_sz',v);
+    end
+
+    function prm = setMAMultiOnlyHT(prm,val)
+      prm = APTParameters.setParam(prm,[APTParameters.maDetectPath,'.multi_only_ht'],val);
+    end
+
+    function s = alignTrxThetaPath()
+      s = 'ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta';
+    end
+
+    function prm = getAlignTrxTheta(prm,varargin)
+      prm = APTParameters.getParam(prm,APTParameters.alignTrxThetaPath,varargin{:});
+    end
+
+    function prm = setMAAlignUsingTrxTheta(prm,val)
+      prm = APTParameters.setParam(prm,APTParameters.alignTrxThetaPath,val);
+    end
+
+    function prm = setHeadTailKeypoints(prm,val)
+      prm = APTParameters.setParam(prm,[APTParameters.maDetectPath,'.ht_pts'],val);
+    end
+
+    function s = multiScaleByBBoxPath()
+      s = 'ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox';
+    end
+
+    function v = getMultiScaleByBBox(prm,varargin)
+      v = APTParameters.getParam(prm,APTParameters.multiScaleByBBoxPath,varargin{:});
+    end
+
+    function v = getMaxNAnimals(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.MultiAnimal.Track.max_n_animals',varargin{:});
+    end
+
+    function v = getMATargetCropPadBkgd(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.MultiAnimal.TargetCrop.PadBkgd',varargin{:});
+    end
+
+    function s = getMALossMaskParams(prm)
+      s = prm.ROOT.MultiAnimal.LossMask;
+    end
+
+    function v = getMAMultiLossMask(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.MultiAnimal.multi_loss_mask',varargin{:});
+    end
+
+    function v = getTrackNFramesSmall(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.Track.NFramesSmall',varargin{:});
+    end
+
+    function v = getTrackNFramesLarge(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.Track.NFramesLarge',varargin{:});
+    end
+
+    function v = getTrackNFramesNeighborhood(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.Track.NFramesNeighborhood',varargin{:});
+    end
+
+    function prm = setTrackNFramesSmall(prm,v)
+      prm = APTParameters.setParam(prm,'ROOT.Track.NFramesSmall',v);
+    end
+
+    function prm = setTrackNFramesLarge(prm,v)
+      prm = APTParameters.setParam(prm,'ROOT.Track.NFramesLarge',v);
+    end
+
+    function prm = setTrackNFramesNeighborhood(prm,v)
+      prm = APTParameters.setParam(prm,'ROOT.Track.NFramesNeighborhood',v);
+    end
+
+    function prm = removeTrackNFramesParams(prm)
+      prm.ROOT.Track = rmfield(prm.ROOT.Track,{'NFramesSmall','NFramesLarge','NFramesNeighborhood'});
+    end
+
+    function v = getBackSubParams(prm,varargin)
+      v = APTParameters.getParamNode(prm,'ROOT.ImageProcessing.BackSub',varargin{:});
+    end
+
+    function prm = setBackSubParams(prm,v)
+      assert(isstruct(prm));
+      prm = APTParameters.setParam(prm,'ROOT.ImageProcessing.BackSub',v);
+    end
+
+
+    function prm = removeOpenPoseAffinityGraphParams(prm)
+      parentpaths = {APTParameters.posePath,APTParameters.maDetectNetworkPath};
+      for i = 1:numel(parentpaths),
+        fld = [parentpaths{i},'.OpenPose'];
+        if ~structisfield(prm,fld),
+          continue;
+        end
+        prm = structrmfield(prm,[fld,'.affinity_graph']);
+        if isempty(fieldnames(structgetfield(prm,fld))),
+          structsetfield(prm,fld,'');
+        end
+      end
+    end
+
+    function prm = removeFlipLandmarkMatches(prm)
+      fld = [APTParameters.deepSharedPath,'.DataAugmentation.flipLandmarkMatches'];
+      prm = structrmfield(prm,fld);
+      if isempty(fieldnames(structgetfield(prm,fld))),
+        structsetfield(prm,fld,'');
+      end
+    end
+
+    function v = getImageProcessingIMax(prm,varargin)
+      v = APTParameters.getParam(prm,[APTParameters.deepSharedPath,'ImageProcessing.imax'],varargin{:});
+    end
+
+    function v = getPostProcessReconcile3dType(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.PostProcess.reconcile3dType',varargin{:});
+    end
+
+    function v = getPostProcessParams(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.PostProcess',varargin{:});
+    end
+
+    function prm = setPostProcessParams(prm,v)
+      prm = APTParameters.setParam(prm,'ROOT.PostProcess',v);
+    end
+
+    function prepath = DLStage2Path(stage)
+      if strcmp(stage,'pose'),
+        prepath = APTParameters.posePath;
+      elseif ismember(stage,{'detect','maDetectNetwork'}),
+        prepath = APTParameters.maDetectNetworkPath;
+      else
+        error('Unknown stage %s',stage);
+      end
+    end
+
+    function v = getGradientDescentSteps(prm,stage,varargin)
+      prepath = APTParameters.DLStage2Path(stage);
+      v = APTParameters.getParam(prm,[prepath,'.GradientDescent.dl_steps'],varargin{:});
+    end
+
+    function v = getDLCOverrideGradientDescentSteps(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.DeepTrack.DeepLabCut.dlc_override_dlsteps');
+    end
+
+    function prm = setGradientDescentSteps(prm,val,stage)
+      if nargin < 3,
+        stage = 'pose';
+      end
+      prepath = APTParameters.DLStage2Path(stage);
+      prm = APTParameters.setParam(prm,[prepath,'.GradientDescent.dl_steps'],val);
+    end
+
+    function v = getTrainingSaveStep(prm,varargin)
+      v = APTParameters.getParam(prm,[APTParameters.deepSharedPath,'.GradientDescent.dl_step'],varargin{:});
+    end
+
+    function prm = setTrainingSaveStep(prm,val)
+      prm = APTParameters.setParam(prm,[APTParameters.deepSharedPath,'.GradientDescent.dl_step'],val);
+    end
+
+    function v = getTrainingDisplayStep(prm,varargin)
+      v = APTParameters.getParam(prm,[APTParameters.deepSharedPath,'.GradientDescent.display_step'],varargin{:});
+    end
+    
+    function prm = setTrainingDisplayStep(prm,val)
+      prm = APTParameters.setParam(prm,[APTParameters.deepSharedPath,'.GradientDescent.display_step'],val);
+    end
+
+    function v = getUseBackSub(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.ImageProcessing.BackSub.Use',varargin{:});
+    end
+    
+    function prm = setUseBackSub(prm,v)
+      prm = APTParameters.setParam(prm,'ROOT.ImageProcessing.BackSub.Use',v);
+    end
+
+    function v = getBgReadFcn(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.ImageProcessing.BackSub.BgReadFcn');
+    end
+
+    function prm = setBgReadFcn(prm,v)
+      prm = APTParameters.setParam(prm,'ROOT.ImageProcessing.BackSub.BgReadFcn',v);
+    end
+
+    function v = getUseHistEq(prm,varargin)
+      v = APTParameters.getParam(prm,'ROOT.ImageProcessing.HistEq.Use',varargin{:});
+    end
+
+    function prm = setUseHistEq(prm,v)
+      prm = APTParameters.setParam(prm,'ROOT.ImageProcessing.HistEq.Use',v);
+    end
+
   end  % methods (Static)
 end  % classdef

@@ -427,12 +427,12 @@ classdef DeepTracker < LabelTracker
       [throwwarnings] = myparse(varargin,...
         'throwwarnings',true...
         );
-      
+
       switch net
         case {DLNetType.openpose}
-          dl_steps = sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
-          save_step = sPrmAll.ROOT.DeepTrack.Saving.save_step;
-          display_step = sPrmAll.ROOT.DeepTrack.Saving.display_step;
+          dl_steps = APTParameters.getGradientDescentSteps(sPrmAll,'pose');
+          save_step = APTParameters.getTrainingSaveStep(sPrmAll);
+          display_step = APTParameters.getTrainingDisplayStep(sPrmAll);
           
           if dl_steps < display_step
             dl_steps = display_step;
@@ -466,8 +466,8 @@ classdef DeepTracker < LabelTracker
             end
           end
           
-          sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
-          sPrmAll.ROOT.DeepTrack.Saving.save_step = save_step;
+          sPrmAll = APTParameters.setGradientDescentSteps(sPrmAll,dl_steps);
+          sPrmAll = APTParameters.setTrainingSaveStep(sPrmAll,save_step);
       
         otherwise
           % none
@@ -503,8 +503,9 @@ classdef DeepTracker < LabelTracker
       tfPostProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
       
       sOldSpecific = obj.sPrm;
-      prmField = APTParameters.getParamField(obj.trnNetType);
-      sNewSpecific = sPrmAll.ROOT.DeepTrack.(prmField);
+      sNewSpecific = APTParameters.all2DLSpecificParams(sPrmAll,obj.trnNetType);
+      % prmField = APTParameters.getNetworkParamField(obj.trnNetType);
+      % sNewSpecific = sPrmAll.ROOT.DeepTrack.(prmField);
       tfSpecificChanged = ~isequaln(sOldSpecific,sNewSpecific);
     end
       
@@ -547,7 +548,7 @@ classdef DeepTracker < LabelTracker
 
     function tfPostProcChanged = setPostProcParams(obj,sPrmAll)
       tfPostProcChanged = ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
-      obj.sPrmAll.ROOT.PostProcess = sPrmAll.ROOT.PostProcess;
+      obj.sPrmAll = APTParameters.setPostProcessParams(obj.sPrmAll,APTParameters.getPostProcessParams(sPrmAll));
       if tfPostProcChanged
         warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
         obj.trackResInit();
@@ -560,8 +561,7 @@ classdef DeepTracker < LabelTracker
       if isempty(obj.sPrmAll),
         v = [];
       else
-        prmField = APTParameters.getParamField(obj.trnNetType);
-        v = obj.sPrmAll.ROOT.DeepTrack.(prmField);
+        v = APTParameters.all2DLSpecificParams(obj.sPrmAll,obj.trnNetType);  
       end
     end
 
@@ -595,7 +595,7 @@ classdef DeepTracker < LabelTracker
 
     function s = getTrackSaveToken(obj)
       s = obj.getSaveToken();
-      s.sPrmAll = APTParameters.all2TrackParams(s.sPrmAll,false);
+      s.sPrmAll = APTParameters.all2TrackParams(s.sPrmAll);
     end
 
     function loadSaveToken(obj,s)
@@ -863,16 +863,21 @@ classdef DeepTracker < LabelTracker
       % check batch size
       nLbledRows = sum(lblObj.movieFilesAllHaveLbls);
       fprintf(1,'Your project has %d labeled rows.\n',nLbledRows);
-      bsizeFcn = @(fld,val)strcmp(fld,'batch_size') && val>nLbledRows;
+      
       % Note: at this time, project-level params are set but NOT
       % tracker-level params
       sPrmLblObj = lblObj.trackGetTrainingParams();
-      res = structapply(sPrmLblObj.ROOT,bsizeFcn);
-      tfbsize = cell2mat(res.values);
-      if any(tfbsize)
-        reason = sprintf('Your project has fewer labeled targets (%d) than a specified training batch size.',...
-          nLbledRows);
+      batchsize_pose = APTParameters.getBatchSizeParam(sPrmLblObj,'pose');
+      if batchsize_pose > nLbledRows,
+        reason = sprintf('Your project has fewer labels (%d) than the Pose network''s training batch size (%d).',nLbledRows,batchsize_pose);
         return
+      end
+      if lblObj.maIsMA && lblObj.trackerIsTwoStage,
+        batchsize_detect = APTParameters.getBatchSizeParam(sPrmLblObj,'detect');
+        if batchsize_detect > nLbledRows,
+          reason = sprintf('Your project has fewer labels (%d) than the Detect network''s training batch size (%d).',nLbledRows,batchsize_detect);
+          return
+        end        
       end
       
       if (obj.trnNetType==DLNetType.openpose || obj.trnNetType==DLNetType.multi_openpose) ...
@@ -970,7 +975,8 @@ classdef DeepTracker < LabelTracker
       if isempty(paramsAll)
         error('No tracking parameters have been set.');
       end
-      if labeler.maIsMA && strcmp(labeler.trackerAlgo, 'multi_cid') && paramsAll.ROOT.MultiAnimal.multi_loss_mask ,
+      if labeler.maIsMA && strcmp(labeler.trackerAlgo, 'multi_cid') && ...
+          APTParameters.getMAMultiLossMask(paramsAll),
         error(['For the CiD model, cannot have frames with both lableled and unlabeled animals.  ' ...
                'If all animals are labelled in each frame with any labels, set the tracking parameter "Unlabeled animals present" to false.']) ;
       end
@@ -1418,32 +1424,27 @@ classdef DeepTracker < LabelTracker
     end
 
     function iterFinal = getIterFinal(obj)
-      if obj.trnNetType == DLNetType.deeplabcut
-        % DeepLabCut is special, it typically ignores a passed-in dl_steps...
-        if obj.sPrmAll.ROOT.DeepTrack.DeepLabCut.dlc_override_dlsteps
-          % ...unless dlc_override_dlsteps is true
-          iterFinal = obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps ;
-        else
+      % Non-DeepLabCut models honor the provided dl_steps
+      iterFinal = APTParameters.getGradientDescentSteps(obj.sPrmAll,'pose');
+      % DeepLabCut is special, it typically ignores a passed-in dl_steps...
+      if obj.trnNetType == DLNetType.deeplabcut && ...
+          ~APTParameters.getDLCOverrideGradientDescentSteps(obj.sPrmAll),
           iterFinal = 1030000 ;
             % This is the default DeepLapCut number of iterations.
             % If the Python code for DeepLabCut chages s.t. the number of iterations
             % changes, this will have to change.
-        end
-      else
-        % Non-DeepLabCut models honor the provided dl_steps 
-        iterFinal = obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps ;
       end
     end  % function
 
-    % function trainID = configFile2TrainID(obj,dlConfigLcl) %#ok<INUSL>
-    %   % dlConfigLcl should look like <modelChainID>_<trainID>.<configExt>
-    %   % FIX THIS - this looks like the trainID is parsed out of the
-    %   % config file name...
-    %   [tpdir,dllblf,~] = fileparts(dlConfigLcl); %#ok<ASGLU>
-    %   pat = sprintf('%s_(?<trainID>[0-9T]+)$',modelChainID);
-    %   toks = regexp(dllblf,pat,'names');
-    %   trainID = toks.trainID;
-    % end
+    function trainID = configFile2TrainID(obj,dlConfigLcl) %#ok<INUSL> 
+      % dlConfigLcl should look like <modelChainID>_<trainID>.<configExt>
+      % FIX THIS - this looks like the trainID is parsed out of the
+      % config file name...
+      [tpdir,dllblf,~] = fileparts(dlConfigLcl); %#ok<ASGLU> 
+      pat = '_(?<trainID>[0-9T]+)$';
+      toks = regexp(dllblf,pat,'names');
+      trainID = toks.trainID;
+    end
 
     function trainID = getTrainID(obj, varargin)
       tfGenNewConfigFile = ...
@@ -1601,7 +1602,7 @@ classdef DeepTracker < LabelTracker
 
       % If a dry run, exit early
       if obj.dryRunOnly
-        fprintf('Dry run, not spawning training jobs') ;
+        fprintf('Dry run, not spawning training jobs\n') ;
         return
       end
 
@@ -1639,6 +1640,114 @@ classdef DeepTracker < LabelTracker
       % debuging sometimes.
       bgTrnMonitor.start();
     end  % trnSpawn_() function
+
+    function [tfsucc,msg,sPrmAll] = importTracker(obj,fileinfo,trackerinfo,scfg,varargin)
+      tfsucc = false;
+      msg = '';
+      
+      netType = obj.getNetType(); % will have one value for each stage
+      netMode = obj.getNetMode();
+
+      stages = [netMode.topDownStage];
+
+      modelChainID = trackerinfo.timestamps{1};
+      nstages = size(fileinfo.trndirs,1);
+      nviews = size(fileinfo.trndirs,2);
+      nmodel = nviews*nstages;
+
+      jobidx = ones(1,nmodel);
+      
+      [view,stage] = meshgrid(1:nviews,stages);
+
+      iterFinal = nan(1,numel(scfg.TrackerData));
+      for i = 1:numel(scfg.TrackerData),
+        % in TrackData, all deep learning parameters have been moved to
+        % pose DeepTracker parameters
+        iterFinal(i) = APTParameters.getGradientDescentSteps(scfg.TrackerData(i).sPrmAll,'pose');
+      end
+
+      % determine trainID
+      trainID = obj.getTrainID('existingTrnPackSLbl',fileinfo.cfgjsonfile,...
+                               'tfGenNewConfigFile',false);
+
+      trnType = DLTrainType.New;
+      prev_models = [];
+
+      % parse current number of iterations
+      % this should maybe be a row instead of a column... 
+      iterCurr = nan(nviews,nstages);
+      for stagei = 1:nstages,
+        for viewi = 1:nviews,
+          [~,name] = fileparts(fileinfo.netfiles{stagei,viewi});
+          m = regexp(name,'-(\d*)$','tokens','once');
+          if isempty(m),
+            msg = sprintf('Could not parse number of iterations from %s',name);
+            return;
+          end
+          iterCurr(viewi,stagei) = str2double(m);
+        end
+      end
+      iterCurr = iterCurr(:)';
+
+      % Create DMC
+      cacheDir = obj.lObj.DLCacheDir ;  % native cache dir      
+      dmc = DeepModelChainOnDisk('rootDir',cacheDir,...
+                                 'projID',obj.lObj.projname,...
+                                 'netType',netType(stage),...
+                                 'netMode',netMode(stage),...
+                                 'jobidx',jobidx,...
+                                 'view',view-1,...
+                                 'stage',stage,...
+                                 'splitIdx',zeros(1,nmodel),...
+                                 'modelChainID',modelChainID,... % will get copied for all models
+                                 'trainID',trainID,... % will get copied for all models
+                                 'trainType',trnType,... % will get copied for all models
+                                 'iterFinal',iterFinal(stage),...
+                                 'prev_models',prev_models,...
+                                 'iterCurr',iterCurr) ;
+
+      obj.isTrainingSplits_ = false;
+
+      % combine parameters from all stages into sPrmAll
+      prmsin = cell(1,max(stages));
+      prmsin(stages) = {scfg.TrackerData.sPrmAll};
+      sPrmAll = APTParameters.fromDeepTrackerParams(prmsin);
+      obj.setAllParams(sPrmAll);
+
+      obj.dryRunOnly = false;
+
+      % order matters here -- setting sPrmAll clear trnLastDMC
+      obj.trnLastDMC = dmc;
+
+      % copy files from imported project dir 
+      tocopy = [{fileinfo.cfgjsonfile,fileinfo.labelfile},fileinfo.extrafiles];
+      for i = 1:numel(tocopy),
+        infile = tocopy{i};
+        [~,n,ext] = fileparts(infile);
+        outfile = fullfile(obj.trnLastDMC.dirProjLnx,[n,ext]);
+        [tfsucc1,msg] = copyfile(infile,outfile);
+        if ~tfsucc1,
+          msg = sprintf('Failed to copy %s to %s: %s',infile,outfile,msg);
+          return;
+        end
+      end
+
+      for stagei = 1:nstages,
+        for viewi = 1:nviews,
+          indir = fileinfo.trndirs{stagei,viewi};
+          outdir = DeepModelChainOnDisk.getCheckSingle(dmc.dirModelChainLnx('stage',stagei,'view',viewi-1));
+          fprintf('Copying %s to %s...\n',indir,outdir);
+          [tfsucc1,msg] = copyfile(indir,outdir);
+          if ~tfsucc1,
+            msg = sprintf('Failed to copy %s to %s: %s',indir,outdir,msg);
+            return;
+          end
+        end
+      end
+      obj.trnLastDMC.readNLabels();
+      obj.lastTrainEndCause_ = EndCause.load;
+      tfsucc = true;
+    end
     
     function [tf,tpdir] = trainPackExists(obj)
       dm = obj.trnLastDMC;      
@@ -1925,22 +2034,13 @@ classdef DeepTracker < LabelTracker
       
       if tfTD
         tdata = num2cell(tdata(:)');
-        
         % stage 1 trackData; move Detect.DeepTrack to top-level
-        if isSubField(tdata{1}.sPrmAll,{'ROOT','MultiAnimal','Detect','DeepTrack'}),
-          tdata{1}.sPrmAll.ROOT.DeepTrack = ...
-            tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
-          tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
-            tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
-        end
+        tdata{1}.sPrmAll = APTParameters.toDeepTrackerParams(tdata{1}.sPrmAll,'detect');
       else
        tdata = {[] tdata};
       end
       % remove detect/DeepTrack from stage2
-      if isSubField(tdata{2}.sPrmAll,{'ROOT','MultiAnimal','Detect'}),
-        tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
-          tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
-      end
+      tdata{2}.sPrmAll = APTParameters.toDeepTrackerParams(tdata{2}.sPrmAll,'pose');
     end
   end  % methods (Static)
 
@@ -2794,7 +2894,7 @@ classdef DeepTracker < LabelTracker
       % place.
             
       [pp3dtype,calibrationfile,rois,vcd] = myparse(varargin,...
-        'pp3dtype',obj.sPrmAll.ROOT.PostProcess.reconcile3dType, ...
+        'pp3dtype',APTParameters.getPostProcessReconcile3dType(obj.sPrmAll), ...
         'calibrationfile','',...
         'cropROIs',[],...
         'caldata',[]...
@@ -3767,7 +3867,7 @@ classdef DeepTracker < LabelTracker
       if tfnewTVM || existingTVMInit
         if isa(tvm, 'TrackingVisualizerTrackletsModel')
           if ~isempty(lObj.trackParams)
-            maxNanimals = lObj.trackParams.ROOT.MultiAnimal.Track.max_n_animals ;
+            maxNanimals = APTParameters.getMaxNAnimals(lObj.trackParams) ;
             maxNanimals = max(ceil(maxNanimals * 1.5), 10) ;
           else
             maxNanimals = 20 ;

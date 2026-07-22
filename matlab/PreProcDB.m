@@ -92,7 +92,7 @@ classdef PreProcDB < handle
         if isempty(prms)
           error('Please specify parameters.');
         end
-        prmsTgtCrop = prms.ROOT.MultiAnimal.TargetCrop;
+        prmsTgtCrop = APTParameters.getMATargetCropParams(prms);
       end      
 %       assert(isstruct(prmpp),'Expected parameters to be struct/value class.');
 

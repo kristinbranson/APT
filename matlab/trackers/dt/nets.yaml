@@ -113,6 +113,11 @@ vitpose:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 0
+  description: >
+    ViTPose is a large, transformer based method that is popular for human pose recognition. We use the implementation in the <a href="https://mmpose.readthedocs.io/en/latest/overview.html">MMPose</a> library.
+    
+    <i>Xu, Y. et al., 2022. "ViTPose: Simple Vision Transformer Baselines for Human Pose Estimation", NeurIPS.</i>
+    
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 

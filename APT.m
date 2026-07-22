@@ -132,8 +132,7 @@ classdef APT
      
       p = [aptpath(:);jaabapath(:);dtpath(:);pdolpath(:);campath(:)];
 
-      jprel = {fullfile('java','APTJava.jar')
-               fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar')};
+      jprel = {fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar')};
       jp = fullfile(aptroot,jprel);
     end
     

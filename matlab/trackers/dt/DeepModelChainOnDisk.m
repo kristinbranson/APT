@@ -1266,29 +1266,32 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       tf = (obj.iterCurr > 0) ;
     end
     
-    % % read nLabels from config file
-    % function readNLabels(obj)
-    %   if strcmp(obj.configFileExt,'.json'),
-    %     trainLocLnx = obj.trainLocLnx();
-    %     [un,~,idx] = unique(trainLocLnx);
-    %     nLabels1 = nan(1,obj.n);
-    %     for i = 1:numel(un),
-    %       assert(exist(un{i},'file') > 0);
-    %       nLabels1(idx==i) = TrnPack.readNLabels(un{i});
-    %     end
-    %     obj.setNLabels(nLabels1);
-    %   else
-    %     lblStrippedLnx = obj.lblStrippedLnx();
-    %     [un,~,idx] = unique(lblStrippedLnx);
-    %     nLabels1 = nan(1,obj.n);
-    %     for i = 1:numel(un),
-    %       assert(exist(un{i},'file') > 0);
-    %       s = load(obj.lblStrippedLnx,'preProcData_MD_frm','-mat');
-    %       nLabels1(idx==i) = size(s.preProcData_MD_frm,1);
-    %     end
-    %     obj.setNLabels(nLabels1);
-    %   end
-    % end
+    % read nLabels from config file
+    function readNLabels(obj)
+      if strcmp(obj.configFileExt,'.json'),
+        trainLocLnx = obj.trainLocLnx();
+        if ischar(trainLocLnx),
+          trainLocLnx = {trainLocLnx};
+        end
+        [un,~,idx] = unique(trainLocLnx);
+        nLabels1 = nan(1,numel(un));
+        for i = 1:numel(un),
+          assert(exist(un{i},'file') > 0);
+          nLabels1(idx==i) = sum(TrnPack.readNLabels(un{i}));
+        end
+        obj.setNLabels(nLabels1);
+      else
+        lblStrippedLnx = obj.lblStrippedLnx();
+        [un,~,idx] = unique(lblStrippedLnx);
+        nLabels1 = nan(1,obj.n);
+        for i = 1:numel(un),
+          assert(exist(un{i},'file') > 0);
+          s = load(obj.lblStrippedLnx,'preProcData_MD_frm','-mat');
+          nLabels1(idx==i) = size(s.preProcData_MD_frm,1);
+        end
+        obj.setNLabels(nLabels1);
+      end
+    end
 
     function setNLabels(obj,nLabels,varargin)
       idx = obj.select(varargin{:});

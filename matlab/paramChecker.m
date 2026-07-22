@@ -1,4 +1,5 @@
 function [isOk,msgs] = paramChecker(sPrm)
+% called by ParameterSetup
 
 isOk = init(sPrm,true);
 msgs = {};

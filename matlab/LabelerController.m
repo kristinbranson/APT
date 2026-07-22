@@ -2005,17 +2005,22 @@ classdef LabelerController < handle
         elseif labeler.lastTrainEndCause == EndCause.abort
           question_string = sprintf('Training was aborted after %s iterations.  Save project now?',...
                                     n_out_of_d_string) ;
+        elseif labeler.lastTrainEndCause == EndCause.load,
+          question_string = '';
+          % nothing to do
         else
           error('Internal error.  Please save your work if possible, restart APT, and report to the APT developers.') ;
         end        
-        res = questdlg(question_string,'Save?','Save','Save as...','No','Save') ;  % modal
-        if strcmpi(res,'Save'),
-          obj.save();
-        elseif strcmpi(res,'Save as...'),
-          obj.saveAs();
-        else
-          % do nothing
-        end  % if      
+        if ~isempty(question_string),
+          res = questdlg(question_string,'Save?','Save','Save as...','No','Save') ;  % modal
+          if strcmpi(res,'Save'),
+            obj.save();
+          elseif strcmpi(res,'Save as...'),
+            obj.saveAs();
+          else
+            % do nothing
+          end  % if
+        end
       else
         % all(isnan(iterCurr)) == true
         % This means there was an error or abort early in training.
@@ -5595,9 +5600,8 @@ classdef LabelerController < handle
           if labeler.maIsMA
             prms = labeler.trackParams;
             if ~isempty(prms)
-              if isfield(prms.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox')
-                tfScale = prms.ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox;
-              else
+              tfScale = APTParameters.getMultiScaleByBBox(prms);
+              if isempty(tfScale),
                 tfScale = false;
               end
             end
@@ -5950,28 +5954,18 @@ classdef LabelerController < handle
       oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
       drawnow;
 
-      % Compute the automatic parameters, give user chance to accept/reject them.
-      % did_update will be true iff they accepted them.
-      % tPrm will we be the current parameter tree, whether or not it incorporates
-      % the automatically-generated suggestions.
-      [tPrm, did_update, was_canceled] = obj.setAutoParams();
-      if was_canceled ,
-        return
-      end
-
       % Show the GUI window that allows users to set parameters.  sPrmNew will be
       % empty if user mode no changes, otherwise will be parameter structure holding
       % the new parameters (which have not yet been 'written' to the model).
-      sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler,'name','Training parameters');  % modal
+      out = ParameterSetup(labeler,'hPar',obj.mainFigure_,'istrain',true);
 
       % Write the parameters to the labeler, if called for.  Set doesNeedSave in the
       % labeler, as needed.     
-      if isempty(sPrmNew)
-        if did_update
-          labeler.setDoesNeedSave(true,'Parameters changed') ;
-        end
-      else
+      if ~isempty(out)
+        sPrmNew = out{1};
+        keypointParams = out{2};
         labeler.trackSetTrainingParams(sPrmNew);
+        labeler.setKeypointParams(keypointParams);
         labeler.setDoesNeedSave(true,'Parameters changed') ;
       end
     end  % function
@@ -5980,9 +5974,13 @@ classdef LabelerController < handle
 
     function menu_track_settrackparams_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      tPrm = labeler.trackGetTrackParams();
-      sPrmTrack = ParameterSetup(obj.mainFigure_, tPrm, 'labelerObj', labeler,'name','Tracking parameters');  % modal
-      labeler.setTrackingParameters(sPrmTrack) ;
+      out = ParameterSetup(labeler,'hPar',obj.mainFigure_,'istrain',false);  % modal
+      if ~isempty(out),
+        sPrmTrack = out{1};
+        keypointParams = out{2};
+        labeler.setTrackingParameters(sPrmTrack) ;
+        labeler.setKeypointParams(keypointParams);
+      end
     end
 
 

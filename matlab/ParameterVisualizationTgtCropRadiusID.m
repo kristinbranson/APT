@@ -167,7 +167,7 @@ classdef ParameterVisualizationTgtCropRadiusID < ParameterVisualization
           xc = obj.xTrx;
           yc = obj.yTrx;
         end
-        rad = maGetTgtCropRad(sPrm);
+        rad = APTParameters.getMATargetCropRadiusManual(sPrm);
         half_w = rad;
         half_h = rad;
       end

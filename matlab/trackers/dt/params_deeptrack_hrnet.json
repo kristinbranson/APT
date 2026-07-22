@@ -1,0 +1,64 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "HRNet": {
+    "Description": "High-Resolution Net (HRNet) parameters",
+    "DispName": "",
+    "ignore_occluded": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Do not train on keypoints labeled as 'occluded'",
+      "DispName": "Ignore occluded keypoints during training",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "hrnet",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "mmpose_net": {
+      "AffectsTraining": true,
+      "DefaultValue": "hrnet",
+      "Description": "Which pose estimation network to use from MMPose ",
+      "DispName": "Network from MMPose",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "hrnet",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": false
+    },
+    "mmpose_use_apt_augmentation": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Use APT's augmentation routines for data augmention. Else use MMPose's native routines",
+      "DispName": "Use APT augmentation",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "hrnet",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "db_format": {
+      "AffectsTraining": true,
+      "DefaultValue": "coco",
+      "Description": "Format for the training database",
+      "DispName": "Database format",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "hrnet",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": false
+    }
+  }
+}
