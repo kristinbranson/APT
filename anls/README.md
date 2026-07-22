@@ -10,5 +10,5 @@ of the APT application and not on the normal path.
   ("SH") datasets (training-data assembly, cropping, kinematics).
 - `PlotReachData/` — plotting for the mouse-reach labeling data.
 
-These are historical artifacts; many reference code that no longer
-exists and may not run as-is.
+Some of these are historical artifacts and many reference code that no
+longer exists and may not run as-is.
