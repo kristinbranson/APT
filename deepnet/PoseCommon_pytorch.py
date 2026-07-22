@@ -307,6 +307,8 @@ class PoseCommon_pytorch(object):
         self.prev_models = []
         self.td_fields = ['dist','loss']
         self.train_epoch = 1
+        # Set when training starts from a previously trained model (-model_files) so that losses can skip from-scratch curricula (e.g. the wt_offset boost in Pose_multi_mdn_joint_torch.loss).
+        self.init_from_model_file = False
         self.zero_seeds = zero_seeds
         self.img_prefix_override = img_prefix_override
         self.debug = debug
@@ -765,6 +767,7 @@ class PoseCommon_pytorch(object):
                 else:
                     model.load_state_dict(ckpt['model_state_params'])
                 logging.info('Inititalizing model weights from {}'.format(model_file))
+                self.init_from_model_file = True
             except Exception as e:
                 logging.info(f'Could not initialize model weights from {model_file}')
                 logging.info(e)

@@ -627,7 +627,11 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         n_classes = self.conf.n_classes
         offset = self.offset
         locs_joint, wts_joint, locs_ref, wts_ref, occ_pred,dist_pred = preds
-        j_wt_factor = max(0,(self.step[1]*0.5-self.step[0])/(self.step[1]*0.5))
+        if self.init_from_model_file:
+            # The wt_offset boost curriculum is for training from scratch. Applying it when starting from a trained model shifts the loss optimum for the detection logits down by wt_offset, suppressing detections at prediction time for the first half of training.
+            j_wt_factor = 0.
+        else:
+            j_wt_factor = max(0,(self.step[1]*0.5-self.step[0])/(self.step[1]*0.5))
         wts_joint = wts_joint - self.wt_offset*j_wt_factor
 
         # ll_joint has the weight logits
@@ -877,7 +881,11 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         n_classes = self.conf.n_classes
         offset = self.offset
         locs_joint, wts_joint, locs_ref, wts_ref, occ_pred = preds
-        j_wt_factor = max(0,(self.step[1]*0.5-self.step[0])/(self.step[1]*0.5))
+        if self.init_from_model_file:
+            # The wt_offset boost curriculum is for training from scratch. Applying it when starting from a trained model shifts the loss optimum for the detection logits down by wt_offset, suppressing detections at prediction time for the first half of training.
+            j_wt_factor = 0.
+        else:
+            j_wt_factor = max(0,(self.step[1]*0.5-self.step[0])/(self.step[1]*0.5))
         wts_joint = wts_joint - self.wt_offset*j_wt_factor
 
         # ll_joint has the weight logits
@@ -1093,7 +1101,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         if not self.hmap_loss:
             # Ref map coordinates for all candidates
             rpred_all = all_joint_locs * self.offset / self.ref_scale  # (bsz, k, n_classes, 2)
-            mm_all = torch.round(rpred_all).int()  # (bsz, k, n_classes, 2)
+            mm_all = torch.round(rpred_all).long()  # (bsz, k, n_classes, 2)
             isout = (mm_all[..., 0] >= n_x_r) | (mm_all[..., 1] >= n_y_r) | \
                     (mm_all[..., 0] < 0) | (mm_all[..., 1] < 0)  # (bsz, k, n_classes)
 
@@ -1681,9 +1689,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             locs_sz = (conf.batch_size, conf.n_classes, 2)
             locs_dummy = np.zeros(locs_sz)
             ims_in, _ = PoseTools.preprocess_ims(ims_in,locs_dummy,conf,False,conf.rescale)
-            # Pad to multiple of 32
-            pad1 = int(np.ceil(ims_in.shape[1]/32)*32 - ims_in.shape[1])
-            pad2 = int(np.ceil(ims_in.shape[2]/32)*32 - ims_in.shape[2])
+            if conf.mdn_backbone in ['swin','vit']:
+                pad1 = int(np.ceil(conf.imsz[0]/conf.rescale/32))*32 - ims_in.shape[1]
+                pad2 = int(np.ceil(conf.imsz[1]/conf.rescale/32))*32 - ims_in.shape[2]
+            else:
+                # Pad to multiple of 32
+                pad1 = int(np.ceil(ims_in.shape[1]/32)*32 - ims_in.shape[1])
+                pad2 = int(np.ceil(ims_in.shape[2]/32)*32 - ims_in.shape[2])
             if pad1 > 0 or pad2 > 0:
                 ims_in = np.pad(ims_in, [[0,0],[0,pad1],[0,pad2],[0,0]], mode='constant', constant_values=0)
             return ims_in
