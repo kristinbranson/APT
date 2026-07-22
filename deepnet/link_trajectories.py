@@ -3275,27 +3275,31 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   for cur_id, cur_trk in zip(ids, linked_trks):
     _, maxv = cur_id.get_min_max_val()
     nids = np.max(maxv) + 1
-    t0s = np.zeros(nids, dtype=int)
-    t1s = np.zeros(nids, dtype=int)
-    ids_remove = []
-    idx_all = cur_id.where_all(nids)
-    for id in range(nids):
-      idx = [idx_all[0][id],idx_all[1][id]]
-      # idx = np.nonzero(id==ids)
-      if idx[1].size>0:
-        t0s[id] = np.min(idx[1])
-        t1s[id] = np.max(idx[1])
-      else:
-        t1s[id] = -1
-        ids_remove.append(id)
-    isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids, cur_id.T))
-    isdummy.allocate((1,), t0s, t1s)
 
-    ids_short = []
     if not keep_all_preds:
+      t0s = np.zeros(nids, dtype=int)
+      t1s = np.zeros(nids, dtype=int)
+      ids_remove = []
+      idx_all = cur_id.where_all(nids)
+      for id in range(nids):
+        idx = [idx_all[0][id],idx_all[1][id]]
+        # idx = np.nonzero(id==ids)
+        if idx[1].size>0:
+          t0s[id] = np.min(idx[1])
+          t1s[id] = np.max(idx[1])
+        else:
+          t1s[id] = -1
+          ids_remove.append(id)
+      isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids, cur_id.T))
+      isdummy.allocate((1,), t0s, t1s)
+
+      ids_short = []
       cur_id, ids_short = delete_short(cur_id, isdummy, params)
       if len(linked_trks)<2:
         _, cur_id = cur_id.unique()
+    else:
+        ids_short = []
+        ids_remove = []
 
     ids_left = [i for i in range(nids) if (i not in ids_short) and (i not in ids_remove)]
     # Apply the ids to trk.
@@ -4440,6 +4444,7 @@ def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_
         hh = hh[np.lexsort((-tlen[hh], link_scores))]
         keep = np.ones(len(hh), dtype=bool)
 
+        ndxh = 0
         for ndxh, curh in enumerate(hh):
           # select only one for overlapping tracklets
           if np.all(occ1 <= 1):
