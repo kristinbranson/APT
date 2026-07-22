@@ -2802,18 +2802,19 @@ classdef Labeler < handle
 
       % Initialize preprocessed data cache
       if isfield(s, 'ppdb') && ~isempty(s.ppdb)
-        % If the saved cache does not deserialize as a PreProcData, it was
-        % likely saved by an older APT version holding the pre-rename
-        % CPRData class. Hard-error for now (rather than silently dropping
-        % the cache) so that any such project in the test suite is caught
-        % loudly.
-        assert(isa(s.ppdb,'PreProcDB') && isa(s.ppdb.dat,'PreProcData'), ...
-          'Labeler:dataCache', ...
-          ['The saved DL data cache could not be loaded as a PreProcData ' ...
-           '(the class was renamed from CPRData); this project was likely ' ...
-           'saved by an older APT version.']) ;
-        fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
-        obj.ppdb = s.ppdb;
+        if isa(s.ppdb,'PreProcDB') && isa(s.ppdb.dat,'PreProcData')
+          fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
+          obj.ppdb = s.ppdb;
+        else
+          % The saved cache did not deserialize as a PreProcData -- it was
+          % likely saved by an older APT version holding the pre-rename
+          % CPRData class. The data cache is regenerable, so just drop it
+          % (leaving obj.ppdb empty for ppdbInit to recreate later).
+          warningNoTrace('Labeler:dataCache', ...
+            ['Dropping the saved DL data cache: it could not be loaded as ' ...
+             'a PreProcData (likely saved by an older APT version). It will ' ...
+             'be regenerated as needed.']) ;
+        end
       end
       fprintf('Initialized properties from loaded data (%f s).\n',toc(t0));
 
