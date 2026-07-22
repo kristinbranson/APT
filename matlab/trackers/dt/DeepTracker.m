@@ -3448,7 +3448,11 @@ classdef DeepTracker < LabelTracker
           trkfileObj = TrkFile.load(tfile,'issilent',true,'movfile',movfile,...
                                     'movnframes',movnframes);
         end
-        tfsuccload = true;
+        if isempty(trkfileObj)
+          tfsuccload = false;
+        else
+          tfsuccload = true;
+        end
       catch ME
         warningNoTrace('Failed to load trkfile: ''%s''. Error: %s',...
           tfile,ME.message);

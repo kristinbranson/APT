@@ -585,7 +585,15 @@ classdef TrkFile < dynamicprops
       end
       
       if ~isempty(obj.pTrk)
-        obj.npts = size(obj.pTrk{1},1); 
+        obj.npts = 1; % in case all pTrk are empty;
+        for n = 1:numel(obj.pTrk)
+          if isempty(obj.pTrk{n}),
+            continue
+          else
+            obj.npts = size(obj.pTrk{n},1); 
+            break
+          end
+        end
         obj.nframes = double(max(obj.endframes));
       else
         try 
