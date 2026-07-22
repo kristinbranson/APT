@@ -802,7 +802,11 @@ classdef APTParameters
       % translation will happen in order
       % oldfld,newfld
       translateflds = {
-        'ROOT.MultiAnimalDetection',APTParameters.maDetectPath
+        'ROOT.MultiAnimalDetection','ROOT.MultiAnimal.Detect'
+        'ROOT.MultiAnimal.Detect.max_n_animals','ROOT.MultiAnimal.Track.max_n_animals'
+        'ROOT.MultiAnimal.Detect.min_n_animals','ROOT.MultiAnimal.Track.min_n_animals'
+        'ROOT.MultiAnimal.max_n_animals','ROOT.MultiAnimal.Track.max_n_animals'
+        'ROOT.MultiAnimal.min_n_animals','ROOT.MultiAnimal.Track.min_n_animals'
         'ROOT.MultiAnimal.Detect',APTParameters.maDetectPath
         'ROOT.ImageProcessing.MultiTarget.TargetCrop','ROOT.MultiAnimal.TargetCrop'
         'ROOT.MultiAnimal.TargetCrop.Radius','ROOT.MultiAnimal.TargetCrop.ManualRadius'
@@ -830,7 +834,12 @@ classdef APTParameters
         end
       end
 
-      rmflds = {'ROOT.DeepTrack.DeepPoseKit.dpk_test',
+      % The ImageProcessing subtree (background subtraction, histogram
+      % equalization, neighbor masking) is no longer supported; drop any
+      % stale copy carried by an older project so it does not linger in
+      % the param struct.
+      rmflds = {'ROOT.ImageProcessing',
+        'ROOT.DeepTrack.DeepPoseKit.dpk_test',
         'ROOT.DeepTrack.MMDetect.test'
         'ROOT.MultiAnimalDetect.DeepTrack.MMDetect.test'
         'ROOT.DeepTrack.MMDetect_FRCNN.test',
@@ -840,6 +849,14 @@ classdef APTParameters
         if structisfield(sPrmAll,oldfld),
           sPrmAll = structrmfield(sPrmAll,oldfld);
         end
+      end
+
+      % Older projects predate the user-facing animal-count cap; seed it
+      % from the project's configured maximum.
+      if structisfield(sPrmAll,'ROOT.MultiAnimal.Track.max_n_animals') && ...
+          ~structisfield(sPrmAll,'ROOT.MultiAnimal.Track.max_n_animals_user'),
+        sPrmAll.ROOT.MultiAnimal.Track.max_n_animals_user = ...
+          sPrmAll.ROOT.MultiAnimal.Track.max_n_animals;
       end
 
       sPrmDflt = APTParameters.defaultParamsStructAll;
