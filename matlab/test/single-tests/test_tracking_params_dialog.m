@@ -57,9 +57,8 @@ end
 
 % The dialog should show the whole tracking tree at the highest level.
 % For an MA project that includes the MultiAnimal.Track subtree as well
-% as the Track category with its three NFrames* leaves.  (ChunkSize
-% requires isCPR, and PostProcess's reconcile3dType requires a
-% multiview project.)
+% as the Track category with its three NFrames* leaves.
+% (PostProcess's reconcile3dType requires a multiview project.)
 fprintf('%s: shown property counts by level: %s\n', ...
         mfilename(), mat2str(rowCountFromSweepIndex)) ;
 assert(rowCountFromSweepIndex(end) > 10, ...
