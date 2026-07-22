@@ -32,6 +32,17 @@
       "Type": "boolean",
       "isEditable": true
     },
+    "mdn_backbone": {
+      "AffectsTraining": true,
+      "DefaultValue": "resnet50",
+      "Description": "Backbone network to use for GRONe. Available options are resnet50, hrnet, vit",
+      "DispName": "Backbone",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "string",
+      "isEditable": true
+    },
     "ignore_occluded": {
       "AffectsTraining": true,
       "DefaultValue": 0,
@@ -89,7 +100,7 @@
       "isEditable": true
     },
     "db_format": {
-      "AffectsTraining": true,
+      "AffectsTraining": false,
       "DefaultValue": "coco",
       "Description": "Format for the training database",
       "DispName": "Database format",

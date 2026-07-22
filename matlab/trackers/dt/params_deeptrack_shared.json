@@ -114,6 +114,19 @@
         ],
         "Type": "float",
         "isEditable": true
+      },
+      "pad_images": {
+        "AffectsTraining": true,
+        "DefaultValue": true,
+        "Description": "If the video frame sizes are different, then whether to pad the images or resize the image to the common size. If selected then pad the images else resize",
+        "DispName": "Pad or resize",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
       }
     },
     "DataAugmentation": {
@@ -173,7 +186,7 @@
       },
       "perturb_color": {
         "AffectsTraining": true,
-        "DefaultValue": false,
+        "DefaultValue": true,
         "Description": "Whether to augment by perturbing image color by offsetting each color channel by up to ('Max pixel value')/8. This is only useful if you have color videos and variable lighting. ",
         "DispName": "Perturb color",
         "Level": "Advanced",
@@ -187,4 +200,3 @@
     }
   }
 }
-   

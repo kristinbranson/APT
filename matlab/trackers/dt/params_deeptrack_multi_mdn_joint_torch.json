@@ -5,7 +5,7 @@
     "Description": "Parameters related to multi-animal GRONe",
     "DispName": "",
     "db_format": {
-      "AffectsTraining": true,
+      "AffectsTraining": false,
       "DefaultValue": "coco",
       "Description": "Format for the training database",
       "DispName": "Database format",
@@ -44,6 +44,50 @@
         "isDeepTrack"
       ],
       "Type": "boolean",
+      "isEditable": true
+    },
+    "pretrain_freeze_bnorm": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Freeze batch norm weights of the backbone to the pretrained weights",
+      "DispName": "Freeze batch norm",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "mdn_backbone": {
+      "AffectsTraining": true,
+      "DefaultValue": "resnet50",
+      "Description": "Backbone network to use for GRONe. Available options are resnet50, hrnet, vit, convnext, swin",
+      "DispName": "Backbone",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "string",
+      "isEditable": true
+    },
+    "mdn_pred_dist": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Predict confidence for MDN predictions.",
+      "DispName": "Predict confidence",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "mdn_base_lr": {
+      "AffectsTraining": true,
+      "DefaultValue": 0.0001,
+      "Description": "Base learning rate for training. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 0.0001",
+      "DispName": "Base Learning Rate",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "float",
       "isEditable": true
     }
   }

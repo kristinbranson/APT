@@ -12,7 +12,7 @@
       "Level": "Important",
       "ParamViz": "",
       "Requirements": [
-	    "ma"
+        "ma"
       ],
       "Type": "boolean",
       "isEditable": true
@@ -25,7 +25,8 @@
       "Level": "Beginner",
       "ParamViz": "",
       "Requirements": [
-          "~isObjDet", "ma"
+        "~isObjDet",
+        "ma"
       ],
       "Type": "boolean",
       "isEditable": true
@@ -38,7 +39,8 @@
       "Level": "Beginner",
       "ParamViz": "",
       "Requirements": [
-          "~isObjDet", "ma"
+        "~isObjDet",
+        "ma"
       ],
       "Type": "unsigned",
       "isEditable": false
@@ -179,6 +181,19 @@
         "DefaultValue": 0,
         "Description": "APT will detect at least this many animals in each frame.",
         "DispName": "Minimum number of animals",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "ma"
+        ],
+        "Type": "unsigned",
+        "isEditable": false
+      },
+      "max_n_animals_user": {
+        "AffectsTraining": false,
+        "DefaultValue": 30,
+        "Description": "APT will detect at most this many animals in each frame.",
+        "DispName": "Maximum number of animals",
         "Level": "Important",
         "ParamViz": "",
         "Requirements": [
@@ -191,14 +206,14 @@
         "AffectsTraining": false,
         "DefaultValue": 30,
         "Description": "APT will detect at most this many animals in each frame.",
-        "DispName": "Maximum number of animals",
-        "Level": "Important",
+        "DispName": "Maximum number of animals to detect",
+        "Level": "Developer",
         "ParamViz": "",
         "Requirements": [
           "ma"
         ],
         "Type": "unsigned",
-        "isEditable": true
+        "isEditable": false
       },
       "TrackletStitch": {
         "Description": "Settings related to stitching poses detected on each frame into tracklets across many video frames.",
@@ -218,19 +233,6 @@
             "second",
             "none"
           ],
-          "isEditable": true
-        },
-        "link_id": {
-          "AffectsTraining": false,
-          "DefaultValue": false,
-          "Description": "Whether to use individual-identity-recognition from the appearance of each animal to stitch tracklets into longer trajectories. This requires training an additional network to recognize individual animals in a manner similar to how facial recognition networks are trained to recognize individual people. It takes extra time, but does not require extra training data. ",
-          "DispName": "Identity Linking",
-          "Level": "Important",
-          "ParamViz": "",
-          "Requirements": [
-            "ma"
-          ],
-          "Type": "boolean",
           "isEditable": true
         },
         "link_maxcost_heuristic": {
@@ -379,13 +381,26 @@
           "Type": "unsigned",
           "isEditable": true
         },
-        "link_id_cropsz": {
+        "link_id_cropsz_height": {
           "AffectsTraining": false,
           "DefaultValue": -1,
-          "Description": "Size of the square (in pixels) to crop around the animal for identity recognition. If less than 0, the automatically-computed crop size is used. Set this to a value > 0 to override with a fixed value. ",
-          "DispName": "Square size to use for identity recognition",
+          "Description": "Height of the crop to use for ID linking after the animal is aligned to face up",
+          "DispName": "Crop height for ID Linking",
           "Level": "Advanced",
-          "ParamViz": "",
+          "ParamViz": "ParameterVisualizationTgtCropRadiusID",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "signed",
+          "isEditable": true
+        },
+        "link_id_cropsz_width": {
+          "AffectsTraining": false,
+          "DefaultValue": -1,
+          "Description": "Width of the crop to use for ID linking after the animal is aligned to face up",
+          "DispName": "Crop width for ID Linking",
+          "Level": "Advanced",
+          "ParamViz": "ParameterVisualizationTgtCropRadiusID",
           "Requirements": [
             "ma"
           ],

@@ -36,19 +36,6 @@
       "Requirements": [],
       "Type": "unsigned",
       "isEditable": true
-    },
-    "ChunkSize": {
-      "AffectsTraining": false,
-      "DefaultValue": 3000,
-      "Description": "Track large movies in chunks of this size (in frames).",
-      "DispName": "Chunk Size",
-      "Level": "Advanced",
-      "ParamViz": "",
-      "Requirements": [
-        "isCPR"
-      ],
-      "Type": "unsigned",
-      "isEditable": true
     }
   }
 }

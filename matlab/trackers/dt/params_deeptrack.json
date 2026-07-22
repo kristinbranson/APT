@@ -32,7 +32,7 @@
         "Level": "Important",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack"
+          "isDeepTrack"
         ],
         "Type": "unsigned",
         "isEditable": true
@@ -45,7 +45,8 @@
         "Level": "Important",
         "ParamViz": "ParameterVisualizationMemory",
         "Requirements": [
-            "isDeepTrack", "~DeepLabCut"
+          "isDeepTrack",
+          "~DeepLabCut"
         ],
         "Type": "unsigned",
         "isEditable": true
@@ -58,7 +59,9 @@
         "Level": "Advanced",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack", "~DeepLabCut", "~LEAP"
+          "isDeepTrack",
+          "~DeepLabCut",
+          "~LEAP"
         ],
         "Type": "float",
         "isEditable": true
@@ -84,7 +87,7 @@
         "Level": "Obsolete",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack"
+          "isDeepTrack"
         ],
         "Type": "unsigned",
         "isEditable": true
@@ -97,7 +100,7 @@
         "Level": "Obsolete",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack"
+          "isDeepTrack"
         ],
         "Type": "float",
         "isEditable": true
@@ -110,7 +113,7 @@
         "Level": "Obsolete",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack"
+          "isDeepTrack"
         ],
         "Type": "float",
         "isEditable": true
@@ -186,7 +189,7 @@
       },
       "check_bounds_distort": {
         "AffectsTraining": true,
-        "DefaultValue": 1,
+        "DefaultValue": 0,
         "Description": "When augmenting, do we require that all the label keypoints remain within the image bounds? Set this to true if your targets are always completely within view (e.g. they are in an enclosed environment). Set this to false if sometimes targets are partly in and partly out of view.",
         "DispName": "Augmented keypoints within image",
         "Level": "Beginner",
@@ -209,7 +212,9 @@
         "Level": "Advanced",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack", "~DeepLabCut", "~LEAP"
+          "isDeepTrack",
+          "~DeepLabCut",
+          "~LEAP"
         ],
         "Type": "float",
         "isEditable": true
