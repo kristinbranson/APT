@@ -593,9 +593,18 @@ classdef APTParameters
     
     % set tracking-specific parameters
     function sPrmAll = setTrackParams(sPrmAll,sPrmTrack)
+      % sPrmTrack is a tracking-parameter struct as produced by
+      % all2TrackParams / the tracking-parameters dialog, which carries
+      % the full tree shape (MultiAnimal.Track).  The older compressed
+      % form put the Track subtree contents directly under MultiAnimal;
+      % accept both.
       sPrmAll.ROOT.Track = sPrmTrack.ROOT.Track;
-      sPrmAll.ROOT.MultiAnimal.Track = sPrmTrack.ROOT.MultiAnimal;
-      sPrmAll.ROOT.PostProcess = sPrmTrack.ROOT.PostProcess;  
+      if isfield(sPrmTrack.ROOT.MultiAnimal,'Track'),
+        sPrmAll.ROOT.MultiAnimal.Track = sPrmTrack.ROOT.MultiAnimal.Track;
+      else
+        sPrmAll.ROOT.MultiAnimal.Track = sPrmTrack.ROOT.MultiAnimal;
+      end
+      sPrmAll.ROOT.PostProcess = sPrmTrack.ROOT.PostProcess;
     end
     
     % set specific dl parameters for input netType
