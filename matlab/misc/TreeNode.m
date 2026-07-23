@@ -77,15 +77,6 @@ classdef TreeNode < handle
       end
     end
 
-    function pruneInvisible(t)
-      % Remove non-Visible descendants from the tree, in place.
-      isNodeKept = arrayfun(@(child)(logical(child.Data.Visible)), t.Children) ;
-      t.Children = t.Children(isNodeKept) ;
-      for i = 1:numel(t.Children)
-        t.Children(i).pruneInvisible() ;
-      end
-    end  % function
-
     function s = jsonify(t)
       % Convert Tree to a struct for outputting to json file
       s = struct;

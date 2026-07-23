@@ -70,24 +70,22 @@ assert(isequaln(sPrmDefault, sPrmRoundTripped), ...
        'Parameter struct did not survive a structapply()/structize() round-trip') ;
 
 % The tracking-parameter subset (AffectsTraining == false) should
-% extract cleanly, keep the tracking-related sections and parameters,
-% and exclude training-only parameters
+% extract cleanly.  The struct form deliberately contains the full
+% parameter structure (the tracking-job config relies on that); the
+% tracking/training distinction is carried by the tree's Visible flags,
+% which is what the tracking-parameters dialog renders from.
 sPrmTrack = APTParameters.all2TrackParams(sPrmDefault) ;
-trackSectionNames = fieldnames(sPrmTrack.ROOT) ;
-expectedTrackSectionNames = { 'Track', 'MultiAnimal', 'PostProcess' } ;
-for i = 1 : numel(expectedTrackSectionNames)
-  assert(ismember(expectedTrackSectionNames{i}, trackSectionNames), ...
-         'Section %s is missing from the tracking-parameter subset', ...
-         expectedTrackSectionNames{i}) ;
-end
 assert(structisfield(sPrmTrack, 'ROOT.Track.NFramesNeighborhood'), ...
        'Tracking parameter NFramesNeighborhood is missing from the tracking-parameter subset') ;
 assert(structisfield(sPrmTrack, 'ROOT.MultiAnimal.Track.max_n_animals_user'), ...
        'Tracking parameter max_n_animals_user is missing from the tracking-parameter subset') ;
-assert(~structisfield(sPrmTrack, 'ROOT.DeepTrack.GradientDescent.dl_steps'), ...
-       'Training parameter dl_steps should not be in the tracking-parameter subset') ;
-assert(~structisfield(sPrmTrack, 'ROOT.DeepTrack.DataAugmentation.rrange'), ...
-       'Training parameter rrange should not be in the tracking-parameter subset') ;
+trackTreeFiltered = APTParameters.all2TrackParams(sPrmDefault, 'outputformat', 'tree') ;
+assert(trackTreeFiltered.findnode('ROOT.Track.NFramesNeighborhood').Data.Visible, ...
+       'Tracking parameter NFramesNeighborhood should be visible in the tracking-parameter tree') ;
+assert(~trackTreeFiltered.findnode('ROOT.DeepTrack.GradientDescent.dl_steps').Data.Visible, ...
+       'Training parameter dl_steps should not be visible in the tracking-parameter tree') ;
+assert(~trackTreeFiltered.findnode('ROOT.DeepTrack.DataAugmentation.rrange').Data.Visible, ...
+       'Training parameter rrange should not be visible in the tracking-parameter tree') ;
 
 % The tracking-parameter tree should also load without error
 trackTree = APTParameters.defaultTrackParamsTree() ;

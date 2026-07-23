@@ -130,9 +130,11 @@ classdef APTParameters
       tree = APTParameters.defaultTrackParamsTree(rest{:});
       tree.structapply(sPrmAll);
       if strcmp(outputformat,'struct'),
-        % The tracking-parameter filter marks non-tracking nodes as not
-        % Visible; structize() does not honor that, so prune them.
-        tree.pruneInvisible();
+        % Note that the struct form contains every parameter: the
+        % tracking-parameter filter only marks non-tracking nodes as not
+        % Visible, and structize() does not honor that.  Downstream
+        % consumers (e.g. the tracking-job config) rely on the full
+        % structure being present.
         v = tree.structize();
       else
         v = tree;
