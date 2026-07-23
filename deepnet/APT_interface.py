@@ -1106,8 +1106,14 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
 def override_params(dt_params,dt_params_override):
     for key in dt_params_override:
         if isinstance(dt_params_override[key],dict):
-            # call recurrently
-            override_params(dt_params[key],dt_params_override[key])
+            if key not in dt_params:
+                # e.g. a parameter subtree added to APT after the base
+                # config was saved
+                logging.info(f'Adding {key} = {dt_params_override[key]}')
+                dt_params[key] = dt_params_override[key]
+            else:
+                # call recurrently
+                override_params(dt_params[key],dt_params_override[key])
         else:
             # base case
             if key not in dt_params:
