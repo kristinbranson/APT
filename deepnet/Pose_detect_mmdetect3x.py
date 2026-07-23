@@ -941,7 +941,13 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
     # That file doesn't necessarily exist, so deal with that
     if os.path.exists(training_file):
         A = PoseTools.json_load(training_file)
-        cls = tuple([aa['name'] for aa in A['categories']])
+        if isinstance(A, dict) and 'categories' in A:
+            cls = tuple([aa['name'] for aa in A['categories']])
+        else:
+            # a model trained before the switch to coco-format training
+            # databases has a train file in the old format
+            logging.info(f'{training_file} is not in coco format; leaving classes empty')
+            cls = ()  # should be ok for tracking
     else:
         cls = ()  # should be ok for tracking
     for ttype in ['train', 'val', 'test']:

@@ -69,12 +69,25 @@ sPrmRoundTripped = secondTree.structize() ;
 assert(isequaln(sPrmDefault, sPrmRoundTripped), ...
        'Parameter struct did not survive a structapply()/structize() round-trip') ;
 
-% The tracking-parameter subset should extract cleanly and contain
-% exactly the tracking-related sections
-sPrmTrack = APTParameters.all2TrackParams(sPrmDefault, false) ;
+% The tracking-parameter subset (AffectsTraining == false) should
+% extract cleanly, keep the tracking-related sections and parameters,
+% and exclude training-only parameters
+sPrmTrack = APTParameters.all2TrackParams(sPrmDefault) ;
 trackSectionNames = fieldnames(sPrmTrack.ROOT) ;
-assert(isequal(sort(trackSectionNames), sort({ 'Track' ; 'MultiAnimal' ; 'PostProcess' })), ...
-       'Tracking-parameter subset has unexpected sections') ;
+expectedTrackSectionNames = { 'Track', 'MultiAnimal', 'PostProcess' } ;
+for i = 1 : numel(expectedTrackSectionNames)
+  assert(ismember(expectedTrackSectionNames{i}, trackSectionNames), ...
+         'Section %s is missing from the tracking-parameter subset', ...
+         expectedTrackSectionNames{i}) ;
+end
+assert(structisfield(sPrmTrack, 'ROOT.Track.NFramesNeighborhood'), ...
+       'Tracking parameter NFramesNeighborhood is missing from the tracking-parameter subset') ;
+assert(structisfield(sPrmTrack, 'ROOT.MultiAnimal.Track.max_n_animals_user'), ...
+       'Tracking parameter max_n_animals_user is missing from the tracking-parameter subset') ;
+assert(~structisfield(sPrmTrack, 'ROOT.DeepTrack.GradientDescent.dl_steps'), ...
+       'Training parameter dl_steps should not be in the tracking-parameter subset') ;
+assert(~structisfield(sPrmTrack, 'ROOT.DeepTrack.DataAugmentation.rrange'), ...
+       'Training parameter rrange should not be in the tracking-parameter subset') ;
 
 % The tracking-parameter tree should also load without error
 trackTree = APTParameters.defaultTrackParamsTree() ;

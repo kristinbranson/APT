@@ -91,8 +91,24 @@ classdef APTParameters
       
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmMA.Children; tPrmDTShared; tPrmDetect.Children; tPrmDT.Children; tPrmPostProc.Children; tPrmTrack.Children];
+      APTParameters.pruneEmptySections(tPrm0);
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
+    end
+
+    function pruneEmptySections(tPrm)
+      % Remove childless section nodes from the tree, in place.  A section
+      % whose parameters have all been retired (e.g. DeepPoseKit) would
+      % otherwise masquerade as a parameter leaf with an empty Type, which
+      % the parameter-setup UI cannot render.  Sections are distinguished
+      % from real leaves by their empty Type.
+      isEmptySection = false(size(tPrm.Children)) ;
+      for i = 1:numel(tPrm.Children)
+        child = tPrm.Children(i) ;
+        APTParameters.pruneEmptySections(child) ;
+        isEmptySection(i) = isempty(child.Children) && isempty(child.Data.Type) ;
+      end
+      tPrm.Children(isEmptySection) = [] ;
     end
 
     function tPrm0 = defaultTrackParamsTree(varargin)
@@ -114,6 +130,9 @@ classdef APTParameters
       tree = APTParameters.defaultTrackParamsTree(rest{:});
       tree.structapply(sPrmAll);
       if strcmp(outputformat,'struct'),
+        % The tracking-parameter filter marks non-tracking nodes as not
+        % Visible; structize() does not honor that, so prune them.
+        tree.pruneInvisible();
         v = tree.structize();
       else
         v = tree;
@@ -841,7 +860,7 @@ classdef APTParameters
       rmflds = {'ROOT.ImageProcessing',
         'ROOT.CPR',
         'ROOT.Track.ChunkSize',
-        'ROOT.DeepTrack.DeepPoseKit.dpk_test',
+        'ROOT.DeepTrack.DeepPoseKit',
         'ROOT.DeepTrack.MMDetect.test'
         'ROOT.MultiAnimalDetect.DeepTrack.MMDetect.test'
         'ROOT.DeepTrack.MMDetect_FRCNN.test',
