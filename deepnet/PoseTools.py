@@ -1222,7 +1222,9 @@ def get_timestamps(conf, info):
     return ts
 
 def dbformat_to_extension(db_format):
-    if db_format == 'tfrecords':
+    # both spellings occur in the wild: poseConfig and saved project
+    # parameters use 'tfrecord', some newer code uses 'tfrecords'
+    if db_format in ('tfrecord', 'tfrecords'):
         return '.tfrecords'
     elif db_format == 'coco':
         return '.json'
