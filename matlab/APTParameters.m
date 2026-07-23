@@ -871,6 +871,7 @@ classdef APTParameters
       rmflds = {'ROOT.ImageProcessing',
         'ROOT.CPR',
         'ROOT.Track.ChunkSize',
+        'ROOT.MultiAnimal.Track.TrackletStitch.link_id',
         'ROOT.DeepTrack.DeepPoseKit',
         'ROOT.DeepTrack.MMDetect.test'
         'ROOT.MultiAnimalDetect.DeepTrack.MMDetect.test'
@@ -889,6 +890,20 @@ classdef APTParameters
           ~structisfield(sPrmAll,'ROOT.MultiAnimal.Track.max_n_animals_user'),
         sPrmAll.ROOT.MultiAnimal.Track.max_n_animals_user = ...
           sPrmAll.ROOT.MultiAnimal.Track.max_n_animals;
+      end
+
+      % The scalar ID-linking crop size was split into separate height and
+      % width parameters; carry an older project's value over to both.
+      if structisfield(sPrmAll,'ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz'),
+        cropSize = sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz;
+        if ~structisfield(sPrmAll,'ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_height'),
+          sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_height = cropSize;
+        end
+        if ~structisfield(sPrmAll,'ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_width'),
+          sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_width = cropSize;
+        end
+        sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch = ...
+          rmfield(sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch,'link_id_cropsz');
       end
 
       sPrmDflt = APTParameters.defaultParamsStructAll;
