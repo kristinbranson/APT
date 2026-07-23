@@ -7,7 +7,8 @@ output = [];
 handles.output = output;
 if (nargin>=1) && isa(varargin{1},'Labeler'),
   handles.labelerObj = varargin{1};
-  [handles.hPar,handles.istrain] = myparse(varargin(2:end),'hPar',nan,'istrain',true);
+  [handles.hPar,handles.istrain,handles.controller] = ...
+    myparse(varargin(2:end),'hPar',nan,'istrain',true,'controller',[]);
 else
   feval(varargin{:});
   return;
@@ -88,7 +89,7 @@ handles.gl_buttons = uigridlayout(handles.gl_left,[1,3],...
   'ColumnWidth',{'1x',80,80});
 handles.popupmenu_level = uidropdown('Parent',handles.gl_buttons,...
   'Items',handles.levels_str,'Value',lastLevel,...
-  'ValueChangedFcn',@cbkLevelChanged);
+  'ValueChangedFcn',@cbkLevelChanged,'Tag','popupmenu_level');
 handles.pb_apply = uibutton(handles.gl_buttons,'Text','Apply',...
   'ButtonPushedFcn',@cbkApply,'Tag','pb_apply');
 handles.pb_cancel = uibutton(handles.gl_buttons,'Text','Cancel',...
@@ -450,7 +451,8 @@ output = handles.output;
 
   function cbkKeypointParams(src,evt)
     handles.vizobj = ParameterVisualizationKeypointParams();
-    handles.vizobj.init(handles.tile_viz,handles.labelerObj,'',handles.tree,@cbkStoreKeypointParams,handles.keypointParamState);
+    handles.vizobj.init(handles.tile_viz,handles.labelerObj,'',handles.tree,...
+      @cbkStoreKeypointParams,handles.keypointParamState,handles.controller);
   end
 
   function buttonhandles = InitButton(parent,varargin)

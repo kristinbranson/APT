@@ -35,7 +35,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       end
 
       if ~obj.lObj.hasMovie
-        ParameterVisualizationTgtCropRadius.grayOutAxes('No movie available.');
+        obj.grayOutAxes('No movie available.');
         return;
       end
      
@@ -51,7 +51,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       elseif obj.lObj.maIsMA
         [tffound,mIdx,frm,~,xyLbl] = obj.lObj.labelFindOneLabeledFrame(); %#ok<PROPLC>
         if ~tffound
-          ParameterVisualization.grayOutAxes('Visualization unavailable until at least one animal is labeled.');
+          obj.grayOutAxes('Visualization unavailable until at least one animal is labeled.');
           return;
         end        
         mr = MovieReader();
@@ -65,7 +65,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
         obj.yTrx = [];
         tstr = 'Region within ROI used during training';
       else
-        ParameterVisualization.grayOutAxes('Project is single-animal.');
+        obj.grayOutAxes('Project is single-animal.');
         return;
       end
       

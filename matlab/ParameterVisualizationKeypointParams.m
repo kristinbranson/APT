@@ -1,24 +1,39 @@
 classdef ParameterVisualizationKeypointParams < ParameterVisualization
-  
+  % Embeds the LandmarkSpecs keypoint-specification UI (skeleton,
+  % head/tail, swap pairs) in the visualization pane of the parameters
+  % dialog.  Edits are handed back through cbkClear when the pane is
+  % cleared, and are written to the Labeler only when the dialog is
+  % applied.
+
   properties
     hPanel
     landmarkSpecs
     cbkClear
   end
-  
+
   methods
-        
-    function init(obj,hTile,lObj,propFullName,prm,cbkClear,state,startTabTitle)
-      
+
+    function init(obj,hTile,lObj,propFullName,prm,cbkClear,state,controller,startTabTitle)
+      % Show the keypoint-specification UI in the pane holding hTile.
+      % cbkClear: function handle called with the edited state when the
+      %   pane is cleared.
+      % state: keypoint specifications to start from, in the form
+      %   Labeler.getKeypointParams() returns.
+      % controller: the LabelerController, needed by LandmarkSpecs for
+      %   the frozen reference image.
       init@ParameterVisualization(obj,hTile,lObj,propFullName,prm);
       obj.hPanel = hTile.Parent;
       obj.hTile.Visible = 'off';
       obj.cbkClear = cbkClear;
-      if ~exist('startTabTitle','var'),
-        startTabTitle = 'Correspondences';
+      if ~exist('controller','var'),
+        controller = [];
       end
-      obj.landmarkSpecs = landmark_specs('lObj',obj.lObj,'startTabTitle',startTabTitle,'hParent',obj.hPanel,'state',state,'isVert',true);
-
+      if ~exist('startTabTitle','var'),
+        startTabTitle = 'Swap Pairs';
+      end
+      obj.landmarkSpecs = LandmarkSpecs('hParent',obj.hPanel,'isVert',true,...
+        'lObj',obj.lObj,'parent',controller,'state',state,...
+        'startTabTitle',startTabTitle);
     end
 
     function s = getState(obj)
@@ -26,7 +41,7 @@ classdef ParameterVisualizationKeypointParams < ParameterVisualization
     end
 
     function clear(obj)
-      if ishandle(obj.landmarkSpecs),
+      if ~isempty(obj.landmarkSpecs) && isvalid(obj.landmarkSpecs),
         s = obj.landmarkSpecs.getState();
         feval(obj.cbkClear,s);
         delete(obj.landmarkSpecs);
@@ -37,7 +52,6 @@ classdef ParameterVisualizationKeypointParams < ParameterVisualization
     function update(obj) %#ok<MANU>
     end
 
-    
   end
-  
+
 end

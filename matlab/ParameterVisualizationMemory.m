@@ -69,11 +69,6 @@ classdef ParameterVisualizationMemory < ParameterVisualization
         init@ParameterVisualization(obj,hTile,lObj,propFullName,prm);
       end
       obj.initSuccessful = false;
-      [xs,memuses,xcurr,memusecurr,xstr] = obj.getMemUse();        
-
-      if isempty(obj.hAx),
-        obj.hAx = nexttile(obj.hTile);
-      end
 
       [~,idx] = regexp(obj.propFullName,'\.DeepTrack','once');
       assert(numel(idx)==1);
@@ -81,6 +76,12 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       obj.setStage();
       obj.setProjImsz();
       obj.setNetType();
+
+      [xs,memuses,xcurr,memusecurr,xstr] = obj.getMemUse();
+
+      if isempty(obj.hAx),
+        obj.hAx = nexttile(obj.hTile);
+      end
 
       cla(obj.hAx);
       hold(obj.hAx,'off');

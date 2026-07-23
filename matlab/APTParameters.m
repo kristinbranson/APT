@@ -839,6 +839,8 @@ classdef APTParameters
       % stale copy carried by an older project so it does not linger in
       % the param struct.
       rmflds = {'ROOT.ImageProcessing',
+        'ROOT.CPR',
+        'ROOT.Track.ChunkSize',
         'ROOT.DeepTrack.DeepPoseKit.dpk_test',
         'ROOT.DeepTrack.MMDetect.test'
         'ROOT.MultiAnimalDetect.DeepTrack.MMDetect.test'
