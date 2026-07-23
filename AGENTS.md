@@ -323,10 +323,12 @@ Don't add "Co-Authored-By: Claude" line to commit messages.
 
 
 ## Miscellaneous Notes
-When running Matlab batch commands, do it like this:
-`matlab -batch "modpath(); <command>"`.  There's no need to also use the
-`-nodisplay` and `-nosplash` options.  The `modpath()` bit sets up
-the path properly.
+When running Matlab batch commands, do it like this: `xvfb-run -a
+matlab -batch "modpath(); <command>"`.  There's no need to also use
+the `-nodisplay` and `-nosplash` options.  The `modpath()` bit sets up
+the path properly.  The `xvfb-run -a` makes it run in an X server that
+uses a hidden framebuffer, so that you don't have windows constantly
+popping up while the test runs, possibly stealing keyboard focus.
 
 Running commands that span multiple lines using `matlab -batch`
 doesn't seem to work.  Write such commands to a .m file and run that
