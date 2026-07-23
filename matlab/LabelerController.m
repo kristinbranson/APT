@@ -1367,6 +1367,31 @@ classdef LabelerController < handle
 %       
 %       nmontage = min(nmontage,height(t));
 %       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',fig_4,'nplot',nmontage);
+
+      % COCO keypoint mAP, if the backend computed it during GT tracking
+      % (requires GT labels to have been embedded in the tracking list file;
+      % see Labeler.gtComputeGTPerformance and APT_interface.py's
+      % compute_coco_map_list).  One row per view.
+      cocoResults = labeler.gtCocoResults;
+      if ~isempty(cocoResults)
+        statNames = {'AP' 'AP50' 'AP75' 'AP_medium' 'AP_large' 'AR' 'AR50' 'AR75' 'AR_medium' 'AR_large'};
+        nviewCoco = numel(cocoResults);
+        cocoData = nan(nviewCoco,numel(statNames));
+        for vi = 1:nviewCoco
+          for si = 1:numel(statNames)
+            if isfield(cocoResults(vi),statNames{si})
+              cocoData(vi,si) = cocoResults(vi).(statNames{si});
+            end
+          end
+        end
+        rowNames = arrayfun(@(vi)sprintf('View %d',vi),1:nviewCoco,'uni',0);
+        fig_coco = figure('Name','Groundtruth COCO keypoint mAP');
+        obj.gtResultFigures_(end+1) = fig_coco ;
+        uitable('Parent',fig_coco,'Data',cocoData,'ColumnName',statNames,'RowName',rowNames,...
+          'Units','normalized','Position',[0.02,0.05,0.96,0.9],'ColumnSortable',true);
+        set(fig_coco,'Position',[10,10,900,80+40*nviewCoco]);
+        centerfig(fig_coco, obj.mainFigure_);
+      end
     end  % function
 
     function trackLabelMontage(obj, tbl, errfld, varargin)

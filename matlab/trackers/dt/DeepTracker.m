@@ -2114,12 +2114,12 @@ classdef DeepTracker < LabelTracker
       obj.trkSpawnList_(totrackinfo,backend,argsrest{:});
     end  % function trackList()
 
-    function gtComplete(obj)      
+    function gtComplete(obj)
       t0 = tic;
       while true
         gtmatfiles = obj.trkSysInfo.getListOutfiles;
         gtmovs = obj.lObj.movieFilesAllGTFull;
-        tblGT = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
+        [tblGT,cocoResults] = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
         if ~isempty(tblGT),
           break;
         end
@@ -2128,14 +2128,19 @@ classdef DeepTracker < LabelTracker
         end
       end
       obj.trkGTtrkTbl = tblGT;
-      obj.lObj.showGTResults('gtResultTbl',tblGT);
+      obj.lObj.showGTResults('gtResultTbl',tblGT,'cocoResults',cocoResults);
     end
-        
-    function tblGT = trackGTgtmat2tbl(obj,gtmatfiles,gtmovs,varargin)
-      
+
+    function [tblGT,cocoResults] = trackGTgtmat2tbl(obj,gtmatfiles,gtmovs,varargin)
+      % cocoResults: [1xnview] struct array of COCO keypoint mAP metrics (see
+      % APT_interface.py's compute_coco_map_list), one per view, or [] if none
+      % of the gt mat-files have a .coco_results field (e.g. GT tracking with
+      % no embedded labels, or list classification runs predating this
+      % feature).
+
       GTMATLOCFLD = 'locs';
       GTMATOCCFLD = 'occ';
-      
+
       t0 = tic;
       while true,
         if toc(t0) > 5,
@@ -2147,13 +2152,19 @@ classdef DeepTracker < LabelTracker
         pause(1);
       end
 
-        
+
       gtmats = cellfun(@(x)load(x,'-mat'),gtmatfiles); %#ok<LOAD>
       cellfun(@(x)fprintf(1,'Loaded gt output mat-file %s.\n',x),gtmatfiles);
-      
+
       assert(numel(gtmats)==obj.nview);
       if numel(gtmats)>1
         assert(isequal(gtmats.list)); % all mft/metadata tables should match
+      end
+
+      if isfield(gtmats,'coco_results') && all(arrayfun(@(g)~isempty(g.coco_results),gtmats))
+        cocoResults = [gtmats.coco_results];
+      else
+        cocoResults = [];
       end
 
 

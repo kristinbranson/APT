@@ -700,10 +700,15 @@ classdef Labeler < handle
     gtSuggMFTable  % [nGTSugg x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
     gtSuggMFTableLbled  % [nGTSuggx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
 
-    gtTblRes  % [nGTcomp x ncol] table, or []. Most recent GT performance results. 
+    gtTblRes  % [nGTcomp x ncol] table, or []. Most recent GT performance results.
       % gtTblRes(:,MFTable.FLDSID) need not match
-      % gtSuggMFTable(:,MFTable.FLDSID) because eg GT performance can be 
+      % gtSuggMFTable(:,MFTable.FLDSID) because eg GT performance can be
       % computed even if some suggested frames are not be labeled.
+    gtCocoResults = []  % [1xnview] struct array of COCO keypoint mAP metrics from the
+      % most recent GT performance computation (see
+      % DeepTracker.trackGTgtmat2tbl, APT_interface.py's
+      % compute_coco_map_list), or [] if not computed (e.g. no GT labels were
+      % available to the backend, or an older run predating this feature).
     gtPlotParams = struct('prc_vals',[50,75,90,95,98],...
       'nbins',50); % parameters for ShowGTResults
   end
@@ -9459,10 +9464,11 @@ classdef Labeler < handle
     end  % function
     
     function showGTResults(obj,varargin)
-      [gtResultTbl,tblLbl] = ...
+      [gtResultTbl,tblLbl,cocoResults] = ...
         myparse(varargin,...
                 'gtResultTbl',[],...
-                'lblTbl',[]);
+                'lblTbl',[],...
+                'cocoResults',[]);
 
       if isempty(tblLbl)
         if ~isempty(gtResultTbl),
@@ -9473,6 +9479,7 @@ classdef Labeler < handle
       end
 
       obj.gtComputeGTPerformanceTable(tblLbl,gtResultTbl); % also sets obj.gtTblRes
+      obj.gtCocoResults = cocoResults;  % [1xnview] struct array or [], see DeepTracker.trackGTgtmat2tbl
       % obj.didSpawnTrackingForGT_ = [] ;  % reset this
       obj.notify_('didComputeGTResults') ;
       obj.popBusyStatus();
@@ -9575,6 +9582,7 @@ classdef Labeler < handle
 
     function gtClearGTPerformanceTable(obj)
       obj.gtTblRes = [] ;
+      obj.gtCocoResults = [] ;
       obj.notify_('gtResUpdated') ;
     end
 

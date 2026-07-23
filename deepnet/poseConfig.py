@@ -294,6 +294,9 @@ class config(object):
         self.mmpose_net = 'multi_hrnet'
         self.multi_mmpose_detection_threshold = 0.5
 
+        # ============== EVALUATION ================
+        self.coco_oks_sigma = 0.05  # OKS sigma used for COCO keypoint mAP during GT performance evaluation (see compute_coco_map_list). Settable from the frontend's Track parameters.
+
         # ============== EXTRA ================
 
         # ----- Time parameters
