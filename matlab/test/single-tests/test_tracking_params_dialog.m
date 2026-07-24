@@ -27,29 +27,27 @@ sPrmBefore = labeler.trackGetTrainingParams() ;
 oldEditValue = sPrmBefore.ROOT.Track.NFramesNeighborhood ;
 newEditValue = oldEditValue + 37 ;
 
-% State written by the timer callback while the dialog is up
-didDriveDialog = false ;
-dialogError = [] ;
-controlCountFromSweepIndex = [] ;
+% The dialog is modal, but the menu actuation returns once it is up, so
+% the test can drive it directly.
+controller.menu_track_settrackparams_actuated_([], []) ;
+hFig = findall(0, 'Type', 'figure', 'Name', 'Tracking parameters') ;
+assert(isscalar(hFig), 'The tracking-parameters dialog never appeared') ;
+dialogCleanupObj = onCleanup(@()(deleteIfValid(hFig))) ;  %#ok<NASGU>
 
-% The dialog blocks in uiwait(), so a timer drives it: once the dialog
-% appears, the callback sweeps the level dropdown, inspects the
-% parameter controls, edits one, and presses Apply, which unblocks the
-% menu actuation below.
-timerObj = timer('StartDelay', 2, ...
-                 'Period', 1, ...
-                 'ExecutionMode', 'fixedSpacing', ...
-                 'TasksToExecute', 60, ...
-                 'TimerFcn', @driveDialogBang) ;
-timerCleanupObj = onCleanup(@()(stopAndDeleteTimer(timerObj))) ;  %#ok<NASGU>
-start(timerObj) ;
-
-controller.menu_track_settrackparams_actuated_([], []) ;  % blocks until dialog dismissed
-
-assert(didDriveDialog, ...
-       'The tracking-parameters dialog never appeared') ;
-if ~isempty(dialogError)
-  rethrow(dialogError) ;
+% Sweep the level dropdown from the lowest level to the highest,
+% recording the parameter-control count at each level
+levelDropdown = findall(hFig, 'Tag', 'popupmenu_level') ;
+assert(isscalar(levelDropdown), 'No level dropdown in the dialog') ;
+levelNames = levelDropdown.Items ;
+levels = PropertyLevelsEnum(levelNames) ;
+[~, sweepOrder] = sort(double(levels)) ;
+sweepCount = numel(sweepOrder) ;
+controlCountFromSweepIndex = nan(1, sweepCount) ;
+for sweepIndex = 1 : sweepCount
+  levelDropdown.Value = levelNames{sweepOrder(sweepIndex)} ;
+  feval(levelDropdown.ValueChangedFcn, levelDropdown, []) ;
+  drawnow ;
+  controlCountFromSweepIndex(sweepIndex) = countParameterControls(hFig) ;
 end
 
 % The dialog should have had some parameter controls at every level
@@ -64,6 +62,28 @@ assert(all(diff(controlCountFromSweepIndex) >= 0), ...
        'Raising the level decreased the parameter control count: %s', ...
        mat2str(controlCountFromSweepIndex)) ;
 
+% At the highest level, spot-check that commonly-used tracking
+% parameters appear as controls in the dialog
+for i = 1 : numel(spotCheckFieldPaths)
+  fieldPath = spotCheckFieldPaths{i} ;
+  control = findParameterControlByFqn(hFig, fieldPath) ;
+  assert(~isempty(control), ...
+         'No parameter control for %s', fieldPath) ;
+end
+
+% Edit one parameter through its control, as a user edit would
+editControl = findParameterControlByFqn(hFig, editFqn) ;
+assert(~isempty(editControl), 'No parameter control for %s', editFqn) ;
+editControl.Value = newEditValue ;
+feval(editControl.ValueChangedFcn, editControl, []) ;
+drawnow ;
+
+% Apply: writes the edited parameters to the Labeler and closes the dialog
+applyButton = findall(hFig, 'Tag', 'pb_apply') ;
+assert(isscalar(applyButton), 'No Apply button in the dialog') ;
+feval(applyButton.ButtonPushedFcn, applyButton, []) ;
+drawnow ;
+
 % The edit made in the dialog, applied with the Apply button, should
 % have propagated to the model
 sPrmAfter = labeler.trackGetTrainingParams() ;
@@ -73,69 +93,6 @@ assert(isequal(double(editValueFromLabeler), double(newEditValue)), ...
        double(editValueFromLabeler), double(newEditValue)) ;
 
 fprintf('test_tracking_params_dialog passed.\n') ;
-
-  function driveDialogBang(~, ~)
-    % Timer callback: drive the open tracking-parameters dialog.
-    hFig = findall(0, 'Type', 'figure', 'Name', 'Tracking parameters') ;
-    if isempty(hFig)
-      return
-    end
-    stop(timerObj) ;
-    didDriveDialog = true ;
-    didApply = false ;
-    try
-      % Sweep the level dropdown from the lowest level to the highest,
-      % recording the parameter-control count at each level
-      levelDropdown = findall(hFig, 'Tag', 'popupmenu_level') ;
-      assert(isscalar(levelDropdown), 'No level dropdown in the dialog') ;
-      levelNames = levelDropdown.Items ;
-      levels = PropertyLevelsEnum(levelNames) ;
-      [~, sweepOrder] = sort(double(levels)) ;
-      sweepCount = numel(sweepOrder) ;
-      controlCountFromSweepIndex = nan(1, sweepCount) ;
-      for sweepIndex = 1 : sweepCount
-        levelDropdown.Value = levelNames{sweepOrder(sweepIndex)} ;
-        feval(levelDropdown.ValueChangedFcn, levelDropdown, []) ;
-        drawnow ;
-        controlCountFromSweepIndex(sweepIndex) = countParameterControls(hFig) ;
-      end
-
-      % At the highest level, spot-check that commonly-used tracking
-      % parameters appear as controls in the dialog
-      for i = 1 : numel(spotCheckFieldPaths)
-        fieldPath = spotCheckFieldPaths{i} ;
-        control = findParameterControlByFqn(hFig, fieldPath) ;
-        assert(~isempty(control), ...
-               'No parameter control for %s', fieldPath) ;
-      end
-
-      % Edit one parameter through its control, as a user edit would
-      editControl = findParameterControlByFqn(hFig, editFqn) ;
-      assert(~isempty(editControl), 'No parameter control for %s', editFqn) ;
-      editControl.Value = newEditValue ;
-      feval(editControl.ValueChangedFcn, editControl, []) ;
-      drawnow ;
-
-      % Apply: closes the dialog and hands the edited parameters to the
-      % blocked menu actuation, which writes them to the Labeler
-      applyButton = findall(hFig, 'Tag', 'pb_apply') ;
-      assert(isscalar(applyButton), 'No Apply button in the dialog') ;
-      feval(applyButton.ButtonPushedFcn, applyButton, []) ;
-      didApply = true ;
-    catch err
-      dialogError = err ;
-    end
-    % On an error path the dialog may still be up: dismiss it so the
-    % blocked menu actuation can return.
-    if ~didApply && isvalid(hFig)
-      try
-        cancelButton = findall(hFig, 'Tag', 'pb_cancel') ;
-        feval(cancelButton.ButtonPushedFcn, cancelButton, []) ;
-      catch
-        delete(hFig) ;
-      end
-    end
-  end  % function
 
 end  % function
 
@@ -173,10 +130,9 @@ end
 end  % function
 
 
-function stopAndDeleteTimer(timerObj)
-% Stop and delete a timer, tolerating an already-deleted one.
-if isvalid(timerObj)
-  stop(timerObj) ;
-  delete(timerObj) ;
+function deleteIfValid(hFig)
+% Delete a figure, tolerating an already-deleted one.
+if isvalid(hFig)
+  delete(hFig) ;
 end
 end  % function
