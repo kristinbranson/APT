@@ -645,9 +645,8 @@ classdef SpecifyMovieToTrackGUI < handle
           set(hObject,'String','');
         end
       elseif ismember(obj.rowinfo.(key).type,{'inputfile','outputfile'}),
-        file = java.io.File(val);
-        if ~file.isAbsolute,
-          val = char(file.getCanonicalPath());
+        if ~apt.Path(val).tfIsAbsolute()
+          val = fullfile(pwd(), val) ;
           set(hObject,'String',val);
         end
       else

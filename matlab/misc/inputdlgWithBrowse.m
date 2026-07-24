@@ -595,20 +595,9 @@ function lclsetdefaultbutton(figHandle, btnHandle)
 % Nargin Check
 narginchk(1,2)
 
-if (usejava('awt') == 1)
-    % We are running with Java Figures
-    useJavaDefaultButton(figHandle, btnHandle)
-else
-    % We are running with Native Figures
-    useHGDefaultButton(figHandle, btnHandle);
-end
-
-    function useJavaDefaultButton(figH, btnH)
-        % Get a UDD handle for the figure.
-        fh = handle(figH);
-        % Call the setDefaultButton method on the figure handle
-        fh.setDefaultButton(btnH);
-    end
+% Native figures only; the Java-figure code path (usejava('awt') +
+% fh.setDefaultButton) was removed for compatibility with Java-free MATLAB.
+useHGDefaultButton(figHandle, btnHandle);
 
     function useHGDefaultButton(figHandle, btnHandle)
         % First get the position of the button.
