@@ -96,8 +96,6 @@ classdef APT
         fullfile(aptroot,'external','netlab'); ...
         fullfile(mlroot,'user'); ...
         fullfile(mlroot,'user','orthocam'); ... %         fullfile(mlroot,'user','orthocam',visionpath); ...
-        fullfile(mlroot,'YAMLMatlab_0.4.3'); ...
-        fullfile(mlroot,'propertiesGUI'); ...
         %fullfile(mlroot,'jsonlab-1.2','jsonlab'); ...
         fullfile(mlroot,'test'); ...
         fullfile(mlroot,'test/single-tests'); ...
@@ -132,7 +130,7 @@ classdef APT
      
       p = [aptpath(:);jaabapath(:);dtpath(:);pdolpath(:);campath(:)];
 
-      jprel = {fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar')};
+      jprel = {fullfile('matlab','+yaml','external','snakeyaml-1.9.jar')};
       jp = fullfile(aptroot,jprel);
     end
     
@@ -147,9 +145,7 @@ classdef APT
     
     function setpath()
       
-      [p,jp] = APT.getpath();
-      addpath(fullfile(APT.Root,'matlab')); % for javaaddpathstatic
-      cellfun(@javaaddpathstatic,jp);
+      p = APT.getpath();
       addpath(p{:},'-begin');
       if ismac
         setenv('PATH', [getenv('PATH') ':/usr/local/bin']);
@@ -188,10 +184,9 @@ classdef APT
       end
         
       if APT.matlabPathNotConfigured()
-        [p,jp] = APT.getpath();
+        p = APT.getpath();
         fprintf('Configuring your MATLAB path ...\n');
         addpath(p{:},'-begin');
-        cellfun(@javaaddpathstatic,jp);
       end
       %MK 20190506 Add stuff to systems path for aws cli
       if ismac()
@@ -283,7 +278,7 @@ classdef APT
   
     function tf = matlabPathNotConfigured()
       tf = exist('DeepTracker','file')==0 || ...
-        exist('ReadYaml','file')==0;
+        exist('parseConfigYaml','file')==0;
     end
     
     function pposetf = getpathdl()
