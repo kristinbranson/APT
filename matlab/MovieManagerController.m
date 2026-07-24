@@ -391,6 +391,13 @@ classdef MovieManagerController < handle
       % Sync tblMain.Selection to movieManagerModel.moviesSelected, preserving
       % each row's currently-selected column where possible.
       selectedMovies = obj.mmm_.moviesSelected ;
+      % moviesSelected can briefly reference a row that no longer exists: it is
+      % only refreshed on user selection, whereas a movie removal fires several
+      % didSet* events in sequence as it mutates each per-movie array, and
+      % tblMain.Data (rebuilt earlier in update()) may already be smaller by the
+      % time this runs.  Drop any now-out-of-range indices before using them.
+      nrows = size(obj.tblMain.Data,1) ;
+      selectedMovies = selectedMovies(selectedMovies>=1 & selectedMovies<=nrows) ;
       if isempty(selectedMovies) || isempty(obj.tblMain.Data)
         obj.tblMain.Selection = zeros(0,2) ;
       else

@@ -168,7 +168,7 @@ def my_swin_backbone(im_sz):
         img_size=im_sz,
         window_size=7,
         out_indices=(0, 1, 2, 3),
-        frozen_stages=2,
+        frozen_stages=1,
         init_cfg=dict(
             type='Pretrained',
             checkpoint='https://download.openmmlab.com/mmclassification/v0/swin-transformer/convert/swin_base_patch4_window7_224_22kto1k-f967f799.pth'))
