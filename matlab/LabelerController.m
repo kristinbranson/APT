@@ -5954,34 +5954,21 @@ classdef LabelerController < handle
       oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
       drawnow;
 
-      % Show the GUI window that allows users to set parameters.  sPrmNew will be
-      % empty if user mode no changes, otherwise will be parameter structure holding
-      % the new parameters (which have not yet been 'written' to the model).
-      out = ParameterSetup(labeler,'hPar',obj.mainFigure_,'istrain',true,'controller',obj);
-
-      % Write the parameters to the labeler, if called for.  Set doesNeedSave in the
-      % labeler, as needed.     
-      if ~isempty(out)
-        sPrmNew = out{1};
-        keypointParams = out{2};
-        labeler.trackSetTrainingParams(sPrmNew);
-        labeler.setKeypointParams(keypointParams);
-        labeler.setDoesNeedSave(true,'Parameters changed') ;
-      end
+      % Show the modal dialog that allows users to set parameters.  The call
+      % returns once the dialog is up; when the user clicks Apply, the dialog
+      % writes the new parameters to the labeler itself.
+      ParameterSetup(labeler, 'hPar', obj.mainFigure_, 'istrain', true, 'controller', obj) ;
     end  % function
 
 
 
     function menu_track_settrackparams_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Show the modal dialog that allows users to set tracking parameters.
+      % The call returns once the dialog is up; when the user clicks Apply,
+      % the dialog writes the new parameters to the labeler itself.
       labeler = obj.labeler_ ;
-      out = ParameterSetup(labeler,'hPar',obj.mainFigure_,'istrain',false,'controller',obj);  % modal
-      if ~isempty(out),
-        sPrmTrack = out{1};
-        keypointParams = out{2};
-        labeler.setTrackingParameters(sPrmTrack) ;
-        labeler.setKeypointParams(keypointParams);
-      end
-    end
+      ParameterSetup(labeler, 'hPar', obj.mainFigure_, 'istrain', false, 'controller', obj) ;
+    end  % function
 
 
 

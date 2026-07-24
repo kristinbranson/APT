@@ -1,10 +1,12 @@
-function output = ParameterSetup(varargin)
+function ParameterSetup(varargin)
+% Show the dialog for setting training or tracking parameters.  The
+% dialog is modal, but this function returns as soon as the dialog is
+% up.  When the user clicks Apply, the dialog writes the new parameters
+% to the Labeler itself; on Cancel the edits are discarded.
 
 persistent lastLevel;
 
 handles = struct;
-output = [];
-handles.output = output;
 if (nargin>=1) && isa(varargin{1},'Labeler'),
   handles.labelerObj = varargin{1};
   [handles.hPar,handles.istrain,handles.controller] = ...
@@ -49,6 +51,7 @@ handles.figure = uifigure('Name',tistr,...
   'Position',[100,100,1000,600], ...
   'Resize', 'on', ...
   'Visible','on', ...%'CloseRequestFcn', @cancel_callback,...
+  'WindowStyle','modal', ...
   'Tag','figure_ParameterSetup') ;
 
 handles.gl = uigridlayout(handles.figure,[1,2],'ColumnWidth',{'1x','1x'});
@@ -101,9 +104,6 @@ handles.tile_viz = tiledlayout(handles.panel_right,'vertical','TileSpacing','tig
 handles.vizid = '';
 handles.vizobj = [];
 clearParamViz();
-
-uiwait(handles.figure);
-output = handles.output;
 
   function resetTreeVisible()
     APTParameters.setAllVisible(handles.tree);
@@ -635,13 +635,24 @@ output = handles.output;
   end
 
   function cbkApply(src,evt)
+    % Dismiss the dialog, then write the edited parameters to the labeler.
     clearParamViz();
-    handles.output = {handles.tree.structize(),handles.keypointParamState};
+    sPrmNew = handles.tree.structize();
+    keypointParams = handles.keypointParamState;
     close(handles.figure);
-  end
+    labelerObj = handles.labelerObj;
+    if handles.istrain,
+      labelerObj.trackSetTrainingParams(sPrmNew);
+    else
+      labelerObj.setTrackingParameters(sPrmNew);
+    end
+    labelerObj.setKeypointParams(keypointParams);
+    labelerObj.setDoesNeedSave(true, 'Parameters changed');
+  end  % function
 
   function cbkCancel(src,evt)
+    % Dismiss the dialog, discarding any edits.
     close(handles.figure);
-  end
+  end  % function
 
-end
+end  % function
