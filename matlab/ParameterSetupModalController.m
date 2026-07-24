@@ -42,9 +42,9 @@ classdef ParameterSetupModalController < handle
   end
 
   methods
-    function obj = ParameterSetupModalController(parent, labeler, varargin)
+    function obj = ParameterSetupModalController(labelerController, labeler, varargin)
       % Construct and show the modal parameter-setup dialog.
-      obj.labelerController_ = parent ;
+      obj.labelerController_ = labelerController ;
       obj.labeler_ = labeler;
       [obj.istrain_] = ...
         myparse(varargin,'istrain',true);

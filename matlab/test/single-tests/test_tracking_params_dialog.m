@@ -30,7 +30,7 @@ newEditValue = oldEditValue + 37 ;
 % The dialog is modal, but the menu actuation returns once it is up, so
 % the test can drive it directly.
 controller.menu_track_settrackparams_actuated_([], []) ;
-hFig = findall(0, 'Type', 'figure', 'Name', 'Tracking parameters') ;
+hFig = findall(0, 'Type', 'figure', 'Name', 'Tracking Parameters') ;
 assert(isscalar(hFig), 'The tracking-parameters dialog never appeared') ;
 dialogCleanupObj = onCleanup(@()(deleteIfValid(hFig))) ;  %#ok<NASGU>
 
