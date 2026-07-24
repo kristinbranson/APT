@@ -3735,6 +3735,10 @@ def get_id_dist_mat(embed):
     processed_dist = pool.starmap(embed_dist, [(split_set[n], embed[:,None]) for n in range(n_threads)])
     processed_dist = merge_parallel(processed_dist)
     processed_dist =np.array(processed_dist)
+  # embed_dist is symmetric in exact arithmetic (mean of all cross-sample pairwise distances),
+  # but float32 rounding across the parallel row-blocks leaves a ~1e-6 asymmetry, which
+  # ssd.squareform (exact symmetry check, used by the no_motion/group_tracklets path) rejects.
+  processed_dist = (processed_dist + processed_dist.T) / 2.0
   return processed_dist
 
 def get_id_dist_mat_diag(embed):
