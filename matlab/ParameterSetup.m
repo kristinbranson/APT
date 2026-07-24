@@ -104,6 +104,7 @@ handles.tile_viz = tiledlayout(handles.panel_right,'vertical','TileSpacing','tig
 handles.vizid = '';
 handles.vizobj = [];
 clearParamViz();
+waitForFigureToSync(handles.figure) ;  % block until the figure is actually visible
 
   function resetTreeVisible()
     APTParameters.setAllVisible(handles.tree);

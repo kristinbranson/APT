@@ -3735,7 +3735,7 @@ classdef LabelerController < handle
       % Make the "Uncertain Frames" figure visible
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Showing "Uncertain Frames" window...') ;
-      oc = onCleanup(@()(labeler.popBusyStatus())) ;  %#ok<NASGU>
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
       model = labeler.uncertainFramesModel_ ;
       model.isVisible = true ;
     end  % function
@@ -3788,7 +3788,7 @@ classdef LabelerController < handle
       % Make the "Compare Trackers" figure visible.
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Showing "Compare Trackers" window...') ;
-      oc = onCleanup(@()(labeler.popBusyStatus())) ;  %#ok<NASGU>
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
       model = labeler.compareTrackersModel_ ;
       model.isVisible = true ;
     end  % function
