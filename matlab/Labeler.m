@@ -13819,6 +13819,19 @@ classdef Labeler < handle
       end
     end  % function
 
+    function setParametersAndKeypointParams(obj, isTrain, sPrm, keypointParams)
+      % Set the training or tracking parameters (per isTrain) together with
+      % the keypoint parameters, and mark the project as needing a save.
+      % Called when the user applies edits in the parameter-setup dialog.
+      if isTrain
+        obj.trackSetTrainingParams(sPrm) ;
+      else
+        obj.setTrackingParameters(sPrm) ;
+      end
+      obj.setKeypointParams(keypointParams) ;
+      obj.setDoesNeedSave(true, 'Parameters changed') ;
+    end  % function
+
     function projRemoveOtherTempDirs(obj, todelete)
       obj.pushBusyStatus('Deleting temp directories...');
       oc = onCleanup(@()(obj.popBusyStatus())) ;      

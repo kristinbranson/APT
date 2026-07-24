@@ -79,16 +79,17 @@ classdef ParameterSetupModalController < handle
       end
 
       if obj.istrain_,
-        tistr = 'Training parameters';
+        tistr = 'Training Parameters';
       else
-        tistr = 'Tracking parameters';
+        tistr = 'Tracking Parameters';
       end
 
       obj.figure_ = uifigure('Name',tistr,...
         'Units','pixels', ...
         'Position',[100,100,1000,600], ...
         'Resize', 'on', ...
-        'Visible','on', ...%'CloseRequestFcn', @cancel_callback,...
+        'Visible','on', ...
+        'CloseRequestFcn', @obj.cbkCancel, ...  % close button acts like Cancel
         'WindowStyle','modal', ...
         'Tag','figure_ParameterSetup') ;
 
@@ -142,6 +143,12 @@ classdef ParameterSetupModalController < handle
       obj.vizid_ = '';
       obj.vizobj_ = [];
       obj.clearParamViz();
+
+      % Center our figure on the parent controller figure
+      mainFigurePosition = obj.labelerController_.mainFigurePixelPosition() ;
+      centerOnOtherFigureGivenPositionBang(obj.figure_, mainFigurePosition) ;
+
+      % Block until sync b/c Matlab webtech UI is kinda lame
       waitForFigureToSync(obj.figure_) ;  % block until the figure is actually visible
     end  % constructor
 
@@ -709,24 +716,17 @@ classdef ParameterSetupModalController < handle
     end  % function
 
     function cbkApply(obj, src, evt)  %#ok<INUSD>
-      % Dismiss the dialog, then write the edited parameters to the labeler.
+      % Write the edited parameters to the labeler, then dismiss the dialog.
       obj.clearParamViz();
       sPrmNew = obj.tree_.structize();
       keypointParams = obj.keypointParamState_;
-      close(obj.figure_);
-      labeler = obj.labeler_;
-      if obj.istrain_,
-        labeler.trackSetTrainingParams(sPrmNew);
-      else
-        labeler.setTrackingParameters(sPrmNew);
-      end
-      labeler.setKeypointParams(keypointParams);
-      labeler.setDoesNeedSave(true, 'Parameters changed');
+      obj.labeler_.setParametersAndKeypointParams(obj.istrain_, sPrmNew, keypointParams);
+      obj.labelerController_.deleteParameterSetupModalController();
     end  % function
 
     function cbkCancel(obj, src, evt)  %#ok<INUSD>
       % Dismiss the dialog, discarding any edits.
-      close(obj.figure_);
+      obj.labelerController_.deleteParameterSetupModalController();
     end  % function
 
   end  % methods

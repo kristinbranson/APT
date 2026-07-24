@@ -716,6 +716,11 @@ classdef LabelerController < handle
         end
         obj.compareTrackersController_ = [] ;
       end
+      obj.deleteParameterSetupModalController() ;
+    end  % function
+
+    function deleteParameterSetupModalController(obj)
+      % Delete the parameter-setup dialog controller, if it exists.
       if ~isempty(obj.parameterSetupModalController_)
         if isvalid(obj.parameterSetupModalController_)
           delete(obj.parameterSetupModalController_) ;
@@ -5965,10 +5970,7 @@ classdef LabelerController < handle
       % Show the modal dialog that allows users to set parameters.  The call
       % returns once the dialog is up; when the user clicks Apply, the dialog
       % writes the new parameters to the labeler itself.
-      if ~isempty(obj.parameterSetupModalController_)
-        delete(obj.parameterSetupModalController_) ;
-        obj.parameterSetupModalController_ = [] ;
-      end
+      obj.deleteParameterSetupModalController() ;
       obj.parameterSetupModalController_ = ...
         ParameterSetupModalController(obj, labeler, 'istrain', true) ;
     end  % function
@@ -5980,10 +5982,7 @@ classdef LabelerController < handle
       % The call returns once the dialog is up; when the user clicks Apply,
       % the dialog writes the new parameters to the labeler itself.
       labeler = obj.labeler_ ;
-      if ~isempty(obj.parameterSetupModalController_)
-        delete(obj.parameterSetupModalController_) ;
-        obj.parameterSetupModalController_ = [] ;
-      end
+      obj.deleteParameterSetupModalController() ;
       obj.parameterSetupModalController_ = ...
         ParameterSetupModalController(obj, labeler, 'istrain', false) ;
     end  % function
