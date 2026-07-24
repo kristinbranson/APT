@@ -19,6 +19,7 @@ classdef LabelerController < handle
       % but might not be a controller in the strictest sense.
     uncertainFramesController_  % UncertainFramesController, or []
     compareTrackersController_  % CompareTrackersController, or []
+    parameterSetupModalController_  % ParameterSetupModalController, or []
   end
 
   properties  % "uncontrolled" satellite figures---satellite figures that aren't managed by controllers (at present)
@@ -645,8 +646,8 @@ classdef LabelerController < handle
     end  % function
 
     function deleteExistingUncontrolledSatellites_(obj)
-      % Delete all satellite figures and subcontrollers, resetting their
-      % properties to empty.
+      % Delete all satellite figures that are not managed by subcontrollers,
+      % resetting their properties to empty.
       deleteValidGraphicsHandles(obj.gtTrackingDialogFigure_) ;
       obj.gtTrackingDialogFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.gtResultFigures_) ;
@@ -682,6 +683,7 @@ classdef LabelerController < handle
     end
 
     function deleteExistingSubcontrollers_(obj)    
+      % Delete all existing subcontrollers.
       if ~isempty(obj.trackingMonitorVisualizer_)
         if isvalid(obj.trackingMonitorVisualizer_) ,
           delete(obj.trackingMonitorVisualizer_) ;
@@ -713,6 +715,12 @@ classdef LabelerController < handle
           delete(obj.compareTrackersController_) ;
         end
         obj.compareTrackersController_ = [] ;
+      end
+      if ~isempty(obj.parameterSetupModalController_)
+        if isvalid(obj.parameterSetupModalController_)
+          delete(obj.parameterSetupModalController_) ;
+        end
+        obj.parameterSetupModalController_ = [] ;
       end
     end  % function
 
@@ -5957,7 +5965,12 @@ classdef LabelerController < handle
       % Show the modal dialog that allows users to set parameters.  The call
       % returns once the dialog is up; when the user clicks Apply, the dialog
       % writes the new parameters to the labeler itself.
-      ParameterSetup(labeler, 'hPar', obj.mainFigure_, 'istrain', true, 'controller', obj) ;
+      if ~isempty(obj.parameterSetupModalController_)
+        delete(obj.parameterSetupModalController_) ;
+        obj.parameterSetupModalController_ = [] ;
+      end
+      obj.parameterSetupModalController_ = ...
+        ParameterSetupModalController(obj, labeler, 'istrain', true) ;
     end  % function
 
 
@@ -5967,7 +5980,12 @@ classdef LabelerController < handle
       % The call returns once the dialog is up; when the user clicks Apply,
       % the dialog writes the new parameters to the labeler itself.
       labeler = obj.labeler_ ;
-      ParameterSetup(labeler, 'hPar', obj.mainFigure_, 'istrain', false, 'controller', obj) ;
+      if ~isempty(obj.parameterSetupModalController_)
+        delete(obj.parameterSetupModalController_) ;
+        obj.parameterSetupModalController_ = [] ;
+      end
+      obj.parameterSetupModalController_ = ...
+        ParameterSetupModalController(obj, labeler, 'istrain', false) ;
     end  % function
 
 
