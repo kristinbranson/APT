@@ -164,8 +164,8 @@ classdef Labeler < handle
     cropUpdateCropGUITools
 
     update_text_trackerinfo
-    refreshTrackMonitorViz
-    updateTrackMonitorViz
+    refreshTrackMonitorController
+    updateTrackMonitorController
     refreshTrainMonitorController
     updateTrainMonitorController
     % raiseTrainingStoppedDialog
@@ -13669,22 +13669,22 @@ classdef Labeler < handle
     %   obj.notify_('update_text_trackerinfo') ;
     % end
     
-    function needRefreshTrackMonitorViz(obj)
-      obj.notify_('refreshTrackMonitorViz') ;
+    function needRefreshTrackMonitorController(obj)
+      obj.notify_('refreshTrackMonitorController') ;
     end
 
     function didReceivePollResultsRetrograde(obj, track_or_train)
       if strcmp(track_or_train, 'train') ,
         obj.notify_('updateTrainMonitorController') ;
       elseif strcmp(track_or_train, 'track') ,
-        obj.notify_('updateTrackMonitorViz') ;
+        obj.notify_('updateTrackMonitorController') ;
       else
         error('Internal error: %s should be ''track'' or ''train''', track_or_train) ;
       end
     end
 
     % function didReceiveTrackingPollResults_(obj)
-    %   obj.notify_('updateTrackMonitorViz') ;
+    %   obj.notify_('updateTrackMonitorController') ;
     % end
     % 
     % function didReceiveTrainingPollResults_(obj)

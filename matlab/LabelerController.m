@@ -8,7 +8,7 @@ classdef LabelerController < handle
 
   properties  % subcontrollers
     labelTLInfo_  % an InfoTimelineController object
-    trackingMonitorVisualizer_  % a subcontroller
+    trackMonitorController_  % a subcontroller
     trainMonitorController_  % a subcontroller
     movieManagerController_
     backendTestController_
@@ -410,9 +410,9 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'update_text_trackerinfo',@(source,event)(obj.update_text_trackerinfo()));
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'refreshTrackMonitorViz',@(source,event)(obj.refreshTrackMonitorViz()));      
+        addlistener(labeler,'refreshTrackMonitorController',@(source,event)(obj.refreshTrackMonitorController()));      
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'updateTrackMonitorViz',@(source,event)(obj.updateTrackMonitorViz()));      
+        addlistener(labeler,'updateTrackMonitorController',@(source,event)(obj.updateTrackMonitorController()));      
       obj.listeners_(end+1) = ...
         addlistener(labeler,'refreshTrainMonitorController',@(source,event)(obj.refreshTrainMonitorController()));      
       obj.listeners_(end+1) = ...
@@ -693,11 +693,11 @@ classdef LabelerController < handle
 
     function deleteExistingSubcontrollers_(obj)    
       % Delete all existing subcontrollers.
-      if ~isempty(obj.trackingMonitorVisualizer_)
-        if isvalid(obj.trackingMonitorVisualizer_) ,
-          delete(obj.trackingMonitorVisualizer_) ;
+      if ~isempty(obj.trackMonitorController_)
+        if isvalid(obj.trackMonitorController_) ,
+          delete(obj.trackMonitorController_) ;
         end
-        obj.trackingMonitorVisualizer_ = [] ;
+        obj.trackMonitorController_ = [] ;
       end
       if ~isempty(obj.trainMonitorController_)
         if isvalid(obj.trainMonitorController_) ,
@@ -781,8 +781,8 @@ classdef LabelerController < handle
       if ~isempty(obj.trainMonitorController_) && isvalid(obj.trainMonitorController_)
         obj.trainMonitorController_.updatePointer() ;
       end
-      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
-        obj.trackingMonitorVisualizer_.updatePointer() ;
+      if ~isempty(obj.trackMonitorController_) && isvalid(obj.trackMonitorController_)
+        obj.trackMonitorController_.updatePointer() ;
       end
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid()
         obj.movieManagerController_.updatePointer() ;
@@ -1966,24 +1966,24 @@ classdef LabelerController < handle
       obj.suspCbkTblNaved_(row);
     end  % function
     
-    function refreshTrackMonitorViz(obj)
-      % Create a TrackMonitorViz (very similar to a controller) if one doesn't
-      % exist.  If one *does* exist, delete that one first.
+    function refreshTrackMonitorController(obj)
+      % Create a TrackMonitorController if one doesn't exist.  If one *does*
+      % exist, delete that one first.
       labeler = obj.labeler_ ;
-      if ~isempty(obj.trackingMonitorVisualizer_) 
-        if isvalid(obj.trackingMonitorVisualizer_) ,
-          delete(obj.trackingMonitorVisualizer_) ;
+      if ~isempty(obj.trackMonitorController_) 
+        if isvalid(obj.trackMonitorController_) ,
+          delete(obj.trackMonitorController_) ;
         end
-        obj.trackingMonitorVisualizer_ = [] ;
+        obj.trackMonitorController_ = [] ;
       end
-      obj.trackingMonitorVisualizer_ = TrackMonitorViz(obj, labeler) ;
+      obj.trackMonitorController_ = TrackMonitorController(obj, labeler) ;
     end  % function
 
-    function updateTrackMonitorViz(obj)
-      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
+    function updateTrackMonitorController(obj)
+      if ~isempty(obj.trackMonitorController_) && isvalid(obj.trackMonitorController_)
         labeler = obj.labeler_ ;
         pollingResult = labeler.tracker.bgTrkMonitor.pollingResult ;
-        obj.trackingMonitorVisualizer_.resultsReceived(pollingResult) ;
+        obj.trackMonitorController_.resultsReceived(pollingResult) ;
       end
     end  % function
 
@@ -2979,7 +2979,7 @@ classdef LabelerController < handle
     end  % function
 
     function updateTrackingMonitor(obj)
-      obj.trackingMonitorVisualizer_.update() ;
+      obj.trackMonitorController_.update() ;
     end  % function
 
     function cbkTrackerEnd(obj)
@@ -6551,9 +6551,9 @@ classdef LabelerController < handle
         obj.movieManagerController_.update() ;
       end
       sendMaybe(obj.trainMonitorController_, 'updateStopButton') ;
-      sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;
+      sendMaybe(obj.trackMonitorController_, 'updateStopButton') ;
       sendMaybe(obj.trainMonitorController_, 'syncStatusLineToPollingResult') ;
-      sendMaybe(obj.trackingMonitorVisualizer_, 'syncStatusLineToPollingResult') ;
+      sendMaybe(obj.trackMonitorController_, 'syncStatusLineToPollingResult') ;
       sendMaybe(obj.uncertainFramesController_, 'update') ;
       sendMaybe(obj.compareTrackersController_, 'update') ;
     end
@@ -6813,14 +6813,14 @@ classdef LabelerController < handle
       end        
     end  % function
 
-    function trackMonitorVizCloseRequested(obj)
+    function trackMonitorControllerCloseRequested(obj)
       doReallyClose = false ;
       tfbatch = batchStartupOptionUsed() ; % ci
-      trackMonitorViz = obj.trackingMonitorVisualizer_ ;
+      trackMonitorController = obj.trackMonitorController_ ;
       if tfbatch ,
         doReallyClose = true ;
       else
-        mode = get(trackMonitorViz.pushbutton_startstop_,'UserData');  % this is not a good way to store application state.
+        mode = get(trackMonitorController.pushbutton_startstop_,'UserData');  % this is not a good way to store application state.
 
         if strcmpi(mode,'stop') ,
           res = questdlg({'Tracking currently in progress. Please stop tracking before'
@@ -6843,8 +6843,8 @@ classdef LabelerController < handle
       end
 
       if doReallyClose ,
-        delete(trackMonitorViz);
-        obj.trackingMonitorVisualizer_ = [] ;
+        delete(trackMonitorController);
+        obj.trackMonitorController_ = [] ;
       end        
     end  % function
 

@@ -2506,12 +2506,12 @@ classdef DeepTracker < LabelTracker
       nFramesToTrack = totrackinfo.getNFramesTrack(obj.lObj);
         % When doing normal tracking (not GT), the length of nFramesToTrack is equal to the
         % number of movies.
-      obj.nFramesToTrack_ = nFramesToTrack ;  % stash it so it's available for TrackMonitorViz() in controller
+      obj.nFramesToTrack_ = nFramesToTrack ;  % stash it so it's available for TrackMonitorController() in controller
       nFramesToTrackSum = sum(nFramesToTrack);
       fprintf('Tracking %d frames.\n',nFramesToTrackSum);
 
       % Create the BgMonitor.
-      obj.lObj.needRefreshTrackMonitorViz() ;  % Does this do anything?
+      obj.lObj.needRefreshTrackMonitorController() ;  % Does this do anything?
       bgTrkMonitorObj = ...
         BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir) ;
       obj.bgTrkMonitor = bgTrkMonitorObj;

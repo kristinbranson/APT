@@ -1,4 +1,4 @@
-classdef TrackMonitorViz < handle
+classdef TrackMonitorController < handle
   properties
     hfig % scalar fig
     haxs % [1] axis handle, viz wait time
@@ -94,14 +94,14 @@ classdef TrackMonitorViz < handle
   
   methods (Static)
     function debugfprintf(varargin)
-      if TrackMonitorViz.DEBUG,
+      if TrackMonitorController.DEBUG,
         fprintf(varargin{:});
       end
     end
   end
   
   methods
-    function obj = TrackMonitorViz(parent, labeler)
+    function obj = TrackMonitorController(parent, labeler)
       % Store a handle to the parent LabelerController, and to the labeler
       obj.parent_ = parent ;
       obj.labeler_ = labeler ;
@@ -121,7 +121,7 @@ classdef TrackMonitorViz < handle
       nmov = nMovSets*nview;
       
       obj.createGui_() ;
-      obj.hfig.CloseRequestFcn = @(s,e)(parent.trackMonitorVizCloseRequested()) ;
+      obj.hfig.CloseRequestFcn = @(s,e)(parent.trackMonitorControllerCloseRequested()) ;
         % The figure is built with a plain CloseRequestFcn; override it here with
         % this one, which lets the LabelerController handle things in a
         % coordinated way.
@@ -164,7 +164,7 @@ classdef TrackMonitorViz < handle
         axposn = axwait.Position;
         axwait.Units = 'normalized';
         whr = axposn(3)/axposn(4);        
-        [obj.bulkIndNrow,obj.bulkIndNcol] = TrackMonitorViz.getIndicatorGridSz(nmov,whr);        
+        [obj.bulkIndNrow,obj.bulkIndNcol] = TrackMonitorController.getIndicatorGridSz(nmov,whr);        
         
         % Setting .DataAspectRatio and axis lims => .PlotBoxAspectRatio
         % will react
@@ -194,7 +194,7 @@ classdef TrackMonitorViz < handle
         obj.nFramesToTrack = double(repmat(nFramesToTrack,nPollingRepeats,1));
         obj.nFramesTracked = zeros(size(obj.nFramesToTrack));
         % obj.parttrkfileTimestamps = zeros(size(obj.nFramesToTrack));
-        obj.jobDescs = TrackMonitorViz.initJobDescs(pollingResultSize(1),pollingResultSize(2),pollingResultSize(3),obj.listMode);        
+        obj.jobDescs = TrackMonitorController.initJobDescs(pollingResultSize(1),pollingResultSize(2),pollingResultSize(3),obj.listMode);        
         % ordering of hline is: movMvw1s1 ... movMvw1s1 ... mov1vw2s1 movMvwNs1 ... mov1vw1s2 ... movMvwNs2
         % for multi-stage, single view: all stage1s, then all stage2s.
         % for multi-view, single stage: all view1s, then all view2s
@@ -207,7 +207,7 @@ classdef TrackMonitorViz < handle
       
       % create hline/htext
       if obj.bulkAxsIsBulkMode
-        obj.hline = TrackMonitorViz.makeIndicatorPatches(nmov,...
+        obj.hline = TrackMonitorController.makeIndicatorPatches(nmov,...
           obj.bulkIndNrow,obj.bulkIndNcol,axwait,...
           obj.COLOR_AXSWAIT_BULK_UNTRACKED,...
           {'EdgeColor',obj.COLOR_AXSWAIT_BULK_EDGE}); 
@@ -367,13 +367,13 @@ classdef TrackMonitorViz < handle
       end
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
-        TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
+        TrackMonitorController.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
         return
       end
 
       if obj.wasAborted,
         obj.updateStopButton() ;
-        TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
+        TrackMonitorController.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
         return
       end
       
@@ -382,13 +382,13 @@ classdef TrackMonitorViz < handle
         return
       end
 
-      TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now()));
+      TrackMonitorController.debugfprintf('%s: TrackMonitorController results received:\n',datestr(now()));
        
       if isfield(pollingResult,'parttrkfile')
-        TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(pollingResult.parttrkfile{1},'file'));
-        TrackMonitorViz.debugfprintf('N. frames tracked: ');
+        TrackMonitorController.debugfprintf('Partial tracks exist: %d\n',exist(pollingResult.parttrkfile{1},'file'));
+        TrackMonitorController.debugfprintf('N. frames tracked: ');
       end
-      TrackMonitorViz.debugfprintf('tfcomplete: %s\n',formattedDisplayText(pollingResult.tfComplete));
+      TrackMonitorController.debugfprintf('tfcomplete: %s\n',formattedDisplayText(pollingResult.tfComplete));
       nJobs = numel(pollingResult.tfComplete);
       nMovies = size(pollingResult.tfComplete, 1);
 
@@ -452,7 +452,7 @@ classdef TrackMonitorViz < handle
                 obj.nFramesTracked(ijob) = pollingResult.parttrkfileNfrmtracked(ijob) ;
                 % if isnan(pollingResult.parttrkfileNfrmtracked(ijob)) && isfinite(pollingResult.parttrkfileTimestamp(ijob)) ,
                 %   nop() ;
-                %   %error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
+                %   %error('Internal error: In TrackMonitorController instance, .nFramesTracked(%d) is nan', ijob) ;
                 %     % This should be caught by the local try-catch
                 % end
               else
@@ -489,11 +489,11 @@ classdef TrackMonitorViz < handle
               fprintf('Could not update nFramesTracked, for whatever reason.\n');
             end
           end
-          TrackMonitorViz.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
+          TrackMonitorController.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
         end  % for iJob
       end  % if obj.bulkAxsIsBulkMode
-      TrackMonitorViz.debugfprintf('\n');
-      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
+      TrackMonitorController.debugfprintf('\n');
+      TrackMonitorController.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
 
       obj.resLast = pollingResult ;
 
@@ -541,8 +541,8 @@ classdef TrackMonitorViz < handle
         end  % if
       end  % for
 
-      TrackMonitorViz.debugfprintf('\n');
-      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
+      TrackMonitorController.debugfprintf('\n');
+      TrackMonitorController.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
     end  % method
 
     function resultsReceivedLoopOverJobs_(obj, pollingResult, forceupdate)
@@ -578,7 +578,7 @@ classdef TrackMonitorViz < handle
               obj.nFramesTracked(ijob) = pollingResult.parttrkfileNfrmtracked(ijob) ;
               % if isnan(pollingResult.parttrkfileNfrmtracked(ijob)) && isfinite(pollingResult.parttrkfileTimestamp(ijob)) ,
               %   nop() ;
-              %   %error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
+              %   %error('Internal error: In TrackMonitorController instance, .nFramesTracked(%d) is nan', ijob) ;
               %     % This should be caught by the local try-catch
               % end
             else
@@ -616,11 +616,11 @@ classdef TrackMonitorViz < handle
           end
         end   % if isupdate
         
-        TrackMonitorViz.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
+        TrackMonitorController.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
       end  % for iJob = 1 : nJobs
 
-      TrackMonitorViz.debugfprintf('\n');
-      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
+      TrackMonitorController.debugfprintf('\n');
+      TrackMonitorController.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
     end
 
     function syncStatusLineToPollingResult(obj)
@@ -660,7 +660,7 @@ classdef TrackMonitorViz < handle
             status = 'No tracking jobs running.' ;
             isAllGood = true ;
           otherwise ,
-            error('APT:internalError', 'Unrecognized EndCause in TrackMonitorViz.syncStatusLineToPollingResult()') ;
+            error('APT:internalError', 'Unrecognized EndCause in TrackMonitorController.syncStatusLineToPollingResult()') ;
         end
       else
         % A tracking bout is in progress: derive the message from the most
@@ -723,7 +723,7 @@ classdef TrackMonitorViz < handle
       end
       obj.updateClusterInfo();
       obj.text_clusterinfo_.ForegroundColor = 'r';
-      %TrackMonitorViz.updateStartStopButton(handles,false,false);
+      %TrackMonitorController.updateStartStopButton(handles,false,false);
       drawnow;
     end  % function
 
@@ -760,7 +760,7 @@ classdef TrackMonitorViz < handle
       % else
       %   warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       % end
-      % TrackMonitorViz.updateStartStopButton(handles,false,false);
+      % TrackMonitorController.updateStartStopButton(handles,false,false);
       obj.updateStopButton() ;
       obj.setStatusDisplayLine_('Tracking process killed.', false);
       drawnow;
@@ -957,8 +957,8 @@ classdef TrackMonitorViz < handle
         whr = axposn(3)/axposn(4);
         fprintf('Axis whr is %.2f\n',whr);
         
-        [gridnrow,gridncol] = TrackMonitorViz.getIndicatorGridSz(nmov,whr);
-        hpch = TrackMonitorViz.makeIndicatorPatches(nmov,...
+        [gridnrow,gridncol] = TrackMonitorController.getIndicatorGridSz(nmov,whr);
+        hpch = TrackMonitorController.makeIndicatorPatches(nmov,...
           gridnrow,gridncol,ax,[1 0 0],{});  %#ok<NASGU> 
         axis(ax,[0.5 gridncol+1.5 1 gridnrow+1]);
         

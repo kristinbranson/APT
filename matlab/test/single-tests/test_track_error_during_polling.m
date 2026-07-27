@@ -53,15 +53,15 @@ function test_track_error_during_polling()
   % authoritative lastTrackEndCause on trackEnd, so an errored bout shows a red
   % error message rather than whatever the last poll happened to say.
   controller = tester.controller ;
-  trackMonitorViz = controller.trackingMonitorVisualizer_ ;
-  assert(~isempty(trackMonitorViz) && isvalid(trackMonitorViz), ...
-         'No tracking monitor visualizer was present after the error') ;
+  trackMonitorController = controller.trackMonitorController_ ;
+  assert(~isempty(trackMonitorController) && isvalid(trackMonitorController), ...
+         'No tracking monitor controller was present after the error') ;
   drawnow() ;  % ensure any pending status-line repaint has been applied
-  statusColor = get(trackMonitorViz.text_clusterstatus_, 'ForegroundColor') ;
+  statusColor = get(trackMonitorController.text_clusterstatus_, 'ForegroundColor') ;
   assert(isequal(statusColor, [1 0 0]), ...
          'Tracking monitor status line should be red after the error, but its color was [%g %g %g]', ...
          statusColor(1), statusColor(2), statusColor(3)) ;
-  statusString = get(trackMonitorViz.text_clusterstatus_, 'String') ;
+  statusString = get(trackMonitorController.text_clusterstatus_, 'String') ;
   assert(any(contains(string(statusString), "Error")), ...
          'Tracking monitor status line should report an error, but reads: %s', char(strjoin(string(statusString), ' '))) ;
 end  % function
