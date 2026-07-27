@@ -1988,8 +1988,8 @@ classdef LabelerController < handle
     end  % function
 
     function refreshTrainMonitorViz(obj)
-      % Create a TrainMonitorViz (very similar to a controller) if one doesn't
-      % exist.  If one *does* exist, delete that one first.
+      % Create a TrainMonitorController if one doesn't exist.  If one *does*
+      % exist, delete that one first.
       labeler = obj.labeler_ ;
       if ~isempty(obj.trainingMonitorVisualizer_) 
         if isvalid(obj.trainingMonitorVisualizer_) ,
@@ -1997,7 +1997,7 @@ classdef LabelerController < handle
         end
         obj.trainingMonitorVisualizer_ = [] ;
       end
-      obj.trainingMonitorVisualizer_ = TrainMonitorViz(obj, labeler) ;
+      obj.trainingMonitorVisualizer_ = TrainMonitorController(obj, labeler) ;
     end  % function
 
     function updateTrainMonitorViz(obj)

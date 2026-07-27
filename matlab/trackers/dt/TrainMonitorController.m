@@ -1,11 +1,11 @@
-classdef TrainMonitorViz < handle
+classdef TrainMonitorController < handle
   properties
     % 'sets' are groups of related trains that may be spawned in parallel
     % or serially. example is top-down trackers which have nset=2,
     % stage1=detect, stage2=pose.
     
     hfig % scalar fig
-    haxs % [2xnset] axis handle, viz training loss, dist
+    haxs % [2xnset] axis handle, viz training loss, disteit
     %hannlastupdated % [1] textbox/annotation handle
     hline % [nmodel x 2] line handle, one loss curve per view
     hlinekill % [nmodel x 2] line handle, killed marker per view
@@ -85,7 +85,7 @@ classdef TrainMonitorViz < handle
   
   methods (Static)
     function debugfprintf(varargin)
-      if TrainMonitorViz.DEBUG,
+      if TrainMonitorController.DEBUG,
         fprintf(varargin{:});
       end
     end
@@ -103,7 +103,7 @@ classdef TrainMonitorViz < handle
   
   methods
     
-    function obj = TrainMonitorViz(parent, labeler)
+    function obj = TrainMonitorController(parent, labeler)
 
       obj.parent_ = parent ;  % parent a LabelerController
       obj.labeler_ = labeler ;
@@ -132,7 +132,7 @@ classdef TrainMonitorViz < handle
         % this one, which lets the LabelerController handle things in a
         % coordinated way.
 
-      TrainMonitorViz.updateStartStopButton(obj.pushbutton_startstop_, false, []) ;
+      TrainMonitorController.updateStartStopButton(obj.pushbutton_startstop_, false, []) ;
       obj.pushbutton_startstop_.Enable = 'on';
 
       obj.haxs = [obj.axes_loss_ ; obj.axes_dist_];
@@ -165,7 +165,7 @@ classdef TrainMonitorViz < handle
       end
       set(obj.haxs(1,:),'XTickLabel',{});
       
-      %obj.hannlastupdated = TrainMonitorViz.createAnnUpdate(obj.haxs(1));
+      %obj.hannlastupdated = TrainMonitorController.createAnnUpdate(obj.haxs(1));
       
       clrs = lines(nmodels)*.9+.1;
       h = gobjects(nmodels,2);
@@ -363,7 +363,7 @@ classdef TrainMonitorViz < handle
         pollingResult = obj.labeler_.tracker.bgTrnMonitor.pollingResult ;
       end      
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
-        TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
+        TrainMonitorController.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
         return
       end
 
@@ -489,7 +489,7 @@ classdef TrainMonitorViz < handle
             status = 'No training jobs running.' ;
             isAllGood = true ;
           otherwise ,
-            error('APT:internalError', 'Unrecognized EndCause in TrainMonitorViz.syncStatusLineToPollingResult()') ;
+            error('APT:internalError', 'Unrecognized EndCause in TrainMonitorController.syncStatusLineToPollingResult()') ;
         end
       elseif isempty(pollingResult) ,
         status = 'Initializing training.' ;
@@ -543,7 +543,7 @@ classdef TrainMonitorViz < handle
       obj.wasAborted(:) = true ;
       obj.setStatusDisplayLine_('Training process killed.', true);
 
-      TrainMonitorViz.updateStartStopButton(obj.pushbutton_startstop_,false,false);
+      TrainMonitorController.updateStartStopButton(obj.pushbutton_startstop_,false,false);
     end
     
     % function startTraining(obj)
@@ -553,7 +553,7 @@ classdef TrainMonitorViz < handle
     %   % - If the training has reached final iter, training will immediately 
     %   % end
     % 
-    %   % Kills and creates new TrainMonitorViz, maybe that's fine
+    %   % Kills and creates new TrainMonitorController, maybe that's fine
     % 
     %   obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
     % end
@@ -719,7 +719,7 @@ classdef TrainMonitorViz < handle
       else
         isComplete = (labeler.lastTrainEndCause == EndCause.complete) ;
       end
-      TrainMonitorViz.updateStartStopButton(obj.pushbutton_startstop_, isRunning, isComplete) ;
+      TrainMonitorController.updateStartStopButton(obj.pushbutton_startstop_, isRunning, isComplete) ;
     end  % function
 
     function setStatusDisplayLine_(obj, str, isallgood)

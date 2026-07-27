@@ -779,7 +779,7 @@ classdef DeepTracker < LabelTracker
     % 
     %   % Create the worker, etc used to monitor training in the background
     %   trnWrkObj = BgTrainPoller(dmc, backend) ;
-    %   trnVizObj = TrainMonitorViz(dmc,obj,trnWrkObj,...
+    %   trnVizObj = TrainMonitorController(dmc,obj,trnWrkObj,...
     %                               backend.type,'trainSplits',trainSplits) ;                
     %   trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj, 'projTempDir', projTempDir) ;
     %   obj.bgTrnMonitor = trnMonObj;

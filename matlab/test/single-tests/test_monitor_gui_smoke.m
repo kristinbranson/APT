@@ -1,7 +1,7 @@
 function test_monitor_gui_smoke()
   % Headless smoke test for the de-GUIDE'd training/tracking monitor GUIs.
   %
-  % TrainMonitorViz and TrackMonitorViz used to build their figures by loading
+  % TrainMonitorController and TrackMonitorViz used to build their figures by loading
   % a GUIDE .fig via a gui_mainfcn dispatcher (TrainMonitorGUI.m /
   % TrackMonitorGUI.m).  They now build their figures programmatically in a
   % createGui_() method and keep the widget handles as instance properties
@@ -10,7 +10,7 @@ function test_monitor_gui_smoke()
   % figure build -- and asserts the figure opens and exposes the expected
   % controls by Tag.  It runs headless under xvfb on any supported release.
 
-  test_one_monitor_(@TrainMonitorViz, ...
+  test_one_monitor_(@TrainMonitorController, ...
                     'figure_TrainMonitor', ...
                     {'axes_loss', 'axes_dist', 'text_clusterinfo', 'text_clusterstatus', ...
                      'popupmenu_actions', 'pushbutton_action', 'pushbutton_startstop'}) ;
