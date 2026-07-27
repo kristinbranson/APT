@@ -72,6 +72,14 @@ classdef TrackMonitorViz < handle
   properties (Transient)
     parent_  % a LabelerController
     labeler_  % a Labeler
+    % Widget handles, formerly reached via guidata(obj.hfig).
+    axes_wait_
+    edit_trackerinfo_
+    text_clusterstatus_
+    text_clusterinfo_
+    popupmenu_actions_
+    pushbutton_action_
+    pushbutton_startstop_
   end
 
   properties (Constant)
@@ -112,19 +120,17 @@ classdef TrackMonitorViz < handle
       nMovSets = numel(nFramesToTrack);
       nmov = nMovSets*nview;
       
-      obj.hfig = TrackMonitorGUI(obj);
+      obj.createGui_() ;
       obj.hfig.CloseRequestFcn = @(s,e)(parent.trackMonitorVizCloseRequested()) ;
-        % Override the CloseRequestFcn callback in TrackMonitorGUI with this one, 
-        % which lets that LabelerController handle things in a coordinated way.
+        % The figure is built with a plain CloseRequestFcn; override it here with
+        % this one, which lets the LabelerController handle things in a
+        % coordinated way.
       %parent.addSatellite(obj.hfig);  % Don't think we need this
-      handles = guidata(obj.hfig);
       obj.updateStopButton() ;
-      %TrackMonitorViz.updateStartStopButton(handles,true,false);
-      %handles.pushbutton_startstop.Enable = 'on';
       obj.hfig.UserData = 'running';
-      obj.haxs = [handles.axes_wait];
-      %obj.hannlastupdated = handles.text_clusterstatus;
-      obj.htrackerInfo = handles.edit_trackerinfo;
+      obj.haxs = [obj.axes_wait_];
+      %obj.hannlastupdated = obj.text_clusterstatus_;
+      obj.htrackerInfo = obj.edit_trackerinfo_;
 
       % obj.twoStgMode = dtObj.getNumStages() > 1;
       obj.listMode = (poller.trackStyle_ == apt.TrackStyle.list);
@@ -138,14 +144,14 @@ classdef TrackMonitorViz < handle
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: Initializing...', clusterstr) ;
       obj.setStatusDisplayLine_(str, true) ;
-      handles.text_clusterinfo.String = '...';
+      obj.text_clusterinfo_.String = '...';
       % set info about current tracker
       s = obj.dtObj.getTrackerInfoString();
       obj.htrackerInfo.String = s;
-      handles.popupmenu_actions.String = obj.actions.(char(backendType));
-      handles.popupmenu_actions.Value = 1;
-      
-      axwait = handles.axes_wait;
+      obj.popupmenu_actions_.String = obj.actions.(char(backendType));
+      obj.popupmenu_actions_.Value = 1;
+
+      axwait = obj.axes_wait_;
       % if tracking movies, output size will be [poller.nMovies, poller.nViews, poller.nStages]
       % if tracking list, it will be [poller.njobs,1,1]
       pollingResultSize = obj.poller.resultSize;
@@ -215,21 +221,128 @@ classdef TrackMonitorViz < handle
             clrI = clrs(imovset,:);
             obj.hline(itot) = patch([0,0,1,1,0]*obj.minFracComplete,...
               itot-[0,1,1,0,0],clrI,...
-              'Parent',handles.axes_wait,...
+              'Parent',obj.axes_wait_,...
               'EdgeColor','w');
             obj.htext(itot) = text((1+obj.minFracComplete)/2,itot-.5,...
               sprintf('0/%d frames tracked%s',obj.nFramesToTrack(itot),obj.jobDescs{itot}),...
               'Color','w','HorizontalAlignment','center',...
-              'VerticalAlignment','middle','Parent',handles.axes_wait);
+              'VerticalAlignment','middle','Parent',obj.axes_wait_);
           end
         end
       end  % if
       
       obj.resLast = [];
       obj.wasAborted = false;
-      drawnow;            
+      drawnow;
     end
-    
+
+    function createGui_(obj)
+      % Build the tracking-monitor figure and its widgets programmatically,
+      % storing the widget handles as instance properties.  This replaces the
+      % legacy GUIDE .fig/.m pair; the layout was lifted from GUIDE's export.
+      obj.hfig = figure(...
+        'Units', 'pixels', ...
+        'Position', [951.6 826.153846153846 791 525], ...
+        'Color', [0 0 0], ...
+        'MenuBar', 'none', ...
+        'ToolBar', 'none', ...
+        'DockControls', 'off', ...
+        'IntegerHandle', 'off', ...
+        'Name', 'Tracking Monitor', ...
+        'NumberTitle', 'off', ...
+        'Tag', 'figure_TrackMonitor', ...
+        'Visible', 'on') ;
+
+      obj.edit_trackerinfo_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'edit', ...
+        'Units', 'normalized', ...
+        'Min', 0, ...
+        'Max', 2, ...
+        'String', 'Tracker information:', ...
+        'HorizontalAlignment', 'left', ...
+        'Position', [0.0252844500632111 0.714285714285714 0.955752212389381 0.24], ...
+        'BackgroundColor', [0.15 0.15 0.15], ...
+        'ForegroundColor', [0.3 0.75 0.93], ...
+        'Tag', 'edit_trackerinfo') ;
+
+      obj.axes_wait_ = axes(...
+        'Parent', obj.hfig, ...
+        'Units', 'normalized', ...
+        'Position', [0.0252844500632111 0.6 0.955752212389381 0.0952380952380952], ...
+        'Color', [0.15 0.15 0.15], ...
+        'XColor', [1 1 1], ...
+        'YColor', [1 1 1], ...
+        'Tag', 'axes_wait') ;
+
+      obj.text_clusterstatus_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'text', ...
+        'Units', 'normalized', ...
+        'String', 'Cluster status: Initializing ...', ...
+        'HorizontalAlignment', 'left', ...
+        'Position', [0.0252844500632111 0.516190476190476 0.955752212389381 0.0704761904761905], ...
+        'BackgroundColor', [0 0 0], ...
+        'ForegroundColor', [0 1 0], ...
+        'FontUnits', 'normalized', ...
+        'FontSize', 0.432432432432432, ...
+        'Tag', 'text_clusterstatus') ;
+
+      obj.text_clusterinfo_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'edit', ...
+        'Units', 'normalized', ...
+        'Min', 0, ...
+        'Max', 2, ...
+        'String', '...', ...
+        'HorizontalAlignment', 'left', ...
+        'Position', [0.0252844500632111 0.121904761904762 0.955752212389381 0.396190476190476], ...
+        'BackgroundColor', [0.15 0.15 0.15], ...
+        'ForegroundColor', [1 1 1], ...
+        'Tag', 'text_clusterinfo') ;
+
+      obj.popupmenu_actions_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'popupmenu', ...
+        'Units', 'normalized', ...
+        'String', {'List all jobs on cluster' ; 'Show tracking jobs'' status' ; 'Update tracking monitor' ; 'Show log files'}, ...
+        'Value', 1, ...
+        'Position', [0.0290771175726928 0.0457142857142857 0.571428571428572 0.0647619047619048], ...
+        'BackgroundColor', [0 0 0], ...
+        'ForegroundColor', [0 1 0], ...
+        'FontUnits', 'normalized', ...
+        'FontSize', 0.470588235294118, ...
+        'Tag', 'popupmenu_actions') ;
+
+      obj.pushbutton_action_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'pushbutton', ...
+        'Units', 'normalized', ...
+        'String', 'Go', ...
+        'Position', [0.604298356510746 0.0590476190476191 0.0922882427307207 0.0514285714285714], ...
+        'BackgroundColor', [0.47 0.67 0.19], ...
+        'ForegroundColor', [1 1 1], ...
+        'FontUnits', 'normalized', ...
+        'FontSize', 0.592592592592593, ...
+        'FontWeight', 'bold', ...
+        'Tag', 'pushbutton_action', ...
+        'Callback', @(s,e)(obj.updateClusterInfo())) ;
+
+      obj.pushbutton_startstop_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'pushbutton', ...
+        'Units', 'normalized', ...
+        'String', 'Stop tracking', ...
+        'Position', [0.724399494310999 0.0590476190476191 0.252844500632111 0.0514285714285714], ...
+        'BackgroundColor', [0.64 0.08 0.18], ...
+        'ForegroundColor', [1 1 1], ...
+        'FontUnits', 'normalized', ...
+        'FontSize', 0.592592592592593, ...
+        'FontWeight', 'bold', ...
+        'Tag', 'pushbutton_startstop', ...
+        'Callback', @(s,e)(obj.abortTracking())) ;
+    end  % function
+
     function delete(obj)
       deleteValidGraphicsHandles(obj.hfig);
       obj.hfig = [];
@@ -595,22 +708,21 @@ classdef TrackMonitorViz < handle
       if ~isErr,
         return;
       end
-      handles = guidata(obj.hfig);
       if any([pollingResult.errFileExists]),
-        erri = find(strcmp(handles.popupmenu_actions.String,'Show error messages'),1);
+        erri = find(strcmp(obj.popupmenu_actions_.String,'Show error messages'),1);
         if numel(erri) ~= 1,
           return;
         end
-        handles.popupmenu_actions.Value = erri;
+        obj.popupmenu_actions_.Value = erri;
       else
-        erri = find(strcmp(handles.popupmenu_actions.String,'Show log files'),1);
+        erri = find(strcmp(obj.popupmenu_actions_.String,'Show log files'),1);
         if numel(erri) ~= 1,
           return;
         end
-        handles.popupmenu_actions.Value = erri;        
+        obj.popupmenu_actions_.Value = erri;
       end
       obj.updateClusterInfo();
-      handles.text_clusterinfo.ForegroundColor = 'r';
+      obj.text_clusterinfo_.ForegroundColor = 'r';
       %TrackMonitorViz.updateStartStopButton(handles,false,false);
       drawnow;
     end  % function
@@ -636,9 +748,8 @@ classdef TrackMonitorViz < handle
         return;
       end
       obj.setStatusDisplayLine_('Killing tracking jobs...', false) ;
-      handles = guidata(obj.hfig);
-      handles.pushbutton_startstop.String = 'Stopping tracking...';
-      handles.pushbutton_startstop.Enable = 'off';
+      obj.pushbutton_startstop_.String = 'Stopping tracking...';
+      obj.pushbutton_startstop_.Enable = 'off';
       obj.labeler_.abortTracking() ;
 
       % [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
@@ -657,26 +768,24 @@ classdef TrackMonitorViz < handle
     end
     
     function updateClusterInfo(obj)
-      
-      handles = guidata(obj.hfig);
-      actions = handles.popupmenu_actions.String; %#ok<PROP>
-      v = handles.popupmenu_actions.Value;
+      actions = obj.popupmenu_actions_.String; %#ok<PROP>
+      v = obj.popupmenu_actions_.Value;
       action = actions{v}; %#ok<PROP>
       switch action
         case 'Show log files',
          ss = obj.getLogFilesSummary();
-         handles.text_clusterinfo.String = ss;
+         obj.text_clusterinfo_.String = ss;
          drawnow;
         case 'Update tracking monitor',
           obj.updateMonitorPlots();
           drawnow;
         case {'List all jobs on cluster','List all docker jobs','List all conda jobs'},
           ss = obj.detailedStatusStringFromRegisteredJobIndex_();
-          handles.text_clusterinfo.String = ss;
+          obj.text_clusterinfo_.String = ss;
           drawnow;
         case 'Show tracking jobs'' status',
           ss = obj.queryAllJobsStatus();
-          handles.text_clusterinfo.String = ss;
+          obj.text_clusterinfo_.String = ss;
           drawnow;
         case 'Show error messages',
           if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
@@ -684,7 +793,7 @@ classdef TrackMonitorViz < handle
           else
             ss = obj.getErrorFilesSummary() ;
           end
-          handles.text_clusterinfo.String = ss;
+          obj.text_clusterinfo_.String = ss;
           drawnow;
         otherwise
           fprintf('%s not implemented\n',action);
@@ -727,23 +836,22 @@ classdef TrackMonitorViz < handle
         
     function updateStopButton(obj)
       % A conventional update method for the (start/)stop button.
-      handles = guidata(obj.hfig) ;
       labeler = obj.labeler_ ;
       isRunning = labeler.bgTrkIsRunning ;
       if isRunning
         isComplete = [] ;
       else
         isComplete = (labeler.lastTrackEndCause == EndCause.complete) ;
-      end      
+      end
       if isRunning ,
-        set(handles.pushbutton_startstop,'String','Stop tracking','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
+        set(obj.pushbutton_startstop_,'String','Stop tracking','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
       else
         if isComplete ,
-          set(handles.pushbutton_startstop,'String','Tracking complete','BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
+          set(obj.pushbutton_startstop_,'String','Tracking complete','BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
         else
-          set(handles.pushbutton_startstop,'String','Tracking stopped','BackgroundColor',[.64,.08,.18],'Enable','off','UserData','done');
+          set(obj.pushbutton_startstop_,'String','Tracking stopped','BackgroundColor',[.64,.08,.18],'Enable','off','UserData','done');
         end
-      end      
+      end
     end  % function
         
   end  % methods
@@ -864,10 +972,7 @@ classdef TrackMonitorViz < handle
   methods
     function setStatusDisplayLine_(obj, str, isallgood)
       % Set the status message line and its color (green if isallgood, else red).
-      % obj.hfig's guidata must have a text_clusterstatus field containing the
-      % handle of an appropriate 'text' graphics object.
-      handles = guidata(obj.hfig) ;
-      text_h = handles.text_clusterstatus ;
+      text_h = obj.text_clusterstatus_ ;
       set(text_h, 'String', str) ;
       set(text_h, 'ForegroundColor', fif(isallgood, 'g', 'r')) ;
       drawnow('limitrate', 'nocallbacks') ;
@@ -915,7 +1020,16 @@ classdef TrackMonitorViz < handle
 
     function createIDTrainingAxis(obj)
       % Create a new axis for ID training loss display
-      handles = guidata(obj.hfig);
+      % Gather the widget handles into a struct keyed by Tag, so the
+      % reposition loops below can reference controls by name.
+      handles = struct(...
+        'edit_trackerinfo', obj.edit_trackerinfo_, ...
+        'axes_wait', obj.axes_wait_, ...
+        'text_clusterinfo', obj.text_clusterinfo_, ...
+        'pushbutton_startstop', obj.pushbutton_startstop_, ...
+        'popupmenu_actions', obj.popupmenu_actions_, ...
+        'text_clusterstatus', obj.text_clusterstatus_, ...
+        'pushbutton_action', obj.pushbutton_action_) ;
 
       % Get current figure and axes_wait positions
       figPos = get(obj.hfig, 'Position');

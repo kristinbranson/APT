@@ -6769,11 +6769,8 @@ classdef LabelerController < handle
       trainMonitorViz = obj.trainingMonitorVisualizer_ ;
       if tfbatch ,
         doReallyClose = true ;
-      else        
-        trainMonitorFig = trainMonitorViz.hfig ;
-        handles = guidata(trainMonitorFig) ;
-  
-        mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
+      else
+        mode = get(trainMonitorViz.pushbutton_startstop_,'UserData');  % this is not a good way to store application state.
   
         if strcmpi(mode,'stop') ,
           res = questdlg({'Training currently in progress. Please stop training before'
@@ -6807,12 +6804,9 @@ classdef LabelerController < handle
       trackMonitorViz = obj.trackingMonitorVisualizer_ ;
       if tfbatch ,
         doReallyClose = true ;
-      else        
-        trackMonitorFig = trackMonitorViz.hfig ;
-        handles = guidata(trackMonitorFig) ;
-  
-        mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
-  
+      else
+        mode = get(trackMonitorViz.pushbutton_startstop_,'UserData');  % this is not a good way to store application state.
+
         if strcmpi(mode,'stop') ,
           res = questdlg({'Tracking currently in progress. Please stop tracking before'
                           'closing this monitor. If you have already clicked Stop tracking,'

@@ -64,6 +64,14 @@ classdef TrainMonitorViz < handle
     parent_
     labeler_
     trainMontageFigures_ = []  % figure handles for showing training image montages
+    % Widget handles, formerly reached via guidata(obj.hfig).
+    axes_loss_
+    axes_dist_
+    text_clusterstatus_
+    text_clusterinfo_
+    popupmenu_actions_
+    pushbutton_action_
+    pushbutton_startstop_
   end
 
   properties (Dependent)
@@ -117,17 +125,17 @@ classdef TrainMonitorViz < handle
       obj.dtObj = labeler.tracker ;
       obj.poller = labeler.tracker.bgTrainPoller ;
       obj.backendType = labeler.backend.type ;
-      obj.hfig = TrainMonitorGUI(obj);
+      obj.createGui_() ;
       % parent.addSatellite(obj.hfig);  % Don't think we need this
       obj.hfig.CloseRequestFcn = @(s,e)(parent.trainMonitorVizCloseRequested()) ;
-        % Override the CloseRequestFcn callback in TrainMonitorGUI with this one, 
-        % which lets that LabelerController handle things in a coordinated way.
+        % The figure is built with a plain CloseRequestFcn; override it here with
+        % this one, which lets the LabelerController handle things in a
+        % coordinated way.
 
-      handles = guidata(obj.hfig);
-      TrainMonitorViz.updateStartStopButton(handles, false, []) ;
-      handles.pushbutton_startstop.Enable = 'on';
-            
-      obj.haxs = [handles.axes_loss;handles.axes_dist];
+      TrainMonitorViz.updateStartStopButton(obj.pushbutton_startstop_, false, []) ;
+      obj.pushbutton_startstop_.Enable = 'on';
+
+      obj.haxs = [obj.axes_loss_ ; obj.axes_dist_];
       %obj.hannlastupdated = handles.text_clusterstatus;
       tfMultiSet = nsets>1;
       if tfMultiSet
@@ -140,9 +148,9 @@ classdef TrainMonitorViz < handle
       str = sprintf('%s status: Initializing...', clusterstr) ;
       obj.setStatusDisplayLine_(str, true) ;
       %obj.hannlastupdated.String = 'Cluster status: Initializing...';
-      handles.text_clusterinfo.String = '...';
-      handles.popupmenu_actions.String = obj.actions.(char(obj.backendType));
-      handles.popupmenu_actions.Value = 1;
+      obj.text_clusterinfo_.String = '...';
+      obj.popupmenu_actions_.String = obj.actions.(char(obj.backendType));
+      obj.popupmenu_actions_.Value = 1;
       
       arrayfun(@(x)grid(x,'on'),obj.haxs);
       arrayfun(@(x)hold(x,'on'),obj.haxs);
@@ -194,9 +202,112 @@ classdef TrainMonitorViz < handle
       obj.lastTrainIter = zeros(1,nmodels);
       obj.axisXRange = repmat(obj.axisXRange,[1 nsets]);
 
-      obj.jobStoppedRepeatsReqd = 2; 
+      obj.jobStoppedRepeatsReqd = 2;
     end
-    
+
+    function createGui_(obj)
+      % Build the training-monitor figure and its widgets programmatically,
+      % storing the widget handles as instance properties.  This replaces the
+      % legacy GUIDE .fig/.m pair; the layout was lifted from GUIDE's export.
+      obj.hfig = figure(...
+        'Units', 'pixels', ...
+        'Position', [951.6 603.153846153846 792 748], ...
+        'Color', [0 0 0], ...
+        'MenuBar', 'none', ...
+        'ToolBar', 'none', ...
+        'DockControls', 'off', ...
+        'IntegerHandle', 'off', ...
+        'Name', 'Training Monitor', ...
+        'NumberTitle', 'off', ...
+        'Tag', 'figure_TrainMonitor', ...
+        'Visible', 'on') ;
+
+      obj.axes_loss_ = axes(...
+        'Parent', obj.hfig, ...
+        'Units', 'normalized', ...
+        'Position', [0.0653535353535353 0.732723159193747 0.924545454545454 0.25], ...
+        'Color', [0.15 0.15 0.15], ...
+        'XColor', [1 1 1], ...
+        'YColor', [1 1 1], ...
+        'Tag', 'axes_loss') ;
+
+      obj.axes_dist_ = axes(...
+        'Parent', obj.hfig, ...
+        'Units', 'normalized', ...
+        'Position', [0.0653535353535353 0.472027972027972 0.924545454545454 0.25], ...
+        'Color', [0.15 0.15 0.15], ...
+        'XColor', [1 1 1], ...
+        'YColor', [1 1 1], ...
+        'Tag', 'axes_dist') ;
+
+      obj.text_clusterinfo_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'edit', ...
+        'Units', 'normalized', ...
+        'Min', 0, ...
+        'Max', 2, ...
+        'String', '...', ...
+        'HorizontalAlignment', 'left', ...
+        'Position', [0.0353535353535354 0.070855614973262 0.954545454545455 0.27807486631016], ...
+        'BackgroundColor', [0.15 0.15 0.15], ...
+        'ForegroundColor', [1 1 1], ...
+        'Tag', 'text_clusterinfo') ;
+
+      obj.text_clusterstatus_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'text', ...
+        'Units', 'normalized', ...
+        'String', 'Cluster status: Initializing ...', ...
+        'HorizontalAlignment', 'left', ...
+        'Position', [0.0366161616161616 0.347593582887701 0.953282828282828 0.0494652406417112], ...
+        'BackgroundColor', [0 0 0], ...
+        'ForegroundColor', [0 1 0], ...
+        'FontUnits', 'normalized', ...
+        'FontSize', 0.432432432432432, ...
+        'Tag', 'text_clusterstatus') ;
+
+      obj.popupmenu_actions_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'popupmenu', ...
+        'Units', 'normalized', ...
+        'String', {'List all jobs on cluster' ; 'Show training jobs'' status' ; 'Update training monitor plots' ; 'Show log files'}, ...
+        'Value', 1, ...
+        'Position', [0.0391414141414141 0.017379679144385 0.570707070707071 0.0454545454545455], ...
+        'BackgroundColor', [0 0 0], ...
+        'ForegroundColor', [0 1 0], ...
+        'FontUnits', 'normalized', ...
+        'FontSize', 0.470588235294118, ...
+        'Tag', 'popupmenu_actions') ;
+
+      obj.pushbutton_action_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'pushbutton', ...
+        'Units', 'normalized', ...
+        'String', 'Go', ...
+        'Position', [0.613636363636364 0.0267379679144385 0.0921717171717172 0.036096256684492], ...
+        'BackgroundColor', [0.47 0.67 0.19], ...
+        'ForegroundColor', [1 1 1], ...
+        'FontUnits', 'normalized', ...
+        'FontSize', 0.592592592592593, ...
+        'FontWeight', 'bold', ...
+        'Tag', 'pushbutton_action', ...
+        'Callback', @(s,e)(obj.updateClusterInfo())) ;
+
+      obj.pushbutton_startstop_ = uicontrol(...
+        'Parent', obj.hfig, ...
+        'Style', 'pushbutton', ...
+        'Units', 'normalized', ...
+        'String', 'Stop training', ...
+        'Position', [0.733585858585859 0.0267379679144385 0.252525252525252 0.036096256684492], ...
+        'BackgroundColor', [0.64 0.08 0.18], ...
+        'ForegroundColor', [1 1 1], ...
+        'FontUnits', 'normalized', ...
+        'FontSize', 0.592592592592593, ...
+        'FontWeight', 'bold', ...
+        'Tag', 'pushbutton_startstop', ...
+        'Callback', @(s,e)(obj.abortTraining())) ;
+    end  % function
+
     function delete(obj)
       deleteValidGraphicsHandles(obj.trainMontageFigures_) ;
       obj.trainMontageFigures_ = [] ;
@@ -319,10 +430,9 @@ classdef TrainMonitorViz < handle
       end
       
       if any(pollingResult.errFileExists),
-        handles = guidata(obj.hfig);
-        i = find(strcmp(handles.popupmenu_actions.String,'Show error messages'));
+        i = find(strcmp(obj.popupmenu_actions_.String,'Show error messages'));
         if ~isempty(i),
-          handles.popupmenu_actions.Value = i;
+          obj.popupmenu_actions_.Value = i;
         end
       end
 
@@ -424,9 +534,8 @@ classdef TrainMonitorViz < handle
     function abortTraining(obj)
       % Called in response to the user pressing the stop button
       obj.setStatusDisplayLine_('Killing training jobs...', false);
-      handles = guidata(obj.hfig);
-      handles.pushbutton_startstop.String = 'Stopping training...';
-      handles.pushbutton_startstop.Enable = 'inactive';
+      obj.pushbutton_startstop_.String = 'Stopping training...';
+      obj.pushbutton_startstop_.Enable = 'inactive';
       drawnow();
 
       obj.labeler_.abortTraining() ;
@@ -434,7 +543,7 @@ classdef TrainMonitorViz < handle
       obj.wasAborted(:) = true ;
       obj.setStatusDisplayLine_('Training process killed.', true);
 
-      TrainMonitorViz.updateStartStopButton(handles,false,false);
+      TrainMonitorViz.updateStartStopButton(obj.pushbutton_startstop_,false,false);
     end
     
     % function startTraining(obj)
@@ -449,28 +558,27 @@ classdef TrainMonitorViz < handle
     %   obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
     % end
     
-    function updateClusterInfo(obj)      
-      handles = guidata(obj.hfig);
-      actions = handles.popupmenu_actions.String; %#ok<PROP>
-      v = handles.popupmenu_actions.Value;
+    function updateClusterInfo(obj)
+      actions = obj.popupmenu_actions_.String; %#ok<PROP>
+      v = obj.popupmenu_actions_.Value;
       action = actions{v}; %#ok<PROP>
       switch action
-        case 'Show sample training images' 
-          obj.showTrainingImages();          
+        case 'Show sample training images'
+          obj.showTrainingImages();
         case 'Show log files',
           ss = obj.getLogFilesSummary();
-          handles.text_clusterinfo.String = ss;
+          obj.text_clusterinfo_.String = ss;
           drawnow;
         case 'Update training monitor plots',
           obj.updateMonitorPlots();
           drawnow;
         case {'List all jobs on cluster','List all docker jobs','List all conda jobs'}
           ss = obj.queryAllJobsStatus();
-          handles.text_clusterinfo.String = ss;
+          obj.text_clusterinfo_.String = ss;
           drawnow;
         case 'Show training jobs'' status',
           ss = obj.detailedStatusStringFromRegisteredJobIndex_();
-          handles.text_clusterinfo.String = ss;
+          obj.text_clusterinfo_.String = ss;
           drawnow;
         case 'Show error messages',
           obj.displayErrorMessages() ;
@@ -481,15 +589,14 @@ classdef TrainMonitorViz < handle
     end
 
     function displayErrorMessages(obj)
-      handles = guidata(obj.hfig);
       if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
         ss = 'No error messages.';
       else
         ss = obj.getErrorFilesSummary();
       end
-      handles.text_clusterinfo.String = ss;
+      obj.text_clusterinfo_.String = ss;
       drawnow('limitrate', 'nocallbacks') ;
-    end      
+    end
 
     % function ss = getLogFilesContents(obj)
     %   ss = obj.trainWorkerObj.getLogFilesContent();
@@ -586,18 +693,18 @@ classdef TrainMonitorViz < handle
       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
     end   
     
-    function updateStartStopButton(handles, isRunning, isComplete)
+    function updateStartStopButton(pushbutton_startstop, isRunning, isComplete)
       if isRunning || isempty(isComplete),
-        set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
+        set(pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
       else
         if isComplete,
-          set(handles.pushbutton_startstop,'String','Training complete','BackgroundColor',[.466,.674,.188],...
+          set(pushbutton_startstop,'String','Training complete','BackgroundColor',[.466,.674,.188],...
               'Enable','off','UserData','done');
         else
-          set(handles.pushbutton_startstop,'String','Training incomplete',...
+          set(pushbutton_startstop,'String','Training incomplete',...
               'Enable','off','UserData','done');
         end
-      end      
+      end
     end  % function
 
   end  % methods (Static)
@@ -605,23 +712,19 @@ classdef TrainMonitorViz < handle
   methods
     function updateStopButton(obj)
       % A conventional update method for the (start/)stop button.
-      handles = guidata(obj.hfig);
       labeler = obj.labeler_ ;
       isRunning = labeler.bgTrnIsRunning ;
       if isRunning
         isComplete = [] ;
       else
         isComplete = (labeler.lastTrainEndCause == EndCause.complete) ;
-      end      
-      TrainMonitorViz.updateStartStopButton(handles, isRunning, isComplete) ;
+      end
+      TrainMonitorViz.updateStartStopButton(obj.pushbutton_startstop_, isRunning, isComplete) ;
     end  % function
 
     function setStatusDisplayLine_(obj, str, isallgood)
       % Set the status message line and its color (green if isallgood, else red).
-      % obj.hfig's guidata must have a text_clusterstatus field containing the
-      % handle of an appropriate 'text' graphics object.
-      handles = guidata(obj.hfig) ;
-      text_h = handles.text_clusterstatus ;
+      text_h = obj.text_clusterstatus_ ;
       set(text_h, 'String', str) ;
       set(text_h, 'ForegroundColor', fif(isallgood, 'g', 'r')) ;
       drawnow('limitrate', 'nocallbacks') ;
