@@ -33,6 +33,7 @@ classdef LabelerController < handle
     aboutFigure_ = gobjects(1,0)
     trkInfoFigure_ = gobjects(1,0)
     landmarkSpecsFigure_ = gobjects(1,0)
+    keypointAppearanceFigure_ = gobjects(1,0)  % the Landmark Cosmetics dialog figure
     trackingErrorMontageFigures_ = gobjects(1,0)
     gtManagerFigure_  % the ground truth manager *figure*
     plotAllLabelsFigure_ = gobjects(1,0)
@@ -672,6 +673,8 @@ classdef LabelerController < handle
       obj.trkInfoFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.landmarkSpecsFigure_) ;
       obj.landmarkSpecsFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.keypointAppearanceFigure_) ;
+      obj.keypointAppearanceFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.trackingErrorMontageFigures_) ;
       obj.trackingErrorMontageFigures_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.plotAllLabelsFigure_) ;
@@ -6378,7 +6381,8 @@ classdef LabelerController < handle
     function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       cbkApply = @(varargin)(labeler.setLandmarkAndSkeletonCosmetics(varargin{:})) ;
-      LandmarkColors(obj, labeler, cbkApply);
+      keypointAppearanceController = LandmarkColorsController(obj, labeler, cbkApply) ;
+      obj.keypointAppearanceFigure_ = keypointAppearanceController.hFig ;
     end
 
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
