@@ -10558,8 +10558,8 @@ classdef Labeler < handle
     function [tfsucc,msg] = trackImportTracker(obj,infile)
       % WORKING HERE
       tfsucc = false;
-      msg = '';
-      [p,n,ext] = fileparts(infile);
+      % msg = '';
+      [~,~,ext] = fileparts(infile);
       if strcmp(ext,'.json'),
         injsonfile = infile;
       else
@@ -10571,7 +10571,7 @@ classdef Labeler < handle
         any(any(cellfun(@isempty,fileinfo.netfiles)));
       if nottrained,
         msg = 'Networks not trained for at least one stage/view';
-        return;
+        return
       end
       trackerinfo.nettypes = cellfun(@(key) DLNetType(key),trackerinfo.trnNetTypeString);
       obj.trackMakeNewTrackerGivenNetTypes(trackerinfo.nettypes);

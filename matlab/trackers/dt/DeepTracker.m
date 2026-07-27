@@ -2408,15 +2408,12 @@ classdef DeepTracker < LabelTracker
 
       if isprop(totrackinfo,'link_type') || isfield(totrackinfo,'link_type')
         if strcmp(totrackinfo.link_type,'identity')
-          track_type = 'detect';
           obj.needs_id_linking = true;
           obj.trkfiles = totrackinfo.trkfiles;
           totrackinfo.setTrkFilesWithDetectSuffix();
         elseif strcmp(totrackinfo.link_type,'simple')
-          track_type = 'detect';
           obj.needs_id_linking = false;
         else
-          track_type = 'track';
           obj.needs_id_linking = false;
         end
       else
