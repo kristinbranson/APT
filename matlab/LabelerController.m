@@ -9,7 +9,7 @@ classdef LabelerController < handle
   properties  % subcontrollers
     labelTLInfo_  % an InfoTimelineController object
     trackingMonitorVisualizer_  % a subcontroller
-    trainingMonitorVisualizer_  % a subcontroller
+    trainMonitorController_  % a subcontroller
     movieManagerController_
     backendTestController_
     lblCoreController_  % scalar LabelCoreController, or []. The controller for the label core model.
@@ -414,9 +414,9 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateTrackMonitorViz',@(source,event)(obj.updateTrackMonitorViz()));      
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'refreshTrainMonitorViz',@(source,event)(obj.refreshTrainMonitorViz()));      
+        addlistener(labeler,'refreshTrainMonitorController',@(source,event)(obj.refreshTrainMonitorController()));      
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'updateTrainMonitorViz',@(source,event)(obj.updateTrainMonitorViz()));      
+        addlistener(labeler,'updateTrainMonitorController',@(source,event)(obj.updateTrainMonitorController()));      
       % obj.listeners_(end+1) = ...
       %   addlistener(labeler,'raiseTrainingStoppedDialog',@(source,event)(obj.raiseTrainingEndedDialog_()));      
       obj.listeners_(end+1) = ...
@@ -699,11 +699,11 @@ classdef LabelerController < handle
         end
         obj.trackingMonitorVisualizer_ = [] ;
       end
-      if ~isempty(obj.trainingMonitorVisualizer_)
-        if isvalid(obj.trainingMonitorVisualizer_) ,
-          delete(obj.trainingMonitorVisualizer_) ;
+      if ~isempty(obj.trainMonitorController_)
+        if isvalid(obj.trainMonitorController_) ,
+          delete(obj.trainMonitorController_) ;
         end
-        obj.trainingMonitorVisualizer_ = [] ;
+        obj.trainMonitorController_ = [] ;
       end
       if ~isempty(obj.backendTestController_)
         delete(obj.backendTestController_) ;
@@ -778,8 +778,8 @@ classdef LabelerController < handle
       end
       statusColor = fif(is_busy, obj.busystatuscolor, obj.idlestatuscolor) ;
       set(obj.txStatus,'ForegroundColor',statusColor);      
-      if ~isempty(obj.trainingMonitorVisualizer_) && isvalid(obj.trainingMonitorVisualizer_)
-        obj.trainingMonitorVisualizer_.updatePointer() ;
+      if ~isempty(obj.trainMonitorController_) && isvalid(obj.trainMonitorController_)
+        obj.trainMonitorController_.updatePointer() ;
       end
       if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
         obj.trackingMonitorVisualizer_.updatePointer() ;
@@ -1987,24 +1987,24 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function refreshTrainMonitorViz(obj)
+    function refreshTrainMonitorController(obj)
       % Create a TrainMonitorController if one doesn't exist.  If one *does*
       % exist, delete that one first.
       labeler = obj.labeler_ ;
-      if ~isempty(obj.trainingMonitorVisualizer_) 
-        if isvalid(obj.trainingMonitorVisualizer_) ,
-          delete(obj.trainingMonitorVisualizer_) ;
+      if ~isempty(obj.trainMonitorController_) 
+        if isvalid(obj.trainMonitorController_) ,
+          delete(obj.trainMonitorController_) ;
         end
-        obj.trainingMonitorVisualizer_ = [] ;
+        obj.trainMonitorController_ = [] ;
       end
-      obj.trainingMonitorVisualizer_ = TrainMonitorController(obj, labeler) ;
+      obj.trainMonitorController_ = TrainMonitorController(obj, labeler) ;
     end  % function
 
-    function updateTrainMonitorViz(obj)
-      if ~isempty(obj.trainingMonitorVisualizer_) && isvalid(obj.trainingMonitorVisualizer_) 
+    function updateTrainMonitorController(obj)
+      if ~isempty(obj.trainMonitorController_) && isvalid(obj.trainMonitorController_) 
         labeler = obj.labeler_ ;
         pollingResult = labeler.tracker.bgTrnMonitor.pollingResult ;
-        obj.trainingMonitorVisualizer_.resultsReceived(pollingResult) ;
+        obj.trainMonitorController_.resultsReceived(pollingResult) ;
       end
     end  % function
 
@@ -2967,7 +2967,7 @@ classdef LabelerController < handle
     end  % function
     
     function updateTrainingMonitor(obj)
-      obj.trainingMonitorVisualizer_.update() ;
+      obj.trainMonitorController_.update() ;
     end  % function
 
     function cbkTrackerTrainEnd(obj)
@@ -6550,9 +6550,9 @@ classdef LabelerController < handle
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
         obj.movieManagerController_.update() ;
       end
-      sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
+      sendMaybe(obj.trainMonitorController_, 'updateStopButton') ;
       sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;
-      sendMaybe(obj.trainingMonitorVisualizer_, 'syncStatusLineToPollingResult') ;
+      sendMaybe(obj.trainMonitorController_, 'syncStatusLineToPollingResult') ;
       sendMaybe(obj.trackingMonitorVisualizer_, 'syncStatusLineToPollingResult') ;
       sendMaybe(obj.uncertainFramesController_, 'update') ;
       sendMaybe(obj.compareTrackersController_, 'update') ;
@@ -6778,14 +6778,14 @@ classdef LabelerController < handle
     %   obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
     % end
 
-    function trainMonitorVizCloseRequested(obj)
+    function trainMonitorControllerCloseRequested(obj)
       doReallyClose = false ;
       tfbatch = batchStartupOptionUsed() ; % ci
-      trainMonitorViz = obj.trainingMonitorVisualizer_ ;
+      trainMonitorController = obj.trainMonitorController_ ;
       if tfbatch ,
         doReallyClose = true ;
       else
-        mode = get(trainMonitorViz.pushbutton_startstop_,'UserData');  % this is not a good way to store application state.
+        mode = get(trainMonitorController.pushbutton_startstop_,'UserData');  % this is not a good way to store application state.
   
         if strcmpi(mode,'stop') ,
           res = questdlg({'Training currently in progress. Please stop training before'
@@ -6808,8 +6808,8 @@ classdef LabelerController < handle
       end
 
       if doReallyClose ,
-        delete(trainMonitorViz);
-        obj.trainingMonitorVisualizer_ = [] ;
+        delete(trainMonitorController);
+        obj.trainMonitorController_ = [] ;
       end        
     end  % function
 

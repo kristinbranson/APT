@@ -166,8 +166,8 @@ classdef Labeler < handle
     update_text_trackerinfo
     refreshTrackMonitorViz
     updateTrackMonitorViz
-    refreshTrainMonitorViz
-    updateTrainMonitorViz
+    refreshTrainMonitorController
+    updateTrainMonitorController
     % raiseTrainingStoppedDialog
     updateTargetCentrationAndZoom
     updateMainAxisHighlight
@@ -13675,7 +13675,7 @@ classdef Labeler < handle
 
     function didReceivePollResultsRetrograde(obj, track_or_train)
       if strcmp(track_or_train, 'train') ,
-        obj.notify_('updateTrainMonitorViz') ;
+        obj.notify_('updateTrainMonitorController') ;
       elseif strcmp(track_or_train, 'track') ,
         obj.notify_('updateTrackMonitorViz') ;
       else
@@ -13688,11 +13688,11 @@ classdef Labeler < handle
     % end
     % 
     % function didReceiveTrainingPollResults_(obj)
-    %   obj.notify_('updateTrainMonitorViz') ;
+    %   obj.notify_('updateTrainMonitorController') ;
     % end    
 
-    function needRefreshTrainMonitorViz(obj)
-      obj.notify_('refreshTrainMonitorViz') ;
+    function needRefreshTrainMonitorController(obj)
+      obj.notify_('refreshTrainMonitorController') ;
     end
 
     function result = get.backend(obj)

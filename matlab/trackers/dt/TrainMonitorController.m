@@ -127,7 +127,7 @@ classdef TrainMonitorController < handle
       obj.backendType = labeler.backend.type ;
       obj.createGui_() ;
       % parent.addSatellite(obj.hfig);  % Don't think we need this
-      obj.hfig.CloseRequestFcn = @(s,e)(parent.trainMonitorVizCloseRequested()) ;
+      obj.hfig.CloseRequestFcn = @(s,e)(parent.trainMonitorControllerCloseRequested()) ;
         % The figure is built with a plain CloseRequestFcn; override it here with
         % this one, which lets the LabelerController handle things in a
         % coordinated way.

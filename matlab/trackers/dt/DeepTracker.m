@@ -1634,7 +1634,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrainPoller = trnWrkObj;
       bgTrnMonitor = BgMonitor(obj, 'train', trnWrkObj, 'projTempDir', projTempDir) ;
       obj.bgTrnMonitor = bgTrnMonitor;
-      obj.lObj.needRefreshTrainMonitorViz() ;
+      obj.lObj.needRefreshTrainMonitorController() ;
 
       % Start the monitor.  Do this after spawning so we can do it in foreground for
       % debuging sometimes.

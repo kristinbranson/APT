@@ -57,12 +57,11 @@ function test_track_error_during_polling()
   assert(~isempty(trackMonitorViz) && isvalid(trackMonitorViz), ...
          'No tracking monitor visualizer was present after the error') ;
   drawnow() ;  % ensure any pending status-line repaint has been applied
-  handles = guidata(trackMonitorViz.hfig) ;
-  statusColor = get(handles.text_clusterstatus, 'ForegroundColor') ;
+  statusColor = get(trackMonitorViz.text_clusterstatus_, 'ForegroundColor') ;
   assert(isequal(statusColor, [1 0 0]), ...
          'Tracking monitor status line should be red after the error, but its color was [%g %g %g]', ...
          statusColor(1), statusColor(2), statusColor(3)) ;
-  statusString = get(handles.text_clusterstatus, 'String') ;
+  statusString = get(trackMonitorViz.text_clusterstatus_, 'String') ;
   assert(any(contains(string(statusString), "Error")), ...
          'Tracking monitor status line should report an error, but reads: %s', char(strjoin(string(statusString), ' '))) ;
 end  % function

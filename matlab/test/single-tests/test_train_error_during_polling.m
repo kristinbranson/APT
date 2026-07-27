@@ -60,16 +60,15 @@ function test_train_error_during_polling()
   % authoritative lastTrainEndCause on trainEnd, so an errored bout shows a red
   % error message rather than whatever the last poll happened to say.
   controller = tester.controller ;
-  trainMonitorViz = controller.trainingMonitorVisualizer_ ;
-  assert(~isempty(trainMonitorViz) && isvalid(trainMonitorViz), ...
-         'No training monitor visualizer was present after the error') ;
+  trainMonitorController = controller.trainMonitorController_ ;
+  assert(~isempty(trainMonitorController) && isvalid(trainMonitorController), ...
+         'No training monitor controller was present after the error') ;
   drawnow() ;  % ensure any pending status-line repaint has been applied
-  handles = guidata(trainMonitorViz.hfig) ;
-  statusColor = get(handles.text_clusterstatus, 'ForegroundColor') ;
+  statusColor = get(trainMonitorController.text_clusterstatus_, 'ForegroundColor') ;
   assert(isequal(statusColor, [1 0 0]), ...
          'Training monitor status line should be red after the error, but its color was [%g %g %g]', ...
          statusColor(1), statusColor(2), statusColor(3)) ;
-  statusString = get(handles.text_clusterstatus, 'String') ;
+  statusString = get(trainMonitorController.text_clusterstatus_, 'String') ;
   assert(any(contains(string(statusString), "Error")), ...
          'Training monitor status line should report an error, but reads: %s', char(strjoin(string(statusString), ' '))) ;
 end  % function
