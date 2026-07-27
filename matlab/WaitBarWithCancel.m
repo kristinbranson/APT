@@ -56,7 +56,7 @@ classdef WaitBarWithCancel < handle
   properties
     hWB % waitbar handle
     hTxt % handle to text obj in hWB
-    hBar % handle to hgjavacomponent graphical waitbar
+    hBar % handle to graphical bar in hWB (hgjavacomponent before R2025a, uiprogressindicator after)
     isCancel % scalar logical
     cancelData % optional data set on main thread by clients for passing info upstream
     
@@ -89,9 +89,14 @@ classdef WaitBarWithCancel < handle
       hText = findall(h,'type','text');
       hText.Interpreter = 'none';
       
+      hBar = findall(h,'type','hgjavacomponent');  % how waitbar draws the bar before R2025a
+      if isempty(hBar)
+        hBar = findall(h,'type','uiprogressindicator');  % how waitbar draws the bar from R2025a on
+      end
+
       obj.hWB = h;
       obj.hTxt = hText;
-      obj.hBar = findall(h,'type','hgjavacomponent');
+      obj.hBar = hBar;
       obj.isCancel = false;
     end
     
@@ -171,8 +176,9 @@ classdef WaitBarWithCancel < handle
     end
 
     function updateShowBar(obj)
+      % Show/hide the graphical bar per the top context's nobar setting.
       onoff = onIff(~isempty(obj.contexts) && ~obj.contexts(end).nobar);
-      obj.hBar.Visible = onoff;
+      set(obj.hBar, 'Visible', onoff);  % tolerates an empty obj.hBar
     end
   end
   

@@ -18,6 +18,7 @@ classdef LabelerController < handle
       % Manages the highlighting of axes for GT mode.  This is controller-like
       % but might not be a controller in the strictest sense.
     uncertainFramesController_  % UncertainFramesController, or []
+    compareTrackersController_  % CompareTrackersController, or []
   end
 
   properties  % "uncontrolled" satellite figures---satellite figures that aren't managed by controllers (at present)
@@ -107,6 +108,7 @@ classdef LabelerController < handle
     menu_evaluate_gtmode
     menu_evaluate_gt_frames
     menu_evaluate_show_uncertain_frames
+    menu_evaluate_compare_trackers
     menu_evaluate_gtsetsuggestions
     menu_file
     menu_file_bundle_tempdir
@@ -119,10 +121,8 @@ classdef LabelerController < handle
     menu_file_export_labels_cocojson
     menu_file_import_labels_cocojson
     menu_file_export_labels_trks
-    menu_file_import_export_advanced
     % menu_file_import_labels2_trk_curr_mov  % removed with labels2 infrastructure
     menu_file_import_labels_table
-    menu_file_import_labels_trk_curr_mov
     menu_file_import
     menu_file_export
     menu_file_load
@@ -349,6 +349,9 @@ classdef LabelerController < handle
       % Create the UncertainFramesController to manage that
       obj.uncertainFramesController_ = UncertainFramesController(labeler.uncertainFramesModel_, obj, labeler) ;
 
+      % Create the CompareTrackersController to manage that
+      obj.compareTrackersController_ = CompareTrackersController(labeler.compareTrackersModel_, obj, labeler) ;
+
       % Update the controls enablement  
       obj.updateEnablementOfManyControls() ;
       
@@ -502,6 +505,20 @@ classdef LabelerController < handle
         addlistener(labeler, 'didSetUncertainFramesIsVisible', ...
                     @(s,e)(obj.didSetUncertainFramesIsVisible())) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateCompareTrackers', ...
+                    @(s,e)(obj.updateCompareTrackers())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didSetCompareTrackersThreshold', ...
+                    @(s,e)(obj.didSetCompareTrackersThreshold())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didSetCompareTrackersIsVisible', ...
+                    @(s,e)(obj.didSetCompareTrackersIsVisible())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didSetCompareTrackersTrackerSelection', ...
+                    @(s,e)(obj.didSetCompareTrackersTrackerSelection())) ;
+        addlistener(labeler, 'didSetCompareTrackersMode', ...
+                    @(s,e)(obj.didSetCompareTrackersMode())) ;
+      obj.listeners_(end+1) = ...
         addlistener(labeler,'newMovie',@(s,e)(obj.cbkNewMovie(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'dataImported',@(s,e)(obj.cbkDataImported(s,e)));
@@ -591,7 +608,9 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'requestMacroizationGUI',@(s,e)(obj.requestMacroizationGUI())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'requestMessageBox',@(s,e)(obj.requestMessageBox())) ;
+        addlistener(obj.labeler_,'requestNonmodalMessageBox',@(s,e)(obj.requestNonmodalMessageBox())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'requestModalWarningDialog',@(s,e)(obj.requestModalWarningDialog())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'requestQuestionDialog',@(s,e)(obj.requestQuestionDialog())) ;
       obj.listeners_(end+1) = ...
@@ -690,6 +709,12 @@ classdef LabelerController < handle
           delete(obj.uncertainFramesController_) ;
         end
         obj.uncertainFramesController_ = [] ;
+      end
+      if ~isempty(obj.compareTrackersController_)
+        if isvalid(obj.compareTrackersController_)
+          delete(obj.compareTrackersController_) ;
+        end
+        obj.compareTrackersController_ = [] ;
       end
     end  % function
 
@@ -1124,7 +1149,6 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Spawning training job...') ;  % Want to do this here, b/c the stuff in this method can take a while
       oc = onCleanup(@()(labeler.popBusyStatus()));
-      drawnow;
 
       % Check for project, movie
       [doTheyExist, message] = labeler.doProjectAndMovieExist() ;
@@ -1226,6 +1250,9 @@ classdef LabelerController < handle
       h = msgbox(msg,DIALOGTTL);
       obj.gtTrackingDialogFigure_ = h ;
       %obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
+      obj.updateStatusAndPointer() ;
+        % Re-render the pointer to match the model: raising the dialog can leave
+        % the underlying figure's displayed cursor stale during a busy operation.
     end
 
     function showGTResults(obj, source, event)  %#ok<INUSD> 
@@ -1653,7 +1680,9 @@ classdef LabelerController < handle
           if ismethod(obj,methodName) ,
             obj.(methodName)(source, event, varargin{:});
           end
-        elseif isequal(type,'uicontrol') || isequal(type,'uimenu') || isequal(type,'uibutton') ,
+        elseif isequal(type,'uicontrol') || isequal(type,'uimenu') || isequal(type,'uibutton') || ...
+               isequal(type,'uilistbox') || isequal(type,'uieditfield') || ...
+               isequal(type,'uidropdown') ,
           methodName=[controlName '_actuated_'] ;
           if ismethod(obj,methodName) ,
             obj.(methodName)(source, event, varargin{:});
@@ -3550,6 +3579,8 @@ classdef LabelerController < handle
 
       % Items that require a movie but not GT mode
       set(obj.menu_evaluate_show_uncertain_frames, 'Enable', onIff(hasMovie)) ;
+      hasMultipleTrackers = numel(labeler.trackerHistory) >= 2 ;
+      set(obj.menu_evaluate_compare_trackers, 'Enable', onIff(hasMovie && hasMultipleTrackers)) ;
     end  % function
 
     function updateDebugMenu(obj)
@@ -3740,6 +3771,8 @@ classdef LabelerController < handle
     function menu_evaluate_show_uncertain_frames_actuated_(obj, src, evt)  %#ok<INUSD>
       % Make the "Uncertain Frames" figure visible
       labeler = obj.labeler_ ;
+      labeler.pushBusyStatus('Showing "Uncertain Frames" window...') ;
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;  %#ok<NASGU>
       model = labeler.uncertainFramesModel_ ;
       model.isVisible = true ;
     end  % function
@@ -3752,9 +3785,102 @@ classdef LabelerController < handle
 
     function uncertain_frames_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
       % Navigate to the selected uncertain frame.
-      selectedIndex = src.Value ;
+      % uilistbox has no ValueIndex property on this MATLAB version; derive
+      % the index by matching Value against Items instead.
+      if isempty(src.Value)
+        selectedIndex = [] ;
+      else
+        selectedIndex = find(strcmp(src.Items, src.Value), 1) ;
+      end
       labeler = obj.labeler_ ;
       labeler.uncertainFramesCurrentBoutIndexMaybe = selectedIndex ;
+    end  % function
+
+    function updateCompareTrackers(obj)
+      % Update the compare-trackers controller if it exists and is visible.
+      ctc = obj.compareTrackersController_ ;
+      ctc.update() ;
+    end  % function
+
+    function didSetCompareTrackersThreshold(obj)
+      % Update the compare-trackers controller after the threshold changes.
+      ctc = obj.compareTrackersController_ ;
+      ctc.update() ;
+    end  % function
+
+    function didSetCompareTrackersIsVisible(obj)
+      % Update the compare-trackers controller after visibility changes.
+      ctc = obj.compareTrackersController_ ;
+      ctc.update() ;
+    end  % function
+
+    function didSetCompareTrackersTrackerSelection(obj)
+      % Update the compare-trackers controller after a ref/test tracker
+      % selection changes.
+      ctc = obj.compareTrackersController_ ;
+      ctc.update() ;
+    end  % function
+
+    function didSetCompareTrackersMode(obj)
+      % Update the compare-trackers controller after the mode changes.
+      ctc = obj.compareTrackersController_ ;
+      ctc.update() ;
+    end  % function
+
+    function menu_evaluate_compare_trackers_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Make the "Compare Trackers" figure visible.
+      labeler = obj.labeler_ ;
+      labeler.pushBusyStatus('Showing "Compare Trackers" window...') ;
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;  %#ok<NASGU>
+      model = labeler.compareTrackersModel_ ;
+      model.isVisible = true ;
+    end  % function
+
+    function compare_trackers_threshold_edit_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Handle threshold edit box change.
+      ctc = obj.compareTrackersController_ ;
+      ctc.compare_trackers_threshold_edit_actuated_(src) ;
+    end  % function
+
+    function compare_trackers_test_dropdown_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Handle test-tracker dropdown change.
+      ctc = obj.compareTrackersController_ ;
+      ctc.compare_trackers_test_dropdown_actuated_(src) ;
+    end  % function
+
+    function compare_trackers_mode_dropdown_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Handle mode dropdown change.
+      ctc = obj.compareTrackersController_ ;
+      ctc.compare_trackers_mode_dropdown_actuated_(src) ;
+    end  % function
+
+    function compare_trackers_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Navigate to the selected compare-trackers bout.
+      % uilistbox has no ValueIndex property on this MATLAB version; derive
+      % the index by matching Value against Items instead.
+      if isempty(src.Value)
+        selectedIndex = [] ;
+      else
+        selectedIndex = find(strcmp(src.Items, src.Value), 1) ;
+      end
+      labeler = obj.labeler_ ;
+      labeler.compareTrackersCurrentBoutIndexMaybe = selectedIndex ;
+    end  % function
+
+    function compare_trackers_listbox_clicked_actuated_(obj, src, evt)  %#ok<INUSL>
+      % Navigate to the clicked compare-trackers bout.  Unlike
+      % ValueChangedFcn, this fires even when the clicked item is the
+      % already-selected one, which matters when the user has manually
+      % navigated away from the bout's frame and wants to jump back.  (For
+      % a click that changes the selection, ValueChangedFcn fires first
+      % and this re-navigates to the same place, which is harmless.)
+      clickedItemIndex = evt.InteractionInformation.Item ;
+      if isempty(clickedItemIndex)
+        % The click landed on whitespace below the items.
+        return
+      end
+      labeler = obj.labeler_ ;
+      labeler.compareTrackersCurrentBoutIndexMaybe = clickedItemIndex ;
     end  % function
 
     function cbkCropIsCropModeChanged(obj, src, evt)  %#ok<INUSD>
@@ -5219,39 +5345,11 @@ classdef LabelerController < handle
       end
     end
 
-    function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      if ~labeler.hasMovie
-        error('LabelerGUI:noMovie','No movie is loaded.');
-      end
-      labeler.gtThrowErrIfInGTMode();
-      iMov = labeler.currMovie;
-      haslbls1 = labeler.labelPosMovieHasLabels(iMov); % TODO: method should be unnec
-      haslbls2 = labeler.movieFilesAllHaveLbls(iMov)>0;
-      assert(haslbls1==haslbls2);
-      if haslbls1
-        resp = questdlg('Current movie has labels that will be overwritten. OK?',...
-          'Import Labels','OK, Proceed','Cancel','Cancel');
-        if isempty(resp)
-          resp = 'Cancel';
-        end
-        switch resp
-          case 'OK, Proceed'
-            % none
-          case 'Cancel'
-            return;
-          otherwise
-            assert(false);
-        end
-      end
-      obj.labelImportTrkPromptGenericSimple(iMov,'labelImportTrk','gtok',false) ;
-    end
-
     function menu_file_import_tracking_results_actuated_(obj, src, evt)  %#ok<INUSD>
       % Import tracking results from .trk file(s) for the current movie
       labeler = obj.labeler_ ;
       iMov = labeler.currMovie ;
-      obj.labelImportTrkPromptGenericSimple(iMov, 'importTrackingResults') ;
+      obj.importTrackingResultsPrompt(iMov) ;
     end
 
     function menu_file_export_labels_trks_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6026,7 +6124,11 @@ classdef LabelerController < handle
     function menu_track_all_movies_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       mIdx = labeler.allMovIdx();
-      toTrackIn = labeler.mIdx2TrackList(mIdx);
+      [toTrackIn, tfok] = labeler.mIdx2TrackList(mIdx);
+      if ~tfok ,
+        % User cancelled when asked about preexisting trkfiles
+        return
+      end
       tbobj = TrackBatchGUI(labeler, obj.mainFigure_, 'toTrack', toTrackIn);
       % [toTrackOut] = tbobj.run();
       tbobj.run();
@@ -6039,7 +6141,11 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       mainFigure = obj.mainFigure_ ;
       mIdx = labeler.currMovIdx;
-      toTrackIn = labeler.mIdx2TrackList(mIdx);
+      [toTrackIn, tfok] = labeler.mIdx2TrackList(mIdx);
+      if ~tfok ,
+        % User cancelled when asked about preexisting trkfiles
+        return
+      end
       mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
       [toTrackOut,dostore] = mdobj.run();
       if ~dostore,
@@ -6302,11 +6408,6 @@ classdef LabelerController < handle
       labeler.cropClearAllCrops();
     end
 
-
-
-    function menu_file_import_export_advanced_actuated_(obj, src, evt)  %#ok<INUSD>
-    end
-
     function menu_track_tracking_algorithm_actuated_(obj, src, evt)  %#ok<INUSD>
 
       labeler = obj.labeler_;
@@ -6488,7 +6589,10 @@ classdef LabelerController < handle
       end
       sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
       sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;
+      sendMaybe(obj.trainingMonitorVisualizer_, 'syncStatusLineToPollingResult') ;
+      sendMaybe(obj.trackingMonitorVisualizer_, 'syncStatusLineToPollingResult') ;
       sendMaybe(obj.uncertainFramesController_, 'update') ;
+      sendMaybe(obj.compareTrackersController_, 'update') ;
     end
     
     function save(obj)
@@ -6538,36 +6642,6 @@ classdef LabelerController < handle
       labeler.projSave(lblFilePath) ;
     end  % function
     
-    function labelImportTrkPromptGenericAuto(obj,iMovs,importFcn)
-      % Come up with trkfiles based on iMovs and then call importFcn.
-      % 
-      % iMovs: index into .movieFilesAllGTAware
-      
-      labeler = obj.labeler_ ;
-      movfiles = labeler.movieFilesAllFullGTaware(iMovs,:);
-      [tfsucc,trkfilesUse] = LabelerController.labelImportTrkFindTrkFilesPrompt(movfiles);
-      if tfsucc
-        feval(importFcn,labeler,iMovs,trkfilesUse);
-      else
-        if isscalar(iMovs) && labeler.nview==1
-          % In this case (single movie, single view) failure can occur if 
-          % no trkfile is found alongside movie, or if user cancels during
-          % a prompt.
-          
-          lastTrkFileImported = labeler.rcGetProp('lastTrkFileImported');
-          if isempty(lastTrkFileImported)
-            lastTrkFileImported = pwd;
-          end
-          [fname,pth] = uigetfile('*.trk','Import trkfile',lastTrkFileImported);
-          if isequal(fname,0)
-            return;
-          end
-          trkfile = fullfile(pth,fname);
-          feval(importFcn,labeler,iMovs,{trkfile});
-        end
-      end      
-    end
-
     function tf = doesGTManagerFigureExist(obj)
       hGTMgr = obj.gtManagerFigure_ ;
       tf = ~isempty(hGTMgr) && ishandle(hGTMgr);
@@ -6588,54 +6662,6 @@ classdef LabelerController < handle
     end
 
   end  % methods
-
-  methods (Static)
-    function [tfsucc,trkfilesUse] = labelImportTrkFindTrkFilesPrompt(movfiles)
-      % Find trkfiles present for given movies. Prompt user to pick a set
-      % if more than one exists.
-      %
-      % movfiles: [nTrials x nview] cellstr
-      %
-      % tfsucc: if true, trkfilesUse is valid; if false, trkfilesUse is
-      % intedeterminate
-      % trkfilesUse: cellstr, same size as movfiles. Full paths to trkfiles
-      % present/selected for import
-      
-      [trkfilesCommon,kwCommon] = Labeler.getTrkFileNamesForImport(movfiles);
-      nCommon = numel(kwCommon);
-      
-      tfsucc = false;
-      trkfilesUse = [];
-      switch nCommon
-        case 0
-          warningNoTrace('Labeler:labelImportTrkPrompt',...
-            'No consistently-named trk files found across %d given movies.',numel(movfiles));
-          return;
-        case 1
-          trkfilesUseIdx = 1;
-        otherwise
-          msg = sprintf('Multiple consistently-named trkfiles found. Select trkfile pattern to import.');
-          uiwait(msgbox(msg,'Multiple trkfiles found','modal'));
-          trkfileExamples = trkfilesCommon{1};
-          for i=1:numel(trkfileExamples)
-            [~,trkfileExamples{i}] = myfileparts(trkfileExamples{i});
-          end
-          [sel,ok] = listdlg(...
-            'Name','Select trkfiles',...
-            'Promptstring','Select a trkfile (pattern) to import.',...
-            'SelectionMode','single',...
-            'listsize',[300 300],...
-            'liststring',trkfileExamples);
-          if ok
-            trkfilesUseIdx = sel;
-          else
-            return;
-          end
-      end
-      trkfilesUse = cellfun(@(x)x{trkfilesUseIdx},trkfilesCommon,'uni',0);
-      tfsucc = true;
-    end  % function
-  end  % methods (Static)
 
   methods
     function updateAfterCurrentFrameSet(obj)
@@ -8304,13 +8330,31 @@ classdef LabelerController < handle
       result.sel = sel ;
       result.ok = ok ;
       labeler.dialogLandingPad = result ;
+      obj.updateStatusAndPointer() ;
+        % Re-render the pointer to match the model: a modal listdlg leaves the
+        % underlying figure's displayed cursor stale, so the watch cursor would
+        % otherwise not show during any busy work that follows the dialog.
     end  % function
 
-    function requestMessageBox(obj)
+    function requestNonmodalMessageBox(obj)
       % Show a message box to the user on behalf of the Labeler.
       labeler = obj.labeler_ ;
       params = labeler.dialogLaunchPad ;
       obj.nonmodalMessageBox_(params.text, params.title) ;
+      obj.updateStatusAndPointer() ;
+        % Re-render the pointer to match the model: raising the message box can
+        % leave the underlying figure's displayed cursor stale during a busy
+        % operation.
+    end  % function
+
+    function requestModalWarningDialog(obj)
+      % Show a modal warning dialog to the user on behalf of the Labeler.
+      labeler = obj.labeler_ ;
+      params = labeler.dialogLaunchPad ;
+      % Save and restore focus, since warndlg can steal it from the main window.
+      fig = gcf() ;
+      uiwait(warndlg(params.text, params.title, 'modal')) ;
+      figure(fig) ;  % restore focus
     end  % function
 
     function updateLabelCoreTrackResForCurrentTarget(obj)
@@ -8334,43 +8378,41 @@ classdef LabelerController < handle
       % Save and restore focus, since questdlg can steal it from the main window.
       fig = gcf() ;
       answer = questdlg(params.text, ...
-                         params.title, ...
-                         buttons{:}, ...
-                         params.default) ;
+                        params.title, ...
+                        buttons{:}, ...
+                        params.default) ;  % modal window
       figure(fig) ;  % restore focus
       if isempty(answer)
         answer = params.default ;
       end
       labeler.dialogLandingPad = answer ;
+      obj.updateStatusAndPointer() ;
+        % A modal questdlg leaves the underlying figure's displayed cursor as a
+        % stale arrow, even though its Pointer property may be 'watch' from an
+        % in-progress busy operation.  Re-render the pointer to match the model
+        % so the watch cursor shows during any long work that follows the dialog
+        % (e.g. spawning a tracking job before the Tracking Monitor appears).
     end  % function
 
-    function labelImportTrkPromptGenericSimple(obj, iMov, importFcn, varargin)
-      % Prompt user for trkfiles to import and import them with given 
-      % importFcn. User can cancel to abort
+    function importTrackingResultsPrompt(obj, iMov)
+      % Prompt user for trkfiles and import them as tracking results.
+      % User can cancel to abort.
       %
       % iMov: scalar positive index into .movieFilesAll. GT mode not
       %   allowed.
 
       labeler = obj.labeler_ ;
-            
+
       if ~labeler.hasMovie
         error('Labeler:noMovie','No movie is loaded.');
       end
-      
+
       % labeler.pushBusyStatus('Importing tracking results...');
       % oc = onCleanup(@()(labeler.popBusyStatus())) ;
-      
-      gtok = myparse(varargin,...
-        'gtok',false ... % if true, obj.gtIsGTMode can be true, and iMov 
-                  ...% refers per GT state. importFcn needs to support GT
-                  ...% state
-                  );
-      
-      assert(isscalar(iMov));      
-      if ~gtok
-        assert(~labeler.gtIsGTMode);
-      end
-      
+
+      assert(isscalar(iMov));
+      assert(~labeler.gtIsGTMode);
+
       movs = labeler.movieFilesAllFullGTaware(iMov,:);
       movdirs = cellfun(@fileparts,movs,'uni',0);
       nvw = labeler.nview;
@@ -8387,9 +8429,9 @@ classdef LabelerController < handle
         end
         trkfiles{ivw} = fullfile(pth,fname);
       end
-      
-      % Call the Labeler function to actual do stuff to the model
-      feval(importFcn, labeler, iMov, trkfiles) ;
+
+      % Call the Labeler method to actually do stuff to the model
+      labeler.importTrackingResults(iMov, trkfiles) ;
     end  % function
     
   end  % methods

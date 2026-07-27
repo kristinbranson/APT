@@ -139,6 +139,28 @@ iptwindowalign(figHandle, 'bottom', hHistFig, 'top');
 
 % Display figure and return
 set(hHistFig, 'visible', 'on');
+
+% On >=R2025a the OS window manager places a figure window when it is
+% first shown: the position set by the alignment above (while the figure
+% was invisible) is not honored, and the window can come up stacked
+% behind the target figure.  Raise the tool, then re-apply the alignment
+% until the position holds -- the window manager positions the window
+% asynchronously after it is first shown and can override a position
+% set too early.
+figure(hHistFig);
+previousPosition = [];
+for attempt = 1:10
+    iptwindowalign(figHandle, 'left', hHistFig, 'left');
+    iptwindowalign(figHandle, 'bottom', hHistFig, 'top');
+    drawnow;
+    pause(0.2);
+    currentPosition = get(hHistFig, 'OuterPosition');
+    if isequal(currentPosition, previousPosition)
+        break
+    end
+    previousPosition = currentPosition;
+end
+
 if nargout > 0
     hfigure = hHistFig;
 end

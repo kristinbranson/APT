@@ -6,8 +6,8 @@ function test_chimpact_MA_top_down_detr_gt()
     warning('The project videos are too large to easily copy, so %s always passes on Windows', mfilename());
     return
   end
-  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, 'chimpAct_noTestlabels_detr400k_nocrop.lbl') ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/chimpAct_noTestlabels_detr400k_nocrop.lbl' ;
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
   backend = docker_unless_janelia_cluster_then_conda() ;
   backend_params = synthesize_backend_params(backend) ;
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;

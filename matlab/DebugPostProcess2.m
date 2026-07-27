@@ -599,7 +599,7 @@ ptf = lObj.tracker;
 tv = ptf.trkVizer;
 
 mIdx = lObj.currMovIdx;
-ptf.trackResAddTrkfile(mIdx,{trkfileMain});
+ptf.trackResAddAdhocTrkfile(mIdx,{trkfileMain});
 ptf.newLabelerMovie;
 % import trkfileLpos2 manually
 

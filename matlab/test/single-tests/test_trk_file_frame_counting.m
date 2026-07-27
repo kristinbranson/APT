@@ -1,7 +1,7 @@
 function test_trk_file_frame_counting()
   % Test counting of frames in .trk files
-  [~, unittest_dir_path, ~] = get_test_project_paths() ;
-  trk_folder_path = fullfile(unittest_dir_path,'trks') ;
+  linux_trk_folder_path = '/groups/branson/bransonlab/apt/unittest/trks' ;
+  [trk_folder_path, ~] = localize_test_project_path(linux_trk_folder_path) ;
   name_from_file_index = { 'carmen-underfly-gt-1.trk', ...
                            'from-ma-with-trx-for-all-targets.trk.part', ...
                            'from-ma-with-trx-for-single-target.trk', ...

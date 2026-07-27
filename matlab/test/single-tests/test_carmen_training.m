@@ -1,6 +1,6 @@
 function test_carmen_training()
-  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, 'pez7_al_updated_20241015.lbl') ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/pez7_al_updated_20241015.lbl' ;
+  [project_file_path, replace_path] = localize_test_project_path(linux_project_file_path) ;
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
   oc = onCleanup(@()(delete(tester))) ;
   backend = docker_unless_janelia_cluster_then_conda() ;

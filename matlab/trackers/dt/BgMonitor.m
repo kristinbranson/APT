@@ -30,9 +30,13 @@ classdef BgMonitor < handle
   properties (Transient)
     pollingResult
     erroryPollCount_ = 0
-    isEnded_ = false  
+    isEnded_ = false
       % Set to true when the training/tracking bout has ended, regardless of
       % whether it ended successefully, errored out, or was aborted by the user.
+    receivedPollResultCount_ = 0
+      % Number of (non-late) poll results this monitor has obtained so far.
+      % Used only by the forcedPollErrorIndex_ test hook (see
+      % didReceivePollResultsRetrograde).
   end
 
   methods
@@ -152,7 +156,21 @@ classdef BgMonitor < handle
         % notify() views/controllers that there's a training/tracking result, and that they should
         % update themselves accordingly.  But that's it. Determining that training/tracking is
         % complete is done below.
-      
+
+      % Test hook: force the bout to error out upon obtaining the n-th poll
+      % result, so tests can exercise the mid-run error-handling path without a
+      % real job actually failing.  parent_.forcedPollErrorIndex_ is 0
+      % (disabled) in normal operation.
+      obj.receivedPollResultCount_ = obj.receivedPollResultCount_ + 1 ;
+      forcedPollErrorIndex = obj.parent_.forcedPollErrorIndex_ ;
+      if forcedPollErrorIndex > 0 && obj.receivedPollResultCount_ == forcedPollErrorIndex ,
+        % Record that the current training/tracking bout is over, then signal the
+        % error to the parent, exactly as the real error branches below do.
+        obj.isEnded_ = true ;
+        obj.parent_.didErrorDuringTrainingOrTrackingRetrograde(obj.processName, pollingResult) ;
+        return
+      end
+
       % Determine whether the polling itself was successful or not
       didPollingItselfSucceed = pollingResult.pollsuccess ;  % logical scalar
       if ~didPollingItselfSucceed

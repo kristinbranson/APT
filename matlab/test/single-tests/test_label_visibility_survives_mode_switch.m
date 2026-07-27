@@ -6,8 +6,10 @@ function test_label_visibility_survives_mode_switch()
 % LabelCoreModel was destroyed and recreated.
 
 % Start APT with an SA project that has trx
-projectFile = '/groups/branson/bransonlab/apt/unittest/with-trx-project.lbl' ;
+linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/with-trx-project.lbl' ;
+[projectFile, replace_path] = localize_test_project_path(linux_project_file_path) ;
 [labeler, controller] = StartAPT('projfile', projectFile, ...
+                                 'replace_path', replace_path, ...
                                  'isInDebugMode', true, ...
                                  'isInYodaMode', true) ;
 cleanupObj = onCleanup(@()(delete(controller))) ;

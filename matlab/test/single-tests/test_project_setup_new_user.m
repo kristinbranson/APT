@@ -39,6 +39,16 @@ function test_project_setup_new_user()
   if ~iscell(result.LabelPointNames) || numel(result.LabelPointNames) ~= keypointCount
     error('LabelPointNames was not turned into a cell array of length %d', keypointCount) ;
   end
+
+  % The name fields must be column vectors.  Labeler.initFromConfig_() uses
+  % size(LabelPointNames,1) as the number of point sets, so a row-oriented cell
+  % array leaves all but the first point unassigned to any view.
+  if size(result.ViewNames,2) ~= 1
+    error('ViewNames must be a column cell array') ;
+  end
+  if size(result.LabelPointNames,2) ~= 1
+    error('LabelPointNames must be a column cell array') ;
+  end
   if ~strcmp(result.ProjectName, 'newUserProject')
     error('ProjectName was not set correctly') ;
   end

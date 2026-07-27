@@ -49,7 +49,10 @@ if handles.isMA,
     ["One-Stage/Bottom-Up","Two-Stage/Top-Down"],...
     'Tag','dropdown_paradigm',...
     'ValueChangedFcn',@cbkDropdownParadigm);
-  handles.dropdown_paradigm.ValueIndex = numel(handles.trackercurr_types);
+  % uidropdown/uilistbox have no ValueIndex property on older MATLAB (eg
+  % R2022a); set/read Value against Items instead, which works on all
+  % versions.
+  handles.dropdown_paradigm.Value = handles.dropdown_paradigm.Items{numel(handles.trackercurr_types)};
   handles.label_paradigmdesc = uilabel('Parent',gl1,'WordWrap','on',...
     'Text',{['{\bf Two-stage/Top-down} algorithms localize the animal(s) in the first stage, ',...
     'then fit the detailed pose for each animal independently in the second stage. This allows the tracker to focus its ',...
@@ -145,7 +148,7 @@ handles.pb_cancel.Layout.Column = 3;
 
 if ~handles.isMA,
   handles.listbox_stages.Items = handles.algorithms{1};
-  handles.listbox_stages.ValueIndex = handles.last_algorithm_idx;
+  handles.listbox_stages.Value = handles.listbox_stages.Items{handles.last_algorithm_idx};
 end
 update();
 handles.figure.Visible = 'on';
@@ -156,7 +159,7 @@ uiwait(handles.figure);
 
     % isMA is not expected to change
     if handles.isMA,
-      if handles.dropdown_paradigm.ValueIndex == 1,
+      if strcmp(handles.dropdown_paradigm.Value, handles.dropdown_paradigm.Items{1}),
         handles.panel_stages(2).Visible = 'off';
         handles.gl.RowHeight{3} = 0;
         handles.stage_names = {handles.bottomup_stage_name};
@@ -184,8 +187,9 @@ uiwait(handles.figure);
 
   function updateStagePanels()
     for s = 1:handles.nstages,
-      handles.listbox_stages(s).ValueIndex = min(numel(handles.algorithms{s}),handles.last_algorithm_idx(s));
-      description = char(handles.nets{s}(handles.listbox_stages(s).ValueIndex).description);  % char() handles []
+      idx = min(numel(handles.algorithms{s}),handles.last_algorithm_idx(s));
+      handles.listbox_stages(s).Value = handles.listbox_stages(s).Items{idx};
+      description = char(handles.nets{s}(idx).description);  % char() handles []
       handles.label_desc_stages(s).Text = description ;
     end
   end
@@ -194,8 +198,10 @@ uiwait(handles.figure);
     update();
   end
 
-  function cbkListboxStage(stage,src,evt)  %#ok<INUSD>
-    handles.last_algorithm_idx(stage) = evt.ValueIndex;
+  function cbkListboxStage(stage,src,evt)
+    % evt has no ValueIndex property on older MATLAB (eg R2022a); derive the
+    % index by matching the new Value against the source listbox's Items.
+    handles.last_algorithm_idx(stage) = find(strcmp(src.Items, evt.Value), 1);
     updateStagePanels();
   end
 

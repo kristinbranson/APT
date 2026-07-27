@@ -718,8 +718,8 @@ classdef TrkFile < dynamicprops
       
       ntries = 5;
       if ~exist(filename,'file'),
-        trkfileObj = [];
-        return;
+        error('TrkFile:load', ...
+          'Trkfile ''%s'' does not exist.',filename);
       end
       
       for tryi = 1:ntries,
@@ -794,10 +794,6 @@ classdef TrkFile < dynamicprops
           error('Internal error: filetype is not a known value') ;
       end  % switch
     end  % function
-    
-%     function trkfileObj = loadsilent(filename,varargin)
-%       trkfileObj = TrkFile.load(filename,'issilent',true,varargin{:});
-%     end
     
     function s = modernizeStruct(s)
       if isfield(s,'pred_conf'),

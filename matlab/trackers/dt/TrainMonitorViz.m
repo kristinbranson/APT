@@ -138,7 +138,7 @@ classdef TrainMonitorViz < handle
       arrayfun(@(x)cla(x),obj.haxs);
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: Initializing...', clusterstr) ;
-      obj.setStatusDisplayLine(str, true) ;
+      obj.setStatusDisplayLine_(str, true) ;
       %obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
       handles.popupmenu_actions.String = obj.actions.(char(obj.backendType));
@@ -238,7 +238,7 @@ classdef TrainMonitorViz < handle
       obj.resultsReceived() ;
     end
     
-    function [tfSucc,msg] = resultsReceived(obj,pollingResult,forceupdate)
+    function resultsReceived(obj,pollingResult,forceupdate)
       % Callback executed when new result received from training monitor BG
       % worker
       %
@@ -248,14 +248,10 @@ classdef TrainMonitorViz < handle
         forceupdate = false;
       end
 
-      tfSucc = false;
-      msg = '';  %#ok<NASGU> 
-      
       if ~exist('pollingResult', 'var') || isempty(pollingResult) ,
         pollingResult = obj.labeler_.tracker.bgTrnMonitor.pollingResult ;
       end      
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
-        msg = 'Monitor closed';
         TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
         return
       end
@@ -263,8 +259,6 @@ classdef TrainMonitorViz < handle
       % If there is no pollingResult, just update the stop button.
       % May add more here in the future.
       if isempty(pollingResult) ,
-        tfSucc = true ;
-        msg = 'No one will read this.' ;
         obj.updateStopButton() ;
         return
       end
@@ -345,67 +339,76 @@ classdef TrainMonitorViz < handle
         obj.resLast = pollingResult;
       end
 
-      [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);
-      TrainMonitorViz.debugfprintf('resultsReceived - tfSucc = %d, msg = %s\n',tfSucc,msg);
+      obj.syncStatusLineToPollingResult() ;
+      obj.updateStopButton() ;
     end  % function resultsReceived()
     
-    function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
-      % pollsuccess: [nview] logical
-      % pollts: [nview] timestamps
-      
-      % Check arguments
-      assert(isstruct(pollingResult) && isscalar(pollingResult)) ;
+    function syncStatusLineToPollingResult(obj)
+      % Render the status line (text_clusterstatus) from the monitor's
+      % accumulated poll state.  This is NOT a state-independent update method
+      % -- hence the syncStatusLineToPollingResult name rather than an update*
+      % one: its source of truth is mostly the monitor's own state
+      % (obj.resLast, obj.wasAborted, obj.lastTrainIter),
+      % which is written as poll results arrive in resultsReceived().  Only a
+      % thin slice of what it reads is genuine model state
+      % (labeler.bgTrnIsRunning, labeler.lastTrainEndCause).  It is really the
+      % tail end of the resultsReceived() pipeline, not a model->view
+      % synchronizer, so calling it in isolation with a stale or empty resLast
+      % need not reflect the Labeler alone.
+      labeler = obj.labeler_ ;
+      pollingResult = obj.resLast ;  % most recent poll result received, or [] if none yet
 
-      tfSucc = true;
-      
-      pollsuccess = pollingResult.pollsuccess;
-      isTrainComplete = pollingResult.tfComplete;
-      isErr = pollingResult.errFileExists ;
-      isLogFile = pollingResult.logFileExists;
-      isJsonFile = pollingResult.jsonPresent;
-      
-      isRunning = pollingResult.isRunning ;  % 1 x nmodels
-      isAnyRunning = any(isRunning) ;
-      if ~isAnyRunning
-        if obj.jobStoppedRepeatsReqd>=1
-          obj.jobStoppedRepeatsReqd = obj.jobStoppedRepeatsReqd-1;
-          isAnyRunning = true;
+      if any(obj.wasAborted) ,
+        % The user stopped training during this bout.
+        status = sprintf('Training process killed (%d/%d models).',nnz(obj.wasAborted),obj.nmodels) ;
+        isAllGood = false ;
+      elseif ~labeler.bgTrnIsRunning ,
+        % No training bout is running: reflect the authoritative outcome of the
+        % last bout, as recorded by the tracker.
+        switch labeler.lastTrainEndCause
+          case EndCause.complete ,
+            status = 'Training complete.' ;
+            isAllGood = true ;
+          case EndCause.error ,
+            status = 'Error while training.  See error messages for details.' ;
+            isAllGood = false ;
+          case EndCause.abort ,
+            status = 'Training process killed.' ;
+            isAllGood = false ;
+          case EndCause.undefined ,
+            status = 'No training jobs running.' ;
+            isAllGood = true ;
+          otherwise ,
+            error('APT:internalError', 'Unrecognized EndCause in TrainMonitorViz.syncStatusLineToPollingResult()') ;
         end
-      end
-
-      TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d/%d, isErr = %d/d, isKilled = %d/%d\n',...
-                                   isAnyRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.wasAborted),obj.nmodels);
-      
-      if any(obj.wasAborted),
-        status = sprintf('Training process killed (%d/%d models).',nnz(obj.wasAborted),obj.nmodels);
-        tfSucc = false;
-        handles = guidata(obj.hfig);
-        TrainMonitorViz.updateStartStopButton(handles,false,false);
-      elseif any(isErr),
-        status = sprintf('Error (%d/%d models) while training after %s iterations',nnz(isErr),obj.nmodels,mat2str(obj.lastTrainIter));
-        tfSucc = false;
-        handles = guidata(obj.hfig);
-        TrainMonitorViz.updateStartStopButton(handles,false,false);
-      elseif all(isTrainComplete),
-        status = 'Training complete.';
-        handles = guidata(obj.hfig);
-        TrainMonitorViz.updateStartStopButton(handles,false,true);
-      elseif ~isAnyRunning,
-        status = 'No training jobs running.';
-        tfSucc = false;
-      elseif any(isLogFile) && all(~isJsonFile),
-        status = 'Training in progress. Preprocessing.';
-      elseif any(isLogFile) && any(isJsonFile),
-        status = sprintf('Training in progress. %s iterations completed.',mat2str(obj.lastTrainIter));
+      elseif isempty(pollingResult) ,
+        status = 'Initializing training.' ;
+        isAllGood = true ;
       else
-        status = 'Initializing training.';
+        % A training bout is in progress: derive the message from the most
+        % recent poll result.
+        isErr = pollingResult.errFileExists ;
+        isLogFile = pollingResult.logFileExists ;
+        isJsonFile = pollingResult.jsonPresent ;
+        if any(isErr) ,
+          status = sprintf('Error (%d/%d models) while training after %s iterations',nnz(isErr),obj.nmodels,mat2str(obj.lastTrainIter)) ;
+          isAllGood = false ;
+        elseif any(isLogFile) && all(~isJsonFile) ,
+          status = 'Training in progress. Preprocessing.' ;
+          isAllGood = pollingResult.pollsuccess ;
+        elseif any(isLogFile) && any(isJsonFile) ,
+          status = sprintf('Training in progress. %s iterations completed.',mat2str(obj.lastTrainIter)) ;
+          isAllGood = pollingResult.pollsuccess ;
+        else
+          status = 'Initializing training.' ;
+          isAllGood = pollingResult.pollsuccess ;
+        end
       end
 
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
-      isAllGood = pollsuccess && ~any(isErr) ;
-      obj.setStatusDisplayLine(str, isAllGood) ;
-    end
+      obj.setStatusDisplayLine_(str, isAllGood) ;
+    end  % function
     
     function adjustAxes(obj,lineUpdateMaxStep,iset)
       for i=1:size(obj.haxs,1)
@@ -420,7 +423,7 @@ classdef TrainMonitorViz < handle
     
     function abortTraining(obj)
       % Called in response to the user pressing the stop button
-      obj.setStatusDisplayLine('Killing training jobs...', false);
+      obj.setStatusDisplayLine_('Killing training jobs...', false);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'inactive';
@@ -429,7 +432,7 @@ classdef TrainMonitorViz < handle
       obj.labeler_.abortTraining() ;
 
       obj.wasAborted(:) = true ;
-      obj.setStatusDisplayLine('Training process killed.', true);
+      obj.setStatusDisplayLine_('Training process killed.', true);
 
       TrainMonitorViz.updateStartStopButton(handles,false,false);
     end
@@ -613,32 +616,14 @@ classdef TrainMonitorViz < handle
       TrainMonitorViz.updateStartStopButton(handles, isRunning, isComplete) ;
     end  % function
 
-    function setStatusDisplayLine(obj, str, isallgood)
-      % Set either or both of the status message line and the color of the status
-      % message.  Any of the two (non-obj) args can be empty, in which case that
-      % aspect is not changed.  obj.hfig's guidata must have a text_clusterstatus
-      % field containing the handle of an 'text' appropriate graphics object.
-
-      hfig = obj.hfig ;
-      handles = guidata(hfig);
+    function setStatusDisplayLine_(obj, str, isallgood)
+      % Set the status message line and its color (green if isallgood, else red).
+      % obj.hfig's guidata must have a text_clusterstatus field containing the
+      % handle of an appropriate 'text' graphics object.
+      handles = guidata(obj.hfig) ;
       text_h = handles.text_clusterstatus ;
-      if ~exist('str', 'var') ,
-        str = [] ;
-      end
-      if ~exist('isallgood', 'var') ,
-        isallgood = [] ;
-      end
-      if isempty(str) ,
-        % do nothing
-      else
-        set(text_h, 'String', str) ;
-      end
-      if isempty(isallgood) ,
-        % do nothing
-      else
-        color = fif(isallgood, 'g', 'r') ;
-        set(text_h, 'ForegroundColor',color) ;
-      end
+      set(text_h, 'String', str) ;
+      set(text_h, 'ForegroundColor', fif(isallgood, 'g', 'r')) ;
       drawnow('limitrate', 'nocallbacks') ;
     end  % function
 

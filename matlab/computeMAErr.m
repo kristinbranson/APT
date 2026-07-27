@@ -18,7 +18,6 @@ function [maErr,fp,fn] = computeMAErr(tblPred,tblLbl,hasMask)
   fp = nan(nfrm,size(tblPred.pTrk,2));
   fn = nan(nfrm,maxn);
   for ndx = 1:nfrm
-    elbl = []; epreds = [];    
     epreds1(1,:,:,:) = all_pred(ndx,:,:,:);
     elbl1(:,1,:,:) = all_lbl(match(ndx),:,:,:);
 
@@ -52,7 +51,7 @@ function [dout,fp,fn] = find_dist_match(dd,hasMask,elbl,epreds,rois)
     end
 
     idx_match = matchpairs(cmat,max(cmat(:))*10);
-%     [idx1, idx2] = munkres(cmat);
+    % [idx1, idx2] = munkres(cmat);
     sel_ndx1 = find(sel1);
     sel_ndx2 = find(sel2);
     orig_idx1 = sel_ndx1(idx_match(:,1));
@@ -101,25 +100,23 @@ function [dout,fp,fn] = find_dist_match(dd,hasMask,elbl,epreds,rois)
       end
 
     end
+end  % function
 
-
-end
-
-function [dout, oo_out] = find_dist_match_occ(dd,oo)
-    dout = nan(size(dd(:,:,1,:)));
-    oo_out = zeros(size(dout));
-    yy = nanmean(dd,4);
-    for a = 1:size(dd,1)
-        for ndx = 1:size(dd,3)
-            if all(isnan(yy(a,:,ndx)))
-                continue
-            end
-            r = find(yy(a,:,ndx) == min(yy(a,:,ndx)),1);
-            dout(a,ndx,:) = dd(a,r,ndx,:);
-            oo_out(a,ndx,:) = oo(a,r,:);
-        end
-    end
-end
+% function [dout, oo_out] = find_dist_match_occ(dd,oo)
+%     dout = nan(size(dd(:,:,1,:)));
+%     oo_out = zeros(size(dout));
+%     yy = nanmean(dd,4);
+%     for a = 1:size(dd,1)
+%         for ndx = 1:size(dd,3)
+%             if all(isnan(yy(a,:,ndx)))
+%                 continue
+%             end
+%             r = find(yy(a,:,ndx) == min(yy(a,:,ndx)),1);
+%             dout(a,ndx,:) = dd(a,r,ndx,:);
+%             oo_out(a,ndx,:) = oo(a,r,:);
+%         end
+%     end
+% end
 
 function overlap_ratio = bboxOverlapRatio(bbox1, bbox2)
     % Compute overlap ratio between two bounding boxes
@@ -205,15 +202,15 @@ function overlap_matrix = bboxOverlapAreaMatrix(bboxes1, bboxes2)
     end
 end
 
-function is_overlapping = bboxIsOverlapping(bbox1, bbox2, threshold)
-    % Check if two bounding boxes overlap above a threshold
-    % Input: bbox1, bbox2, threshold (default 0.5)
-    % Output: is_overlapping (logical)
-    
-    if nargin < 3
-        threshold = 0.5;
-    end
-    
-    overlap_ratio = bboxOverlapRatio(bbox1, bbox2);
-    is_overlapping = overlap_ratio >= threshold;
-end
+% function is_overlapping = bboxIsOverlapping(bbox1, bbox2, threshold)
+%     % Check if two bounding boxes overlap above a threshold
+%     % Input: bbox1, bbox2, threshold (default 0.5)
+%     % Output: is_overlapping (logical)
+% 
+%     if nargin < 3
+%         threshold = 0.5;
+%     end
+% 
+%     overlap_ratio = bboxOverlapRatio(bbox1, bbox2);
+%     is_overlapping = overlap_ratio >= threshold;
+% end

@@ -28,8 +28,10 @@ for hs=hh(:)'
   end
 end
 
-% Fix for >=2025a issues
-if isMATLABReleaseOlderThan('R2025a')
+% Fix for >=2025a issues.  (Use verLessThan rather than
+% isMATLABReleaseOlderThan, since the latter was only introduced in R2020b.
+% R2025a is MATLAB version 25.1.)
+if verLessThan('matlab', '25.1')  %#ok<VERLESSMATLAB>
   % do nothing
 else
   enableLegacyExplorationModes(fig) ;

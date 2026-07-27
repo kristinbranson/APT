@@ -18,7 +18,7 @@ lc.load(lblname) ;
 fprintf(1, 'Loaded proj: %s\n', lblname) ;
 labeler = lc.labeler_ ;
 for iMov = 1:labeler.nmovies
-  lc.labelImportTrkPromptGenericSimple(iMov, 'importTrackingResults') ;
+  lc.importTrackingResultsPrompt(iMov) ;
 end
 
 if putDateAtEndOfFilename == 1

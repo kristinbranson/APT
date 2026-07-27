@@ -135,7 +135,7 @@ class my_vit(nn.Module):
 def my_convnext_backbone():
     from mmpretrain.models.backbones.convnext import ConvNeXt
     backbone = ConvNeXt(arch='base',
-        frozen_stages=2,
+        frozen_stages=1,
         out_indices=(0, 1, 2, 3),
         gap_before_final_norm = False,
         init_cfg=dict(
