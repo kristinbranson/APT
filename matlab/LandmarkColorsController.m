@@ -499,6 +499,11 @@ classdef LandmarkColorsController < handle
     function pushbuttonManualActuated_(obj, landmarki)
       cs = obj.colorSpecs_(obj.pumShowing_.Value) ;
       clr = uisetcolor(cs.colors(landmarki,:), sprintf('Landmark %d color', landmarki)) ;
+      % uisetcolor returns the empty array if the user cancels the dialog; in
+      % that case leave the landmark color unchanged and do not re-apply.
+      if isempty(clr)
+        return ;
+      end
       cs.setColorManual(landmarki, clr) ;
       obj.updateColorsPane_() ;
       obj.applyActuated_() ;
@@ -642,7 +647,13 @@ classdef LandmarkColorsController < handle
 
     function pbSkeletonColorActuated_(obj)
       c0 = obj.pbSkeletonColor_.BackgroundColor ;
-      obj.pbSkeletonColor_.BackgroundColor = uisetcolor(c0) ;
+      clr = uisetcolor(c0) ;
+      % uisetcolor returns the empty array if the user cancels the dialog; in
+      % that case leave the skeleton color unchanged and do not re-apply.
+      if isempty(clr)
+        return ;
+      end
+      obj.pbSkeletonColor_.BackgroundColor = clr ;
       obj.applyActuated_() ;
     end  % function
 
