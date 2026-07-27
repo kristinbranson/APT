@@ -29,9 +29,9 @@ classdef LabelerController < handle
     suspiciousFramesFigure_ = gobjects(1,0)
     waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
     splashScreenFigure_  % GH to the splash screen figure, or empty
-    labelOutlierFigure_ = gobjects(1,0)
+    labelOutlierController_ = []  % a LabelOutlierController, or empty
     aboutFigure_ = gobjects(1,0)
-    trkInfoFigure_ = gobjects(1,0)
+    trkInfoController_ = []  % a TrkInfoController, or empty
     landmarkSpecsFigure_ = gobjects(1,0)
     keypointAppearanceFigure_ = gobjects(1,0)  % the Landmark Cosmetics dialog figure
     trackingErrorMontageFigures_ = gobjects(1,0)
@@ -665,12 +665,16 @@ classdef LabelerController < handle
       obj.waitbarFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.splashScreenFigure_) ;
       obj.splashScreenFigure_ = [] ;
-      deleteValidGraphicsHandles(obj.labelOutlierFigure_) ;
-      obj.labelOutlierFigure_ = gobjects(1,0) ;
+      if ~isempty(obj.labelOutlierController_) && isvalid(obj.labelOutlierController_)
+        delete(obj.labelOutlierController_) ;
+      end
+      obj.labelOutlierController_ = [] ;
       deleteValidGraphicsHandles(obj.aboutFigure_) ;
       obj.aboutFigure_ = gobjects(1,0) ;
-      deleteValidGraphicsHandles(obj.trkInfoFigure_) ;
-      obj.trkInfoFigure_ = gobjects(1,0) ;
+      if ~isempty(obj.trkInfoController_) && isvalid(obj.trkInfoController_)
+        delete(obj.trkInfoController_) ;
+      end
+      obj.trkInfoController_ = [] ;
       deleteValidGraphicsHandles(obj.landmarkSpecsFigure_) ;
       obj.landmarkSpecsFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.keypointAppearanceFigure_) ;
@@ -5643,7 +5647,7 @@ classdef LabelerController < handle
 
     function menu_label_outliers_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      obj.labelOutlierFigure_ = label_outlier_gui(labeler) ;
+      obj.labelOutlierController_ = LabelOutlierController.fromLabeler(labeler) ;
     end
 
     function menu_label_streamlined_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6031,7 +6035,12 @@ classdef LabelerController < handle
     function menu_go_targets_summary_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if labeler.maIsMA
-        obj.trkInfoFigure_ = TrkInfoUI(obj, labeler) ;
+        controller = obj.trkInfoController_ ;
+        if ~isempty(controller) && isvalid(controller) && ~isempty(controller.hFig) && isgraphics(controller.hFig)
+          controller.raiseAndSyncToCurrentMovie_() ;
+        else
+          obj.trkInfoController_ = TrkInfoController(obj, labeler) ;
+        end
       else
         obj.raiseTargetsTableFigure_();
       end
