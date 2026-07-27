@@ -35,7 +35,7 @@ classdef LabelerController < handle
     landmarkSpecsFigure_ = gobjects(1,0)
     keypointAppearanceFigure_ = gobjects(1,0)  % the Landmark Cosmetics dialog figure
     trackingErrorMontageFigures_ = gobjects(1,0)
-    gtManagerFigure_  % the ground truth manager *figure*
+    gtManagerController_ = []  % a GTManagerController, or empty
     plotAllLabelsFigure_ = gobjects(1,0)
     labelingActionsFigure_ = gobjects(1,0)
     nonmodalMessageBoxFigure_ = gobjects(1,0)
@@ -659,8 +659,10 @@ classdef LabelerController < handle
       obj.suspiciousFramesFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.auxiliaryViewFigures_) ;
       obj.auxiliaryViewFigures_ = gobjects(1,0) ;
-      deleteValidGraphicsHandles(obj.gtManagerFigure_) ;
-      obj.gtManagerFigure_ = [] ;
+      if ~isempty(obj.gtManagerController_) && isvalid(obj.gtManagerController_)
+        delete(obj.gtManagerController_) ;
+      end
+      obj.gtManagerController_ = [] ;
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       obj.waitbarFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.splashScreenFigure_) ;
@@ -6604,21 +6606,21 @@ classdef LabelerController < handle
     end  % function
     
     function tf = doesGTManagerFigureExist(obj)
-      hGTMgr = obj.gtManagerFigure_ ;
-      tf = ~isempty(hGTMgr) && ishandle(hGTMgr);
+      controller = obj.gtManagerController_ ;
+      tf = ~isempty(controller) && isvalid(controller) && ~isempty(controller.hFig) && ishandle(controller.hFig) ;
     end
 
     function gtShowGTManager(obj)
       if obj.doesGTManagerFigureExist()
-        figure(obj.gtManagerFigure_);
+        figure(obj.gtManagerController_.hFig);
       else
-        obj.gtManagerFigure_ = GTManager(obj, obj.labeler_);
+        obj.gtManagerController_ = GTManagerController(obj, obj.labeler_);
       end
     end
 
     function gtCloseGTManager(obj)
       if obj.doesGTManagerFigureExist(),
-        close(obj.gtManagerFigure_);
+        close(obj.gtManagerController_.hFig);
       end
     end
 
