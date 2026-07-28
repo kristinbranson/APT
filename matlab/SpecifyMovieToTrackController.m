@@ -11,7 +11,19 @@ classdef SpecifyMovieToTrackController < handle
     isma = false;
     docalibrate = false;
     nfields = nan;
-    gdata = [];
+    fig = [];  % the main dialog figure
+    button_control = [];  % array of control-button (Done/Cancel) handles
+    pum_path = [];  % path-display (starts/ends) popupmenu
+    linktext = [];  % "Linking Method" label (MA projects only)
+    pum_linking = [];  % linking-method popupmenu (MA projects only)
+    movie = [];  % struct of movie-row widget handles (rowtext, rowedit, rowpb)
+    trk = [];  % struct of trk-row widget handles
+    trx = [];  % struct of trx-row widget handles
+    cal = [];  % struct of calibration-row widget handles
+    crop = [];  % struct of crop-row widget handles, plus the crop-dialog fig and rect
+    targets = [];  % struct of targets-row widget handles
+    f0s = [];  % struct of start-frame-row widget handles
+    f1s = [];  % struct of end-frame-row widget handles
     posinfo = struct;
     colorinfo = struct;
     rowinfo = struct;
@@ -83,27 +95,23 @@ classdef SpecifyMovieToTrackController < handle
         error('APT:invalidDelegate', ...
               'The delegate must be a TrackBatchGUIController or a LabelerController') ;
       end
-      centerOnOtherFigureGivenPositionBang(obj.gdata.fig, delegateFigurePosition) ;
+      centerOnOtherFigureGivenPositionBang(obj.fig, delegateFigurePosition) ;
 
       % Wait until the figure is actually on screen with its final geometry,
       % then refresh the displayed paths so the initial truncation reflects
       % the realized edit-field widths.  Doing this at the end of createGUI
       % is too early: the WM hasn't mapped/sized the window yet, so
       % getpixelposition returns stale widths and the truncation no-ops.
-      waitForFigureToSync(obj.gdata.fig) ;
+      waitForFigureToSync(obj.fig) ;
       obj.updatePathDisplay() ;
     end
 
     function delete(obj)
       % Clean up figures if they still exist.
-      if ~isempty(obj.gdata)
-        if isfield(obj.gdata, 'crop') && isfield(obj.gdata.crop, 'fig')
-          deleteValidGraphicsHandles(obj.gdata.crop.fig) ;
-        end
-        if isfield(obj.gdata, 'fig')
-          deleteValidGraphicsHandles(obj.gdata.fig) ;
-        end
+      if isfield(obj.crop, 'fig')
+        deleteValidGraphicsHandles(obj.crop.fig) ;
       end
+      deleteValidGraphicsHandles(obj.fig) ;
     end  % function
 
     function initMovData(obj,movdata)
@@ -265,8 +273,7 @@ classdef SpecifyMovieToTrackController < handle
       figBottom = screenSize(2) + (screenSize(4)-figHeight)/2 ;
       obj.posinfo.figpos = [figLeft, figBottom, figWidth, figHeight] ;
 
-      obj.gdata = struct;
-      obj.gdata.fig = figure(...
+      obj.fig = figure(...
         'menubar','none',...
         'toolbar','none',...
         'name',figname,...
@@ -280,8 +287,8 @@ classdef SpecifyMovieToTrackController < handle
         'CloseRequestFcn',@(src,evt) obj.delegate.deleteSpecifyMovieToTrackController(),...
         'ResizeFcn',@(src,evt) obj.figureResizeCallback(src,evt));
         
-      set(obj.gdata.fig,'Units','normalized');
-      obj.posinfo.figpos = get(obj.gdata.fig,'Position');
+      set(obj.fig,'Units','normalized');
+      obj.posinfo.figpos = get(obj.fig,'Position');
 
       obj.posinfo.border = .025;
       obj.posinfo.rowh = .05;
@@ -325,7 +332,7 @@ classdef SpecifyMovieToTrackController < handle
       
       
       for i = 1:ncontrolbuttons,
-        obj.gdata.button_control(i) = uicontrol('Style','pushbutton','String',controlbuttonstrs{i},...
+        obj.button_control(i) = uicontrol('Style','pushbutton','String',controlbuttonstrs{i},...
           'ForegroundColor','w','BackgroundColor',controlbuttoncolors(i,:),'FontWeight','bold',...
           'Units','normalized','Enable','on','Position',[controlbuttonxs(i),controlbuttony,controlbuttonw,obj.posinfo.rowh],...
           'Tag',sprintf('controlbutton_%s',controlbuttontags{i}),...
@@ -340,7 +347,7 @@ classdef SpecifyMovieToTrackController < handle
       else
         pathPopupValue = 1;
       end
-      obj.gdata.pum_path = uicontrol(obj.gdata.fig,...
+      obj.pum_path = uicontrol(obj.fig,...
         'Style','popupmenu',...
         'Units','normalized',...
         'Position',[pathPopupX1 controlbuttony pathPopupW obj.posinfo.rowh],...
@@ -453,13 +460,13 @@ classdef SpecifyMovieToTrackController < handle
 
       if obj.isma && obj.detailed_options
 
-        obj.gdata.linktext = ...
+        obj.linktext = ...
         uicontrol('Style','text','String','Linking Method',...
         'ForegroundColor','w','BackgroundColor',obj.colorinfo.backgroundcolor,'FontWeight','normal',...
         'Units','normalized','Position',[obj.posinfo.textx,obj.posinfo.rowys(rowi),obj.posinfo.textw,obj.posinfo.rowh],...
         'Tag','text_link',...
         'HorizontalAlignment','right',...
-        'Parent',obj.gdata.fig);
+        'Parent',obj.fig);
 
         % Linking-method popupmenu (replaces broken uiradiobuttons; see
         % path-display popupmenu above for rationale)
@@ -468,7 +475,7 @@ classdef SpecifyMovieToTrackController < handle
         else
           linkingPopupValue = 1 ;
         end
-        obj.gdata.pum_linking = uicontrol(obj.gdata.fig,...
+        obj.pum_linking = uicontrol(obj.fig,...
           'Style','popupmenu',...
           'Units','normalized',...
           'Position',[obj.posinfo.editx obj.posinfo.rowys(rowi) obj.posinfo.editw obj.posinfo.rowh],...
@@ -550,10 +557,10 @@ classdef SpecifyMovieToTrackController < handle
       else
         color = obj.colorinfo.badcolor;
       end
-      set(obj.gdata.(key).rowedit(i),'ForegroundColor',color);
-      set(obj.gdata.(key).rowtext(i),'ForegroundColor',color);
-      if isfield(obj.gdata.(key),'rowpb'),
-        set(obj.gdata.(key).rowpb(i),'ForegroundColor',color);
+      set(obj.(key).rowedit(i),'ForegroundColor',color);
+      set(obj.(key).rowtext(i),'ForegroundColor',color);
+      if isfield(obj.(key),'rowpb'),
+        set(obj.(key).rowpb(i),'ForegroundColor',color);
       end
     end
     
@@ -574,13 +581,13 @@ classdef SpecifyMovieToTrackController < handle
       if isempty(i),
         i = 1;
       end
-      obj.gdata.(key).rowtext(i) = ...
+      obj.(key).rowtext(i) = ...
         uicontrol('Style','text','String',textstr,...
         'ForegroundColor','w','BackgroundColor',obj.colorinfo.backgroundcolor,'FontWeight','normal',...
         'Units','normalized','Position',[obj.posinfo.textx,rowy,obj.posinfo.textw,obj.posinfo.rowh],...
         'Tag',['text_',tag],...
         'HorizontalAlignment','right',...
-        'Parent',obj.gdata.fig);
+        'Parent',obj.fig);
       if strcmpi(key,'crop') && all(isnan(editval)),
         editval = '';
       end
@@ -595,24 +602,24 @@ classdef SpecifyMovieToTrackController < handle
         editvalstr = num2str(editval(:)');
       end
       cbk = @(hObject,eventdata)obj.rowedit_Callback(hObject,eventdata,key,iview);
-      obj.gdata.(key).rowedit(i) = ...
+      obj.(key).rowedit(i) = ...
         uicontrol('Style','edit','String',editvalstr,...
         'ForegroundColor','w','BackgroundColor',obj.colorinfo.editfilecolor,'FontWeight','normal',...
         'Units','normalized','Position',[obj.posinfo.editx,rowy,obj.posinfo.editw,obj.posinfo.rowh],...
         'Tag',['edit_',tag],...
         'ToolTip',edittt,...
         'HorizontalAlignment','left',...
-        'Parent',obj.gdata.fig,...
+        'Parent',obj.fig,...
         'Callback',cbk);
       if hasdetails,
         cbk = @(hObject,eventdata)obj.details_pb_Callback(hObject,eventdata,key,iview);
-        obj.gdata.(key).rowpb(i) = ...
+        obj.(key).rowpb(i) = ...
           uicontrol('Style','pushbutton','String','...',...
           'ForegroundColor','w','BackgroundColor',obj.colorinfo.editfilecolor,'FontWeight','normal',...
           'Units','normalized','Position',[obj.posinfo.detailsbuttonx,rowy,obj.posinfo.detailsbuttonw,obj.posinfo.rowh],...
           'Tag',['pb_',tag],...
           'HorizontalAlignment','center',...
-          'Parent',obj.gdata.fig,...
+          'Parent',obj.fig,...
           'Callback',cbk);
       end
       obj.isgood.(key)(i) = obj.checkRowValue(key,iview);
@@ -658,14 +665,14 @@ classdef SpecifyMovieToTrackController < handle
           trkI = obj.genTrkfile(movI,obj.defaulttrkpat);
           obj.movdata.trkfiles{i} = trkI;
           obj.isgood.trk(i) = obj.checkRowValue('trk',i);
-          set(obj.gdata.trk.rowedit(i),'String',trkI);
+          set(obj.trk.rowedit(i),'String',trkI);
         end
         if obj.hastrx && ~isempty(obj.defaulttrxpat)
           movI = obj.movdata.movfiles{i};
           trxI = obj.genTrkfile(movI,obj.defaulttrxpat,'enforceExt',false);
           obj.movdata.trxfiles{i} = trxI;
           obj.isgood.trx(i) = obj.checkRowValue('trx',i);
-          set(obj.gdata.trx.rowedit(i),'String',trxI);
+          set(obj.trx.rowedit(i),'String',trxI);
         end
       end
       
@@ -730,7 +737,7 @@ classdef SpecifyMovieToTrackController < handle
         obj.movdata.(ri.movdatafield){iview} = file;
       end
       
-      set(obj.gdata.(key).rowedit(i),'String',file);
+      set(obj.(key).rowedit(i),'String',file);
       lastpath = pathname;
       obj.isgood.(key)(i) = obj.checkRowValue(key,iview);      
       
@@ -739,14 +746,14 @@ classdef SpecifyMovieToTrackController < handle
         trkI = obj.genTrkfile(movI,obj.defaulttrkpat);
         obj.movdata.trkfiles{i} = trkI;
         obj.isgood.trk(i) = obj.checkRowValue('trk',i);
-        set(obj.gdata.trk.rowedit(i),'String',trkI);
+        set(obj.trk.rowedit(i),'String',trkI);
       end
       if strcmp(ri.movdatafield,'movfiles') && obj.hastrx && ~isempty(obj.defaulttrxpat)
         movI = obj.movdata.movfiles{i};
         trxI = obj.genTrkfile(movI,obj.defaulttrxpat,'enforceExt',false);
         obj.movdata.trxfiles{i} = trxI;
         obj.isgood.trx(i) = obj.checkRowValue('trx',i);
-        set(obj.gdata.trx.rowedit(i),'String',trxI);
+        set(obj.trx.rowedit(i),'String',trxI);
       end
       
     end
@@ -788,7 +795,7 @@ classdef SpecifyMovieToTrackController < handle
       
       fr = ceil(obj.movieReader{iview}.nframes/2);
       im = obj.movieReader{iview}.readframe(fr);      
-      obj.gdata.crop.fig = figure(...
+      obj.crop.fig = figure(...
         'name','Specify crop region by dragging box',...
         'NumberTitle','off',...
         'IntegerHandle','off',...
@@ -796,7 +803,7 @@ classdef SpecifyMovieToTrackController < handle
         'color',obj.colorinfo.backgroundcolor,...
         'WindowStyle','modal',...
         'units','normalized');
-      hax = axes('Position',[.05,.15,.9,.8],'Parent',obj.gdata.crop.fig);
+      hax = axes('Position',[.05,.15,.9,.8],'Parent',obj.crop.fig);
       imagesc(im);
       axis(hax,'image');
       colormap(hax,'gray');
@@ -816,7 +823,7 @@ classdef SpecifyMovieToTrackController < handle
       controlbuttonh = .05;
 
       for i = 1:ncontrolbuttons,
-        uicontrol('style','pushbutton','parent',obj.gdata.crop.fig,...
+        uicontrol('style','pushbutton','parent',obj.crop.fig,...
           'String',controlbuttonstrs{i},'Units','normalized',...
           'Position',[controlbuttonxs(i),controlbuttony,controlbuttonw,controlbuttonh],...
           'backgroundcolor',controlbuttoncolors(i,:),'foregroundcolor','w',...
@@ -829,11 +836,11 @@ classdef SpecifyMovieToTrackController < handle
         interactionsallowed = 'translate';
       end
       pos = [cropRoi(1),cropRoi(3),cropRoi(2)-cropRoi(1)+1,cropRoi(4)-cropRoi(3)+1];
-      obj.gdata.crop.rect = images.roi.Rectangle(hax,'Position',pos,...
+      obj.crop.rect = images.roi.Rectangle(hax,'Position',pos,...
         'InteractionsAllowed',interactionsallowed,...
         'Deletable',false);
 
-      uiwait(obj.gdata.crop.fig);
+      uiwait(obj.crop.fig);
       
     end
     
@@ -888,12 +895,12 @@ classdef SpecifyMovieToTrackController < handle
     end
     
     function pb_crop_Callback(obj,h,~,iview,dosave)
-      if ~isfield(obj.gdata.crop,'fig'),
+      if ~isfield(obj.crop,'fig'),
         return;
       end
-      if isfield(obj.gdata.crop,'rect'),
+      if isfield(obj.crop,'rect'),
         if dosave,
-          pos = obj.gdata.crop.rect.Position;
+          pos = obj.crop.rect.Position;
           x1 = round(pos(1));
           y1 = round(pos(2));
           if isempty(obj.cropwh),
@@ -906,12 +913,12 @@ classdef SpecifyMovieToTrackController < handle
           
           obj.setCropRoi(iview,[x1,x2,y1,y2],h);
         end
-        delete(obj.gdata.crop.rect);
-        obj.gdata.crop.rect = [];
+        delete(obj.crop.rect);
+        obj.crop.rect = [];
       end
-      if isfield(obj.gdata.crop,'fig'),
-        hfig = obj.gdata.crop.fig;
-        obj.gdata.crop.fig = [];
+      if isfield(obj.crop,'fig'),
+        hfig = obj.crop.fig;
+        obj.crop.fig = [];
         delete(hfig);
       end
     end
@@ -921,15 +928,15 @@ classdef SpecifyMovieToTrackController < handle
         h = nan;
       end
       obj.movdata.cropRois{iview} = pos;
-      if h ~= obj.gdata.crop.rowedit(iview),
-        obj.gdata.crop.rowedit(iview).String = sprintf('%d  ',pos);
+      if h ~= obj.crop.rowedit(iview),
+        obj.crop.rowedit(iview).String = sprintf('%d  ',pos);
         obj.checkRowValue('crop',iview);
       end
     end
 
     function linkingTypeChanged(obj, src, evt)  %#ok<INUSD>
       % Callback for the linking-method popupmenu
-      if get(obj.gdata.pum_linking, 'Value') == 2
+      if get(obj.pum_linking, 'Value') == 2
         obj.link_type = 'identity' ;
       else
         obj.link_type = 'motion' ;
@@ -953,7 +960,7 @@ classdef SpecifyMovieToTrackController < handle
 
     function pathPopupChanged(obj, src, evt)  %#ok<INUSD>
       % Callback for the Path Starts / Path Ends popupmenu
-      obj.showPathEnds = ( get(obj.gdata.pum_path, 'Value') == 2 ) ;
+      obj.showPathEnds = ( get(obj.pum_path, 'Value') == 2 ) ;
       obj.updatePathDisplay() ;
     end
 
@@ -961,51 +968,51 @@ classdef SpecifyMovieToTrackController < handle
       % Update the display of file paths based on current mode (starts vs ends).
 
       % Update movie file paths
-      if isfield(obj.gdata, 'movie') && isfield(obj.gdata.movie, 'rowedit')
+      if isfield(obj.movie, 'rowedit')
         for i = 1:obj.nview
-          if i <= length(obj.gdata.movie.rowedit) && isvalid(obj.gdata.movie.rowedit(i))
+          if i <= length(obj.movie.rowedit) && isvalid(obj.movie.rowedit(i))
             originalPath = obj.movdata.movfiles{i};
             if ~isempty(originalPath)
-              displayPath = obj.getDisplayPath(originalPath, obj.gdata.movie.rowedit(i));
-              set(obj.gdata.movie.rowedit(i), 'String', displayPath);
+              displayPath = obj.getDisplayPath(originalPath, obj.movie.rowedit(i));
+              set(obj.movie.rowedit(i), 'String', displayPath);
             end
           end
         end
       end
 
       % Update trk file paths
-      if isfield(obj.gdata, 'trk') && isfield(obj.gdata.trk, 'rowedit')
+      if isfield(obj.trk, 'rowedit')
         for i = 1:obj.nview
-          if i <= length(obj.gdata.trk.rowedit) && isvalid(obj.gdata.trk.rowedit(i))
+          if i <= length(obj.trk.rowedit) && isvalid(obj.trk.rowedit(i))
             originalPath = obj.movdata.trkfiles{i};
             if ~isempty(originalPath)
-              displayPath = obj.getDisplayPath(originalPath, obj.gdata.trk.rowedit(i));
-              set(obj.gdata.trk.rowedit(i), 'String', displayPath);
+              displayPath = obj.getDisplayPath(originalPath, obj.trk.rowedit(i));
+              set(obj.trk.rowedit(i), 'String', displayPath);
             end
           end
         end
       end
 
       % Update trx file paths (if project has trx)
-      if obj.hastrx && isfield(obj.gdata, 'trx') && isfield(obj.gdata.trx, 'rowedit')
+      if obj.hastrx && isfield(obj.trx, 'rowedit')
         for i = 1:obj.nview
-          if i <= length(obj.gdata.trx.rowedit) && isvalid(obj.gdata.trx.rowedit(i))
+          if i <= length(obj.trx.rowedit) && isvalid(obj.trx.rowedit(i))
             originalPath = obj.movdata.trxfiles{i};
             if ~isempty(originalPath)
-              displayPath = obj.getDisplayPath(originalPath, obj.gdata.trx.rowedit(i));
-              set(obj.gdata.trx.rowedit(i), 'String', displayPath);
+              displayPath = obj.getDisplayPath(originalPath, obj.trx.rowedit(i));
+              set(obj.trx.rowedit(i), 'String', displayPath);
             end
           end
         end
       end
 
       % Update calibration file path (if single path for all views)
-      if isfield(obj.gdata, 'cal') && isfield(obj.gdata.cal, 'rowedit') && ...
-         length(obj.gdata.cal.rowedit) >= 1 && isvalid(obj.gdata.cal.rowedit(1))
+      if isfield(obj.cal, 'rowedit') && ...
+         length(obj.cal.rowedit) >= 1 && isvalid(obj.cal.rowedit(1))
         originalPath = obj.movdata.calibrationfiles;
         if ~isempty(originalPath)
-          displayPath = obj.getDisplayPath(originalPath, obj.gdata.cal.rowedit(1));
-          set(obj.gdata.cal.rowedit(1), 'String', displayPath);
+          displayPath = obj.getDisplayPath(originalPath, obj.cal.rowedit(1));
+          set(obj.cal.rowedit(1), 'String', displayPath);
         end
       end
     end  % function
