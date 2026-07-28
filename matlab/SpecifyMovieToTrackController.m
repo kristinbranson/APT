@@ -311,15 +311,6 @@ classdef SpecifyMovieToTrackController < handle
       % rowh
       % border
       
-      if obj.isma && obj.detailed_options
-        controlbuttonstrs = {'Detect','Link','Track','Cancel'};
-        controlbuttontags = {'detect','link','track','cancel'};
-        controlbuttoncolors = ...
-          [0,0,.8
-          0,0,.8
-          0,0,.8
-          0,.7,.7];
-      end
       controlbuttonstrs = {'Done','Cancel'};
       controlbuttontags = {'done','cancel'};
       controlbuttoncolors = ...
@@ -458,7 +449,7 @@ classdef SpecifyMovieToTrackController < handle
       str = [obj.rowinfo.f1s.prompt,':'];
       obj.addRow(obj.posinfo.rowys(rowi),key,i,str,val,...
         'End of frame interval to track',obj.rowinfo.targets.hasdetails);
-      rowi = rowi + 1; %#ok<NASGU>
+      rowi = rowi + 1; 
 
       if obj.isma && obj.detailed_options
 
@@ -628,7 +619,7 @@ classdef SpecifyMovieToTrackController < handle
       
     end
     
-    function rowedit_Callback(obj,hObject,eventdata,key,iview)
+    function rowedit_Callback(obj,hObject,~,key,iview)
       
       ri = obj.rowinfo.(key);
       val = get(hObject,'String');
@@ -806,7 +797,7 @@ classdef SpecifyMovieToTrackController < handle
         'WindowStyle','modal',...
         'units','normalized');
       hax = axes('Position',[.05,.15,.9,.8],'Parent',obj.gdata.crop.fig);
-      him = imagesc(im);
+      imagesc(im);
       axis(hax,'image');
       colormap(hax,'gray');
       set(hax,'XColor','w','YColor','w');
@@ -846,7 +837,7 @@ classdef SpecifyMovieToTrackController < handle
       
     end
     
-    function pb_control_Callback(obj,h,e,tag)
+    function pb_control_Callback(obj,~,~,tag)
 
       if ismember(lower(tag),{'done','apply'}),
 
@@ -896,7 +887,7 @@ classdef SpecifyMovieToTrackController < handle
 
     end
     
-    function pb_crop_Callback(obj,h,e,iview,dosave)
+    function pb_crop_Callback(obj,h,~,iview,dosave)
       if ~isfield(obj.gdata.crop,'fig'),
         return;
       end
