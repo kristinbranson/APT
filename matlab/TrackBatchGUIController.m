@@ -1665,7 +1665,7 @@ classdef TrackBatchGUIController < handle
         if isvalid(d)
           delete(d);
         end
-      end  % fuction
+      end  % function
     end  % function
 
     function userChoice = checkAndPromptForOutputFiles(obj)
