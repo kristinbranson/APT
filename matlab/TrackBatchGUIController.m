@@ -1,6 +1,13 @@
-classdef TrackBatchGUI < handle
+classdef TrackBatchGUIController < handle
+  % Controller for the modal dialog used to select movies for batch
+  % tracking.  The dialog is modal, but the constructor returns as soon as
+  % the dialog is up (no uiwait).  When the user clicks Track, the dialog
+  % calls trackBatch() on the Labeler itself; on Cancel it is dismissed
+  % with no effect.  In both cases it asks its parent LabelerController to
+  % delete it.
 
   properties
+    labelerController_ = [];  % the parent LabelerController that owns this dialog
     toTrack = [];
     lObj = [];
     hParent = [];
@@ -8,7 +15,7 @@ classdef TrackBatchGUI < handle
     nmovies = 0;
     page = 1;
     npages = 1;
-    posinfo = struct;
+    % posinfo = struct;
     gdata = struct;
     nmovies_per_page = 10;
     isbusy = false;
@@ -27,31 +34,39 @@ classdef TrackBatchGUI < handle
     hasTrx = false;
     
     % Path display mode: true = show path ends, false = show path starts
-    showPathEnds = true;
-    
+    doShowPathEnds = true;
+
+    % Icon images for the path-display toggle button.  The button shows the
+    % icon for the alignment it would switch TO if pressed.
+    pathStartsIcon_ = [];  % align-left image (switch-to-starts)
+    pathEndsIcon_ = [];    % align-right image (switch-to-ends)
+
     % Note: Linking options are stored in obj.toTrack.link_type and obj.toTrack.id_maintain_identity
   end
   
   methods
-    function obj = TrackBatchGUI(lObj,mainFigure,varargin)
-      obj.lObj = lObj;
-      obj.isma = lObj.maIsMA;
-      obj.hParent = mainFigure ;
+    function obj = TrackBatchGUIController(labelerController,labeler,varargin)
+      % Construct and show the modal batch-tracking dialog.
+      obj.labelerController_ = labelerController ;
+      obj.lObj = labeler;
+      obj.isma = labeler.maIsMA;
+      obj.hParent = labelerController.mainFigure_ ;
       toTrack = myparse(varargin,'toTrack',struct);
-      
-      obj.defaulttrkpat = lObj.defaultExportTrkRawname();
+
+      obj.defaulttrkpat = labeler.defaultExportTrkRawname();
       obj.defaultdetectpat = [obj.defaulttrkpat '.tracklet'];
-      obj.initData(toTrack);      
+      obj.initData(toTrack);
       obj.createGUI();
 
-      % This is to resize once the figure is rendered.
-      getframe(obj.gdata.fig);
+      % Block until the figure is actually rendered, then do an initial
+      % resize pass so file paths are truncated and buttons positioned.
+      waitForFigureToSync(obj.gdata.fig);
       obj.figureResizeCallback(obj.gdata.fig,[]);
     end
-    
-    function toTrack = run(obj)
-      uiwait(obj.gdata.fig);
-      toTrack = obj.toTrack;
+
+    function cbkCancel(obj)
+      % Dismiss the dialog with no effect on the model.
+      obj.labelerController_.deleteTrackBatchGUIController() ;
     end
 
     function delete(obj)
@@ -107,8 +122,8 @@ classdef TrackBatchGUI < handle
       set(obj.hParent,'Units',units);
       figsz = [.4,.4]; % width, height
       % AL20201116: multimonitor setups, figsz can be bigger than
-      % mainfogpos(3:4) which leads to 'huge' TrackBatchGUI pane. Cap size
-      % of TrackBatchGUI.
+      % mainfogpos(3:4) which leads to 'huge' TrackBatchGUIController pane. Cap size
+      % of TrackBatchGUIController.
       figsz = min(figsz,mainfigpos(3:4));
       mainfigctr = mainfigpos([1,2]) + mainfigpos([3,4])/2;
       figpos = [mainfigctr-figsz/2,figsz];
@@ -166,8 +181,6 @@ classdef TrackBatchGUI < handle
       pagebuttonxs = [pagebuttonxsless,pagebuttonxsmore];
       pagebuttony = macroedity(end) - 1.5*(rowh+rowborder);
       
-%      macroedity = pagebuttony + rowh + 2*rowborder;
-      
       addbuttonw = .30;
       addbuttonx = .5 - addbuttonw/2;
       addbuttony = pagebuttony - rowh - border;
@@ -197,19 +210,21 @@ classdef TrackBatchGUI < handle
       end
       obj.gdata = struct;
       
-      obj.gdata.fig = figure(...
-        'menubar','none',...
-        'toolbar','none',...
-        'name',figname,...
+      % Use a uifigure (required by the uigridlayout-based layout below) and
+      % make it a non-blocking modal dialog whose close box acts like Cancel.
+      obj.gdata.fig = uifigure(...
+        'Name',figname,...
         'NumberTitle','off',...
         'IntegerHandle','off',...
         'Tag','figure_SelectTrackBatch',...
-        'color',backgroundcolor,...
-        'units','normalized',...
-        'position',figpos,...
-        'ResizeFcn',@(src,evt) obj.figureResizeCallback(src,evt),...
+        'Color',backgroundcolor,...
+        'Units','normalized',...
+        'Position',figpos,...
+        'WindowStyle','modal',...
+        'AutoResizeChildren','off',...
+        'CloseRequestFcn',@(src,evt) obj.cbkCancel(),...
+        'SizeChangedFcn',@(src,evt) obj.figureResizeCallback(src,evt),...
         'WindowButtonDownFcn',@(src,evt) obj.windowButtonDownFcn(src,evt));
-      %  'windowstyle','modal',...
 
       rows =  {'1x',40,40,40};
       if hasTrx,
@@ -266,46 +281,31 @@ classdef TrackBatchGUI < handle
       %   obj.gdata.txt_detecttitle.Layout.Column=3;
       % end
 
-      % Create button group for path display toggle buttons
-      obj.gdata.bg_path = uibuttongroup(edit_grid,...
-        'BackgroundColor','k',...
-        'BorderType','none',...
-        'SelectionChangedFcn',@(src,evt) obj.pathToggleChanged(src,evt));
-      obj.gdata.bg_path.Layout.Row = 1;
-      obj.gdata.bg_path.Layout.Column = nextcol + [1 2];
-
-      % Load icon images
-      leftAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_left.png'));
-      rightAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_right.png'));
-      if ndims(leftAlignIcon)==2
-        leftAlignIcon = repmat(leftAlignIcon,[1 1 3]);
+      % Load icon images for the path-display toggle button.  align_left
+      % means "show path starts", align_right means "show path ends".
+      obj.pathStartsIcon_ = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_left.png'));
+      obj.pathEndsIcon_ = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_right.png'));
+      if ismatrix(obj.pathStartsIcon_)
+        obj.pathStartsIcon_ = repmat(obj.pathStartsIcon_,[1 1 3]);
       end
-      if ndims(rightAlignIcon)==2
-        rightAlignIcon = repmat(rightAlignIcon,[1 1 3]);
+      if ismatrix(obj.pathEndsIcon_)
+        obj.pathEndsIcon_ = repmat(obj.pathEndsIcon_,[1 1 3]);
       end
 
-      % "Starts" toggle button (left side, above details column)
-      obj.gdata.tb_path_starts = uitogglebutton(obj.gdata.bg_path,...
+      % Single push button that toggles whether file paths are shown by
+      % their start or their end.  It lives directly in edit_grid, so the
+      % layout engine sizes it (no manual pixel positioning to go stale).
+      % Its icon shows the alignment we would switch TO if pressed.
+      obj.gdata.button_path = uibutton(edit_grid,...
         'Text','',...
-        'Icon',leftAlignIcon,...
-        'Tooltip','Show path starts',...
-        'FontColor','w','BackgroundColor',[1,1,1],...
-        'FontWeight','bold','FontSize',FONTSIZESML,...
-        'Value',~obj.showPathEnds,...
-        'Tag','togglebutton_path_starts');
+        'BackgroundColor',[1,1,1],...
+        'Tag','pushbutton_path_toggle',...
+        'ButtonPushedFcn',@(h,e) obj.pb_path_toggle_Callback(h,e));
+      obj.gdata.button_path.Layout.Row = 1;
+      obj.gdata.button_path.Layout.Column = nextcol + [1 2];
 
-      % "Ends" toggle button (right side, above delete column)
-      obj.gdata.tb_path_ends = uitogglebutton(obj.gdata.bg_path,...
-        'Text','',...
-        'Icon',rightAlignIcon,...
-        'Tooltip','Show path ends',...
-        'FontColor','w','BackgroundColor',[1,1,1],...
-        'FontWeight','bold','FontSize',FONTSIZESML,...
-        'Value',obj.showPathEnds,...
-        'Tag','togglebutton_path_ends');
-
-      % Position the toggle buttons initially
-      obj.updatePathTogglePositions();
+      % Set the initial icon/tooltip to reflect the toggle target.
+      obj.updatePathToggleButton_();
 
       movmacrodescs = Labeler.movTrkFileMacroDescs();
       smacros = obj.lObj.baseTrkFileMacros();
@@ -980,7 +980,7 @@ classdef TrackBatchGUI < handle
     function pb_control_Callback(obj,h,e,tag)
       switch tag,
         case 'cancel',
-          delete(obj.gdata.fig);
+          obj.cbkCancel();
         case {'load','save'},
           if strcmpi(tag,'save'),
             if obj.nmovies == 0,
@@ -1029,7 +1029,7 @@ classdef TrackBatchGUI < handle
             trackTypeEnum = apt.TrackType(tag) ;
           end
           obj.lObj.trackBatch(obj.toTrack, 'trackType', trackTypeEnum);
-          delete(obj.gdata.fig);
+          obj.labelerController_.deleteTrackBatchGUIController();
         otherwise
           error('Callback for %s not implemented',tag);
       end
@@ -1317,10 +1317,6 @@ classdef TrackBatchGUI < handle
       if obj.lObj.maIsMA && isfield(obj.gdata, 'bg_linking') && isvalid(obj.gdata.bg_linking)
         obj.updateLinkingButtonPositions();
       end
-      % Update path toggle button positions on resize
-      if isfield(obj.gdata, 'bg_path') && isvalid(obj.gdata.bg_path)
-        obj.updatePathTogglePositions();
-      end
     end
     
     function updateLinkingButtonPositions(obj)
@@ -1484,69 +1480,30 @@ classdef TrackBatchGUI < handle
     end
     
     
-    function pathToggleChanged(obj, src, evt)
-      % Callback for path display toggle button group
-      selectedButton = evt.NewValue;
-
-      % Determine which toggle was selected and update showPathEnds accordingly
-      if selectedButton == obj.gdata.tb_path_starts
-        obj.showPathEnds = false;  % Show path starts
-      elseif selectedButton == obj.gdata.tb_path_ends
-        obj.showPathEnds = true;   % Show path ends
-      end
-
-      % Update all displayed file paths
+    function pb_path_toggle_Callback(obj, h, e)  %#ok<INUSD>
+      % Toggle whether file paths are displayed by their start or their end.
+      obj.doShowPathEnds = ~obj.doShowPathEnds;
+      obj.updatePathToggleButton_();
       obj.updateTruncatedFilePathsWithMode();
     end
 
-    function togglePathDisplayMode(obj)
-      % Toggle between showing path ends and path starts in file paths
-      obj.showPathEnds = ~obj.showPathEnds;
-
-      % Update toggle button values to reflect current mode
-      if isfield(obj.gdata, 'tb_path_starts') && isvalid(obj.gdata.tb_path_starts)
-        obj.gdata.tb_path_starts.Value = ~obj.showPathEnds;
-      end
-      if isfield(obj.gdata, 'tb_path_ends') && isvalid(obj.gdata.tb_path_ends)
-        obj.gdata.tb_path_ends.Value = obj.showPathEnds;
-      end
-
-      % Update all displayed file paths
-      obj.updateTruncatedFilePathsWithMode();
-    end
-
-    function updatePathTogglePositions(obj)
-      % Update positions of the path toggle buttons
-      if ~isfield(obj.gdata, 'bg_path') || ~isvalid(obj.gdata.bg_path)
+    function updatePathToggleButton_(obj)
+      % Set the path-toggle button's icon and tooltip to reflect the state
+      % that pressing it will switch TO (the opposite of the current one).
+      if ~isfield(obj.gdata, 'button_path') || ~isvalid(obj.gdata.button_path)
         return;
       end
-
-      try
-        % Get the button group position in pixels
-        set(obj.gdata.bg_path,'Units','pixels');
-        bgPos = get(obj.gdata.bg_path,'Position');
-        bgWidth = bgPos(3);
-        bgHeight = bgPos(4);
-        set(obj.gdata.bg_path,'Units','normalized');
-
-        % Calculate button dimensions - split the width in half
-        buttonWidth = bgWidth / 2;
-        buttonHeight = max(20, bgHeight - 4);  % Leave small padding
-
-        % Position buttons side by side
-        if isfield(obj.gdata, 'tb_path_starts') && isvalid(obj.gdata.tb_path_starts)
-          obj.gdata.tb_path_starts.Position = [2, 2, buttonWidth-4, buttonHeight];
-        end
-        if isfield(obj.gdata, 'tb_path_ends') && isvalid(obj.gdata.tb_path_ends)
-          obj.gdata.tb_path_ends.Position = [buttonWidth+2, 2, buttonWidth-4, buttonHeight];
-        end
-
-      catch ME
-        % Silently handle errors during positioning
-        warning(ME.identifier,'Error updating path toggle positions: %s', ME.message);
+      if obj.doShowPathEnds
+        % Currently showing path ends; pressing will show path starts.
+        obj.gdata.button_path.Icon = obj.pathStartsIcon_;
+        obj.gdata.button_path.Tooltip = 'Show path starts';
+      else
+        % Currently showing path starts; pressing will show path ends.
+        obj.gdata.button_path.Icon = obj.pathEndsIcon_;
+        obj.gdata.button_path.Tooltip = 'Show path ends';
       end
     end
-    
+
     function updateTruncatedFilePathsWithMode(obj)
       % Re-truncate file paths based on current display mode preference
       for i = 1:obj.nmovies_per_page
@@ -1554,7 +1511,7 @@ classdef TrackBatchGUI < handle
         if moviei <= obj.nmovies && moviei <= size(obj.originalMovieFiles, 1)
           % Update movie file path
           if ~isempty(obj.originalMovieFiles{moviei})
-            if obj.showPathEnds
+            if obj.doShowPathEnds
               % Show truncated path ends
               displayMovFile = PathTruncationUtils.truncateFilePath(...
                 obj.originalMovieFiles{moviei}, 'component', obj.gdata.edit_movie(i), 'startFraction', 0);
@@ -1567,7 +1524,7 @@ classdef TrackBatchGUI < handle
           
           % Update trk file path
           if moviei <= size(obj.originalTrkFiles, 1) && ~isempty(obj.originalTrkFiles{moviei})
-            if obj.showPathEnds
+            if obj.doShowPathEnds
               % Show truncated path ends
               displayTrkFile = PathTruncationUtils.truncateFilePath(...
                 obj.originalTrkFiles{moviei}, 'component', obj.gdata.edit_trk(i), 'startFraction', 0);
@@ -1578,7 +1535,7 @@ classdef TrackBatchGUI < handle
             set(obj.gdata.edit_trk(i), 'Value', displayTrkFile);
           end
           if obj.hasTrx && moviei <= size(obj.originalTrxFiles, 1) && ~isempty(obj.originalTrxFiles{moviei})
-            if obj.showPathEnds
+            if obj.doShowPathEnds
               % Show truncated path ends
               displayTrxFile = PathTruncationUtils.truncateFilePath(...
                 obj.originalTrxFiles{moviei}, 'component', obj.gdata.edit_trk(i), 'startFraction', 0);

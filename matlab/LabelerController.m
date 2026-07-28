@@ -20,6 +20,7 @@ classdef LabelerController < handle
     uncertainFramesController_  % UncertainFramesController, or []
     compareTrackersController_  % CompareTrackersController, or []
     parameterSetupModalController_  % ParameterSetupModalController, or []
+    trackBatchGUIController_  % TrackBatchGUIController, or []
   end
 
   properties  % "uncontrolled" satellite figures---satellite figures that aren't managed by controllers (at present)
@@ -726,6 +727,7 @@ classdef LabelerController < handle
         obj.compareTrackersController_ = [] ;
       end
       obj.deleteParameterSetupModalController() ;
+      obj.deleteTrackBatchGUIController() ;
     end  % function
 
     function deleteParameterSetupModalController(obj)
@@ -735,6 +737,16 @@ classdef LabelerController < handle
           delete(obj.parameterSetupModalController_) ;
         end
         obj.parameterSetupModalController_ = [] ;
+      end
+    end  % function
+
+    function deleteTrackBatchGUIController(obj)
+      % Delete the batch-tracking dialog controller, if it exists.
+      if ~isempty(obj.trackBatchGUIController_)
+        if isvalid(obj.trackBatchGUIController_)
+          delete(obj.trackBatchGUIController_) ;
+        end
+        obj.trackBatchGUIController_ = [] ;
       end
     end  % function
 
@@ -6076,9 +6088,12 @@ classdef LabelerController < handle
 
 
     function menu_track_batch_track_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Show the modal batch-tracking dialog.  The call returns once the
+      % dialog is up; when the user clicks Track, the dialog calls
+      % trackBatch() on the labeler itself.
       labeler = obj.labeler_ ;
-      tbobj = TrackBatchGUI(labeler, obj.mainFigure_);
-      tbobj.run();
+      obj.deleteTrackBatchGUIController() ;
+      obj.trackBatchGUIController_ = TrackBatchGUIController(obj, labeler) ;
     end
 
 
@@ -6091,10 +6106,8 @@ classdef LabelerController < handle
         % User cancelled when asked about preexisting trkfiles
         return
       end
-      tbobj = TrackBatchGUI(labeler, obj.mainFigure_, 'toTrack', toTrackIn);
-      % [toTrackOut] = tbobj.run();
-      tbobj.run();
-      % todo: import predictions
+      obj.deleteTrackBatchGUIController() ;
+      obj.trackBatchGUIController_ = TrackBatchGUIController(obj, labeler, 'toTrack', toTrackIn) ;
     end
 
 
