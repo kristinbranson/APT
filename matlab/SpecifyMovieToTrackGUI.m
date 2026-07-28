@@ -27,8 +27,9 @@ classdef SpecifyMovieToTrackGUI < handle
     link_type = 'motion';
     showPathEnds = true;  % Path display mode: true = show path ends, false = show path starts
   end
+
   methods
-    function obj = SpecifyMovieToTrackGUI(lObj,hParent,movdata,varargin)
+    function obj = SpecifyMovieToTrackGUI(lObj, hParent, movdata, varargin)
       
       [defaulttrkpat,defaulttrxpat,detailed_options] = myparse(varargin,...
         'defaulttrkpat',[], ... % eg '$movdir/$movfile_$projfile_$trackertype'
