@@ -157,74 +157,37 @@ classdef TrackBatchGUIController < handle
       % to do: make sure this is on the screen
       
       border = .025;
-      %colw = .3;
-      filebuttonw = .05;
       rowh = .05;
       rowborder = .01;
-      colborder = .005;
       backgroundcolor = [0,0,0];
       editfilecolor = [.2,.2,.2];
       deletebuttoncolor = [.7,0,0];
       pagebuttoncolor = [0,0,0];
       addbuttoncolor = [.7,0,.7];
-      
-      colw = ((1-2*border) - (filebuttonw+colborder)*2);
-      colw = colw/2;
-      
+
       allmovieh = 1 - 3*border - rowh*4 - 4*rowborder - border;
       obj.nmovies_per_page = floor(allmovieh/(rowh+rowborder))-3;
       %disp(obj.nmovies_per_page);
       obj.setNPages();
-      moveditx = border;
-      coltitley = 1-border-rowh;
-      % if obj.isma
-      %   detecteditx = moveditx + colw + colborder;
-      %   trkeditx = detecteditx + colw + colborder;
-      % else
-      trkeditx = moveditx + colw + colborder;
-      % end
-      detailsbuttonx = trkeditx+colw+colborder;
-      deletebuttonx = detailsbuttonx+filebuttonw+colborder;
-      rowys = coltitley - (rowh+rowborder)*(1:obj.nmovies_per_page);
- 
-      macroedity = rowys(end) - 1.5*(rowh+rowborder);
       hasTrx = obj.lObj.projectHasTrx;
       obj.hasTrx = hasTrx;
       if hasTrx
-        macroedity(2) = macroedity - (rowh+rowborder);
         ncol = 3;
       else
         ncol = 2;
       end
-      
-      pagetextw = .1;
+
       pagebuttonstrs = {'|<','<','>','>|'};
       npagebuttons = numel(pagebuttonstrs);
-      allpagebuttonws = npagebuttons*filebuttonw + npagebuttons*colborder + pagetextw;
-      pagebuttonx1 = .5-allpagebuttonws/2;
-      pagebuttonxsless = pagebuttonx1 + (filebuttonw+colborder)*[0,1];
-      pagetextx = pagebuttonxsless(end)+filebuttonw+colborder;
-      pagebuttonxsmore = pagetextx + pagetextw + colborder+(filebuttonw+colborder)*[0,1];
-      pagebuttonxs = [pagebuttonxsless,pagebuttonxsmore];
-      pagebuttony = macroedity(end) - 1.5*(rowh+rowborder);
-      
-      addbuttonw = .30;
-      addbuttonx = .5 - addbuttonw/2;
-      addbuttony = pagebuttony - rowh - border;
-      
+
       % save, track, cancel
-      controlbuttonw = .15;
       controlbuttonstrs = {'Track','Cancel'};
       controlbuttontags = {'track','cancel'};
       controlbuttoncolors = ...
         [0,.7,0
-        .4,.4,.4];        
+        .4,.4,.4];
       ncontrolbuttons = numel(controlbuttonstrs);
-      allcontrolbuttonw = ncontrolbuttons*controlbuttonw + (ncontrolbuttons-1)*colborder;
-      controlbuttonx1 = .5-allcontrolbuttonw/2;
-      controlbuttonxs = controlbuttonx1 + (controlbuttonw+colborder)*(0:ncontrolbuttons-1);
-      controlbuttony = border;
-      
+
       defaultmovfiles = cell(1,obj.nmovies_per_page);
       defaulttrkfiles = cell(1,obj.nmovies_per_page);
       defaulttrxfiles = cell(1,obj.nmovies_per_page);
@@ -1469,7 +1432,7 @@ classdef TrackBatchGUIController < handle
     end
     
     
-    function pb_path_toggle_Callback(obj, h, e)  %#ok<INUSD>
+    function pb_path_toggle_Callback(obj, h, e) 
       % Toggle whether file paths are displayed by their start or their end.
       obj.doShowPathEnds = ~obj.doShowPathEnds;
       obj.updatePathToggleButton_();
@@ -1538,7 +1501,7 @@ classdef TrackBatchGUIController < handle
       end
     end
     
-    function linkingTypeChanged(obj, src, evt)  %#ok<INUSD>
+    function linkingTypeChanged(obj, src, evt)
       % Callback for the linking-type dropdown.
       obj.toTrack.link_type = obj.popup_linking.Value;
 
@@ -1577,7 +1540,7 @@ classdef TrackBatchGUIController < handle
         obj.chk_maintain_identities.Value = obj.toTrack.id_maintain_identity;
         obj.chk_maintain_identities.Enable = strcmp(obj.toTrack.link_type, 'identity');
       end
-    end
+    end  % function
 
     function userChoice = checkAndPromptForDetectFiles(obj)
       % Check for existing _detect files and prompt user if they want to continue with them
@@ -1653,7 +1616,7 @@ classdef TrackBatchGUIController < handle
       if isempty(userChoice)
         userChoice = 'cancel'; % Default if dialog was closed
       end
-    end
+    end  % function
 
     function choice = showDetectFilesDialog(obj, tableData)
       % Show dialog with table of existing detect files
@@ -1670,10 +1633,10 @@ classdef TrackBatchGUIController < handle
 
       % Table
       columnNames = {'Detection File', 'Last Modified', 'Prediction Status'};
-      uit = uitable('Parent', d, 'Data', tableData, ...
-                    'ColumnName', columnNames, ...
-                    'Position', [20, 100, 760, 240], ...
-                    'ColumnEditable', [false, false, false]);
+      uitable('Parent', d, 'Data', tableData, ...
+              'ColumnName', columnNames, ...
+              'Position', [20, 100, 760, 240], ...
+              'ColumnEditable', [false, false, false]);
 
       % Info text
       uicontrol('Parent', d, 'Style', 'text', ...
@@ -1702,8 +1665,8 @@ classdef TrackBatchGUIController < handle
         if isvalid(d)
           delete(d);
         end
-      end
-    end
+      end  % fuction
+    end  % function
 
     function userChoice = checkAndPromptForOutputFiles(obj)
       % Check for existing output trk files and prompt user if they want to overwrite them
@@ -1763,8 +1726,6 @@ classdef TrackBatchGUIController < handle
         otherwise
           userChoice = 'cancel';
       end
-    end
-
-  end
-end
-
+    end  % function
+  end  % methods
+end  % classdef
