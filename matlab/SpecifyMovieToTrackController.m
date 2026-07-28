@@ -1,9 +1,9 @@
-classdef SpecifyMovieToTrackGUI < handle
+classdef SpecifyMovieToTrackController < handle
   
   properties 
     defaultdir = '';
     lObj = [];
-    delegate = [];  % the controller that owns this dialog; receives specifyMovieToTrackGUIDone()
+    delegate = [];  % the controller that owns this dialog; receives specifyMovieToTrackControllerDone()
     movdata = [];
     nview = 1;
     hastrx = false;
@@ -28,11 +28,11 @@ classdef SpecifyMovieToTrackGUI < handle
   end
 
   methods
-    function obj = SpecifyMovieToTrackGUI(lObj, delegate, movdata, varargin)
+    function obj = SpecifyMovieToTrackController(lObj, delegate, movdata, varargin)
       % Construct and show the modal movie-details dialog.  The dialog is
       % modal but the constructor returns as soon as it is up (no uiwait).
       % When the user clicks Done, the dialog calls
-      % specifyMovieToTrackGUIDone() on the delegate; in all cases it asks
+      % specifyMovieToTrackControllerDone() on the delegate; in all cases it asks
       % the delegate to delete it via deleteSpecifyMovieToTrackController().
 
       [defaulttrkpat,defaulttrxpat,detailed_options] = myparse(varargin,...
@@ -76,6 +76,17 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.initMovData(movdata);
 
       obj.createGUI();
+
+      % Center the dialog on the delegate controller's figure.
+      if isa(obj.delegate, 'TrackBatchGUIController')
+        delegateFigurePosition = obj.delegate.figurePixelPosition() ;
+      elseif isa(obj.delegate, 'LabelerController')
+        delegateFigurePosition = obj.delegate.mainFigurePixelPosition() ;
+      else
+        error('APT:invalidDelegate', ...
+              'The delegate must be a TrackBatchGUIController or a LabelerController') ;
+      end
+      centerOnOtherFigureGivenPositionBang(obj.gdata.fig, delegateFigurePosition) ;
 
       % Wait until the figure is actually on screen with its final geometry,
       % then refresh the displayed paths so the initial truncation reflects
@@ -258,8 +269,9 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.colorinfo.goodcolor = [1,1,1];
       obj.colorinfo.badcolor = [1,0,0];
 
-      % Compute the figure size and center it on the screen.  The dialog is
-      % modal, so we no longer size/position it relative to a parent figure.
+      % Compute the figure size, placing it at the screen center for now; the
+      % constructor recenters it on the delegate controller's figure once the
+      % dialog is built.
       screenSize = get(groot, 'ScreenSize') ;  % [left, bottom, width, height], pixels
       figWidth = 0.5*screenSize(3) ;
       figHeight = 20*(obj.nfields+2)+30 ;
@@ -897,7 +909,7 @@ classdef SpecifyMovieToTrackGUI < handle
         end
 
         % User confirmed; hand the edited movie data to the delegate.
-        obj.delegate.specifyMovieToTrackGUIDone(obj.movdata) ;
+        obj.delegate.specifyMovieToTrackControllerDone(obj.movdata) ;
       end
       % if obj.isma
       %   if ismember(lower(tag),{'track','link','detect'})

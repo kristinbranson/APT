@@ -118,7 +118,7 @@ classdef TrackBatchGUIController < handle
       end
     end  % function
 
-    function specifyMovieToTrackGUIDone(obj, movdata)
+    function specifyMovieToTrackControllerDone(obj, movdata)
       % Delegate callback fired when the user clicks Done in the
       % movie-details dialog.  Either replace an existing batch-list row or
       % append a new one, per specifyMovieToTrackReplaceIndex_.
@@ -753,7 +753,7 @@ classdef TrackBatchGUIController < handle
     function pb_details_Callback(obj,h,e,itemi) %#ok<*INUSL>
       % Open the modal movie-details dialog to edit an existing batch-list
       % row.  When the user clicks Done, the dialog calls
-      % specifyMovieToTrackGUIDone() on this controller, which replaces the
+      % specifyMovieToTrackControllerDone() on this controller, which replaces the
       % row identified by specifyMovieToTrackReplaceIndex_.
       moviei = obj.item2MovieIdx(itemi);
       movdata = obj.getMovData(moviei);
@@ -769,7 +769,7 @@ classdef TrackBatchGUIController < handle
       obj.specifyMovieToTrackReplaceIndex_ = moviei ;  % replace this row on Done
       obj.deleteSpecifyMovieToTrackController() ;
       obj.specifyMovieToTrackController_ = ...
-        SpecifyMovieToTrackGUI(obj.lObj, obj, movdata, pvArgs{:}) ;
+        SpecifyMovieToTrackController(obj.lObj, obj, movdata, pvArgs{:}) ;
     end
 
     function pb_delete_Callback(obj,h,e,itemi)
@@ -801,7 +801,7 @@ classdef TrackBatchGUIController < handle
     function pb_add_Callback(obj,h,e,movdat) %#ok<*INUSD>
       % Open the modal movie-details dialog to add a new batch-list row.
       % When the user clicks Done, the dialog calls
-      % specifyMovieToTrackGUIDone() on this controller, which appends a new
+      % specifyMovieToTrackControllerDone() on this controller, which appends a new
       % row (specifyMovieToTrackReplaceIndex_ is left empty).
       if obj.isma
         pvArgs = ...
@@ -815,7 +815,7 @@ classdef TrackBatchGUIController < handle
       obj.specifyMovieToTrackReplaceIndex_ = [] ;  % append a new row on Done
       obj.deleteSpecifyMovieToTrackController() ;
       obj.specifyMovieToTrackController_ = ...
-        SpecifyMovieToTrackGUI(obj.lObj, obj, movdat, pvArgs{:}) ;
+        SpecifyMovieToTrackController(obj.lObj, obj, movdat, pvArgs{:}) ;
     end
 
     function loadMovieListFromTextFile(obj, listfile)
@@ -1763,6 +1763,14 @@ classdef TrackBatchGUIController < handle
         otherwise
           userChoice = 'cancel';
       end
+    end  % function
+
+    function result = figurePixelPosition(obj)
+      % Return the pixel position of the figure as a [x y w h] vector.
+      oldUnits = obj.fig.Units;
+      obj.fig.Units = 'pixels';
+      result = obj.fig.Position;
+      obj.fig.Units = oldUnits;
     end  % function
   end  % methods
 end  % classdef

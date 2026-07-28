@@ -21,7 +21,7 @@ classdef LabelerController < handle
     compareTrackersController_  % CompareTrackersController, or []
     parameterSetupModalController_  % ParameterSetupModalController, or []
     trackBatchGUIController_  % TrackBatchGUIController, or []
-    specifyMovieToTrackController_  % SpecifyMovieToTrackGUI, or []
+    specifyMovieToTrackController_  % SpecifyMovieToTrackController, or []
   end
 
   properties  % "uncontrolled" satellite figures---satellite figures that aren't managed by controllers (at present)
@@ -762,7 +762,7 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function specifyMovieToTrackGUIDone(obj, movdata)
+    function specifyMovieToTrackControllerDone(obj, movdata)
       % Delegate callback fired when the user clicks Done in the
       % movie-details dialog.  Track the single movie the user specified.
       obj.labeler_.trackBatch(movdata) ;
@@ -6133,7 +6133,7 @@ classdef LabelerController < handle
     function menu_track_current_movie_actuated_(obj, src, evt)  %#ok<INUSD>
       % Show the modal movie-details dialog for the current movie.  The call
       % returns once the dialog is up; when the user clicks Done, the dialog
-      % calls specifyMovieToTrackGUIDone() on this controller, which tracks
+      % calls specifyMovieToTrackControllerDone() on this controller, which tracks
       % the movie.
       labeler = obj.labeler_ ;
       mIdx = labeler.currMovIdx;
@@ -6143,7 +6143,7 @@ classdef LabelerController < handle
         return
       end
       obj.deleteSpecifyMovieToTrackController() ;
-      obj.specifyMovieToTrackController_ = SpecifyMovieToTrackGUI(labeler, obj, toTrackIn) ;
+      obj.specifyMovieToTrackController_ = SpecifyMovieToTrackController(labeler, obj, toTrackIn) ;
     end
 
 
