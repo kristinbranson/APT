@@ -365,8 +365,8 @@ classdef TrackBatchGUIController < handle
         % is no manual pixel positioning to go stale on first paint.  The
         % 'fit' middle row keeps the dropdown at its natural height (rather
         % than stretching to fill the band) and vertically centers it; the
-        % 20px spacer column separates the dropdown from the checkbox.
-        linking_grid = uigridlayout(grid,'RowHeight',{'1x','fit','1x'},'ColumnWidth',{'fit','fit',20,'1x'},...
+        % 10px spacer column separates the dropdown from the checkbox.
+        linking_grid = uigridlayout(grid,'RowHeight',{'1x','fit','1x'},'ColumnWidth',{'fit','fit',10,'1x'},...
           'BackgroundColor',backgroundcolor,'Padding',[0 0 0 0],'ColumnSpacing',5);
         linking_grid.Layout.Row = nextRow;
         linking_grid.Layout.Column = [1 2];
