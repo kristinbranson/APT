@@ -8,6 +8,10 @@ classdef TrackBatchGUIController < handle
 
   properties
     labelerController_ = [];  % the parent LabelerController that owns this dialog
+    specifyMovieToTrackController_ = [];  % the child movie-details dialog, or []
+    specifyMovieToTrackReplaceIndex_ = [];
+      % Set before opening the movie-details dialog: the batch-list row index
+      % to replace when the user clicks Done, or [] to append a new row.
     toTrack = [];
     lObj = [];
     hParent = [];
@@ -97,12 +101,52 @@ classdef TrackBatchGUIController < handle
     end
 
     function delete(obj)
-      % Clean up the figure if it still exists.
+      % Clean up the figure (and any child dialog) if they still exist.
+      obj.deleteSpecifyMovieToTrackController() ;
       if ~isempty(obj.fig)
         deleteValidGraphicsHandles(obj.fig) ;
       end
     end  % function
-    
+
+    function deleteSpecifyMovieToTrackController(obj)
+      % Delete the movie-details dialog controller, if it exists.
+      if ~isempty(obj.specifyMovieToTrackController_)
+        if isvalid(obj.specifyMovieToTrackController_)
+          delete(obj.specifyMovieToTrackController_) ;
+        end
+        obj.specifyMovieToTrackController_ = [] ;
+      end
+    end  % function
+
+    function specifyMovieToTrackGUIDone(obj, movdata)
+      % Delegate callback fired when the user clicks Done in the
+      % movie-details dialog.  Either replace an existing batch-list row or
+      % append a new one, per specifyMovieToTrackReplaceIndex_.
+      if isempty(obj.specifyMovieToTrackReplaceIndex_)
+        % Append a new movie.
+        if ~isfield(movdata,'movfiles') || isempty(movdata.movfiles) || ...
+            isempty(movdata.movfiles{1}),
+          return;
+        end
+        obj.nmovies = obj.nmovies + 1;
+        moviei = obj.nmovies;
+        obj.setMovData(moviei,movdata);
+        obj.setNPages();
+        if obj.page < obj.npages,
+          obj.page = obj.npages;
+          obj.updateMovieList();
+        end
+      else
+        % Replace an existing movie.
+        moviei = obj.specifyMovieToTrackReplaceIndex_ ;
+        obj.setMovData(moviei,movdata);
+        % should only happen when using the first item
+        if moviei > obj.nmovies,
+          obj.nmovies = moviei;
+        end
+      end
+    end  % function
+
     function initData(obj,toTrack)
       obj.toTrack = toTrack;
       if ~isfield(obj.toTrack,'movfiles'),
@@ -707,7 +751,10 @@ classdef TrackBatchGUIController < handle
     end
 
     function pb_details_Callback(obj,h,e,itemi) %#ok<*INUSL>
-      obj.setBusy();
+      % Open the modal movie-details dialog to edit an existing batch-list
+      % row.  When the user clicks Done, the dialog calls
+      % specifyMovieToTrackGUIDone() on this controller, which replaces the
+      % row identified by specifyMovieToTrackReplaceIndex_.
       moviei = obj.item2MovieIdx(itemi);
       movdata = obj.getMovData(moviei);
       if obj.isma
@@ -719,17 +766,10 @@ classdef TrackBatchGUIController < handle
           {'defaulttrkpat',obj.defaulttrkpat,...
            'defaulttrxpat',obj.defaulttrxpat} ;
       end
-      movdetailsobj = ...
-        SpecifyMovieToTrackGUI(obj.lObj, obj.fig, movdata, pvArgs{:}) ;
-      [movdataout,dostore] = movdetailsobj.run();
-      if dostore,
-        obj.setMovData(moviei,movdataout);
-        % should only happen when using the first item
-        if moviei > obj.nmovies,
-          obj.nmovies = moviei;
-        end
-      end
-      obj.setNotBusy();
+      obj.specifyMovieToTrackReplaceIndex_ = moviei ;  % replace this row on Done
+      obj.deleteSpecifyMovieToTrackController() ;
+      obj.specifyMovieToTrackController_ = ...
+        SpecifyMovieToTrackGUI(obj.lObj, obj, movdata, pvArgs{:}) ;
     end
 
     function pb_delete_Callback(obj,h,e,itemi)
@@ -759,27 +799,23 @@ classdef TrackBatchGUIController < handle
     end
           
     function pb_add_Callback(obj,h,e,movdat) %#ok<*INUSD>
+      % Open the modal movie-details dialog to add a new batch-list row.
+      % When the user clicks Done, the dialog calls
+      % specifyMovieToTrackGUIDone() on this controller, which appends a new
+      % row (specifyMovieToTrackReplaceIndex_ is left empty).
       if obj.isma
-        movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.fig,...
-        movdat,'defaulttrkpat',obj.defaulttrkpat,'detailed_options',false);
+        pvArgs = ...
+          {'defaulttrkpat',obj.defaulttrkpat,...
+           'detailed_options',false} ;
       else
-      movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.fig,...
-        movdat,'defaulttrkpat',obj.defaulttrkpat,...
-        'defaulttrxpat',obj.defaulttrxpat);
+        pvArgs = ...
+          {'defaulttrkpat',obj.defaulttrkpat,...
+           'defaulttrxpat',obj.defaulttrxpat} ;
       end
-      movdataout = movdetailsobj.run();
-      if ~isfield(movdataout,'movfiles') || isempty(movdataout.movfiles) || ...
-          isempty(movdataout.movfiles{1}),
-        return;
-      end
-      obj.nmovies = obj.nmovies + 1;
-      moviei = obj.nmovies;
-      obj.setMovData(moviei,movdataout);
-      obj.setNPages();
-      if obj.page < obj.npages,
-        obj.page = obj.npages;
-        obj.updateMovieList();
-      end
+      obj.specifyMovieToTrackReplaceIndex_ = [] ;  % append a new row on Done
+      obj.deleteSpecifyMovieToTrackController() ;
+      obj.specifyMovieToTrackController_ = ...
+        SpecifyMovieToTrackGUI(obj.lObj, obj, movdat, pvArgs{:}) ;
     end
 
     function loadMovieListFromTextFile(obj, listfile)

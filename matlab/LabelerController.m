@@ -21,6 +21,7 @@ classdef LabelerController < handle
     compareTrackersController_  % CompareTrackersController, or []
     parameterSetupModalController_  % ParameterSetupModalController, or []
     trackBatchGUIController_  % TrackBatchGUIController, or []
+    specifyMovieToTrackController_  % SpecifyMovieToTrackGUI, or []
   end
 
   properties  % "uncontrolled" satellite figures---satellite figures that aren't managed by controllers (at present)
@@ -728,6 +729,7 @@ classdef LabelerController < handle
       end
       obj.deleteParameterSetupModalController() ;
       obj.deleteTrackBatchGUIController() ;
+      obj.deleteSpecifyMovieToTrackController() ;
     end  % function
 
     function deleteParameterSetupModalController(obj)
@@ -748,6 +750,22 @@ classdef LabelerController < handle
         end
         obj.trackBatchGUIController_ = [] ;
       end
+    end  % function
+
+    function deleteSpecifyMovieToTrackController(obj)
+      % Delete the movie-details dialog controller, if it exists.
+      if ~isempty(obj.specifyMovieToTrackController_)
+        if isvalid(obj.specifyMovieToTrackController_)
+          delete(obj.specifyMovieToTrackController_) ;
+        end
+        obj.specifyMovieToTrackController_ = [] ;
+      end
+    end  % function
+
+    function specifyMovieToTrackGUIDone(obj, movdata)
+      % Delegate callback fired when the user clicks Done in the
+      % movie-details dialog.  Track the single movie the user specified.
+      obj.labeler_.trackBatch(movdata) ;
     end  % function
 
     function delete(obj)
@@ -6113,20 +6131,19 @@ classdef LabelerController < handle
 
 
     function menu_track_current_movie_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Show the modal movie-details dialog for the current movie.  The call
+      % returns once the dialog is up; when the user clicks Done, the dialog
+      % calls specifyMovieToTrackGUIDone() on this controller, which tracks
+      % the movie.
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
       mIdx = labeler.currMovIdx;
       [toTrackIn, tfok] = labeler.mIdx2TrackList(mIdx);
       if ~tfok ,
         % User cancelled when asked about preexisting trkfiles
         return
       end
-      mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
-      [toTrackOut,dostore] = mdobj.run();
-      if ~dostore,
-        return;
-      end
-      labeler.trackBatch(toTrackOut);
+      obj.deleteSpecifyMovieToTrackController() ;
+      obj.specifyMovieToTrackController_ = SpecifyMovieToTrackGUI(labeler, obj, toTrackIn) ;
     end
 
 

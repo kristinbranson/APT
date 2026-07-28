@@ -3,7 +3,7 @@ classdef SpecifyMovieToTrackGUI < handle
   properties 
     defaultdir = '';
     lObj = [];
-    hParent = [];
+    delegate = [];  % the controller that owns this dialog; receives specifyMovieToTrackGUIDone()
     movdata = [];
     nview = 1;
     hastrx = false;
@@ -18,7 +18,6 @@ classdef SpecifyMovieToTrackGUI < handle
     isgood = struct;
     cropwh = [];
     movieReader = {};
-    dostore = false;
     defaulttrkpat = [];
     defaulttrxpat = [];
 %    defaultdetectpat = [];
@@ -29,8 +28,13 @@ classdef SpecifyMovieToTrackGUI < handle
   end
 
   methods
-    function obj = SpecifyMovieToTrackGUI(lObj, hParent, movdata, varargin)
-      
+    function obj = SpecifyMovieToTrackGUI(lObj, delegate, movdata, varargin)
+      % Construct and show the modal movie-details dialog.  The dialog is
+      % modal but the constructor returns as soon as it is up (no uiwait).
+      % When the user clicks Done, the dialog calls
+      % specifyMovieToTrackGUIDone() on the delegate; in all cases it asks
+      % the delegate to delete it via deleteSpecifyMovieToTrackController().
+
       [defaulttrkpat,defaulttrxpat,detailed_options] = myparse(varargin,...
         'defaulttrkpat',[], ... % eg '$movdir/$movfile_$projfile_$trackertype'
         'defaulttrxpat',[], ...
@@ -39,7 +43,7 @@ classdef SpecifyMovieToTrackGUI < handle
 
       obj.lObj = lObj;
       obj.isma = lObj.maIsMA;
-      obj.hParent = hParent;
+      obj.delegate = delegate;
       obj.detailed_options = detailed_options;
 
       obj.nview = obj.lObj.nview;
@@ -71,10 +75,8 @@ classdef SpecifyMovieToTrackGUI < handle
 %      obj.defaultdetectpat = defaultdetectpat;
       obj.initMovData(movdata);
 
-      obj.createGUI();      
-    end
-    
-    function [movdata,dostore] = run(obj)
+      obj.createGUI();
+
       % Wait until the figure is actually on screen with its final geometry,
       % then refresh the displayed paths so the initial truncation reflects
       % the realized edit-field widths.  Doing this at the end of createGUI
@@ -82,9 +84,6 @@ classdef SpecifyMovieToTrackGUI < handle
       % getpixelposition returns stale widths and the truncation no-ops.
       waitForFigureToSync(obj.gdata.fig) ;
       obj.updatePathDisplay() ;
-      uiwait(obj.gdata.fig) ;
-      movdata = obj.movdata ;
-      dostore = obj.dostore ;
     end
 
     function delete(obj)
@@ -259,16 +258,15 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.colorinfo.goodcolor = [1,1,1];
       obj.colorinfo.badcolor = [1,0,0];
 
-      % compute the figure size
-      units = get(obj.hParent,'units');
-      set(obj.hParent,'Units','pixels');
-      mainfigpos = get(obj.hParent,'Position');
-      set(obj.hParent,'Units',units);
-      figsz = [mainfigpos(3)*.8,20*(obj.nfields+2)+30]; % width, height
-      mainfigctr = mainfigpos([1,2]) + mainfigpos([3,4])/2;
-      obj.posinfo.figpos = [mainfigctr-figsz/2,figsz];
-      % to do: make sure this is on the screen
-      
+      % Compute the figure size and center it on the screen.  The dialog is
+      % modal, so we no longer size/position it relative to a parent figure.
+      screenSize = get(groot, 'ScreenSize') ;  % [left, bottom, width, height], pixels
+      figWidth = 0.5*screenSize(3) ;
+      figHeight = 20*(obj.nfields+2)+30 ;
+      figLeft = screenSize(1) + (screenSize(3)-figWidth)/2 ;
+      figBottom = screenSize(2) + (screenSize(4)-figHeight)/2 ;
+      obj.posinfo.figpos = [figLeft, figBottom, figWidth, figHeight] ;
+
       obj.gdata = struct;
       obj.gdata.fig = figure(...
         'menubar','none',...
@@ -280,6 +278,8 @@ classdef SpecifyMovieToTrackGUI < handle
         'color',obj.colorinfo.backgroundcolor,...
         'units','pixels',...
         'position',obj.posinfo.figpos,...
+        'WindowStyle','modal',...
+        'CloseRequestFcn',@(src,evt) obj.delegate.deleteSpecifyMovieToTrackController(),...
         'ResizeFcn',@(src,evt) obj.figureResizeCallback(src,evt));
         
       set(obj.gdata.fig,'Units','normalized');
@@ -819,6 +819,7 @@ classdef SpecifyMovieToTrackGUI < handle
         'IntegerHandle','off',...
         'Tag','figure_SpecifyMovieToTrackCrop',...
         'color',obj.colorinfo.backgroundcolor,...
+        'WindowStyle','modal',...
         'units','normalized');
       hax = axes('Position',[.05,.15,.9,.8],'Parent',obj.gdata.crop.fig);
       him = imagesc(im);
@@ -895,7 +896,8 @@ classdef SpecifyMovieToTrackGUI < handle
           return; % User cancelled, don't close dialog
         end
 
-        obj.dostore = true;
+        % User confirmed; hand the edited movie data to the delegate.
+        obj.delegate.specifyMovieToTrackGUIDone(obj.movdata) ;
       end
       % if obj.isma
       %   if ismember(lower(tag),{'track','link','detect'})
@@ -904,7 +906,8 @@ classdef SpecifyMovieToTrackGUI < handle
       %   end
       % end
       if ismember(lower(tag),{'done','cancel'}),
-        delete(obj.gdata.fig);
+        % Whether confirmed or cancelled, ask the delegate to tear us down.
+        obj.delegate.deleteSpecifyMovieToTrackController() ;
       end
 
     end
