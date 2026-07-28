@@ -16,7 +16,6 @@ classdef TrackBatchGUIController < handle
     page = 1;
     npages = 1;
     % posinfo = struct;
-    gdata = struct;
     nmovies_per_page = 10;
     isbusy = false;
     
@@ -43,7 +42,35 @@ classdef TrackBatchGUIController < handle
 
     % Note: Linking options are stored in obj.toTrack.link_type and obj.toTrack.id_maintain_identity
   end
-  
+
+  properties  % handles to the dialog's graphics objects (formerly the gdata struct)
+    fig = [];                        % the dialog figure
+    grid = [];                       % top-level grid layout
+    edit_grid = [];                  % grid holding the per-movie rows
+    txt_movietitle = [];             % "Movie" column header
+    txt_trxtitle = [];               % "Trx File" column header (trx projects)
+    txt_trktitle = [];               % "Output trk" column header
+    txt_macro = [];                  % "Default trkfile location" label
+    edit_macro = [];                 % default-trkfile-pattern edit field
+    txt_trx = [];                    % "Default trx location" label (trx projects)
+    linking_grid = [];               % sub-grid for the linking controls (MA)
+    txt_linking = [];                % "Linking:" label (MA)
+    popup_linking = [];              % motion/identity dropdown (MA)
+    chk_maintain_identities = [];    % "Maintain identities across videos" (MA)
+    text_page = [];                  % "Page m/n" label
+    button_save = [];                % Save button
+    button_load = [];                % Load button
+    button_add = [];                 % Add movie button
+    button_path = [];                % path-display toggle button
+    edit_movie = gobjects(1,0);      % per-row movie-file edit fields
+    edit_trx = gobjects(1,0);        % per-row trx-file edit fields
+    edit_trk = gobjects(1,0);        % per-row output-trk edit fields
+    button_details = gobjects(1,0);  % per-row "..." buttons
+    button_delete = gobjects(1,0);   % per-row "-" buttons
+    button_page = gobjects(1,0);     % page-navigation buttons
+    button_control = gobjects(1,0);  % Track/Cancel buttons
+  end
+
   methods
     function obj = TrackBatchGUIController(labelerController,labeler,varargin)
       % Construct and show the modal batch-tracking dialog.
@@ -60,8 +87,8 @@ classdef TrackBatchGUIController < handle
 
       % Block until the figure is actually rendered, then do an initial
       % resize pass so file paths are truncated and buttons positioned.
-      waitForFigureToSync(obj.gdata.fig);
-      obj.figureResizeCallback(obj.gdata.fig,[]);
+      waitForFigureToSync(obj.fig);
+      obj.figureResizeCallback(obj.fig,[]);
     end
 
     function cbkCancel(obj)
@@ -71,8 +98,8 @@ classdef TrackBatchGUIController < handle
 
     function delete(obj)
       % Clean up the figure if it still exists.
-      if ~isempty(obj.gdata) && isfield(obj.gdata, 'fig')
-        deleteValidGraphicsHandles(obj.gdata.fig) ;
+      if ~isempty(obj.fig)
+        deleteValidGraphicsHandles(obj.fig) ;
       end
     end  % function
     
@@ -208,11 +235,10 @@ classdef TrackBatchGUIController < handle
           defaulttrxfiles{i} = sprintf('pathtotrx%disveryveryvery/long/trxloc%d.mat',i,i);
         end
       end
-      obj.gdata = struct;
-      
+
       % Use a uifigure (required by the uigridlayout-based layout below) and
       % make it a non-blocking modal dialog whose close box acts like Cancel.
-      obj.gdata.fig = uifigure(...
+      obj.fig = uifigure(...
         'Name',figname,...
         'NumberTitle','off',...
         'IntegerHandle','off',...
@@ -234,9 +260,9 @@ classdef TrackBatchGUIController < handle
       if obj.lObj.maIsMA
         rows{end+1} = 40;
       end
-      grid = uigridlayout(obj.gdata.fig,'RowHeight',rows,...
+      grid = uigridlayout(obj.fig,'RowHeight',rows,...
         'ColumnWidth', {'1x'},'BackgroundColor',backgroundcolor,'RowSpacing',10);
-      obj.gdata.grid = grid;
+      obj.grid = grid;
       
       mov_row = repmat({'1x'},1,obj.nmovies_per_page+1);
       mov_col = [repmat({'1x'},1,ncol), {40, 40}]';
@@ -244,41 +270,41 @@ classdef TrackBatchGUIController < handle
         'BackgroundColor',backgroundcolor,'Padding',[0 0 0 0],'RowSpacing',3);
       edit_grid.Layout.Row = 1;
       edit_grid.Layout.Column = [1 2];
-      obj.gdata.edit_grid = edit_grid;
+      obj.edit_grid = edit_grid;
 
       FONTSIZE = 14;
       FONTSIZESML = 12;
-      obj.gdata.txt_movietitle = uilabel(edit_grid,'Text','Movie',...
+      obj.txt_movietitle = uilabel(edit_grid,'Text','Movie',...
         'FontColor','w','BackgroundColor','k','FontWeight','bold',...
         'FontSize',FONTSIZE,'HorizontalAlignment','center',...
         'Tag','Movie title');
-      obj.gdata.txt_movietitle.Layout.Row=1;
-      obj.gdata.txt_movietitle.Layout.Column=1;
+      obj.txt_movietitle.Layout.Row=1;
+      obj.txt_movietitle.Layout.Column=1;
       if hasTrx
-        obj.gdata.txt_trxtitle = uilabel(edit_grid,'Text','Trx File',...
+        obj.txt_trxtitle = uilabel(edit_grid,'Text','Trx File',...
           'FontColor','w','BackgroundColor','k','FontWeight','bold',...
           'FontSize',FONTSIZE,'HorizontalAlignment','center',...
           'Tag','Trx title');
-        obj.gdata.txt_trxtitle.Layout.Row=1;
-        obj.gdata.txt_trxtitle.Layout.Column=2;
+        obj.txt_trxtitle.Layout.Row=1;
+        obj.txt_trxtitle.Layout.Column=2;
         nextcol = 3;
       else
         nextcol = 2;
       end
 
-      obj.gdata.txt_trktitle = uilabel(edit_grid,'Text','Output trk',...
+      obj.txt_trktitle = uilabel(edit_grid,'Text','Output trk',...
         'FontColor','w','BackgroundColor','k','FontWeight','bold',...
         'FontSize',FONTSIZE,'HorizontalAlignment','center',...
         'Tag','Trk title');
-      obj.gdata.txt_trktitle.Layout.Row=1;
-      obj.gdata.txt_trktitle.Layout.Column=nextcol;
+      obj.txt_trktitle.Layout.Row=1;
+      obj.txt_trktitle.Layout.Column=nextcol;
       % if obj.isma
-      %   obj.gdata.txt_detecttitle = uilabel(edit_grid,'Text','Output Detect trk',...
+      %   obj.txt_detecttitle = uilabel(edit_grid,'Text','Output Detect trk',...
       %   'FontColor','w','BackgroundColor','k','FontWeight','bold',...
       %   'FontSize',FONTSIZE,...
       %   'Tag','Detect title');
-      %   obj.gdata.txt_detecttitle.Layout.Row=1;
-      %   obj.gdata.txt_detecttitle.Layout.Column=3;
+      %   obj.txt_detecttitle.Layout.Row=1;
+      %   obj.txt_detecttitle.Layout.Column=3;
       % end
 
       % Load icon images for the path-display toggle button.  align_left
@@ -296,13 +322,13 @@ classdef TrackBatchGUIController < handle
       % their start or their end.  It lives directly in edit_grid, so the
       % layout engine sizes it (no manual pixel positioning to go stale).
       % Its icon shows the alignment we would switch TO if pressed.
-      obj.gdata.button_path = uibutton(edit_grid,...
+      obj.button_path = uibutton(edit_grid,...
         'Text','',...
         'BackgroundColor',[1,1,1],...
         'Tag','pushbutton_path_toggle',...
         'ButtonPushedFcn',@(h,e) obj.pb_path_toggle_Callback(h,e));
-      obj.gdata.button_path.Layout.Row = 1;
-      obj.gdata.button_path.Layout.Column = nextcol + [1 2];
+      obj.button_path.Layout.Row = 1;
+      obj.button_path.Layout.Column = nextcol + [1 2];
 
       % Set the initial icon/tooltip to reflect the toggle target.
       obj.updatePathToggleButton_();
@@ -317,39 +343,39 @@ classdef TrackBatchGUIController < handle
         macrotooltip = [macrotooltip sprintf('$%s -> %s\n',f,smacros.(f))]; %#ok<AGROW>
       end
       
-      obj.gdata.txt_macro = uilabel(grid,'Text','Default trkfile location',...
+      obj.txt_macro = uilabel(grid,'Text','Default trkfile location',...
           'FontColor','w','BackgroundColor','k','FontWeight','bold',...
           'FontSize',FONTSIZESML,'HorizontalAlignment','right',...          
           'Tag','txt_macro',...
           'Tooltip', macrotooltip);
-      obj.gdata.txt_macro.Layout.Row = 2;
-      obj.gdata.txt_macro.Layout.Column = 1;
-      obj.gdata.edit_macro = uieditfield(grid,'Value',obj.defaulttrkpat,...
+      obj.txt_macro.Layout.Row = 2;
+      obj.txt_macro.Layout.Column = 1;
+      obj.edit_macro = uieditfield(grid,'Value',obj.defaulttrkpat,...
           'FontColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
           'Enable','on','HorizontalAlignment','left',...
           'Tag','edit_macro',...
           'ValueChangedFcn',@(h,e) obj.macro_changed(h,e),...
           'Tooltip', macrotooltip);
-      obj.gdata.edit_macro.Layout.Row = 2;
-      obj.gdata.edit_macro.Layout.Column = 2;
+      obj.edit_macro.Layout.Row = 2;
+      obj.edit_macro.Layout.Column = 2;
       if obj.hasTrx
-        obj.gdata.txt_trx = uilabel(grid,'Text','Default trx location',...
+        obj.txt_trx = uilabel(grid,'Text','Default trx location',...
           'FontColor','w','BackgroundColor','k','FontWeight','bold',...
           'FontSize',FONTSIZESML,'HorizontalAlignment','right',...
           'Tag','txt_macro_trx',...
           'Tooltip', macrotooltip);
-        obj.gdata.txt_trx.Layout.Row = 3;
-        obj.gdata.txt_trx.Layout.Column = 1;
+        obj.txt_trx.Layout.Row = 3;
+        obj.txt_trx.Layout.Column = 1;
 
-        obj.gdata.edit_trx = uieditfield(grid,...
+        obj.edit_trx = uieditfield(grid,...
           'Value',obj.defaulttrxpat,...
           'FontColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
           'Enable','on','HorizontalAlignment','left',...
           'Tag','edit_macro_trx',...
           'ValueChangedFcn',@(h,e) obj.macro_changed_trx(h,e),...
           'Tooltip', macrotooltip);
-        obj.gdata.edit_trx.Layout.Row = 3;
-        obj.gdata.edit_trx.Layout.Column = 2;
+        obj.edit_trx.Layout.Row = 3;
+        obj.edit_trx.Layout.Column = 2;
       end
       
       % Add identity linking checkboxes for multi-animal projects
@@ -370,38 +396,38 @@ classdef TrackBatchGUIController < handle
           'BackgroundColor',backgroundcolor,'Padding',[0 0 0 0],'ColumnSpacing',5);
         linking_grid.Layout.Row = nextRow;
         linking_grid.Layout.Column = [1 2];
-        obj.gdata.linking_grid = linking_grid;
+        obj.linking_grid = linking_grid;
 
         % "Linking:" label
-        obj.gdata.txt_linking = uilabel(linking_grid,'Text','Linking:',...
+        obj.txt_linking = uilabel(linking_grid,'Text','Linking:',...
           'FontSize',FONTSIZE,'FontColor','w','FontWeight','bold',...
           'HorizontalAlignment','right','Tag','txt_linking');
-        obj.gdata.txt_linking.Layout.Row = 2;
-        obj.gdata.txt_linking.Layout.Column = 1;
+        obj.txt_linking.Layout.Row = 2;
+        obj.txt_linking.Layout.Column = 1;
 
         % Linking-type dropdown.  ItemsData carries the model-side values so
         % the dropdown Value maps directly onto obj.toTrack.link_type.
-        obj.gdata.popup_linking = uidropdown(linking_grid,...
+        obj.popup_linking = uidropdown(linking_grid,...
           'Items',{'Motion','Identity'},...
           'ItemsData',{'motion','identity'},...
           'Value',obj.toTrack.link_type,...
           'ValueChangedFcn',@(h,e) obj.linkingTypeChanged(h,e),...
           'Tag','popupmenu_linking');
-        obj.gdata.popup_linking.Layout.Row = 2;
-        obj.gdata.popup_linking.Layout.Column = 2;
+        obj.popup_linking.Layout.Row = 2;
+        obj.popup_linking.Layout.Column = 2;
 
         % Maintain identities checkbox
-        obj.gdata.chk_maintain_identities = uicheckbox(linking_grid,...
+        obj.chk_maintain_identities = uicheckbox(linking_grid,...
           'Text','Maintain identities across videos',...
           'FontSize',FONTSIZE,'FontColor','w',...
           'Value',obj.toTrack.id_maintain_identity,...
           'Enable',strcmp(obj.toTrack.link_type,'identity'),...
           'ValueChangedFcn',@(h,e) obj.idMaintainIdentityChanged(h,e));
-        obj.gdata.chk_maintain_identities.Layout.Row = 2;
-        obj.gdata.chk_maintain_identities.Layout.Column = 4;
+        obj.chk_maintain_identities.Layout.Row = 2;
+        obj.chk_maintain_identities.Layout.Column = 4;
       end
       
-%        obj.gdata.apply_macro = uicontrol('Style','pushbutton','String','Apply',...
+%        obj.apply_macro = uicontrol('Style','pushbutton','String','Apply',...
 %           'ForegroundColor','w','BackgroundColor',pagebuttoncolor,'FontWeight','bold',...
 %           'Units','normalized','Enable','on','Position',[detailsbuttonx,macroedity,2*filebuttonw+colborder,rowh],...
 %           'Tag',sprintf('pushbutton_page%d',i),'UserData',i,...
@@ -411,7 +437,7 @@ classdef TrackBatchGUIController < handle
         visible = 'off';
         movfilecurr = defaultmovfiles{i};
         trkfilecurr = defaulttrkfiles{i};
-        obj.gdata.edit_movie(i) = uieditfield(edit_grid,...
+        obj.edit_movie(i) = uieditfield(edit_grid,...
           'Value',movfilecurr,...
           'FontColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
           'Enable','on',...
@@ -419,12 +445,12 @@ classdef TrackBatchGUIController < handle
           'HorizontalAlignment','right','Visible',visible,...
           'ValueChangedFcn',@(h,e) obj.edit_movie_Callback(h,e,i),...
           'ValueChangingFcn',@(h,e) obj.expandEditFieldOnChange(h,e,i,'movie'));
-        obj.gdata.edit_movie(i).Layout.Row = i+1;
-        obj.gdata.edit_movie(i).Layout.Column = 1;
+        obj.edit_movie(i).Layout.Row = i+1;
+        obj.edit_movie(i).Layout.Column = 1;
 
         if hasTrx
           trxfilecurr = defaulttrxfiles{i};
-          obj.gdata.edit_trx(i) = uieditfield(edit_grid,...
+          obj.edit_trx(i) = uieditfield(edit_grid,...
             'Value',trxfilecurr,...
             'FontColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
             'Enable','on',...
@@ -432,11 +458,11 @@ classdef TrackBatchGUIController < handle
             'HorizontalAlignment','right','Visible',visible,...
             'ValueChangedFcn',@(h,e) obj.edit_trx_Callback(h,e,i),...
             'ValueChangingFcn',@(h,e) obj.expandEditFieldOnChange(h,e,i,'trx'));
-          obj.gdata.edit_trx(i).Layout.Row = i+1;
-          obj.gdata.edit_trx(i).Layout.Column = 2;
+          obj.edit_trx(i).Layout.Row = i+1;
+          obj.edit_trx(i).Layout.Column = 2;
         end
 
-        obj.gdata.edit_trk(i) = uieditfield(edit_grid,...
+        obj.edit_trk(i) = uieditfield(edit_grid,...
           'Value',trkfilecurr,...
           'FontColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
           'Enable','on',...
@@ -444,10 +470,10 @@ classdef TrackBatchGUIController < handle
           'HorizontalAlignment','right','Visible',visible,...
           'ValueChangedFcn',@(h,e) obj.edit_trk_Callback(h,e,i),...
           'ValueChangingFcn',@(h,e) obj.expandEditFieldOnChange(h,e,i,'trk'));
-        obj.gdata.edit_trk(i).Layout.Row = i+1;
-        obj.gdata.edit_trk(i).Layout.Column = 2+hasTrx;
+        obj.edit_trk(i).Layout.Row = i+1;
+        obj.edit_trk(i).Layout.Column = 2+hasTrx;
         % if obj.isma
-        %   obj.gdata.edit_detect(i) = uieditfield(obj.gdata.fig,'text',...
+        %   obj.edit_detect(i) = uieditfield(obj.fig,'text',...
         %   'Value',detectfilecurr,...
         %   'FontColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
         %   'Enable','on','Position',[detecteditx,rowys(i),colw,rowh],...
@@ -456,23 +482,23 @@ classdef TrackBatchGUIController < handle
         %   'ValueChangedFcn',@(h,e) obj.edit_detect_Callback(h,e,i),...
         %   'ValueChangingFcn',@(h,e) obj.expandEditFieldOnChange(h,e,i,'detect'));
         % end
-        obj.gdata.button_details(i) = uibutton(edit_grid,'Text','...',...
+        obj.button_details(i) = uibutton(edit_grid,'Text','...',...
           'FontColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
           'Enable','on',...
           'Tag',sprintf('pushbutton_details%d',i),...
           'Visible',visible,...
           'ButtonPushedFcn',@(h,e) obj.pb_details_Callback(h,e,i));
-        obj.gdata.button_details(i).Layout.Row = i+1;
-        obj.gdata.button_details(i).Layout.Column = 3+hasTrx;
-        obj.gdata.button_delete(i) = uibutton(edit_grid,'Text','-',...
+        obj.button_details(i).Layout.Row = i+1;
+        obj.button_details(i).Layout.Column = 3+hasTrx;
+        obj.button_delete(i) = uibutton(edit_grid,'Text','-',...
           'FontColor','w','BackgroundColor',deletebuttoncolor,'FontWeight','bold',...
           'Enable','on',...
           'Tag',sprintf('pushbutton_delete%d',i),'UserData',i,...
           'ToolTip','Remove this movie from list',...
           'Visible',visible,...
           'ButtonPushedFcn',@(h,e) obj.pb_delete_Callback(h,e,i));
-        obj.gdata.button_delete(i).Layout.Row = i+1;
-        obj.gdata.button_delete(i).Layout.Column = 4+hasTrx;
+        obj.button_delete(i).Layout.Row = i+1;
+        obj.button_delete(i).Layout.Column = 4+hasTrx;
       end
       
       page_cols = repmat({50},[1 npagebuttons]);
@@ -483,45 +509,45 @@ classdef TrackBatchGUIController < handle
         'BackgroundColor',backgroundcolor,'Padding',[0 0 0 0],'RowSpacing',0);
       button_grid.Layout.Row = numel(grid.RowHeight)-1;
       button_grid.Layout.Column = [1 2];
-      obj.gdata.text_page = uilabel(button_grid,'Text',sprintf('Page %d/%d',obj.page,obj.npages),...
+      obj.text_page = uilabel(button_grid,'Text',sprintf('Page %d/%d',obj.page,obj.npages),...
         'FontColor','w','BackgroundColor',backgroundcolor,'FontWeight','normal',...
         'FontSize',FONTSIZESML,...
         'Enable','on',...
         'Tag','text_page','HorizontalAlignment','center');
-      obj.gdata.text_page.Layout.Column = n_page_cols-5+npagebuttons/2+1;
+      obj.text_page.Layout.Column = n_page_cols-5+npagebuttons/2+1;
 
-      obj.gdata.button_save = uibutton(button_grid,'Text','Save',...
+      obj.button_save = uibutton(button_grid,'Text','Save',...
         'FontColor','w','BackgroundColor',[0,0,.8],...
         'FontWeight','bold','FontSize',FONTSIZE,...
         'Enable','on',...
         'Tag',sprintf('controlbutton_save'),'UserData',2,...
         'ButtonPushedFcn',@(h,e) obj.pb_control_Callback(h,e,'save'));
-      obj.gdata.button_save.Layout.Column = 1;
+      obj.button_save.Layout.Column = 1;
 
-      obj.gdata.button_load = uibutton(button_grid,'Text','Load',...
+      obj.button_load = uibutton(button_grid,'Text','Load',...
         'FontColor','w','BackgroundColor',[0,.7,.7],...
         'FontWeight','bold','FontSize',FONTSIZE,...
         'Enable','on',...
         'Tag',sprintf('controlbutton_load'),'UserData',3,...
         'ButtonPushedFcn',@(h,e) obj.pb_control_Callback(h,e,'load'));
-      obj.gdata.button_load.Layout.Column = 2;
+      obj.button_load.Layout.Column = 2;
 
-      obj.gdata.button_add = uibutton(button_grid,'Text','Add movie',...
+      obj.button_add = uibutton(button_grid,'Text','Add movie',...
         'FontColor','w','BackgroundColor',addbuttoncolor,...
         'FontWeight','bold','FontSize',FONTSIZE,...
         'Enable','on',...
         'Tag','pushbutton_add',...
         'ButtonPushedFcn',@(h,e) obj.pb_add_Callback(h,e,[]));
-      obj.gdata.button_add.Layout.Column = 3;
+      obj.button_add.Layout.Column = 3;
 
 
       for i = 1:npagebuttons,
-        obj.gdata.button_page(i) = uibutton(button_grid,'Text',pagebuttonstrs{i},...
+        obj.button_page(i) = uibutton(button_grid,'Text',pagebuttonstrs{i},...
           'FontColor','w','BackgroundColor',pagebuttoncolor,'FontWeight','bold',...
           'Enable','on',...
           'Tag',sprintf('pushbutton_page%d',i),...
           'ButtonPushedFcn',@(h,e) obj.pb_page_Callback(h,e,pagebuttonstrs{i}));
-        obj.gdata.button_page(i).Layout.Column = n_page_cols-5+i+floor(i/npagebuttons*2-0.5);
+        obj.button_page(i).Layout.Column = n_page_cols-5+i+floor(i/npagebuttons*2-0.5);
       end
 
 
@@ -530,13 +556,13 @@ classdef TrackBatchGUIController < handle
       button_grid.Layout.Row = numel(grid.RowHeight);
       button_grid.Layout.Column = [1 2];
       for i = 1:ncontrolbuttons,
-        obj.gdata.button_control(i) = uibutton(button_grid,'Text',controlbuttonstrs{i},...
+        obj.button_control(i) = uibutton(button_grid,'Text',controlbuttonstrs{i},...
           'FontColor','w','BackgroundColor',controlbuttoncolors(i,:),...
           'FontWeight','bold','FontSize',FONTSIZE,...
           'Enable','on',...
           'Tag',sprintf('controlbutton_%s',controlbuttontags{i}),'UserData',i,...
           'ButtonPushedFcn',@(h,e) obj.pb_control_Callback(h,e,controlbuttontags{i}));
-        obj.gdata.button_control(i).Layout.Column = i;
+        obj.button_control(i).Layout.Column = i;
       end
       obj.updateMovieList();
 
@@ -583,21 +609,21 @@ classdef TrackBatchGUIController < handle
         if obj.page == 1 && i == 1,
           visible = 'on';
         end
-        set(obj.gdata.edit_movie(i),'Value',movfilecurr);
-        set(obj.gdata.edit_trk(i),'Value',trkfilecurr);
+        set(obj.edit_movie(i),'Value',movfilecurr);
+        set(obj.edit_trk(i),'Value',trkfilecurr);
         if obj.hasTrx
-          set(obj.gdata.edit_trx(i),'Value',trxfilecurr);
+          set(obj.edit_trx(i),'Value',trxfilecurr);
         end
         obj.setRowVisible(i,visible);
-        set([obj.gdata.edit_movie(i),obj.gdata.edit_trk(i),...
-          obj.gdata.button_details(i),obj.gdata.button_delete(i)],'Visible',visible);
+        set([obj.edit_movie(i),obj.edit_trk(i),...
+          obj.button_details(i),obj.button_delete(i)],'Visible',visible);
         if obj.hasTrx
-          set(obj.gdata.edit_trx(i),'Value',trxfilecurr,'Visible',visible);
+          set(obj.edit_trx(i),'Value',trxfilecurr,'Visible',visible);
         end
         
       end
         
-      set(obj.gdata.text_page,'Text',sprintf('Page %d/%d',obj.page,obj.npages));
+      set(obj.text_page,'Text',sprintf('Page %d/%d',obj.page,obj.npages));
       
       % Apply current truncation mode to all visible paths
       obj.updateTruncatedFilePathsWithMode();
@@ -605,10 +631,10 @@ classdef TrackBatchGUIController < handle
     end
 
     function setRowVisible(obj,i,visible)
-      set([obj.gdata.edit_movie(i),obj.gdata.edit_trk(i),...
-        obj.gdata.button_details(i),obj.gdata.button_delete(i)],'Visible',visible);
+      set([obj.edit_movie(i),obj.edit_trk(i),...
+        obj.button_details(i),obj.button_delete(i)],'Visible',visible);
       if obj.hasTrx
-        set(obj.gdata.edit_trx(i),'Visible',visible);
+        set(obj.edit_trx(i),'Visible',visible);
       end
     end
     
@@ -706,10 +732,10 @@ classdef TrackBatchGUIController < handle
       if isempty(itemi),
         return;
       end
-      set(obj.gdata.edit_movie(itemi),'Value',obj.toTrack.movfiles{moviei,1});
-      set(obj.gdata.edit_trk(itemi),'Value',obj.toTrack.trkfiles{moviei,1});
+      set(obj.edit_movie(itemi),'Value',obj.toTrack.movfiles{moviei,1});
+      set(obj.edit_trk(itemi),'Value',obj.toTrack.trkfiles{moviei,1});
       if obj.hasTrx
-        set(obj.gdata.edit_trx(itemi),'Value',obj.toTrack.trxfiles{moviei,1});
+        set(obj.edit_trx(itemi),'Value',obj.toTrack.trxfiles{moviei,1});
       end
       obj.setRowVisible(itemi,'on');
       
@@ -722,12 +748,12 @@ classdef TrackBatchGUIController < handle
       moviei = obj.item2MovieIdx(itemi);
       movdata = obj.getMovData(moviei);      
       if obj.isma
-        movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
+        movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.fig,...
           movdata,'defaulttrkpat',obj.defaulttrkpat,...
           'detailed_options',false);
           %'defaultdetectpat',obj.defaultdetectpat,...
       else
-        movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
+        movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.fig,...
         movdata,'defaulttrkpat',obj.defaulttrkpat,...
         'defaulttrxpat',obj.defaulttrxpat);
       end
@@ -770,10 +796,10 @@ classdef TrackBatchGUIController < handle
           
     function pb_add_Callback(obj,h,e,movdat) %#ok<*INUSD>
       if obj.isma
-        movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
+        movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.fig,...
         movdat,'defaulttrkpat',obj.defaulttrkpat,'detailed_options',false);
       else
-      movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
+      movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.fig,...
         movdat,'defaulttrkpat',obj.defaulttrkpat,...
         'defaulttrxpat',obj.defaulttrxpat);
       end
@@ -1108,8 +1134,8 @@ classdef TrackBatchGUIController < handle
         val = true;
       end
       obj.isbusy = val;
-      controls = [obj.gdata.button_delete,obj.gdata.button_details,...
-        obj.gdata.button_control,obj.gdata.button_page,obj.gdata.button_add];
+      controls = [obj.button_delete,obj.button_details,...
+        obj.button_control,obj.button_page,obj.button_add];
       isvisible = strcmpi(get(controls,'visible'),'on');
       if val,
         set(controls(isvisible),'Enable','off');
@@ -1307,7 +1333,7 @@ classdef TrackBatchGUIController < handle
     
     function figureResizeCallback(obj, src, evt)
       % Called when the figure is resized - re-truncate file paths
-      if ~isempty(obj.originalMovieFiles) && isvalid(obj.gdata.fig)
+      if ~isempty(obj.originalMovieFiles) && isvalid(obj.fig)
         obj.updateTruncatedFilePathsWithMode();
       end
     end
@@ -1325,18 +1351,18 @@ classdef TrackBatchGUIController < handle
         
         % Check each edit control to see if click was within its bounds
         for i = 1:obj.nmovies_per_page
-          if strcmp(get(obj.gdata.edit_movie(i), 'Visible'), 'on')
-            if obj.isPointInControl(currentPoint, obj.gdata.edit_movie(i))
-              clickedControl = obj.gdata.edit_movie(i);
+          if strcmp(get(obj.edit_movie(i), 'Visible'), 'on')
+            if obj.isPointInControl(currentPoint, obj.edit_movie(i))
+              clickedControl = obj.edit_movie(i);
               fieldType = 'movie';
               itemi = i;
               break;
             end
           end
           
-          if strcmp(get(obj.gdata.edit_trk(i), 'Visible'), 'on')
-            if obj.isPointInControl(currentPoint, obj.gdata.edit_trk(i))
-              clickedControl = obj.gdata.edit_trk(i);
+          if strcmp(get(obj.edit_trk(i), 'Visible'), 'on')
+            if obj.isPointInControl(currentPoint, obj.edit_trk(i))
+              clickedControl = obj.edit_trk(i);
               fieldType = 'trk';
               itemi = i;
               break;
@@ -1453,17 +1479,17 @@ classdef TrackBatchGUIController < handle
     function updatePathToggleButton_(obj)
       % Set the path-toggle button's icon and tooltip to reflect the state
       % that pressing it will switch TO (the opposite of the current one).
-      if ~isfield(obj.gdata, 'button_path') || ~isvalid(obj.gdata.button_path)
+      if isempty(obj.button_path) || ~isvalid(obj.button_path)
         return;
       end
       if obj.doShowPathEnds
         % Currently showing path ends; pressing will show path starts.
-        obj.gdata.button_path.Icon = obj.pathStartsIcon_;
-        obj.gdata.button_path.Tooltip = 'Show path starts';
+        obj.button_path.Icon = obj.pathStartsIcon_;
+        obj.button_path.Tooltip = 'Show path starts';
       else
         % Currently showing path starts; pressing will show path ends.
-        obj.gdata.button_path.Icon = obj.pathEndsIcon_;
-        obj.gdata.button_path.Tooltip = 'Show path ends';
+        obj.button_path.Icon = obj.pathEndsIcon_;
+        obj.button_path.Tooltip = 'Show path ends';
       end
     end
 
@@ -1477,12 +1503,12 @@ classdef TrackBatchGUIController < handle
             if obj.doShowPathEnds
               % Show truncated path ends
               displayMovFile = PathTruncationUtils.truncateFilePath(...
-                obj.originalMovieFiles{moviei}, 'component', obj.gdata.edit_movie(i), 'startFraction', 0);
+                obj.originalMovieFiles{moviei}, 'component', obj.edit_movie(i), 'startFraction', 0);
             else
               % Show whole path when showing path starts
               displayMovFile = obj.originalMovieFiles{moviei};
             end
-            set(obj.gdata.edit_movie(i), 'Value', displayMovFile);
+            set(obj.edit_movie(i), 'Value', displayMovFile);
           end
           
           % Update trk file path
@@ -1490,23 +1516,23 @@ classdef TrackBatchGUIController < handle
             if obj.doShowPathEnds
               % Show truncated path ends
               displayTrkFile = PathTruncationUtils.truncateFilePath(...
-                obj.originalTrkFiles{moviei}, 'component', obj.gdata.edit_trk(i), 'startFraction', 0);
+                obj.originalTrkFiles{moviei}, 'component', obj.edit_trk(i), 'startFraction', 0);
             else
               % Show whole path when showing path starts
               displayTrkFile = obj.originalTrkFiles{moviei};
             end
-            set(obj.gdata.edit_trk(i), 'Value', displayTrkFile);
+            set(obj.edit_trk(i), 'Value', displayTrkFile);
           end
           if obj.hasTrx && moviei <= size(obj.originalTrxFiles, 1) && ~isempty(obj.originalTrxFiles{moviei})
             if obj.doShowPathEnds
               % Show truncated path ends
               displayTrxFile = PathTruncationUtils.truncateFilePath(...
-                obj.originalTrxFiles{moviei}, 'component', obj.gdata.edit_trk(i), 'startFraction', 0);
+                obj.originalTrxFiles{moviei}, 'component', obj.edit_trk(i), 'startFraction', 0);
             else
               % Show whole path when showing path starts
               displayTrxFile = obj.originalTrxFiles{moviei};
             end
-            set(obj.gdata.edit_trx(i), 'Value', displayTrxFile);
+            set(obj.edit_trx(i), 'Value', displayTrxFile);
           end
         end
       end
@@ -1514,18 +1540,18 @@ classdef TrackBatchGUIController < handle
     
     function linkingTypeChanged(obj, src, evt)  %#ok<INUSD>
       % Callback for the linking-type dropdown.
-      obj.toTrack.link_type = obj.gdata.popup_linking.Value;
+      obj.toTrack.link_type = obj.popup_linking.Value;
 
       obj.needsSave = true;
 
       % Enable/disable maintain identities checkbox based on identity linking
-      if isfield(obj.gdata, 'chk_maintain_identities') && isvalid(obj.gdata.chk_maintain_identities)
+      if ~isempty(obj.chk_maintain_identities) && isvalid(obj.chk_maintain_identities)
         isIdentityLinking = strcmp(obj.toTrack.link_type, 'identity');
-        obj.gdata.chk_maintain_identities.Enable = isIdentityLinking;
+        obj.chk_maintain_identities.Enable = isIdentityLinking;
 
         % If not identity linking, uncheck maintain identities
         if ~isIdentityLinking
-          obj.gdata.chk_maintain_identities.Value = false;
+          obj.chk_maintain_identities.Value = false;
           obj.toTrack.id_maintain_identity = false;
         end
       end
@@ -1539,17 +1565,17 @@ classdef TrackBatchGUIController < handle
 
     function updateLinkingControls(obj)
       % Update the linking dropdown and checkbox to reflect loaded data
-      if ~isfield(obj.gdata, 'popup_linking') || ~isvalid(obj.gdata.popup_linking)
+      if isempty(obj.popup_linking) || ~isvalid(obj.popup_linking)
         return; % GUI not created yet
       end
 
       % Update linking-type dropdown
-      obj.gdata.popup_linking.Value = obj.toTrack.link_type;
+      obj.popup_linking.Value = obj.toTrack.link_type;
 
       % Update maintain identities checkbox
-      if isfield(obj.gdata, 'chk_maintain_identities') && isvalid(obj.gdata.chk_maintain_identities)
-        obj.gdata.chk_maintain_identities.Value = obj.toTrack.id_maintain_identity;
-        obj.gdata.chk_maintain_identities.Enable = strcmp(obj.toTrack.link_type, 'identity');
+      if ~isempty(obj.chk_maintain_identities) && isvalid(obj.chk_maintain_identities)
+        obj.chk_maintain_identities.Value = obj.toTrack.id_maintain_identity;
+        obj.chk_maintain_identities.Enable = strcmp(obj.toTrack.link_type, 'identity');
       end
     end
 
@@ -1667,7 +1693,7 @@ classdef TrackBatchGUIController < handle
                 'String', 'Start New Tracking', ...
                 'Callback', @(btn, event) setChoiceAndClose('new_tracking'));
 
-      centerOnParentFigure(d,obj.gdata.fig);
+      centerOnParentFigure(d,obj.fig);
       % Wait for user choice
       uiwait(d);
 
