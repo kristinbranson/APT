@@ -360,33 +360,30 @@ classdef TrackBatchGUIController < handle
           nextRow = 3;
         end
         
-        % Create a sub-grid for the radio buttons and checkbox
-        linking_grid = uigridlayout(grid,'RowHeight',{'1x'},'ColumnWidth',{'3x','1x'},...
-          'BackgroundColor',backgroundcolor,'Padding',[0 0 0 0],'RowSpacing',5);
+        % Create a sub-grid for the linking dropdown and checkbox.  The
+        % dropdown and its label are sized by the layout engine, so there
+        % is no manual pixel positioning to go stale on first paint.
+        linking_grid = uigridlayout(grid,'RowHeight',{'1x'},'ColumnWidth',{'fit','fit','1x'},...
+          'BackgroundColor',backgroundcolor,'Padding',[0 0 0 0],'ColumnSpacing',5);
         linking_grid.Layout.Row = nextRow;
         linking_grid.Layout.Column = [1 2];
         obj.gdata.linking_grid = linking_grid;
-        
-        % Create button group for radio buttons
-        obj.gdata.bg_linking = uibuttongroup(linking_grid,...
-          'BackgroundColor',backgroundcolor,...
-          'BorderType','none',...
-          'SelectionChangedFcn',@(src,evt) obj.linkingTypeChanged(src,evt));
-        obj.gdata.bg_linking.Layout.Row = 1;
-        obj.gdata.bg_linking.Layout.Column = 1;
-        
-        % Radio buttons - positions will be calculated dynamically
-        obj.gdata.rb_motion = uiradiobutton(obj.gdata.bg_linking,...
-          'Text','Motion Linking',...
-          'FontSize',FONTSIZE,'FontColor','w',...
-          'Position',[230 5 200 20],...
-          'Value',strcmp(obj.toTrack.link_type,'motion'));
 
-        obj.gdata.rb_identity = uiradiobutton(obj.gdata.bg_linking,...
-          'Text','Identity linking',...
-          'FontSize',FONTSIZE,'FontColor','w',...
-          'Position',[455 5 200 20],...
-          'Value',strcmp(obj.toTrack.link_type,'identity'));
+        % "Linking:" label
+        obj.gdata.txt_linking = uilabel(linking_grid,'Text','Linking:',...
+          'FontSize',FONTSIZE,'FontColor','w','FontWeight','bold',...
+          'HorizontalAlignment','right','Tag','txt_linking');
+        obj.gdata.txt_linking.Layout.Column = 1;
+
+        % Linking-type dropdown.  ItemsData carries the model-side values so
+        % the dropdown Value maps directly onto obj.toTrack.link_type.
+        obj.gdata.popup_linking = uidropdown(linking_grid,...
+          'Items',{'Motion','Identity'},...
+          'ItemsData',{'motion','identity'},...
+          'Value',obj.toTrack.link_type,...
+          'ValueChangedFcn',@(h,e) obj.linkingTypeChanged(h,e),...
+          'Tag','popupmenu_linking');
+        obj.gdata.popup_linking.Layout.Column = 2;
 
         % Maintain identities checkbox
         obj.gdata.chk_maintain_identities = uicheckbox(linking_grid,...
@@ -395,8 +392,7 @@ classdef TrackBatchGUIController < handle
           'Value',obj.toTrack.id_maintain_identity,...
           'Enable',strcmp(obj.toTrack.link_type,'identity'),...
           'ValueChangedFcn',@(h,e) obj.idMaintainIdentityChanged(h,e));
-        obj.gdata.chk_maintain_identities.Layout.Row = 1;
-        obj.gdata.chk_maintain_identities.Layout.Column = 2;
+        obj.gdata.chk_maintain_identities.Layout.Column = 3;
       end
       
 %        obj.gdata.apply_macro = uicontrol('Style','pushbutton','String','Apply',...
@@ -537,11 +533,6 @@ classdef TrackBatchGUIController < handle
         obj.gdata.button_control(i).Layout.Column = i;
       end
       obj.updateMovieList();
-      
-      % Update radio button positions after GUI is created
-      % if obj.lObj.maIsMA
-      %   obj.updateLinkingButtonPositions();
-      % end
 
     end
      
@@ -1313,42 +1304,8 @@ classdef TrackBatchGUIController < handle
       if ~isempty(obj.originalMovieFiles) && isvalid(obj.gdata.fig)
         obj.updateTruncatedFilePathsWithMode();
       end
-      % Update radio button positions on resize for multi-animal projects
-      if obj.lObj.maIsMA && isfield(obj.gdata, 'bg_linking') && isvalid(obj.gdata.bg_linking)
-        obj.updateLinkingButtonPositions();
-      end
     end
-    
-    function updateLinkingButtonPositions(obj)
-      % Calculate and update radio button positions based on button group size
-      if ~isfield(obj.gdata, 'bg_linking') || ~isvalid(obj.gdata.bg_linking)
-        return;
-      end
-      
-      try
-        % Get the button group position in pixels
-        bgPos = getpixelposition(obj.gdata.bg_linking);
-        bgWidth = bgPos(3);
-        bgHeight = bgPos(4);
-        
-        % Calculate button dimensions with padding
-        padding = 10;  % pixels
-        buttonHeight = max(20, bgHeight - 2*padding);  % minimum 20px height
-        buttonWidth = (bgWidth - 3*padding) / 2;  % divide width by 2 with padding
-        
-        % Calculate positions for each button
-        y = (bgHeight - buttonHeight) / 2;  % center vertically
-        
-        % Update positions (now only motion and identity)
-        obj.gdata.rb_motion.Position = [padding, y, buttonWidth, buttonHeight];
-        obj.gdata.rb_identity.Position = [padding + buttonWidth + padding, y, buttonWidth, buttonHeight];
-        
-      catch ME
-        % Silently handle errors during resize
-        warning(ME.identifier,'Error updating linking button positions: %s', ME.message);
-      end
-    end
-    
+
     function windowButtonDownFcn(obj, src, evt)
       % Figure-level mouse click handler to detect clicks on edit fields
       try
@@ -1549,16 +1506,9 @@ classdef TrackBatchGUIController < handle
       end
     end
     
-    function linkingTypeChanged(obj, src, evt)
-      % Callback for linking type radio button group
-      selectedButton = evt.NewValue;
-
-      % Determine which linking type was selected
-      if selectedButton == obj.gdata.rb_motion
-        obj.toTrack.link_type = 'motion';
-      elseif selectedButton == obj.gdata.rb_identity
-        obj.toTrack.link_type = 'identity';
-      end
+    function linkingTypeChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the linking-type dropdown.
+      obj.toTrack.link_type = obj.gdata.popup_linking.Value;
 
       obj.needsSave = true;
 
@@ -1582,14 +1532,13 @@ classdef TrackBatchGUIController < handle
     end
 
     function updateLinkingControls(obj)
-      % Update radio buttons and checkbox to reflect loaded data
-      if ~isfield(obj.gdata, 'rb_motion') || ~isvalid(obj.gdata.rb_motion)
+      % Update the linking dropdown and checkbox to reflect loaded data
+      if ~isfield(obj.gdata, 'popup_linking') || ~isvalid(obj.gdata.popup_linking)
         return; % GUI not created yet
       end
 
-      % Update radio button values
-      obj.gdata.rb_motion.Value = strcmp(obj.toTrack.link_type, 'motion');
-      obj.gdata.rb_identity.Value = strcmp(obj.toTrack.link_type, 'identity');
+      % Update linking-type dropdown
+      obj.gdata.popup_linking.Value = obj.toTrack.link_type;
 
       % Update maintain identities checkbox
       if isfield(obj.gdata, 'chk_maintain_identities') && isvalid(obj.gdata.chk_maintain_identities)
