@@ -20,8 +20,6 @@ classdef SpecifyMovieToTrackController < handle
     movieReader = {};
     defaulttrkpat = [];
     defaulttrxpat = [];
-%    defaultdetectpat = [];
-    % track_type = 'track';
     detailed_options = true;
     link_type = 'motion';
     showPathEnds = true;  % Path display mode: true = show path ends, false = show path starts
@@ -72,7 +70,6 @@ classdef SpecifyMovieToTrackController < handle
 
       obj.defaulttrkpat = defaulttrkpat;
       obj.defaulttrxpat = defaulttrxpat;
-%      obj.defaultdetectpat = defaultdetectpat;
       obj.initMovData(movdata);
 
       obj.createGUI();
@@ -127,17 +124,6 @@ classdef SpecifyMovieToTrackController < handle
           end
         end
       end
-      % if obj.isma && ~isfield(obj.movdata,'detectfiles') 
-      %   obj.movdata.detectfiles = repmat({''},[1,obj.nview]);
-      % end
-      % if ~isempty(obj.defaultdetectpat)
-      %   for ivw=1:obj.nview
-      %     movI = obj.movdata.movfiles{ivw};
-      %     if ~isempty(movI) && ~isempty(obj.movdata.detectfiles) && isempty(obj.movdata.detectfiles{ivw})
-      %       obj.movdata.detectfiles{ivw} = obj.genTrkfile(movI,obj.defaultdetectpat);
-      %     end
-      %   end
-      % end
       if obj.hastrx && ~isfield(obj.movdata,'trxfiles'),
         obj.movdata.trxfiles = repmat({''},[1,obj.nview]);
       end
@@ -683,13 +669,6 @@ classdef SpecifyMovieToTrackController < handle
           obj.isgood.trk(i) = obj.checkRowValue('trk',i);
           set(obj.gdata.trk.rowedit(i),'String',trkI);
         end
-        % if obj.isma && ~isempty(obj.defaultdetectpat)
-        %   movI = obj.movdata.movfiles{i};
-        %   trkI = obj.genTrkfile(movI,obj.defaultdetectpat);
-        %   obj.movdata.detectfiles{i} = trkI;
-        %   obj.isgood.detect(i) = obj.checkRowValue('detect',i);
-        %   set(obj.gdata.detect.rowedit(i),'String',trkI);
-        % end
         if obj.hastrx && ~isempty(obj.defaulttrxpat)
           movI = obj.movdata.movfiles{i};
           trxI = obj.genTrkfile(movI,obj.defaulttrxpat,'enforceExt',false);
@@ -770,13 +749,6 @@ classdef SpecifyMovieToTrackController < handle
         obj.movdata.trkfiles{i} = trkI;
         obj.isgood.trk(i) = obj.checkRowValue('trk',i);
         set(obj.gdata.trk.rowedit(i),'String',trkI);
-      end
-      if strcmp(ri.movdatafield,'movfiles') && ~isempty(obj.defaultdetectpat) && isfield(obj.gdata,'detect'),
-        movI = obj.movdata.movfiles{i};
-        trkI = obj.genTrkfile(movI,obj.defaultdetectpat);
-        obj.movdata.detectfiles{i} = trkI;
-        obj.isgood.detect(i) = obj.checkRowValue('detect',i);
-        set(obj.gdata.detect.rowedit(i),'String',trkI);
       end
       if strcmp(ri.movdatafield,'movfiles') && obj.hastrx && ~isempty(obj.defaulttrxpat)
         movI = obj.movdata.movfiles{i};
