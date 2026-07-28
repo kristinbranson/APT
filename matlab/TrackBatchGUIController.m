@@ -362,8 +362,11 @@ classdef TrackBatchGUIController < handle
         
         % Create a sub-grid for the linking dropdown and checkbox.  The
         % dropdown and its label are sized by the layout engine, so there
-        % is no manual pixel positioning to go stale on first paint.
-        linking_grid = uigridlayout(grid,'RowHeight',{'1x'},'ColumnWidth',{'fit','fit','1x'},...
+        % is no manual pixel positioning to go stale on first paint.  The
+        % 'fit' middle row keeps the dropdown at its natural height (rather
+        % than stretching to fill the band) and vertically centers it; the
+        % 20px spacer column separates the dropdown from the checkbox.
+        linking_grid = uigridlayout(grid,'RowHeight',{'1x','fit','1x'},'ColumnWidth',{'fit','fit',20,'1x'},...
           'BackgroundColor',backgroundcolor,'Padding',[0 0 0 0],'ColumnSpacing',5);
         linking_grid.Layout.Row = nextRow;
         linking_grid.Layout.Column = [1 2];
@@ -373,6 +376,7 @@ classdef TrackBatchGUIController < handle
         obj.gdata.txt_linking = uilabel(linking_grid,'Text','Linking:',...
           'FontSize',FONTSIZE,'FontColor','w','FontWeight','bold',...
           'HorizontalAlignment','right','Tag','txt_linking');
+        obj.gdata.txt_linking.Layout.Row = 2;
         obj.gdata.txt_linking.Layout.Column = 1;
 
         % Linking-type dropdown.  ItemsData carries the model-side values so
@@ -383,6 +387,7 @@ classdef TrackBatchGUIController < handle
           'Value',obj.toTrack.link_type,...
           'ValueChangedFcn',@(h,e) obj.linkingTypeChanged(h,e),...
           'Tag','popupmenu_linking');
+        obj.gdata.popup_linking.Layout.Row = 2;
         obj.gdata.popup_linking.Layout.Column = 2;
 
         % Maintain identities checkbox
@@ -392,7 +397,8 @@ classdef TrackBatchGUIController < handle
           'Value',obj.toTrack.id_maintain_identity,...
           'Enable',strcmp(obj.toTrack.link_type,'identity'),...
           'ValueChangedFcn',@(h,e) obj.idMaintainIdentityChanged(h,e));
-        obj.gdata.chk_maintain_identities.Layout.Column = 3;
+        obj.gdata.chk_maintain_identities.Layout.Row = 2;
+        obj.gdata.chk_maintain_identities.Layout.Column = 4;
       end
       
 %        obj.gdata.apply_macro = uicontrol('Style','pushbutton','String','Apply',...
