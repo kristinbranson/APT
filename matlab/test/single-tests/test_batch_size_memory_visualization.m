@@ -21,7 +21,7 @@ batchSizeFqn = 'ROOT.DeepTrack.GradientDescent.batch_size' ;
 % The dialog is modal, but the menu actuation returns once it is up, so
 % the test can drive it directly.
 controller.menu_track_setparametersfile_actuated_([], []) ;
-hFig = findall(0, 'Type', 'figure', 'Name', 'Training parameters') ;
+hFig = findall(0, 'Type', 'figure', 'Name', 'Training Parameters') ;
 assert(isscalar(hFig), 'The training-parameters dialog never appeared') ;
 dialogCleanupObj = onCleanup(@()(deleteIfValid(hFig))) ;  %#ok<NASGU>
 
