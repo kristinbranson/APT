@@ -907,7 +907,7 @@ classdef TrackMonitorViz < handle
         ylabel(obj.haxsIDTraining,'Training Loss');
         title(obj.haxsIDTraining,'ID Model Training Progress','Color',[1,1,1]);
         set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1]);
-        yscale(obj.haxsIDTraining,'log');
+        set(obj.haxsIDTraining,'YScale','log');
         grid on;
         drawnow('limitrate', 'nocallbacks');
       end
@@ -984,7 +984,7 @@ classdef TrackMonitorViz < handle
       title(obj.haxsIDTraining, 'ID Model Training Progress');
       grid(obj.haxsIDTraining, 'on');
       set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1])
-      yscale(obj.haxsIDTraining,'log');
+      set(obj.haxsIDTraining,'YScale','log');
     end  % function
 
   end  % methods
