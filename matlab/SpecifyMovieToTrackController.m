@@ -86,16 +86,16 @@ classdef SpecifyMovieToTrackController < handle
 
       obj.createGUI();
 
-      % Center the dialog on the delegate controller's figure.
+      % Center the dialog on the parent controller's figure.
       if isa(obj.parent_, 'TrackBatchGUIController')
-        delegateFigurePosition = obj.parent_.figurePixelPosition() ;
+        parentFigurePosition = obj.parent_.figurePixelPosition() ;
       elseif isa(obj.parent_, 'LabelerController')
-        delegateFigurePosition = obj.parent_.mainFigurePixelPosition() ;
+        parentFigurePosition = obj.parent_.mainFigurePixelPosition() ;
       else
-        error('APT:invalidDelegate', ...
-              'The delegate must be a TrackBatchGUIController or a LabelerController') ;
+        error('APT:invalidParent', ...
+              'The parent must be a TrackBatchGUIController or a LabelerController') ;
       end
-      centerOnOtherFigureGivenPositionBang(obj.fig, delegateFigurePosition) ;
+      centerOnOtherFigureGivenPositionBang(obj.fig, parentFigurePosition) ;
 
       % Wait until the figure is actually on screen with its final geometry,
       % then refresh the displayed paths so the initial truncation reflects
@@ -264,7 +264,7 @@ classdef SpecifyMovieToTrackController < handle
       obj.colorinfo.badcolor = [1,0,0];
 
       % Compute the figure size, placing it at the screen center for now; the
-      % constructor recenters it on the delegate controller's figure once the
+      % constructor recenters it on the parent controller's figure once the
       % dialog is built.
       screenSize = get(groot, 'ScreenSize') ;  % [left, bottom, width, height], pixels
       figWidth = 0.5*screenSize(3) ;
@@ -878,11 +878,11 @@ classdef SpecifyMovieToTrackController < handle
           return  % User cancelled, don't close dialog
         end
 
-        % User confirmed; hand the edited movie data to the delegate.
+        % User confirmed; hand the edited movie data to the parent.
         obj.parent_.specifyMovieToTrackControllerDone(obj.movdata) ;
       end
       if ismember(lower(tag),{'done','cancel'}),
-        % Whether confirmed or cancelled, ask the delegate to tear us down.
+        % Whether confirmed or cancelled, ask the parent to tear us down.
         obj.parent_.deleteSpecifyMovieToTrackController() ;
       end
     end  % function
