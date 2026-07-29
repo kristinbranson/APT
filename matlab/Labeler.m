@@ -2705,10 +2705,10 @@ classdef Labeler < handle
         end
       end
 
-      % Set this so all the prop-setting below doesn't create issues 
+      % Set this so all the prop-setting below doesn't create issues
       % when the associated events fire.
       obj.isinit = true;
-      
+
       t0 = tic;
       obj.initFromConfig_(s.cfg);
       fprintf('Initialized configuration (%f s).\n',toc(t0));
@@ -2723,7 +2723,16 @@ classdef Labeler < handle
                                               Labeler.SAVEBUTNOTLOADPROPS));
       path_to_replace = replace_path{1} ;
       target_path = replace_path{2} ;
-      for i = 1 : numel(LOADPROPS) 
+      % Suppress view-update notifications while the saved property values are
+      % restored.  During this loop the model is in an inconsistent,
+      % partially-loaded state; unlike isinit (which does not gate notify_()),
+      % the enablement counter actually suppresses the events.  This prevents
+      % setters such as set.showSkeleton from driving the view (e.g. the
+      % skeleton visualizer) before the new project's state is set up.
+      % Re-enabled right after the loop, so newProject/movieSet construction and
+      % the final 'update' notification still refresh the view.
+      obj.disableNotifications_() ;
+      for i = 1 : numel(LOADPROPS)
         prop_name = LOADPROPS{i} ;
         if ~isfield(s, prop_name)          
           warningNoTrace('Labeler:load','Missing load field ''%s''.',prop_name);
@@ -2751,6 +2760,7 @@ classdef Labeler < handle
           end
         end
       end  % for
+      obj.enableNotificationsMaybe_() ;
 
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
