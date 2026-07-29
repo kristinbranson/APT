@@ -20,11 +20,14 @@ function test_project_switch_skeleton_cleanup()
 
 [fewLandmarkLbl, replacePathFew] = localize_test_project_path( ...
   '/groups/branson/bransonlab/apt/unittest/htflies-10-with-saved-tracks-relocated.lbl') ;
-[manyLandmarkLbl, replacePathMany] = localize_test_project_path( ...
-  '/groups/branson/bransonlab/apt/unittest/chimpAct_noTestlabels_detr400k_nocrop.lbl') ;  %#ok<NASGU>
+% manyLandmarkLbl / replacePathMany are used only inside the evalc'd command
+% below, which mlint cannot see, so they need a NASGU suppression -- which has
+% to land on the assignment line.
+manyLandmarkPath = '/groups/branson/bransonlab/apt/unittest/chimpAct_noTestlabels_detr400k_nocrop.lbl' ;
+[manyLandmarkLbl, replacePathMany] = localize_test_project_path(manyLandmarkPath) ; %#ok<ASGLU>
 
-[labeler, controller] = StartAPT('projfile', fewLandmarkLbl, 'replace_path', replacePathFew) ;
-cleaner = onCleanup(@()(delete(controller))) ;  %#ok<NASGU>
+[labeler, controller] = StartAPT('projfile', fewLandmarkLbl, 'replace_path', replacePathFew) ; %#ok<ASGLU>
+cleaner = onCleanup(@()(delete(controller))) ;
 
 % Capture everything projLoad prints; the listener-callback error is emitted as
 % a warning (with its stack) rather than thrown, so we detect it in the output.

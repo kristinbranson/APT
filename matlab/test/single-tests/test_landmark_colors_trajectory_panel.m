@@ -17,7 +17,7 @@ function test_landmark_colors_trajectory_panel()
   labeler = makeMockLabeler_(true) ;  % maIsMA = true
   parent = struct('mainFigurePixelPosition', [100 100 800 600]) ;
   controller = LandmarkColorsController(parent, labeler, cbkApply) ;
-  cleaner = onCleanup(@()(delete(controller))) ;  %#ok<NASGU>
+  cleaner = onCleanup(@()(delete(controller))) ;
 
   assert(controller.tfTrajControlsShown_, ...
          'Trajectory pane was not shown for an MA project') ;
@@ -64,7 +64,7 @@ function test_landmark_colors_trajectory_panel()
   % ---------------------------------------------------------------------------
   labelerNoTraj = makeMockLabeler_(false) ;  % maIsMA = false, hasTrx = false
   controllerNoTraj = LandmarkColorsController(parent, labelerNoTraj, cbkApply) ;
-  cleaner2 = onCleanup(@()(delete(controllerNoTraj))) ;  %#ok<NASGU>
+  cleaner2 = onCleanup(@()(delete(controllerNoTraj))) ;
 
   assert(~controllerNoTraj.tfTrajControlsShown_, ...
          'Trajectory pane was shown for a project with no trajectories') ;

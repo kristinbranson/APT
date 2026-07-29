@@ -19,7 +19,7 @@ linuxProjectFilePath = ...
 [projectFilePath, replacePath] = localize_test_project_path(linuxProjectFilePath) ;
 [labeler, controller] = StartAPT('projfile', projectFilePath, ...
                                  'replace_path', replacePath) ;
-cleaner = onCleanup(@()(delete(controller))) ;  %#ok<NASGU>
+cleaner = onCleanup(@()(delete(controller))) ;  
 
 assert(labeler.maIsMA, 'Test project is not multi-animal; cannot exercise known-num-animals controls') ;
 
@@ -31,7 +31,7 @@ movdata = struct() ;
 movdata.movfiles = labeler.getMovieFilesAllFullMovIdx(mIdx) ;
 
 sub = SpecifyMovieToTrackController(labeler, controller, movdata) ;
-subCleaner = onCleanup(@()(delete(sub))) ;  %#ok<NASGU>
+subCleaner = onCleanup(@()(delete(sub))) ;
 
 chk = sub.chk_known_num_animals ;
 edt = sub.edit_num_animals ;
