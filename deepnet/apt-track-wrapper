@@ -20,7 +20,7 @@ docker_default_image_tag = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch1
 apptainer_default_image_spec = 'docker://bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
 
 # These are argument keys that are either a file name or a list of file names.    
-file_name_arg_keys = ['lbl_file', 'mov', 'trx', 'log_file', 'err_file', 'out_files']
+file_name_arg_keys = ['lbl_file', 'mov', 'trx', 'log_file', 'err_file', 'out_files', 'predict_trk_files', 'id_wts_file', 'config_file']
 
 
 
@@ -96,7 +96,11 @@ def parse_args(argv):
     parser.add_argument('-stage', help='Stage for multi-stage tracking. Options are multi, first, second or None (default)', default=None)
 
     parser.add_argument('-track_type',choices=['predict_link','only_predict','only_link','link_id'], default='predict_link', help='for multi-animal. Whether to link the predictions or not, or only link existing tracklets. "predict_link" both predicts and links, "only_predict" only predicts but does not link, "only_link" only links existing predictions, "link_id" will do ID linking on predictions. For only_link and link_id, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
-    parser.add_argument('-predict_trk_files', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, type=int)
+    parser.add_argument('-predict_trk_files', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, nargs='+')
+    parser.add_argument('-id_wts_file', dest='id_wts_file', help='File path for ID tracking model weights. If file exists, weights are loaded. If file does not exist, trained weights are saved to this location.', default=None)
+    parser.add_argument('-id_num_animals', dest='id_num_animals', help='Known number of animals present in the videos being tracked. If specified, used to determine the number of ID clusters during identity linking instead of a fixed distance threshold.', type=int, default=None)
+    parser.add_argument('-config_file', dest='config_file', help='JSON file with parameters related to tracking', default=None)
+    parser.add_argument('-continue', dest='continue_tracking', help='continue tracking from an existing .part file', action='store_true')
 
     parser.add_argument('-conf_params',
                         help='conf params. These will override params from lbl file. If the model is a 2 stage tracker then this will override the params only for the first stage', default=None, nargs='*')
@@ -312,8 +316,10 @@ def apt_track_tokens_from_apt_track_args_helper(key, value):
             value_as_token_list = [ value_as_token_or_token_list ]
         else:
             value_as_token_list = value_as_token_or_token_list
-        if key=='out_files':
+        if key == 'out_files':
             rekey = '-out'
+        elif key == 'continue_tracking':
+            rekey = '-continue'
         else:
             rekey = '-' + key
         result = [rekey] + value_as_token_list        

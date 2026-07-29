@@ -6,35 +6,41 @@ from tqdm import tqdm
 import h5py
 import logging
 
-def convert(in_data,to_python):
+def convert(in_data,to_python,inplace=False):
   """
   Convert from/to matlab data formatting to/from python data formatting.
+  inplace=True modifies arrays in-place (safe when caller owns the data, e.g. freshly read from h5py).
   """
   if type(in_data) in [list,tuple]:
     out_data=[]
     for i in in_data:
-      out_data.append(convert(i,to_python))
+      out_data.append(convert(i,to_python,inplace=inplace))
   elif type(in_data) is dict:
     out_data={}
     for i in in_data.keys():
-      out_data[i]=convert(in_data[i],to_python)
+      out_data[i]=convert(in_data[i],to_python,inplace=inplace)
   elif isinstance(in_data,bool) or (isinstance(in_data,np.ndarray) and (in_data.dtype=='bool')):
     out_data = in_data
   elif in_data is None:
     out_data=None
   else:
     offset=-1 if to_python else 1
-    out_data=in_data+offset
+    if inplace and isinstance(in_data,np.ndarray) and not (offset < 0 and np.issubdtype(in_data.dtype, np.unsignedinteger)):
+      in_data += offset
+      out_data = in_data
+    else:
+      out_data=in_data+offset
   return out_data
 
-def to_py(in_data,dtype=None):
+def to_py(in_data,dtype=None,inplace=False):
   """
   Convert from matlab to python data by decrementing various things by 1.
+  inplace=True modifies arrays in-place; safe when caller owns the data (e.g. freshly loaded from h5py).
   """
   if dtype==bool:
     return in_data
   else:
-    return convert(in_data,to_python=True)
+    return convert(in_data,to_python=True,inplace=inplace)
 
 def to_mat(in_data):
   """
@@ -418,11 +424,13 @@ def hdf5_to_py(A, h5file):
   elif isinstance(A,h5py._hl.group.Group):
     out = {}
     for key, val in A.items():
+      if key == '#refs#':
+        continue  # referenced datasets are read when dereferenced; reading here would double-load all tracklet data
       out[key] = hdf5_to_py(val, h5file)
   elif isinstance(A,h5py.h5r.Reference):
     out = hdf5_to_py(h5file[A],h5file)
   elif isinstance(A,np.ndarray) and A.dtype=='O':
-    out = np.array([hdf5_to_py(x,h5file) for x in A])
+    out = [hdf5_to_py(x,h5file) for x in A]  # plain list avoids np.array(ragged) shape-inference overhead
   else:
     out = A
   return out
@@ -626,7 +634,7 @@ class Tracklet:
       endframes = endframes.flatten()
 
     if ismatlab:
-      self.data = to_py(data,dtype=self.dtype)
+      self.data = to_py(data,dtype=self.dtype,inplace=True)
       self.startframes = to_py(startframes)
       self.endframes = to_py(endframes)
     elif docopy:
@@ -640,10 +648,11 @@ class Tracklet:
     if defaultval is not None:
       self.setdefaultval(defaultval)
     self.ntargets = len(self.data)
-    if len(self.data)>0:
-     self.size_rest = self.data[0].shape[:-1]
-    else:
-      self.size_rest = (0,0)
+    self.size_rest = (0, 0)
+    for d in self.data:
+      if isinstance(d, np.ndarray) and d.ndim > 1:
+        self.size_rest = d.shape[:-1]
+        break
     if len(self.data)>1 and self.data[0].dtype != self.dtype:
       self.data = [d.astype(self.dtype) for d in self.data]
   
@@ -1036,23 +1045,29 @@ class Tracklet:
     If an id has no data, tidx[i] and fidx[i] are empty arrays.
     """
     nt = self.ntargets
-    fidx = [np.zeros(0,dtype=int) for n in range(nids)]
-    tidx = [np.zeros(0,dtype=int) for n in range(nids)]
-    if nt>0:
+    if nt > 0:
       axis_rest = self.axis_rest()
       ss = self.data[0].shape
       zz = np.array([ss[z] for z in axis_rest])
       assert np.all(zz==1), 'This is available only for single dim tracklets'
+    # Accumulate into Python lists to avoid O(n^2) np.concatenate growth.
+    fidx_lists = [[] for _ in range(nids)]
+    tidx_lists = [[] for _ in range(nids)]
     for itgt in range(self.ntargets):
-      [a,b] = np.unique(self.data[itgt],return_inverse=True)
-      for n in range(len(a)):
-        curid = a[n]
-        if np.all(equals_nan(curid,self.defaultval)): continue
-        fidxcurr = np.where(b==n)[0]+self.startframes[itgt]
-        tidxcurr =np.zeros(fidxcurr.shape,dtype=int) + itgt
-        fidx[curid] = np.concatenate((fidx[curid],fidxcurr),axis=0)
-        tidx[curid] = np.concatenate((tidx[curid],tidxcurr),axis=0)
-    return tidx,fidx
+      d = self.data[itgt].ravel()
+      valid_mask = ~equals_nan(d, self.defaultval)
+      if not np.any(valid_mask):
+        continue
+      valid_frms = np.where(valid_mask)[0] + self.startframes[itgt]
+      valid_ids = d[valid_mask].astype(int)
+      unique_ids, inv = np.unique(valid_ids, return_inverse=True)
+      for n, curid in enumerate(unique_ids):
+        grp = inv == n
+        fidx_lists[curid].extend(valid_frms[grp].tolist())
+        tidx_lists[curid].extend([itgt] * int(grp.sum()))
+    fidx = [np.array(lst, dtype=int) for lst in fidx_lists]
+    tidx = [np.array(lst, dtype=int) for lst in tidx_lists]
+    return tidx, fidx
   
   def unique(self):
     # Finds the unique values in this tracklet, and returns a new tracklet with the same data but with targets corresponding to unique values. This is only implemented for single-dim tracklets.
@@ -1097,31 +1112,60 @@ class Tracklet:
   
   def apply_ids(self,ids,T0=0):
     _,maxv = ids.get_min_max_val()
-    nids = np.max(maxv)+1
-    newdata = [None,]*nids
-    newstartframes = np.ones(nids,dtype=int)*-1
-    newendframes = np.ones(nids,dtype=int)*-2
-    tgtidx_all,frmidx_all = ids.where_all(nids)
-    for id in range(nids):
-      # idx = ids.where(id)
-      # assert len(idx) == 2
-      tgtidx = tgtidx_all[id]
-      frmidx = frmidx_all[id]
-      if frmidx.size == 0:
-        print('target %d has no data, cleaning not run (correctly)'%id)
+    nids = int(np.max(maxv))+1
+
+    # Pre-extract valid (frm_offsets, abs_frms, dest_ids) per source tracklet
+    # once, so we can reuse across both passes without redundant work.
+    src_info = []
+    for itgt in range(ids.ntargets):
+      id_data = ids.data[itgt].ravel()
+      valid = ~equals_nan(id_data, ids.defaultval)
+      if not np.any(valid):
+        src_info.append(None)
         continue
-      t0 = np.min(frmidx)
-      t1 = np.max(frmidx)
-      newdata[id] = np.zeros(self.size_rest+(t1-t0+1,),dtype=self.dtype)
-      newdata[id][:] = self.defaultval
-      newstartframes[id] = t0+T0
-      newendframes[id] = t1+T0
-      aa,bb = np.unique(tgtidx,return_inverse=True)
-      for ndx,itgt in enumerate(aa):
-        idx1 = bb==ndx
-        fs = frmidx[idx1]
-        newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]]#+self.T0]
-        
+      frm_offsets = np.where(valid)[0]
+      abs_frms = frm_offsets + ids.startframes[itgt]
+      dest_ids = id_data[valid].astype(int)
+      src_info.append((frm_offsets, abs_frms, dest_ids))
+
+    # Pass 1: compute per-destination-ID frame ranges using vectorized
+    # np.minimum.at / np.maximum.at — avoids a Python loop over nids.
+    t0s = np.full(nids, np.iinfo(np.intp).max, dtype=np.intp)
+    t1s = np.full(nids, np.iinfo(np.intp).min, dtype=np.intp)
+    has_data = np.zeros(nids, dtype=bool)
+    for info in src_info:
+      if info is None:
+        continue
+      frm_offsets, abs_frms, dest_ids = info
+      np.minimum.at(t0s, dest_ids, abs_frms)
+      np.maximum.at(t1s, dest_ids, abs_frms)
+      has_data[dest_ids] = True
+
+    # Allocate destination arrays
+    newdata = [None] * nids
+    newstartframes = np.full(nids, -1, dtype=int)
+    newendframes = np.full(nids, -2, dtype=int)
+    for dest_id in np.where(has_data)[0]:
+      length = int(t1s[dest_id]) - int(t0s[dest_id]) + 1
+      newdata[dest_id] = np.full(self.size_rest + (length,), self.defaultval, dtype=self.dtype)
+      newstartframes[dest_id] = int(t0s[dest_id]) + T0
+      newendframes[dest_id] = int(t1s[dest_id]) + T0
+    for dest_id in np.where(~has_data)[0]:
+      print('target %d has no data, cleaning not run (correctly)' % dest_id)
+
+    # Pass 2: scatter — iterate over source tracklets (outer loop is O(ntargets_src)
+    # instead of O(nids)), inner loop over unique dest IDs per source (usually 1).
+    for itgt, info in enumerate(src_info):
+      if info is None:
+        continue
+      frm_offsets, abs_frms, dest_ids = info
+      unique_dest, inv = np.unique(dest_ids, return_inverse=True)
+      for n, dest_id in enumerate(unique_dest):
+        mask = inv == n
+        fs = abs_frms[mask]
+        t0 = newstartframes[dest_id] - T0
+        newdata[dest_id][..., fs - t0] = self.data[itgt][..., frm_offsets[mask]]
+
     self.data = newdata
     self.startframes = newstartframes
     self.endframes = newendframes
@@ -2307,44 +2351,42 @@ class Trk:
     self.pTrkiTgt=np.arange(self.ntargets,dtype=int)
     
   def apply_ids_dense(self,ids):
-    
+
     assert not self.issparse
-    
+
     _,maxv = ids.get_min_max_val()
     nids = np.max(maxv)+1
-    #nids = np.max(ids)+1
     T = self.pTrk.shape[2]
-    pTrk = np.zeros((self.nlandmarks,self.d,T,nids))
-    pTrk[:]=self.defaultval
+    pTrk = np.empty((self.nlandmarks,self.d,T,nids))
+    pTrk[:] = self.defaultval
 
     if self.pTrkTS is not None:
-      pTrkTS = np.zeros((self.nlandmarks,T,nids))
-      pTrkTS[:] = np.nan
+      pTrkTS = np.full((self.nlandmarks,T,nids), np.nan)
     if self.pTrkTag is not None:
-      pTrkTag=np.zeros((self.nlandmarks,T,nids),dtype=bool)
+      pTrkTag = np.zeros((self.nlandmarks,T,nids), dtype=bool)
     if self.pTrkConf is not None:
-      pTrkConf=np.zeros((self.nlandmarks,T,nids))*self.defaultval_dict['pTrkConf']
+      pTrkConf = np.full((self.nlandmarks,T,nids), self.defaultval_dict['pTrkConf'])
     if self.pTrkAnimalConf is not None:
-      pTrkAnimalConf=np.zeros((self.nlandmarks,T,nids))*self.defaultval_dict['pTrkAnimalConf']
-    for id in tqdm(range(nids)):
-      idx = ids.where(id)
-      #idx=np.nonzero(ids==id)
-      pTrk[:,:,idx[1],id]=self.pTrk[:,:,idx[1],idx[0]]
+      pTrkAnimalConf = np.full((self.nlandmarks,T,nids), self.defaultval_dict['pTrkAnimalConf'])
+
+    # Collect all (src_tgt, frame, dest_id) assignments in one pass,
+    # then do a single vectorized scatter — avoids O(nids * ntargets) per-ID loop.
+    tgtidx_all, frmidx_all = ids.where_all(nids)
+    all_ids = np.concatenate([np.full(len(frmidx_all[i]), i, dtype=int) for i in range(nids)]) \
+              if nids > 0 else np.zeros(0, dtype=int)
+    all_frm = np.concatenate(frmidx_all) if nids > 0 else np.zeros(0, dtype=int)
+    all_tgt = np.concatenate(tgtidx_all) if nids > 0 else np.zeros(0, dtype=int)
+
+    if all_frm.size > 0:
+      pTrk[:,:,all_frm,all_ids] = self.pTrk[:,:,all_frm,all_tgt]
       if self.pTrkTS is not None:
-        # AL 20210302: this is erring out for now. Roian data:
-        # ValueError: shape mismatch: value array of shape (2,15)
-        # could not be broadcast to indexing result of shape (15,4)
-        # pass
-        # MK 20210406: Seems to work fine now. Probably related to a bug that I fixed elsewhere
-        pTrkTS[:,idx[1],id]=self.pTrkTS[:,idx[1],idx[0]]
+        pTrkTS[:,all_frm,all_ids] = self.pTrkTS[:,all_frm,all_tgt]
       if self.pTrkTag is not None:
-        # AL etc
-        # pass
-        pTrkTag[:,idx[1],id]=self.pTrkTag[:,idx[1],idx[0]]
+        pTrkTag[:,all_frm,all_ids] = self.pTrkTag[:,all_frm,all_tgt]
       if self.pTrkConf is not None:
-        pTrkConf[...,idx[1],id] = self.pTrkConf[...,idx[1],idx[0]]
+        pTrkConf[...,all_frm,all_ids] = self.pTrkConf[...,all_frm,all_tgt]
       if self.pTrkAnimalConf is not None:
-        pTrkAnimalConf[...,idx[1],id] = self.pTrkAnimalConf[...,idx[1],idx[0]]
+        pTrkAnimalConf[...,all_frm,all_ids] = self.pTrkAnimalConf[...,all_frm,all_tgt]
 
     self.ntargets = nids
     self.size = (self.nlandmarks,self.d,T,self.ntargets)
@@ -2357,7 +2399,7 @@ class Trk:
       self.pTrkConf = pTrkConf
     if self.pTrkAnimalConf is not None:
       self.pTrkAnimalConf = pTrkAnimalConf
-    self.pTrkiTgt=np.arange(nids,dtype=int)
+    self.pTrkiTgt = np.arange(nids, dtype=int)
 
   def del_short(self, min_len):
     assert self.issparse, ' Delete short trajectory is implemented only for tracklet format'

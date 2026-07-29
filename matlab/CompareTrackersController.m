@@ -166,7 +166,9 @@ classdef CompareTrackersController < handle
       if isempty(boutIndexMaybe)
         obj.listbox_.Value = {} ;
       else
-        obj.listbox_.ValueIndex = boutIndexMaybe ;
+        % uilistbox has no ValueIndex property on this MATLAB version; Value
+        % must be set to the item's display string instead of its index.
+        obj.listbox_.Value = obj.listbox_.Items{boutIndexMaybe} ;
       end
 
       obj.updatePreviewAxes_() ;

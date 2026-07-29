@@ -1,6 +1,9 @@
 function result = synthesize_backend_params(backend)
   % environment_base_name = 'apt_20230427_tf211_pytorch113_ampere' ;
-  environment_base_name = 'apt-20250626-tf215-pytorch21-hopper' ;
+  environment_base_name = 'apt-20260506-tf215-pytorch21-hopper' ;
+  conda_base_name = 'apt-20250626-tf215-pytorch21-hopper' ;
+  % conda and other environments are out of sync because of graph-cut-opt
+  % package installed to docker and singularity MK 20260506. 
   user_name = get_user_name() ;  
   % We could just result a list with params for *all* backends, but then we
   % would have to error if user has not customized this function to add *their*
@@ -31,6 +34,6 @@ function result = synthesize_backend_params(backend)
   elseif strcmp(backend, 'docker')
     result = { 'dockerimgroot', 'bransonlabapt/apt_docker', 'dockerimgtag', environment_base_name } ;
   elseif strcmp(backend, 'conda')
-    result = { 'condaEnv', environment_base_name } ;
+    result = { 'condaEnv', conda_base_name } ;
   end
 end  % function    

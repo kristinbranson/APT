@@ -2151,12 +2151,12 @@ classdef DeepTracker < LabelTracker
       obj.trkSpawnList_(totrackinfo,backend,argsrest{:});
     end  % function trackList()
 
-    function gtComplete(obj)      
+    function gtComplete(obj)
       t0 = tic;
       while true
         gtmatfiles = obj.trkSysInfo.getListOutfiles;
         gtmovs = obj.lObj.movieFilesAllGTFull;
-        tblGT = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
+        [tblGT,cocoResults] = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
         if ~isempty(tblGT),
           break;
         end
@@ -2165,14 +2165,19 @@ classdef DeepTracker < LabelTracker
         end
       end
       obj.trkGTtrkTbl = tblGT;
-      obj.lObj.showGTResults('gtResultTbl',tblGT);
+      obj.lObj.showGTResults('gtResultTbl',tblGT,'cocoResults',cocoResults);
     end
-        
-    function tblGT = trackGTgtmat2tbl(obj,gtmatfiles,gtmovs,varargin)
-      
+
+    function [tblGT,cocoResults] = trackGTgtmat2tbl(obj,gtmatfiles,gtmovs,varargin)
+      % cocoResults: [1xnview] struct array of COCO keypoint mAP metrics (see
+      % APT_interface.py's compute_coco_map_list), one per view, or [] if none
+      % of the gt mat-files have a .coco_results field (e.g. GT tracking with
+      % no embedded labels, or list classification runs predating this
+      % feature).
+
       GTMATLOCFLD = 'locs';
       GTMATOCCFLD = 'occ';
-      
+
       t0 = tic;
       while true,
         if toc(t0) > 5,
@@ -2184,13 +2189,19 @@ classdef DeepTracker < LabelTracker
         pause(1);
       end
 
-        
+
       gtmats = cellfun(@(x)load(x,'-mat'),gtmatfiles); %#ok<LOAD>
       cellfun(@(x)fprintf(1,'Loaded gt output mat-file %s.\n',x),gtmatfiles);
-      
+
       assert(numel(gtmats)==obj.nview);
       if numel(gtmats)>1
         assert(isequal(gtmats.list)); % all mft/metadata tables should match
+      end
+
+      if isfield(gtmats,'coco_results') && all(arrayfun(@(g)~isempty(g.coco_results),gtmats))
+        cocoResults = [gtmats.coco_results];
+      else
+        cocoResults = [];
       end
 
 
@@ -2308,15 +2319,15 @@ classdef DeepTracker < LabelTracker
 
       if isprop(totrackinfo,'link_type') || isfield(totrackinfo,'link_type')
         if strcmp(totrackinfo.link_type,'identity')
-          track_type = 'detect';
+          trackType = apt.TrackType.detect;
           obj.needs_id_linking = true;
           obj.trkfiles = totrackinfo.trkfiles;
           totrackinfo.setTrkFilesWithDetectSuffix();
         elseif strcmp(totrackinfo.link_type,'simple')
-          track_type = 'detect';
+          trackType = apt.TrackType.detect;
           obj.needs_id_linking = false;
         else
-          track_type = 'track';
+          trackType = apt.TrackType.track;
           obj.needs_id_linking = false;
         end
       else
@@ -2353,7 +2364,16 @@ classdef DeepTracker < LabelTracker
 
         backend.registerTrackingJob(totrackinfojob, obj, gpuids(ijob), trackType) ;
         backend.prepareFilesForTracking(totrackinfojob);
-        obj.trkCreateConfig(totrackinfojob.trackconfigfile);
+        try
+          obj.trkCreateConfig(totrackinfojob.trackconfigfile);
+        catch ME
+          obj.lObj.messageUser_( ...
+            sprintf(['You do not have write permissions to the output directory:\n%s\n\n' ...
+                     'Please choose a different output location.'], ...
+                    fileparts(totrackinfojob.trackconfigfile)), ...
+            'Tracking Error') ;
+          return ;
+        end
 
         if ijob == 1,
           totrackinfojobs = totrackinfojob;
@@ -2482,7 +2502,7 @@ classdef DeepTracker < LabelTracker
       % Create the poller and monitor, now that the jobs have been successfully
       % spawned.
       obj.trkSysInfo = ToTrackInfoSet(totrackinfo);
-      poller = BgTrackPoller('movie', obj.trnLastDMC, backend, obj.trkSysInfo,'link_type','id_link') ;
+      poller = BgTrackPoller(apt.TrackStyle.movie, obj.trnLastDMC, backend, obj.trkSysInfo,'link_type','id_link') ;
       obj.bgTrackPoller = poller;
       bgTrkMonitorObj = ...
         BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir) ;
@@ -2553,9 +2573,38 @@ classdef DeepTracker < LabelTracker
     
     function trkCreateConfig(obj, configFilePathNativeAsChar, varargin)
       % trkCreateConfig(obj,'sPrmAll',[])
-      % 
+      %
       [sPrmAll] = myparse(varargin,'sPrmAll',[]);
-      
+
+      % For multi-animal projects: if the ID linking crop sizes have not been
+      % computed yet (default value is -1, set by params_ma.yaml), compute them
+      % now from the labeling data so the backend always gets valid values even
+      % when the user has never opened the training-parameters GUI.
+      if isempty(sPrmAll) && obj.lObj.maIsMA
+        curStitch = obj.sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch ;
+        needsIDCropSz = isfield(curStitch, 'link_id_cropsz_height') && ...
+                        isfield(curStitch, 'link_id_cropsz_width') && ...
+                        (curStitch.link_id_cropsz_height <= 0 || ...
+                         curStitch.link_id_cropsz_width <= 0) ;
+        if needsIDCropSz
+          try
+            autoparams = apt.compute_auto_params(obj.lObj) ;
+            updatedPrm = APTParameters.all2TrackParams(obj.sPrmAll, false) ;
+            keyH = 'MultiAnimal.Track.TrackletStitch.link_id_cropsz_height' ;
+            keyW = 'MultiAnimal.Track.TrackletStitch.link_id_cropsz_width' ;
+            if isKey(autoparams, keyH)
+              updatedPrm.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_height = autoparams(keyH) ;
+            end
+            if isKey(autoparams, keyW)
+              updatedPrm.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_width = autoparams(keyW) ;
+            end
+            sPrmAll = updatedPrm ;
+          catch ME
+            warningNoTrace('Could not auto-compute ID crop size for tracking config: %s', ME.message) ;
+          end
+        end
+      end
+
       s = struct();
       s.projectFile = wsl_path_from_native(obj.lObj.projectfile) ;
       s.projname = obj.lObj.projname;
@@ -4149,7 +4198,8 @@ end  % classdef
 function result = reindexCellArrayRows_(cellArray, mIdxOrig2New)
 % Reindex rows of a cellstr array according to a containers.Map of old-to-new indices.
 % Only processes positive (non-GT) keys.  New index 0 means the row is removed.
-keysAll = cell2mat(mIdxOrig2New.keys(:)) ;
+keyCell = keys(mIdxOrig2New) ;  % 1xN cell; can't do mIdxOrig2New.keys(:) inline (that passes ':' to keys)
+keysAll = cell2mat(keyCell(:)) ;
 keysPos = keysAll(keysAll > 0) ;
 nview = size(cellArray, 2) ;
 % Determine the number of rows in the result

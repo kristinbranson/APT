@@ -285,12 +285,17 @@ class config(object):
         self.link_id_keep_all_preds = False
         self.link_id_batch_size = 16
         self.link_id_ignore_far = False
+        self.link_id_method = 'graph_cut' # other option is 'motion' or 'none'
         self.link_id_motion_link = False
         self.link_id_save_int_wts = False
+        self.link_id_cluster_occ_thresh = 0.2  # max occlusion fraction for a tracklet to be used when finding ID cluster centers
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'
         self.multi_mmpose_detection_threshold = 0.5
+
+        # ============== EVALUATION ================
+        self.coco_oks_sigma = 0.05  # OKS sigma used for COCO keypoint mAP during GT performance evaluation (see compute_coco_map_list). Settable from the frontend's Track parameters.
 
         # ============== EXTRA ================
 

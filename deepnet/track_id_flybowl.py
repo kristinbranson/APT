@@ -10,7 +10,6 @@ import tempfile
 from TrkFile import to_mat
 import hdf5storage
 from scipy import io as sio
-from numpy.core.records import fromarrays
 
 
 def parse_args(argv: list):
@@ -24,7 +23,7 @@ def parse_args(argv: list):
     args = parser.parse_args(argv)
     return args
 
-def convert_trk2trx(trk, orig_trx_file):
+def convert_trk2trx(trk, orig_trx_file,ht_pts=[0,1],copy_from_orig=True):
     """
     Convert the id linked trk into JAABA compatible trx file
     :param trk:
@@ -46,9 +45,9 @@ def convert_trk2trx(trk, orig_trx_file):
     # Convert head-tail points back to trx
     for itgt in range(ntargets):
         pts = trk.pTrk.data[itgt]
-        x_mat = to_mat(pts[:,0].mean(axis=0).flatten())
-        y_mat = to_mat(pts[:,1].mean(axis=0).flatten())
-        theta = np.arctan2(pts[0,1]-pts[1,1],pts[0,0]-pts[1,0])
+        x_mat = to_mat(pts[ht_pts,0].mean(axis=0).flatten())
+        y_mat = to_mat(pts[ht_pts,1].mean(axis=0).flatten())
+        theta = np.arctan2(pts[ht_pts[0],1]-pts[ht_pts[1],1],pts[ht_pts[0],0]-pts[ht_pts[1],0])
         cur_len = len(x_mat)
         trx[itgt]['x'] = x_mat
         trx[itgt]['y'] = y_mat
@@ -57,55 +56,78 @@ def convert_trk2trx(trk, orig_trx_file):
         trx[itgt]['endframe'] = float(trk.endframes[itgt] + 1)
         trx[itgt]['nframes'] = float(trx[itgt]['endframe'] - trx[itgt]['firstframe'] + 1)
         trx[itgt]['off'] = -float(trk.startframes[itgt])
-        trx[itgt]['pxpermm'] = otrx[0,0]['pxpermm'][0,0]
-        trx[itgt]['arena'] = {'x':otrx[0,0]['arena']['x'][0,0][0,0],
-                              'y':otrx[0,0]['arena']['y'][0,0][0,0],
-                              'r':otrx[0,0]['arena']['r'][0,0][0,0]}
 
-        for fn in o_keys:
-            if fn == 'sex':
-                trx[itgt][fn] = [np.array(['m']) for i in range(cur_len)]
-            else:
-                trx[itgt][fn] = np.ones(cur_len)*np.nan
+        if copy_from_orig:
+            trx[itgt]['pxpermm'] = otrx[0, 0]['pxpermm'][0, 0]
+            if 'arena' in otrx[0,0].dtype.names:
+                trx[itgt]['arena'] = {'x':otrx[0,0]['arena']['x'][0,0][0,0],
+                                      'y':otrx[0,0]['arena']['y'][0,0][0,0],
+                                      'r':otrx[0,0]['arena']['r'][0,0][0,0]}
 
-        # For all the other remaining fields find the match in trx and fill them in
-        for ndx in range(len(x_mat)):
-            if np.isnan(x_mat[ndx]): continue
-            curf = trk.startframes[itgt] + ndx
-            match = None
-            all_d = []
-            for tgt in range(otrx.shape[1]):
-                if otrx['firstframe'][0,tgt][0,0] > (curf+1): continue
-                if otrx['endframe'][0,tgt][0,0] < (curf+1): continue
-                off = curf + otrx['off'][0,tgt][0,0]
-                cur_tx = otrx['x'][0,tgt][0,off]
-                cur_ty = otrx['y'][0,tgt][0,off]
-                cur_theta = otrx['theta'][0,tgt][0,off]
-                d = abs( cur_tx-x_mat[ndx]) + abs(cur_ty-y_mat[ndx]) + \
-                    abs(cur_theta- theta[ndx])
-                all_d.append(d)
-                if d < 1e-4:
-                    match = tgt
-                    break
-
-            assert match is not None, f'Could not find match for frame {curf} target {itgt}'
-
-            off = curf + otrx['off'][0, match][0,0]
             for fn in o_keys:
-                trx[itgt][fn][ndx] = otrx[fn][0,match][0,off]
-        trx[itgt]['dt'] = np.diff(trx[itgt]['timestamps'])
-        trx[itgt]['sex'][0].dtype = np.void
+                if fn == 'sex':
+                    trx[itgt][fn] = [np.array(['m']) for i in range(cur_len)]
+                else:
+                    trx[itgt][fn] = np.ones(cur_len)*np.nan
 
-    # convert the data into records so that they get saved as struct array.
+            # For all the other remaining fields find the match in trx and fill them in
+            for ndx in range(len(x_mat)):
+                if np.isnan(x_mat[ndx]): continue
+                curf = trk.startframes[itgt] + ndx
+                match = None
+                all_d = []
+                for tgt in range(otrx.shape[1]):
+                    if otrx['firstframe'][0,tgt][0,0] > (curf+1): continue
+                    if otrx['endframe'][0,tgt][0,0] < (curf+1): continue
+                    off = curf + otrx['off'][0,tgt][0,0]
+                    cur_tx = otrx['x'][0,tgt][0,off]
+                    cur_ty = otrx['y'][0,tgt][0,off]
+                    cur_theta = otrx['theta'][0,tgt][0,off]
+                    d = abs( cur_tx-x_mat[ndx]) + abs(cur_ty-y_mat[ndx]) + \
+                        abs(cur_theta- theta[ndx])
+                    all_d.append(d)
+                    if d < 1e-4:
+                        match = tgt
+                        break
+
+                assert match is not None, f'Could not find match for frame {curf} target {itgt}'
+
+                off = curf + otrx['off'][0, match][0,0]
+                for fn in o_keys:
+                    trx[itgt][fn][ndx] = otrx[fn][0,match][0,off]
+            trx[itgt]['dt'] = np.diff(trx[itgt]['timestamps'])
+            trx[itgt]['sex'][0].dtype = np.void
+        else:
+            trx[itgt]['pxpermm'] = 1.0
+            n_pts = len(x_mat)
+            trx[itgt]['dt'] = 1/30*np.ones(n_pts-1)
+            trx[itgt]['sex'] = [np.array(['m']) for i in range(n_pts)]
+            trx[itgt]['x_mm'] = trx[itgt]['x'] / trx[itgt]['pxpermm']
+            trx[itgt]['y_mm'] = trx[itgt]['y'] / trx[itgt]['pxpermm']
+            trx[itgt]['theta_mm'] = trx[itgt]['theta']
+            trx[itgt]['a_mm'] = np.linalg.norm(pts[ht_pts[0]]-pts[ht_pts[1]],axis=0)/4
+            trx[itgt]['b_mm'] = trx[itgt]['a_mm']/2
+            trx[itgt]['a'] = trx[itgt]['a_mm'] * trx[itgt]['pxpermm']
+            trx[itgt]['b'] = trx[itgt]['b_mm'] * trx[itgt]['pxpermm']
+            trx[itgt]['wing_angler'] = np.nan*np.ones(n_pts)
+            trx[itgt]['wing_anglel'] = np.nan*np.ones(n_pts)
+            trx[itgt]['xwingl'] = np.nan*np.ones(n_pts)
+            trx[itgt]['xwingr'] = np.nan*np.ones(n_pts)
+            trx[itgt]['ywingl'] = np.nan*np.ones(n_pts)
+            trx[itgt]['ywingr'] = np.nan*np.ones(n_pts)
+            trx[itgt]['timestamps'] = np.arange(trk.startframes[itgt], trk.endframes[itgt]+1) * 1/30
+
+    # Build a (1 x ntargets) object-dtype structured array so that savemat
+    # produces a proper MATLAB struct array.  fromarrays() fails here because
+    # per-target fields (x, y, theta, …) have different lengths.
     k = list(trx[0].keys())
-    v_trx = []
-    for curk in k:
-        curv = []
-        for ndx in range(len(trx)):
-            curv.append(trx[ndx][curk])
-        v_trx.append(curv)
+    dt = np.dtype([(name, object) for name in k])
+    rec = np.zeros((1, ntargets), dtype=dt)
+    for ndx in range(ntargets):
+        for name in k:
+            rec[name][0, ndx] = np.atleast_2d(trx[ndx][name])
 
-    out_trx = {'trx':fromarrays(v_trx, names=k)}
+    out_trx = {'trx': rec}
     for k in otrx_a.keys():
         if k.startswith('__') or k == 'trx': continue
         out_trx[k] = otrx_a[k]

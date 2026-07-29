@@ -394,6 +394,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxVisibility', @(source,event)(obj.updateTrxVisibility(source, event))) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateTrxCosmetics', @(s,e)(obj.updateTrxCosmetics())) ;
+      obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxTable', @(s,e)(obj.updateTrxTable())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateFrameTableIncremental', @(s,e)(obj.updateFrameTableIncremental())) ;
@@ -881,6 +883,18 @@ classdef LabelerController < handle
       tv.updateTrx(tfShow);
     end
 
+    function updateTrxCosmetics(obj)
+      % Apply updated trajectory cosmetics (line width, font size) to all trx visualizers.
+      prefs = obj.labeler_.projPrefs.Trx ;
+      if ~isempty(obj.tvTrx_)
+        obj.tvTrx_.setTrajectoryCosmetics(prefs) ;
+      end
+      tv = obj.tvTrkPred_ ;
+      if ~isempty(tv) && isa(tv, 'TrackingVisualizerTracklets')
+        tv.setTrajectoryCosmetics(prefs) ;
+      end
+    end
+
     function updateTrxTable(obj)
       labeler = obj.labeler_ ;
       if labeler.hasTrx
@@ -1327,6 +1341,9 @@ classdef LabelerController < handle
       ntotal = reshape(ntotal,[nviews,1]);
       fp_all = sum(fp,'omitmissing');
       fn_all = sum(fn,'omitmissing');
+      if ~isnan(fn_all)
+        ntotal = ntotal + fn_all;
+      end
       txtOffset = labeler.labelPointsPlotInfo.TextOffset;
       islight = plotPercentileCircles(allims,prcs,allpos,plotParams.prc_vals,fig_1,txtOffset,ntotal,fp_all,fn_all,labeler.maIsMA);
       figh = hmain*.75;
@@ -1377,6 +1394,31 @@ classdef LabelerController < handle
 %       
 %       nmontage = min(nmontage,height(t));
 %       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',fig_4,'nplot',nmontage);
+
+      % COCO keypoint mAP, if the backend computed it during GT tracking
+      % (requires GT labels to have been embedded in the tracking list file;
+      % see Labeler.gtComputeGTPerformance and APT_interface.py's
+      % compute_coco_map_list).  One row per view.
+      cocoResults = labeler.gtCocoResults;
+      if ~isempty(cocoResults)
+        statNames = {'AP' 'AP50' 'AP75' 'AP_medium' 'AP_large' 'AR' 'AR50' 'AR75' 'AR_medium' 'AR_large'};
+        nviewCoco = numel(cocoResults);
+        cocoData = nan(nviewCoco,numel(statNames));
+        for vi = 1:nviewCoco
+          for si = 1:numel(statNames)
+            if isfield(cocoResults(vi),statNames{si})
+              cocoData(vi,si) = cocoResults(vi).(statNames{si});
+            end
+          end
+        end
+        rowNames = arrayfun(@(vi)sprintf('View %d',vi),1:nviewCoco,'uni',0);
+        fig_coco = figure('Name','Groundtruth COCO keypoint mAP');
+        obj.gtResultFigures_(end+1) = fig_coco ;
+        uitable('Parent',fig_coco,'Data',cocoData,'ColumnName',statNames,'RowName',rowNames,...
+          'Units','normalized','Position',[0.02,0.05,0.96,0.9],'ColumnSortable',true);
+        set(fig_coco,'Position',[10,10,900,80+40*nviewCoco]);
+        centerfig(fig_coco, obj.mainFigure_);
+      end
     end  % function
 
     function trackLabelMontage(obj, tbl, errfld, varargin)
@@ -3743,7 +3785,13 @@ classdef LabelerController < handle
 
     function uncertain_frames_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
       % Navigate to the selected uncertain frame.
-      selectedIndex = src.ValueIndex ;
+      % uilistbox has no ValueIndex property on this MATLAB version; derive
+      % the index by matching Value against Items instead.
+      if isempty(src.Value)
+        selectedIndex = [] ;
+      else
+        selectedIndex = find(strcmp(src.Items, src.Value), 1) ;
+      end
       labeler = obj.labeler_ ;
       labeler.uncertainFramesCurrentBoutIndexMaybe = selectedIndex ;
     end  % function
@@ -3808,7 +3856,13 @@ classdef LabelerController < handle
 
     function compare_trackers_listbox_actuated_(obj, src, evt)  %#ok<INUSD>
       % Navigate to the selected compare-trackers bout.
-      selectedIndex = src.ValueIndex ;
+      % uilistbox has no ValueIndex property on this MATLAB version; derive
+      % the index by matching Value against Items instead.
+      if isempty(src.Value)
+        selectedIndex = [] ;
+      else
+        selectedIndex = find(strcmp(src.Items, src.Value), 1) ;
+      end
       labeler = obj.labeler_ ;
       labeler.compareTrackersCurrentBoutIndexMaybe = selectedIndex ;
     end  % function
@@ -6375,8 +6429,8 @@ classdef LabelerController < handle
 
     function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      cbkApply = @(varargin)(labeler.setLandmarkAndSkeletonCosmetics(varargin{:})) ;
-      LandmarkColors(obj, labeler, cbkApply);
+      cbkApply = @(varargin)(labeler.hlpApplyCosmetics(varargin{:})) ;
+      LandmarkColors_App(obj, labeler, cbkApply);
     end
 
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>

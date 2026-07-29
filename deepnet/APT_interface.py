@@ -51,6 +51,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logging.getLogger('shapely.geos').setLevel(logging.WARNING)
 
+
+class _StopProfiling(Exception):
+    """Raised to exit early during profiling without triggering error handlers."""
+    pass
+
 import shlex
 import argparse
 import collections
@@ -1067,7 +1072,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
         assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
         for n, v in zip(cc[0::2], cc[1::2]):
             if not quiet:
-                logging.info('Overriding param %s <= ' % n, v)
+                logging.info(f'Overriding param {n} <= {v}')
             setattr(conf, n, ast.literal_eval(v))
 
     # overrides for each network
@@ -1179,7 +1184,8 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'multi_cid': 'CiD',
                       'hrnet': 'HRNet',
                       'multi_dekr': 'DeKR',
-                      'detect_frcnn':'MMDetect_FRCNN'
+                      'detect_frcnn':'MMDetect_FRCNN',
+                      'detect_rtmdet':'MMDetect_RTMDet'
                       }
 
     if not 'ProjectFile' in A:
@@ -2166,6 +2172,8 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
     # conf.is_multi and conf.multi_crop_ims
     logging.info('Resaving training images...')
     for selndx, cur_t in enumerate(tqdm(T['locdata'],**TQDM_PARAMS,unit='example')):
+        # if selndx >= 200:
+        #     raise _StopProfiling()
 
         cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
         if cur_frame.ndim == 2:
@@ -2665,7 +2673,9 @@ def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
                 # Theta 0 zero indicates animal facing right. So when theta is 0 the images are rotated by 90 degree so that they face upwards. To disable any rotation theta needs to be -90. Ideally conf.trx_align_theta should be false and this shouldn't be used, but adding it as a safeguard.
                 theta = np.ones_like(cur_pts[...,0,0])*(-np.pi/2)
                 ctr = cur_pts.mean(-1)
-                a = np.linalg.norm(cur_pts[...,0]-cur_pts[...,1],axis=-1)/4
+                width = np.nanmax(cur_pts[...,0,:],axis=-1) - np.nanmin(cur_pts[...,0,:],axis=-1)
+                height = np.nanmax(cur_pts[...,1,:],axis=-1) - np.nanmin(cur_pts[...,1,:],axis=-1)
+                a = np.maximum(height,width)/4
             else:
                 if use_ht_pts:
                     h_pts = cur_pts[...,:,conf.ht_pts[0]]
@@ -3210,7 +3220,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
     bsize = conf.batch_size
     n_batches = int(math.ceil(float(n) / bsize))
 
-    if conf.get('imresize_expand',False):
+    if conf.get('imresize_expand',False) or conf.batch_size == 1:
         assert conf.batch_size == 1, "imresize_expand only works with batch_size=1"
         all_f = []
     else:
@@ -3240,7 +3250,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
                 labeled_locs[cur_start + ndx, ...] = next_db['locs']
                 info.append(next_db['info'])
             else:
-                if conf.imresize_expand:
+                if conf.imresize_expand or conf.batch_size == 1:
                     all_f = next_db[0][None]
                 else:
                     all_f[ndx, ...] = next_db[0]
@@ -3342,6 +3352,147 @@ def convert_to_orig_list(preds, info, list_file, conf):
     return preds
 
 
+def compute_coco_map_list(list_file, preds, info, conf, out_file):
+    """Compute COCO keypoint mAP (OKS-based) for list classification results.
+
+    Uses the ground-truth labels embedded in the list json ('labels', written by
+    the Matlab frontend when computing GT performance) to build an intermediate
+    COCO ground-truth json with dummy image names, converts the predictions to
+    COCO detection format, and runs COCOeval. The intermediate jsons are written
+    next to out_file (*_coco_gt.json / *_coco_dt.json) so they can be inspected.
+    Everything in the list file is 1-based (Matlab convention) and is converted
+    here to 0-based to match preds, which must already be in original movie
+    coordinates (i.e. after convert_to_orig_list). For multiview projects the
+    label keypoints hold all views concatenated in view blocks; only conf.view's
+    block is used. OKS uses a uniform per-keypoint sigma, settable through the
+    conf param coco_oks_sigma (default 0.05).
+
+    Returns a dict with the 10 standard COCO keypoint metrics (AP, AP50, AP75,
+    AP_medium, AP_large, AR, ...) plus the intermediate json paths, or None if
+    the list has no labels or the evaluation fails.
+    """
+    try:
+        labels = PoseTools.json_load(list_file).get('labels', None)
+        if labels is None or len(labels) == 0:
+            return None
+
+        npts = conf.n_classes
+        view = conf.view
+
+        im_id_map = {}
+        def im_id(mov, frm):
+            key = (int(mov), int(frm))
+            if key not in im_id_map:
+                im_id_map[key] = len(im_id_map) + 1
+            return im_id_map[key]
+
+        # Ground-truth annotations. bbox/area come from the extent of the
+        # labeled keypoints since APT has no GT bounding boxes.
+        gt_anns = []
+        for lbl in labels:
+            kp = np.array(lbl['keypoints'], dtype=float).reshape(-1, 3)
+            kp = kp[view * npts:(view + 1) * npts].copy()
+            islabeled = kp[:, 2] > 0
+            if not np.any(islabeled):
+                continue
+            kp[islabeled, :2] -= 1
+            x0 = kp[islabeled, 0].min()
+            y0 = kp[islabeled, 1].min()
+            w = max(kp[islabeled, 0].max() - x0, 1.)
+            h = max(kp[islabeled, 1].max() - y0, 1.)
+            gt_anns.append({'id': len(gt_anns) + 1,
+                            'image_id': im_id(lbl['mov'] - 1, lbl['frm'] - 1),
+                            'category_id': 1,
+                            'keypoints': kp.flatten().tolist(),
+                            'num_keypoints': int(np.count_nonzero(islabeled)),
+                            'bbox': [float(x0), float(y0), float(w), float(h)],
+                            'area': float(w * h),
+                            'iscrowd': 0})
+        if len(gt_anns) == 0:
+            logging.warning('List file %s has labels but none for view %d, skipping COCO mAP', list_file, view)
+            return None
+
+        # Detections. locs is [n x npts x 2] for single animal and
+        # [n x maxanimals x npts x 2] for multianimal; per-keypoint confidences
+        # (if present) have the same layout minus the coordinate axis.
+        locs = preds.get('locs', None)
+        if locs is None:
+            return None
+        scores = preds.get('conf', None)
+        if locs.ndim == 3:
+            locs = locs[:, None]
+            scores = scores[:, None] if scores is not None else None
+        dt_anns = []
+        for ndx, curi in enumerate(info):
+            cur_im = im_id(curi[0], curi[1])
+            for ani in range(locs.shape[1]):
+                pl = np.array(locs[ndx, ani], dtype=float)
+                isgood = np.all(np.isfinite(pl), axis=-1)
+                if not np.any(isgood):
+                    continue
+                if scores is not None:
+                    ps = np.array(scores[ndx, ani], dtype=float)
+                    ps[~np.isfinite(ps)] = 0.
+                else:
+                    ps = np.ones(npts)
+                pl[~isgood] = 0.
+                ps[~isgood] = 0.
+                kp = np.concatenate([pl, ps[:, None]], axis=1)
+                dt_anns.append({'image_id': cur_im,
+                                'category_id': 1,
+                                'keypoints': kp.flatten().tolist(),
+                                'score': float(np.mean(ps[isgood]))})
+
+        images = [{'id': iid, 'file_name': 'dummy_mov{}_frm{}.png'.format(mov, frm)}
+                  for (mov, frm), iid in im_id_map.items()]
+        categories = [{'id': 1, 'name': 'animal',
+                       'keypoints': ['pt{}'.format(i) for i in range(npts)],
+                       'skeleton': []}]
+        gt_dict = {'images': images, 'annotations': gt_anns, 'categories': categories}
+
+        base = os.path.splitext(out_file)[0]
+        gt_file = base + '_coco_gt.json'
+        dt_file = base + '_coco_dt.json'
+        with open(gt_file, 'w') as f:
+            json.dump(gt_dict, f)
+        with open(dt_file, 'w') as f:
+            json.dump(dt_anns, f)
+
+        try:
+            from xtcocotools.coco import COCO
+            from xtcocotools.cocoeval import COCOeval
+        except ImportError:
+            from pycocotools.coco import COCO
+            from pycocotools.cocoeval import COCOeval
+
+        coco_gt = COCO(gt_file)
+        coco_dt = coco_gt.loadRes(dt_file)
+        sigmas = np.full(npts, conf.get('coco_oks_sigma', 0.05))
+        try:
+            coco_eval = COCOeval(coco_gt, coco_dt, 'keypoints', sigmas=sigmas)
+        except TypeError:
+            # pycocotools takes the sigmas as a param instead of an argument
+            coco_eval = COCOeval(coco_gt, coco_dt, 'keypoints')
+            coco_eval.params.kpt_oks_sigmas = sigmas
+        # Keep maxDets at its library default of [20]: summarize() for the
+        # 'keypoints' iouType hardcodes maxDets=20 when looking up results, so
+        # overriding params.maxDets to anything else (e.g. max_n_animals) makes
+        # that lookup miss and every stat silently come back as -1.
+        coco_eval.evaluate()
+        coco_eval.accumulate()
+        coco_eval.summarize()
+
+        stat_names = ['AP', 'AP50', 'AP75', 'AP_medium', 'AP_large',
+                      'AR', 'AR50', 'AR75', 'AR_medium', 'AR_large']
+        results = {name: float(val) for name, val in zip(stat_names, coco_eval.stats)}
+        results['gt_json'] = gt_file
+        results['dt_json'] = dt_file
+        return results
+    except Exception:
+        logging.exception('Could not compute COCO mAP for list file %s' % list_file)
+        return None
+
+
 def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None, name='deepnet',fullret=False, img_dir='val',conf2=None,model_type2=None,name2='deepnet', model_file2=None, islist=False,**kwargs):
     '''
         Classifies examples in DB.
@@ -3417,7 +3568,11 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
 
     bsize = conf[0].batch_size
     max_n = conf[0].max_n_animals
-    all_f = np.zeros((bsize,) + tuple(conf[0].imsz) + (conf[0].img_dim,))
+    if conf[0].get('imresize_expand',False) or conf[0].batch_size == 1:
+        assert conf[0].batch_size == 1, "imresize_expand only works with batch_size=1"
+        all_f = []
+    else:
+        all_f = np.zeros((bsize,) + tuple(conf[0].imsz) + (conf[0].img_dim,))
     n_batches = int(math.ceil(float(db_len) / bsize))
     ret_dict_all = {}
     labeled_locs = np.zeros([db_len, max_n, npts, 2])
@@ -3431,7 +3586,10 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
         ppe = min(n - cur_start, bsize)
         for ndx in range(ppe):
             next_db = read_fn()
-            all_f[ndx, ...] = next_db[0]
+            if conf[0].imresize_expand or conf[0].batch_size == 1:
+                all_f = next_db[0][None]
+            else:
+                all_f[ndx, ...] = next_db[0]
             labeled_locs[cur_start + ndx, ...] = next_db[1]
             info.append(next_db[2])
 
@@ -4130,7 +4288,7 @@ def link(args, view, view_ndx):
     raw_files = []
     for mov_ndx in range(nmov):
         raw_files.append(raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx]))
-    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files, id_wts=args.id_wts_file)
+    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files, id_wts=args.id_wts_file, num_animals=args.id_num_animals)
     [trk_linked[mov_ndx].save(out_files[mov_ndx], saveformat='tracklet') for mov_ndx in range(nmov)]
 
 
@@ -4842,6 +5000,7 @@ def parse_args(argv):
     parser_classify.add_argument('-no_except', dest='no_except', action='store_true', help='Call main function without wrapping in try-except.  Useful for debugging.')
     #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
     parser_classify.add_argument('-id_wts_file', dest='id_wts_file', help='File path for ID tracking model weights. If file exists, weights are loaded for ID detection. If file does not exist, trained weights are saved to this location.', default=None)
+    parser_classify.add_argument('-id_num_animals', dest='id_num_animals', help='Known number of animals present in the videos being tracked. If specified, used to determine the number of ID clusters during identity linking instead of a fixed distance threshold.', type=int, default=None)
     parser_classify.add_argument('-continue', dest='continue_tracking', action='store_true', help='Continue tracking from existing .part file. Checks for out_file.part and resumes from the last tracked frame.')
     #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
 
@@ -5206,37 +5365,53 @@ def run(args):
             else:
                 assert False, 'For list classification invdividual stages are unsupported'
 
-            if conf.is_multi and args.list_file is None:
-                # update the imsz only if we are classifying the dbs which could have images that are cropped
-                setup_ma(conf)
-
             islist = False
             if args.list_file is not None:
                 db_file = args.list_file
+                conf.batch_size = 1 # this is to support classification of movies with different sizes. The batch size is set to 1 for list classification because the images in the list may have different sizes, and we cannot batch them together. The network will process each image individually.
                 islist = True
             elif args.db_file is not None:
                 db_file = args.db_file
             else:
                 val_filename = get_valfilename(conf, args.type)
                 db_file = os.path.join(conf.cachedir, val_filename)
+                # Only the internal validation DB is cropped/padded to the multi-animal
+                # imsz, so update imsz via setup_ma just for that case. A user-supplied
+                # db_file or list_file holds full frames, and the network pads them to a
+                # multiple of 32 internally (as in the tracking path, which never calls
+                # setup_ma); mutating imsz here would size the read buffer wrong.
+                if conf.is_multi:
+                    setup_ma(conf)
 
             preds, locs, info, model_files = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx],islist=islist,model_type2=args.type2,model_file2=args.model_file2[view_ndx],conf2=conf2,fullret=True)
+            if len(args.out_files)==len(views):
+                out_file = args.out_files[view_ndx]
+            else:
+                out_file = args.out_files[0] + '_{}.mat'.format(view)
+
+            coco_results = None
             if cmd=='track':
                 preds = convert_to_orig_list(preds, info, db_file, conf)
+                if islist:
+                    # If the frontend embedded GT labels in the list file (it
+                    # does when computing GT performance), also compute COCO
+                    # keypoint mAP metrics and save them with the results.
+                    coco_results = compute_coco_map_list(db_file, preds, info, conf, out_file)
 
             info = np.array(info)
             # A = convert_to_orig_list(conf,preds,locs, info)
             info = to_mat(info)
             preds = to_mat(preds)
             locs = to_mat(locs)
-            if len(args.out_files)==len(views):
-                out_file = args.out_files[view_ndx]
-            else:
-                out_file = args.out_files[0] + '_{}.mat'.format(view)
 
             out_dict = {'pred_locs': preds, 'labeled_locs': locs, 'list': info}
+            if coco_results is not None:
+                out_dict['coco_results'] = coco_results
             if db_file.endswith('.json'):
                 V = PoseTools.json_load(db_file)
+                # The labels (if present) were consumed by compute_coco_map_list
+                # above; the frontend already has them, so keep the mat file lean.
+                V.pop('labels', None)
                 if isinstance(V['movieFiles'][0],list) and len(V['movieFiles'][0])>1:
                     mf = V['movieFiles']
                     mf = [m[view_ndx] for m in mf]
@@ -5449,15 +5624,20 @@ def main(argv):
 
     # main function
     if args.no_except:
-        run(args)
-        logging.info('APT_interface finished successfully')
+        try:
+            run(args)
+            logging.info('APT_interface finished successfully')
+        except _StopProfiling:
+            logging.info('Profiling stop requested after 200 iterations')
     else:
         try:
             # run(j_args)
             run(args)
             logging.info('APT_interface finished successfully')
+        except _StopProfiling:
+            logging.info('Profiling stop requested after 200 iterations')
         except Exception as e:
-            logging.exception('APT_interface errored: {e}, {type(e)}')
+            logging.exception(f'APT_interface errored: {e}, {type(e)}')
 
 def remove_local_path():
     for p in sys.path[::-1]:

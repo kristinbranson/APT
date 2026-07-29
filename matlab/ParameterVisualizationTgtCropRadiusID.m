@@ -70,11 +70,17 @@ classdef ParameterVisualizationTgtCropRadiusID < ParameterVisualization
       % Align image using head-tail landmarks if available.
       % The head is mapped to the +y direction (downward in image coords).
       obj.hasHT = ~isempty(lObj.skelHead) && ~isempty(lObj.skelTail);
+      obj.isMA = lObj.maIsMA;
       obj.rotAngleDeg = 0;
       obj.bodyCtrRot = [];
 
-      hh = sPrm.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_height;
-      ww = sPrm.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_width;
+      hh = sPrm.ROOT.MultiAnimal.TrackletStitch.link_id_cropsz_height;
+      ww = sPrm.ROOT.MultiAnimal.TrackletStitch.link_id_cropsz_width;
+
+      sPrm_MultiTgt_TargetCrop = [ww,hh];
+      % sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz;
+      rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
+
 
       if obj.hasHT && ~isempty(obj.xyLbl)
         hd = obj.xyLbl(lObj.skelHead,:);   % [1 x 2] (x,y)
@@ -96,11 +102,30 @@ classdef ParameterVisualizationTgtCropRadiusID < ParameterVisualization
         im = CropImAroundTrx(im,body_ctr(1),body_ctr(2),-ht_angle,crop_sz,crop_sz);
 
         obj.bodyCtrRot = size(im,1,2)/2;
-      end
+        rectPos(:,1) = rectPos(:,1) - body_ctr(1) + obj.bodyCtrRot(1);
+        rectPos(:,2) = rectPos(:,2) - body_ctr(2) + obj.bodyCtrRot(2);
+      elseif obj.isMA
+        hd = max(obj.xyLbl,[],1);   % [1 x 2] (x,y)
+        tl = min(obj.xyLbl,[],1);   % [1 x 2] (x,y)
+        body_ctr = (hd + tl) / 2;          % [1 x 2] (x,y)
 
-      sPrm_MultiTgt_TargetCrop = [ww,hh];
-      % sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz;
-      rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
+        obj.rotAngleDeg = 0;
+
+        % Record original image center before rotation
+        [nr_orig, nc_orig] = size(im, 1, 2);
+        im_ctr_orig = [(nc_orig+1)/2, (nr_orig+1)/2];  % (x,y)
+
+        % Rotate image; 'loose' preserves the full rotated extent
+        % im = imrotate(im, obj.rotAngleDeg, 'bilinear', 'loose');
+        crop_sz = max(hh,ww)*2;
+        im = CropImAroundTrx(im,body_ctr(1),body_ctr(2),0,crop_sz,crop_sz);
+
+        obj.bodyCtrRot = size(im,1,2)/2;
+
+        rectPos(:,1) = rectPos(:,1) - body_ctr(1) + obj.bodyCtrRot(1);
+        rectPos(:,2) = rectPos(:,2) - body_ctr(2) + obj.bodyCtrRot(2);
+
+      end
 
       cla(hAx);
       hold(hAx,'off');
@@ -167,9 +192,9 @@ classdef ParameterVisualizationTgtCropRadiusID < ParameterVisualization
           xc = obj.xTrx;
           yc = obj.yTrx;
         end
-        rad = maGetTgtCropRad(sPrm);
-        half_w = rad;
-        half_h = rad;
+        rad = sPrm; %maGetTgtCropRad(sPrm);
+        half_w = rad(1)/2;
+        half_h = rad(1)/2;
       end
 
       x0 = xc-half_w;

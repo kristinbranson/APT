@@ -168,6 +168,12 @@ classdef SpecifyMovieToTrackGUI < handle
       if ~isfield(obj.movdata,'link_type'),
         obj.movdata.link_type = 'motion';
       end
+      if ~isfield(obj.movdata, 'id_known_num_animals') ,
+        obj.movdata.id_known_num_animals = false ;
+      end
+      if ~isfield(obj.movdata, 'id_num_animals') ,
+        obj.movdata.id_num_animals = [] ;
+      end
       
       obj.rowinfo = struct;
       obj.rowinfo.movie = struct;
@@ -248,9 +254,9 @@ classdef SpecifyMovieToTrackGUI < handle
     function createGUI(obj)
       
       % movies, trks, trx, crop, calibration
-      obj.nfields = 2*obj.nview + double(obj.hastrx)*(obj.nview+1) + ... 
-        double(obj.iscrop)*obj.nview + double(obj.nview>1) + ... 
-        double(obj.isma)*obj.nview + 2;
+      obj.nfields = 2*obj.nview + double(obj.hastrx)*(obj.nview+1) + ...
+        double(obj.iscrop)*obj.nview + double(obj.nview>1) + ...
+        max(double(obj.isma && obj.detailed_options)*2, double(obj.isma)*obj.nview) + 2;
       figname = 'Specify movie to track';
       
       obj.colorinfo.backgroundcolor = [0,0,0];
@@ -342,25 +348,35 @@ classdef SpecifyMovieToTrackGUI < handle
           'Callback',@(h,e) obj.pb_control_Callback(h,e,controlbuttontags{i}));
       end
 
-      % Add path-display popupmenu, right-aligned with the edit fields above
-      pathPopupW = 0.099 ;  % ~60% of the prior toggle-pair width
-      pathPopupX1 = obj.posinfo.editx + obj.posinfo.editw - pathPopupW ;
-      if obj.showPathEnds
-        pathPopupValue = 2;
-      else
-        pathPopupValue = 1;
-      end
-      obj.gdata.pum_path = uicontrol(obj.gdata.fig,...
-        'Style','popupmenu',...
-        'Units','normalized',...
-        'Position',[pathPopupX1 controlbuttony pathPopupW obj.posinfo.rowh],...
-        'String',{'Show Path Starts','Show Path Ends'},...
-        'Value',pathPopupValue,...
-        'ForegroundColor','w',...
-        'BackgroundColor',obj.colorinfo.editfilecolor,...
-        'TooltipString','Choose whether long paths are truncated to show their start or their end',...
-        'Tag','popupmenu_path',...
-        'Callback',@(src,evt) obj.pathPopupChanged(src,evt));
+      % Add path-display toggle buttons, right-aligned with the edit fields above
+      pathBGW = 0.11 ;
+      pathBGX = obj.posinfo.editx + obj.posinfo.editw - pathBGW ;
+      iconSz = 16 ;
+      leftAlignRaw = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_left.png')) ;
+      rightAlignRaw = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_right.png')) ;
+      leftAlignCData = repmat(imresize(255 - leftAlignRaw, [iconSz iconSz]), [1 1 3]) ;
+      rightAlignCData = repmat(imresize(255 - rightAlignRaw, [iconSz iconSz]), [1 1 3]) ;
+      obj.gdata.bg_path = uibuttongroup(obj.gdata.fig, ...
+        'BackgroundColor', 'k', ...
+        'BorderType', 'none', ...
+        'Units', 'normalized', ...
+        'Position', [pathBGX, controlbuttony, pathBGW, obj.posinfo.rowh], ...
+        'SelectionChangedFcn', @(src,evt) obj.pathToggleChanged(src,evt)) ;
+      obj.gdata.tb_path_starts = uicontrol(obj.gdata.bg_path, ...
+        'Style', 'togglebutton', ...
+        'CData', leftAlignCData, ...
+        'TooltipString', 'Show path starts', ...
+        'BackgroundColor', obj.colorinfo.editfilecolor, ...
+        'Value', ~obj.showPathEnds, ...
+        'Tag', 'togglebutton_path_starts') ;
+      obj.gdata.tb_path_ends = uicontrol(obj.gdata.bg_path, ...
+        'Style', 'togglebutton', ...
+        'CData', rightAlignCData, ...
+        'TooltipString', 'Show path ends', ...
+        'BackgroundColor', obj.colorinfo.editfilecolor, ...
+        'Value', obj.showPathEnds, ...
+        'Tag', 'togglebutton_path_ends') ;
+      obj.updatePathTogglePositions() ;
       
       rowi = 1;
       for i = 1:obj.nview,
@@ -471,36 +487,57 @@ classdef SpecifyMovieToTrackGUI < handle
         'HorizontalAlignment','right',...
         'Parent',obj.gdata.fig);
 
-        % Linking-method popupmenu (replaces broken uiradiobuttons; see
-        % path-display popupmenu above for rationale)
-        if strcmp(obj.link_type,'identity')
-          linkingPopupValue = 2 ;
-        else
-          linkingPopupValue = 1 ;
-        end
-        obj.gdata.pum_linking = uicontrol(obj.gdata.fig,...
-          'Style','popupmenu',...
-          'Units','normalized',...
-          'Position',[obj.posinfo.editx obj.posinfo.rowys(rowi) obj.posinfo.editw obj.posinfo.rowh],...
-          'String',{'Motion Linking','Identity Linking'},...
-          'Value',linkingPopupValue,...
-          'ForegroundColor','w',...
-          'BackgroundColor',obj.colorinfo.editfilecolor,...
-          'TooltipString','Method used to link detections across frames',...
-          'Tag','popupmenu_linking',...
-          'Callback',@(src,evt) obj.linkingTypeChanged(src,evt));
+        obj.gdata.bg_linking = uibuttongroup(obj.gdata.fig, ...
+          'BackgroundColor', obj.colorinfo.backgroundcolor, ...
+          'BorderType', 'none', ...
+          'Units', 'normalized', ...
+          'Position', [obj.posinfo.editx, obj.posinfo.rowys(rowi), obj.posinfo.editw, obj.posinfo.rowh], ...
+          'SelectionChangedFcn', @(src,evt) obj.linkingTypeChanged(src,evt)) ;
+        obj.gdata.rb_motion = uicontrol(obj.gdata.bg_linking, ...
+          'Style', 'radiobutton', ...
+          'String', 'Motion Linking', ...
+          'ForegroundColor', 'w', ...
+          'BackgroundColor', obj.colorinfo.backgroundcolor, ...
+          'Value', strcmp(obj.link_type, 'motion')) ;
+        obj.gdata.rb_identity = uicontrol(obj.gdata.bg_linking, ...
+          'Style', 'radiobutton', ...
+          'String', 'Identity Linking', ...
+          'ForegroundColor', 'w', ...
+          'BackgroundColor', obj.colorinfo.backgroundcolor, ...
+          'Value', strcmp(obj.link_type, 'identity')) ;
+        obj.updateLinkingButtonPositions() ;
         
-        % rowi = rowi + 1;
+        rowi = rowi + 1 ;
 
-        % for i = 1:obj.nview,
-      %     tag = 'detect';
-      %     if obj.nview > 1,
-      %       str = sprintf('Output detect view %d:',i);
-      %     else
-      %       str = 'Output detect:';
-      %     end
-      %     obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.detectfiles{i});
-        % end
+        isIdentity = strcmp(obj.movdata.link_type, 'identity') ;
+        obj.gdata.chk_known_num_animals = uicontrol(obj.gdata.fig, ...
+          'Style', 'checkbox', ...
+          'String', 'Known number of animals in video', ...
+          'ForegroundColor', 'w', ...
+          'BackgroundColor', obj.colorinfo.backgroundcolor, ...
+          'Value', obj.movdata.id_known_num_animals, ...
+          'Units', 'normalized', ...
+          'Position', [obj.posinfo.editx, obj.posinfo.rowys(rowi), obj.posinfo.textw, obj.posinfo.rowh], ...
+          'Enable', onIff(isIdentity), ...
+          'Tag', 'chk_known_num_animals', ...
+          'Callback', @(src,evt) obj.knownNumAnimalsChanged(src,evt)) ;
+
+        if isempty(obj.movdata.id_num_animals)
+          numAnimalsStr = '' ;
+        else
+          numAnimalsStr = num2str(obj.movdata.id_num_animals) ;
+        end
+        isNumAnimalsEnabled = isIdentity && obj.movdata.id_known_num_animals ;
+        obj.gdata.edit_num_animals = uicontrol(obj.gdata.fig, ...
+          'Style', 'edit', ...
+          'String', numAnimalsStr, ...
+          'ForegroundColor', 'w', ...
+          'BackgroundColor', obj.colorinfo.editfilecolor, ...
+          'Units', 'normalized', ...
+          'Position', [obj.posinfo.editx+obj.posinfo.textw+obj.posinfo.colborder, obj.posinfo.rowys(rowi), obj.posinfo.editw/4, obj.posinfo.rowh], ...
+          'Enable', onIff(isNumAnimalsEnabled), ...
+          'Tag', 'edit_num_animals', ...
+          'Callback', @(src,evt) obj.numAnimalsChanged(src,evt)) ;
 
       end  % if obj.isma etc
 
@@ -949,14 +986,59 @@ classdef SpecifyMovieToTrackGUI < handle
       end
     end
 
-    function linkingTypeChanged(obj, src, evt)  %#ok<INUSD>
-      % Callback for the linking-method popupmenu
-      if get(obj.gdata.pum_linking, 'Value') == 2
-        obj.link_type = 'identity' ;
-      else
+    function linkingTypeChanged(obj, src, evt)
+      % Callback for the linking-method radio button group
+      selectedButton = evt.NewValue ;
+      if selectedButton == obj.gdata.rb_motion
         obj.link_type = 'motion' ;
+      elseif selectedButton == obj.gdata.rb_identity
+        obj.link_type = 'identity' ;
       end
       obj.movdata.link_type = obj.link_type ;
+      isIdentity = strcmp(obj.link_type, 'identity') ;
+      if isfield(obj.gdata, 'chk_known_num_animals') && isvalid(obj.gdata.chk_known_num_animals)
+        obj.gdata.chk_known_num_animals.Enable = onIff(isIdentity) ;
+        isNumAnimalsEnabled = isIdentity && obj.movdata.id_known_num_animals ;
+        obj.gdata.edit_num_animals.Enable = onIff(isNumAnimalsEnabled) ;
+      end
+    end
+
+    function updateLinkingButtonPositions(obj)
+      % Update radio button positions inside the linking button group
+      if ~isfield(obj.gdata, 'bg_linking') || ~isvalid(obj.gdata.bg_linking)
+        return ;
+      end
+      try
+        bgPos = getpixelposition(obj.gdata.bg_linking) ;
+        bgWidth = bgPos(3) ;
+        bgHeight = bgPos(4) ;
+        padding = 10 ;
+        buttonHeight = max(20, bgHeight - 2*padding) ;
+        buttonWidth = (bgWidth - 3*padding) / 2 ;
+        y = (bgHeight - buttonHeight) / 2 ;
+        if isfield(obj.gdata, 'rb_motion') && isvalid(obj.gdata.rb_motion)
+          obj.gdata.rb_motion.Position = [padding, y, buttonWidth, buttonHeight] ;
+        end
+        if isfield(obj.gdata, 'rb_identity') && isvalid(obj.gdata.rb_identity)
+          obj.gdata.rb_identity.Position = [padding + buttonWidth + padding, y, buttonWidth, buttonHeight] ;
+        end
+      catch ME
+        warning(ME.identifier, 'Error updating linking button positions: %s', ME.message) ;
+      end
+    end
+
+    function knownNumAnimalsChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the known-N-animals checkbox
+      obj.movdata.id_known_num_animals = logical(get(obj.gdata.chk_known_num_animals, 'Value')) ;
+      obj.gdata.edit_num_animals.Enable = onIff(obj.movdata.id_known_num_animals) ;
+    end
+
+    function numAnimalsChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the number-of-animals edit field
+      val = str2double(get(obj.gdata.edit_num_animals, 'String')) ;
+      if ~isnan(val) && val > 0
+        obj.movdata.id_num_animals = round(val) ;
+      end
     end
 
     function trk = genTrkfile(obj,movie,defaulttrk,varargin)
@@ -969,14 +1051,45 @@ classdef SpecifyMovieToTrackGUI < handle
     end
     
     function figureResizeCallback(obj, src, evt)  %#ok<INUSD>
-      % Refresh path-truncation when the figure resizes (component widths change).
+      % Refresh path-truncation and button positions when figure resizes.
+      obj.updateLinkingButtonPositions() ;
+      obj.updatePathTogglePositions() ;
       obj.updatePathDisplay() ;
     end
 
-    function pathPopupChanged(obj, src, evt)  %#ok<INUSD>
-      % Callback for the Path Starts / Path Ends popupmenu
-      obj.showPathEnds = ( get(obj.gdata.pum_path, 'Value') == 2 ) ;
+    function pathToggleChanged(obj, src, evt)
+      % Callback for path display toggle button group
+      selectedButton = evt.NewValue ;
+      if selectedButton == obj.gdata.tb_path_starts
+        obj.showPathEnds = false ;
+      elseif selectedButton == obj.gdata.tb_path_ends
+        obj.showPathEnds = true ;
+      end
       obj.updatePathDisplay() ;
+    end
+
+    function updatePathTogglePositions(obj)
+      % Update positions of the path toggle buttons inside the button group
+      if ~isfield(obj.gdata, 'bg_path') || ~isvalid(obj.gdata.bg_path)
+        return ;
+      end
+      try
+        set(obj.gdata.bg_path, 'Units', 'pixels') ;
+        bgPos = get(obj.gdata.bg_path, 'Position') ;
+        bgWidth = bgPos(3) ;
+        bgHeight = bgPos(4) ;
+        set(obj.gdata.bg_path, 'Units', 'normalized') ;
+        buttonWidth = bgWidth / 2 ;
+        buttonHeight = max(20, bgHeight - 4) ;
+        if isfield(obj.gdata, 'tb_path_starts') && isvalid(obj.gdata.tb_path_starts)
+          obj.gdata.tb_path_starts.Position = [2, 2, buttonWidth-4, buttonHeight] ;
+        end
+        if isfield(obj.gdata, 'tb_path_ends') && isvalid(obj.gdata.tb_path_ends)
+          obj.gdata.tb_path_ends.Position = [buttonWidth+2, 2, buttonWidth-4, buttonHeight] ;
+        end
+      catch ME
+        warning(ME.identifier, 'Error updating path toggle positions: %s', ME.message) ;
+      end
     end
 
     function updatePathDisplay(obj)

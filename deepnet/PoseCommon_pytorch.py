@@ -307,6 +307,8 @@ class PoseCommon_pytorch(object):
         self.prev_models = []
         self.td_fields = ['dist','loss']
         self.train_epoch = 1
+        # Set when training starts from a previously trained model (-model_files) so that losses can skip from-scratch curricula (e.g. the wt_offset boost in Pose_multi_mdn_joint_torch.loss).
+        self.init_from_model_file = False
         self.zero_seeds = zero_seeds
         self.img_prefix_override = img_prefix_override
         self.debug = debug
@@ -627,7 +629,8 @@ class PoseCommon_pytorch(object):
         return PoseTools.create_label_images(locs,self.conf.imsz,1,self.conf.label_blur_rad)
 
     def create_optimizer(self, model, base_lr):
-        return torch.optim.Adam(model.parameters(),lr=base_lr)
+        weight_decay = self.conf.get('adam_weight_decay', 0.01)
+        return torch.optim.AdamW(model.parameters(), lr=base_lr, weight_decay=weight_decay)
 
     def create_lr_sched(self,opt,training_iters,base_lr,step_lr,lr_drop_step_frac):
         if step_lr:
@@ -765,6 +768,7 @@ class PoseCommon_pytorch(object):
                 else:
                     model.load_state_dict(ckpt['model_state_params'])
                 logging.info('Inititalizing model weights from {}'.format(model_file))
+                self.init_from_model_file = True
             except Exception as e:
                 logging.info(f'Could not initialize model weights from {model_file}')
                 logging.info(e)

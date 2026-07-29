@@ -289,6 +289,16 @@ classdef TrxVisualizerMA < handle
       obj.set_hittest('on');
     end
 
+    function setTrajectoryCosmetics(obj, prefs)
+      if isfield(prefs, 'TrajLineWidth') && ~isempty(obj.hTraj)
+        [obj.hTraj.LineWidth] = deal(prefs.TrajLineWidth);
+      end
+      if isfield(prefs, 'TrxIDLblFontSize') && ~isempty(obj.hTrxTxt)
+        [obj.hTrxTxt.FontSize] = deal(prefs.TrxIDLblFontSize);
+      end
+      obj.updateColors();
+    end
+
     function v = get.nTrx(obj)
       v = numel(obj.hTrx);
     end  % function
