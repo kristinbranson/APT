@@ -3,7 +3,7 @@ classdef SpecifyMovieToTrackController < handle
   properties 
     defaultdir = '';
     lObj = [];
-    delegate = [];  % the controller that owns this dialog; receives specifyMovieToTrackControllerDone()
+    parent_ = [];  % the controller that owns this dialog; receives specifyMovieToTrackControllerDone()
     movdata = [];
     nview = 1;
     hastrx = false;
@@ -38,12 +38,12 @@ classdef SpecifyMovieToTrackController < handle
   end
 
   methods
-    function obj = SpecifyMovieToTrackController(lObj, delegate, movdata, varargin)
-      % Construct and show the modal movie-details dialog.  The dialog is
-      % modal but the constructor returns as soon as it is up (no uiwait).
-      % When the user clicks Done, the dialog calls
-      % specifyMovieToTrackControllerDone() on the delegate; in all cases it asks
-      % the delegate to delete it via deleteSpecifyMovieToTrackController().
+    function obj = SpecifyMovieToTrackController(lObj, parent, movdata, varargin)
+      % Construct and show the modal movie-details dialog.  The dialog is modal
+      % but the constructor returns as soon as it is up (no uiwait). When the
+      % user clicks Done, the dialog calls specifyMovieToTrackControllerDone() on
+      % the parent; in all cases it asks the parent to delete and unregister it
+      % via deleteSpecifyMovieToTrackController().
 
       [defaulttrkpat,defaulttrxpat,detailed_options] = myparse(varargin,...
         'defaulttrkpat',[], ... % eg '$movdir/$movfile_$projfile_$trackertype'
@@ -53,7 +53,7 @@ classdef SpecifyMovieToTrackController < handle
 
       obj.lObj = lObj;
       obj.isma = lObj.maIsMA;
-      obj.delegate = delegate;
+      obj.parent_ = parent;
       obj.detailed_options = detailed_options;
 
       obj.nview = obj.lObj.nview;
@@ -87,10 +87,10 @@ classdef SpecifyMovieToTrackController < handle
       obj.createGUI();
 
       % Center the dialog on the delegate controller's figure.
-      if isa(obj.delegate, 'TrackBatchGUIController')
-        delegateFigurePosition = obj.delegate.figurePixelPosition() ;
-      elseif isa(obj.delegate, 'LabelerController')
-        delegateFigurePosition = obj.delegate.mainFigurePixelPosition() ;
+      if isa(obj.parent_, 'TrackBatchGUIController')
+        delegateFigurePosition = obj.parent_.figurePixelPosition() ;
+      elseif isa(obj.parent_, 'LabelerController')
+        delegateFigurePosition = obj.parent_.mainFigurePixelPosition() ;
       else
         error('APT:invalidDelegate', ...
               'The delegate must be a TrackBatchGUIController or a LabelerController') ;
@@ -284,7 +284,7 @@ classdef SpecifyMovieToTrackController < handle
         'units','pixels',...
         'position',obj.posinfo.figpos,...
         'WindowStyle','modal',...
-        'CloseRequestFcn',@(src,evt) obj.delegate.deleteSpecifyMovieToTrackController(),...
+        'CloseRequestFcn',@(src,evt) obj.parent_.deleteSpecifyMovieToTrackController(),...
         'ResizeFcn',@(src,evt) obj.figureResizeCallback(src,evt));
         
       set(obj.fig,'Units','normalized');
@@ -855,15 +855,15 @@ classdef SpecifyMovieToTrackController < handle
         end
 
         if ~isgood,
-          uiwait(errordlg('Fields marked in red have missing or incorrect values. Correct them or press the Cancel button'));
-          return;
+          uiwait(errordlg('Fields marked in red have missing or incorrect values. Correct them or press the Cancel button.', [], 'modal')) ;
+          return
         end
 
         % Check for existing detect files and prompt user
         userChoice = obj.checkAndPromptForDetectFiles();
         switch userChoice
           case 'cancel'
-            return; % User cancelled, don't close dialog
+            return  % User cancelled, don't close dialog
           case 'use_detect'
             obj.movdata.docontinue = true;
           case 'new_tracking'
@@ -875,24 +875,17 @@ classdef SpecifyMovieToTrackController < handle
         % Check for existing output trk files and ask user if they want to overwrite
         overwriteChoice = obj.checkAndPromptForOutputFiles();
         if strcmp(overwriteChoice, 'cancel')
-          return; % User cancelled, don't close dialog
+          return  % User cancelled, don't close dialog
         end
 
         % User confirmed; hand the edited movie data to the delegate.
-        obj.delegate.specifyMovieToTrackControllerDone(obj.movdata) ;
+        obj.parent_.specifyMovieToTrackControllerDone(obj.movdata) ;
       end
-      % if obj.isma
-      %   if ismember(lower(tag),{'track','link','detect'})
-      %     obj.link_type = lower(tag);
-      %     obj.movdata.link_type = lower(tag);
-      %   end
-      % end
       if ismember(lower(tag),{'done','cancel'}),
         % Whether confirmed or cancelled, ask the delegate to tear us down.
-        obj.delegate.deleteSpecifyMovieToTrackController() ;
+        obj.parent_.deleteSpecifyMovieToTrackController() ;
       end
-
-    end
+    end  % function
     
     function pb_crop_Callback(obj,h,~,iview,dosave)
       if ~isfield(obj.crop,'fig'),
