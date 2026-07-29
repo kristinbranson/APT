@@ -629,7 +629,8 @@ class PoseCommon_pytorch(object):
         return PoseTools.create_label_images(locs,self.conf.imsz,1,self.conf.label_blur_rad)
 
     def create_optimizer(self, model, base_lr):
-        return torch.optim.Adam(model.parameters(),lr=base_lr)
+        weight_decay = self.conf.get('adam_weight_decay', 0.01)
+        return torch.optim.AdamW(model.parameters(), lr=base_lr, weight_decay=weight_decay)
 
     def create_lr_sched(self,opt,training_iters,base_lr,step_lr,lr_drop_step_frac):
         if step_lr:

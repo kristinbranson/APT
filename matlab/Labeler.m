@@ -11090,7 +11090,7 @@ classdef Labeler < handle
     
     function deleteCurrentTracker(obj)
       obj.pushBusyStatus('Deleting current tracker and all tracking results...');
-      oc = onCleanup(@()(obj.popBusyStatus())) ;      
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       trackers = obj.trackerHistory_ ;
       if numel(trackers) > 1 ,
         delete(trackers{1}) ;
@@ -11101,6 +11101,23 @@ classdef Labeler < handle
       end
       obj.notify_('update_text_trackerinfo') ;
       obj.notify_('update_menu_track_tracker_history') ;
+    end  % function
+
+    function trackSetCurrentTrackerDMC(obj, dmc)
+      % Attach an externally-supplied DeepModelChainOnDisk (eg an already-
+      % trained model directory imported via addTrackerFromDir) to the
+      % current tracker, and notify the GUI so the current-tracker display
+      % and tracker-history menu pick up the change immediately.  Without
+      % this, setting tracker.trnLastDMC directly leaves the GUI showing
+      % stale state until some unrelated action forces a refresh.
+      tracker = obj.tracker ;
+      tracker.trnLastDMC = dmc ;
+      if isempty(tracker.sPrm)
+        tracker.setAllParams(obj.trackGetTrainingParams()) ;
+      end
+      obj.notify_('didSetCurrTracker') ;
+      obj.notify_('update_menu_track_tracker_history') ;
+      obj.notify_('update_text_trackerinfo') ;
     end  % function
     
     function [tfsucc,tblPCache,s] = trackCreateDeepTrackerStrippedLbl(obj, varargin)
