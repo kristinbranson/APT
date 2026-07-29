@@ -757,6 +757,10 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
             self.cfg_file = 'configs/detr/detr_r50_8x2_150e_coco.py'
         # elif mmdetect_net == 'test':
         #     self.cfg_file = 'configs/APT/roian.py'
+        elif mmdetect_net.startswith('rtmdet'):
+            assert False, \
+                f'{mmdetect_net} requires mmdetection 3.x, but mmdetection {mmdet.__version__} is installed. ' \
+                'Use a newer APT environment, or pick a different detection network.'
 
         else:
             assert False, 'Unknown mmpose net type'

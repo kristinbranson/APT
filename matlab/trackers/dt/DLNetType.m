@@ -52,6 +52,7 @@ classdef DLNetType < handle
     multi_openpose ('multi_openpose')
     detect_mmdetect ('detect_mmdetect')
     detect_frcnn ('detect_frcnn')
+    detect_rtmdet ('detect_rtmdet')
     hrformer ('hrformer')
     multi_cid ('multi_cid')
     multi_dekr ('multi_dekr')
