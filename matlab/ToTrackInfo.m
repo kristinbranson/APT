@@ -38,6 +38,8 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     % linking options (for multi-animal projects)
     link_type = 'simple'; % 'simple', 'motion', or 'identity'
     id_maintain_identity = false;
+    id_known_num_animals = false; % whether the number of animals in the videos is known
+    id_num_animals = []; % known number of animals in the videos, used when id_known_num_animals is true
 
     % outputs
     % this will correspond to one job if these are set
@@ -985,6 +987,18 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
     function setIDMaintainIdentity(obj,maintain_identity)
       obj.id_maintain_identity = maintain_identity;
+    end
+    function v = getIDKnownNumAnimals(obj)
+      v = obj.id_known_num_animals;
+    end
+    function setIDKnownNumAnimals(obj,known_num_animals)
+      obj.id_known_num_animals = known_num_animals;
+    end
+    function v = getIDNumAnimals(obj)
+      v = obj.id_num_animals;
+    end
+    function setIDNumAnimals(obj,num_animals)
+      obj.id_num_animals = num_animals;
     end
     function setDetectTrk(obj,v,varargin)
       if isempty(varargin),

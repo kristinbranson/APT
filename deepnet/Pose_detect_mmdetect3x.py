@@ -15,9 +15,9 @@ from mmengine.hooks import Hook
 from mmengine.config import Config
 from mmpose.datasets.datasets import BaseCocoStyleDataset as TopDownCocoDataset
 from mmpose.apis import init_model
-from mmengine.registry import init_default_scope
+from mmengine.registry import init_default_scope, HOOKS
 from mmengine.dataset import Compose, pseudo_collate
-from mmdet.models.task_modules.assigners import MaxIoUAssigner, HungarianAssigner, AssignResult
+from mmdet.models.task_modules.assigners import MaxIoUAssigner, HungarianAssigner, AssignResult, DynamicSoftLabelAssigner
 from mmdet.models.task_modules.assigners.max_iou_assigner import perm_repeat_bboxes
 from mmdet.utils import (ConfigType, InstanceList, OptInstanceList,
                          OptMultiConfig, reduce_mean)
@@ -68,6 +68,41 @@ BACKUP_CONFIG_FILES = {
     'faster_rcnn': 'faster-rcnn_r50_fpn_2x_coco.py',
     'detr': 'detr_r50_8xb2-150e_coco.py'
 }
+
+# RTMDet comes in several sizes. conf.mmdetect_net can be any of the keys below;
+# plain 'rtmdet' is an alias for the medium model, which is the best
+# speed/accuracy tradeoff for typical APT projects.
+RTMDET_SIZES = ('tiny', 's', 'm', 'l', 'x')
+RTMDET_DEFAULT_SIZE = 'm'
+RTMDET_CONFIG_FILES = {
+    'tiny': 'configs/rtmdet/rtmdet_tiny_8xb32-300e_coco.py',
+    's': 'configs/rtmdet/rtmdet_s_8xb32-300e_coco.py',
+    'm': 'configs/rtmdet/rtmdet_m_8xb32-300e_coco.py',
+    'l': 'configs/rtmdet/rtmdet_l_8xb32-300e_coco.py',
+    'x': 'configs/rtmdet/rtmdet_x_8xb32-300e_coco.py',
+}
+RTMDET_pretrained_urls = {
+    'tiny': 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet_tiny_8xb32-300e_coco/rtmdet_tiny_8xb32-300e_coco_20220902_112414-78e30dcc.pth',
+    's': 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet_s_8xb32-300e_coco/rtmdet_s_8xb32-300e_coco_20220905_161602-387a891e.pth',
+    'm': 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet_m_8xb32-300e_coco/rtmdet_m_8xb32-300e_coco_20220719_112220-229f527c.pth',
+    'l': 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet_l_8xb32-300e_coco/rtmdet_l_8xb32-300e_coco_20220719_112030-5a0be7c4.pth',
+    'x': 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet_x_8xb32-300e_coco/rtmdet_x_8xb32-300e_coco_20220715_230555-cc79b9ae.pth',
+}
+for _sz, _url in RTMDET_pretrained_urls.items():
+    BACKUP_PTH_FILES['rtmdet_' + _sz] = os.path.basename(_url)
+    BACKUP_CONFIG_FILES['rtmdet_' + _sz] = os.path.basename(RTMDET_CONFIG_FILES[_sz])
+
+
+def parse_rtmdet_net(mmdetect_net):
+    """Returns the RTMDet size suffix for mmdetect_net, or None if it isn't an RTMDet net."""
+    if mmdetect_net == 'rtmdet':
+        return RTMDET_DEFAULT_SIZE
+    if not mmdetect_net.startswith('rtmdet_'):
+        return None
+    size = mmdetect_net[len('rtmdet_'):]
+    assert size in RTMDET_SIZES, \
+        f'Unknown RTMDet size "{size}". Must be one of {RTMDET_SIZES}'
+    return size
 
 # @BBOX_ASSIGNERS.register_module()
 class APTHungarianAssigner(HungarianAssigner):
@@ -884,6 +919,244 @@ class APTMaxIoUAssigner(MaxIoUAssigner):
         return assign_result
 
 
+def points_in_boxes(points, boxes):
+    """Boolean [npoint] mask: does each point fall strictly inside at least one box?"""
+    if boxes.numel() == 0 or points.numel() == 0:
+        return points.new_zeros(points.shape[0], dtype=torch.bool)
+    lt_ = points[:, None] - boxes[None, :, :2]
+    rb_ = boxes[None, :, 2:] - points[:, None]
+    deltas = torch.cat([lt_, rb_], dim=-1)
+    return (deltas.min(dim=-1).values > 0).any(dim=1)
+
+
+@BBOX_ASSIGNERS.register_module(force=True)
+class APTDynamicSoftLabelAssigner(DynamicSoftLabelAssigner):
+    """DynamicSoftLabelAssigner from mmdetection, updated to work with APT loss masks.
+
+    APT projects are usually only partly labelled, so an unlabelled patch of image does
+    not mean there is no animal in it. The front end lets the user mark regions as fully
+    labelled (see extra_roi / maGetLossMask); those reach us as gt_instances_ignore, and
+    inside them, and only inside them, absence of a label really is evidence of absence.
+    RTMDet's stock assigner makes every unmatched prior a negative regardless, which
+    trains the detector to suppress the very animals it should be finding.
+
+    So, as APTMaxIoUAssigner does for frcnn and APTHungarianAssignerMask for detr, every
+    unmatched prior is ignored by default and handed back to the negative set only where
+    there is a reason to call it background. In terms of the IoU between a prior's
+    decoded box and the nearest labelled animal:
+
+      [0, NEG_IOU_LO)        ignore, unless the prior sits inside a region the user
+                             certified as fully labelled, in which case it is a
+                             negative. Far enough out that it could be an animal
+                             nobody labelled, so certification is what makes it safe.
+      [NEG_IOU_LO, neg_iou_hi)  negative. These survive NMS and would surface as a
+                             spurious extra animal, and a box overlapping a labelled
+                             animal this much is overwhelmingly a bad detection of
+                             that animal rather than a different unlabelled one.
+      [neg_iou_hi, 1]        ignore. NMS discards these at inference whatever their
+                             score, so supervising them buys nothing, and it is also
+                             where the dynamic-k near-misses live: calling them
+                             background would fight the matching that ranked them.
+
+    The upper bound is the test-time NMS threshold rather than a constant, since that is
+    exactly the point above which duplicate suppression stops being the assigner's job.
+    frcnn shows the same structure, its rpn ignore band running [0.25, 0.7) against an
+    rpn NMS of 0.7, and detr is the exception that proves it: with no NMS at all it has
+    no ignore band and must call everything above IoU 0.2 a negative itself.
+    """
+
+    NEG_IOU_LO = 0.15
+    CERTIFIED_IOF_TR = 0.2   # as in APTHungarianAssignerMask
+    ENGULF_IOF_TR = 0.95
+    ENGULF_IOU_TR = 0.5
+
+    def __init__(self, *args, neg_iou_hi=0.65, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.neg_iou_hi = neg_iou_hi
+
+    def assign(self, pred_instances, gt_instances, gt_instances_ignore=None, **kwargs) -> AssignResult:
+        assign_result = super().assign(pred_instances, gt_instances, gt_instances_ignore, **kwargs)
+
+        decoded_bboxes = pred_instances.bboxes
+        gt_bboxes = gt_instances.bboxes
+        if decoded_bboxes.numel() == 0 or gt_bboxes.numel() == 0:
+            return assign_result
+
+        # The stock assigner only ever emits 0 (background) or >0 (matched), so this is
+        # exactly the set of priors it decided were background.
+        unmatched = assign_result.gt_inds == 0
+        if not bool(unmatched.any()):
+            return assign_result
+
+        overlaps, _ = bbox_overlaps(gt_bboxes.detach(), decoded_bboxes.detach()).max(dim=0)
+        masked_negs = (overlaps >= self.NEG_IOU_LO) & (overlaps < self.neg_iou_hi)
+
+        # Boxes containing most of an animal while being at least 1/0.5 = 2x its size,
+        # which is how a multi-animal detector ends up drawing one box around a cluster.
+        # These are bad boxes rather than near-misses, so they override the bands above.
+        overlaps_f, _ = bbox_overlaps(gt_bboxes.detach(), decoded_bboxes.detach(), mode='iof').max(dim=0)
+        big_boxes = (overlaps_f > self.ENGULF_IOF_TR) & (overlaps < self.ENGULF_IOU_TR)
+        masked_negs = masked_negs | big_boxes
+
+        # Certified-labelled regions, away from any animal. This one is tested on the
+        # prior centers rather than on the decoded boxes, because it has to work from the
+        # first iteration: RTMDet decodes near-degenerate, near-zero-area boxes at
+        # initialization, and any IoF normalized by that area is 0, which would leave the
+        # whole run with no negative supervision at all until box regression bootstrapped
+        # itself. Prior centers are fixed geometry and give the same answer at every step.
+        # detr can afford to use its predicted boxes here; an anchor-free dense head
+        # cannot. Excluding priors sitting on an animal matters for the same reason: at
+        # initialization their decoded boxes have no overlap either, so they would
+        # otherwise be read as "far from any animal" and trained as background.
+        if gt_instances_ignore is not None:
+            gt_bboxes_ignore = gt_instances_ignore.get('bboxes', decoded_bboxes.new_zeros((0, 4)))
+            if gt_bboxes_ignore.shape[0] > 0:
+                prior_centers = pred_instances.priors[:, :2]
+                is_certified = points_in_boxes(prior_centers, gt_bboxes_ignore)
+                is_on_animal = points_in_boxes(prior_centers, gt_bboxes)
+                masked_negs = masked_negs | \
+                    (is_certified & ~is_on_animal & (overlaps < self.NEG_IOU_LO))
+
+        # Ignore by default, then hand back the priors justified above. Matched priors
+        # are never touched.
+        assign_result.gt_inds[unmatched] = -1
+        assign_result.gt_inds[unmatched & masked_negs] = 0
+        return assign_result
+
+
+@HOOKS.register_module(force=True)
+class APTIterPipelineSwitchHook(Hook):
+    """Switches the train pipeline at a given iteration.
+
+    mmdetection's PipelineSwitchHook keys off the epoch, but APT always trains with an
+    IterBasedTrainLoop, where the epoch counter never advances and the switch would
+    therefore never fire. RTMDet needs the switch to turn off mosaic/mixup augmentation
+    for the last stretch of training.
+    """
+
+    def __init__(self, switch_iter, switch_pipeline):
+        self.switch_iter = switch_iter
+        self.switch_pipeline = switch_pipeline
+        self.has_switched_ = False
+
+    def before_train_iter(self, runner, batch_idx=0, data_batch=None):
+        if self.has_switched_ or runner.iter < self.switch_iter:
+            return
+        logging.info(f'Switching the RTMDet train pipeline at iteration {runner.iter}')
+        runner.train_dataloader.dataset.pipeline = Compose(self.switch_pipeline)
+        self.has_switched_ = True
+
+
+def rescale_param_scheduler(cfg, conf):
+    """Rewrites cfg.param_scheduler so the LR schedule spans conf.dl_steps iterations.
+
+    The stock mmdetection configs schedule by epoch over a COCO-sized run, whereas APT
+    trains for a fixed number of iterations, so every milestone has to be rescaled. Note
+    that a scheduler's begin/end delimit the window over which that scheduler is active;
+    the length of the run itself is set by cfg.train_cfg.max_iters further below.
+
+    RTMDet needs its LinearLR warmup, since AdamW at the nominal lr of 4e-3 can diverge
+    on a freshly initialized head. Earlier versions of this function dropped a leading
+    LinearLR outright, so frcnn and detr trained with no warmup at all; they now keep
+    theirs too, capped at a tenth of the run.
+    """
+    schedulers = cfg.param_scheduler
+    default_epochs = cfg.max_epochs if 'max_epochs' in cfg else None
+
+    rescaled = []
+    for scheduler in schedulers:
+        if scheduler.type == 'MultiStepLR':
+            def_epochs = default_epochs if default_epochs is not None else scheduler.end
+            scheduler.milestones = [int(dd / def_epochs * conf.dl_steps) for dd in scheduler.milestones]
+            scheduler.begin = 0
+            scheduler.end = conf.dl_steps
+            scheduler.by_epoch = False
+        elif scheduler.type == 'CosineAnnealingLR':
+            def_epochs = default_epochs if default_epochs is not None else scheduler.end
+            # Keep the fraction of training spent annealing the same as upstream.
+            begin = int(scheduler.begin / def_epochs * conf.dl_steps) if scheduler.by_epoch else scheduler.begin
+            scheduler.begin = min(begin, max(conf.dl_steps - 1, 0))
+            scheduler.end = conf.dl_steps
+            scheduler.T_max = max(conf.dl_steps - scheduler.begin, 1)
+            scheduler.by_epoch = False
+            scheduler.pop('convert_to_iter_based', None)
+        elif scheduler.type == 'LinearLR':
+            # Warmup is already iteration-based upstream, but a warmup as long as the
+            # whole run would mean the LR never reaches its nominal value.
+            assert not scheduler.get('by_epoch', True), 'Epoch-based LinearLR warmup is not supported'
+            scheduler.end = min(scheduler.end, max(conf.dl_steps // 10, 1))
+        else:
+            assert False, f'Unsupported LR scheduler type {scheduler.type}'
+        rescaled.append(scheduler)
+
+    cfg.param_scheduler = rescaled
+    if 'max_epochs' in cfg:
+        cfg.max_epochs = conf.dl_steps
+
+
+def set_rtmdet_pipeline_size(cfg, im_sz):
+    """Rescales every image-size field in the RTMDet pipelines to im_sz.
+
+    RTMDet hard-codes 640x640 across the mosaic buffer, the random resize/crop, the
+    padding and the test-time resize. The RandomResize in the stage-1 pipeline is
+    deliberately twice the base size, because it operates on the mosaic canvas, so
+    everything is scaled by a common ratio rather than overwritten outright.
+
+    Config.fromfile() deep-copies each pipeline into every place it is referenced, so
+    the dataloaders and the PipelineSwitchHook each hold their own copy and all of them
+    have to be rewritten.
+    """
+    base_sz = None
+    for step in cfg.train_pipeline:
+        if step.type == 'Pad':
+            base_sz = step.size
+            break
+    assert base_sz is not None, 'Could not find the base image size in the RTMDet train pipeline'
+    ratio = (im_sz[0] / base_sz[0], im_sz[1] / base_sz[1])
+
+    def scaled(size):
+        return [int(round(size[0] * ratio[0])), int(round(size[1] * ratio[1]))]
+
+    def resize_pipeline(pipeline):
+        for step in pipeline:
+            for field in ['img_scale', 'scale', 'crop_size', 'size']:
+                if field in step:
+                    step[field] = scaled(step[field])
+
+    for pipeline_name in ['train_pipeline', 'train_pipeline_stage2', 'test_pipeline']:
+        resize_pipeline(cfg.get(pipeline_name, []))
+    for hook in cfg.get('custom_hooks', []):
+        if 'switch_pipeline' in hook:
+            resize_pipeline(hook.switch_pipeline)
+
+    cfg.train_dataloader.dataset.pipeline = cfg.train_pipeline
+    for loader_name in ['val_dataloader', 'test_dataloader']:
+        if cfg.get(loader_name, None) is not None:
+            cfg[loader_name].dataset.pipeline = cfg.test_pipeline
+
+
+def convert_epoch_hooks_to_iter(cfg, conf, original_max_epochs):
+    """Rewrites epoch-keyed custom hooks so they fire under APT's IterBasedTrainLoop.
+
+    mmdetection's PipelineSwitchHook triggers on before_train_epoch, but APT always
+    trains iteration-based, where the epoch counter never advances past zero and the
+    hook would silently never fire.
+    """
+    if 'custom_hooks' not in cfg or original_max_epochs is None:
+        return
+
+    converted = []
+    for hook in cfg.custom_hooks:
+        if hook.type == 'PipelineSwitchHook':
+            switch_iter = int(hook.switch_epoch / original_max_epochs * conf.dl_steps)
+            logging.info(f'Converting PipelineSwitchHook from epoch {hook.switch_epoch} to iteration {switch_iter}')
+            converted.append(dict(type='APTIterPipelineSwitchHook',
+                                  switch_iter=switch_iter,
+                                  switch_pipeline=hook.switch_pipeline))
+        else:
+            converted.append(hook)
+    cfg.custom_hooks = converted
+
 
 def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
     # curdir = pathlib.Path(__file__).parent.absolute()
@@ -896,27 +1169,16 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
     data_bdir = conf.cachedir
 
     cfg = Config.fromfile(mmdet_config_file_path)
+    # Grab this before rescale_param_scheduler() rewrites it in terms of iterations;
+    # the epoch-keyed hooks below still need the original epoch budget.
+    original_max_epochs = cfg.max_epochs if 'max_epochs' in cfg else None
     cfg.default_hooks.checkpoint.interval = conf.save_step
     cfg.default_hooks.checkpoint.by_epoch = False
     cfg.default_hooks.checkpoint.max_keep_ckpts = conf.maxckpt
     cfg.default_hooks.checkpoint.filename_tmpl = run_name + '-{}'
 
 
-    if len(cfg.param_scheduler) == 2 and cfg.param_scheduler[0].type == 'LinearLR':
-        # Remove the LinearLR scheduler if it is present
-        cfg.param_scheduler = cfg.param_scheduler[1:]
-    assert len(cfg.param_scheduler) == 1, 'Works only for single multisteplr for now'
-    assert cfg.param_scheduler[0].type == 'MultiStepLR', 'Works only for multisteplr for now'
-    if cfg.param_scheduler[0].type == 'MultiStepLR':
-        def_epochs = cfg.max_epochs if 'max_epochs' in cfg else cfg.param_scheduler[0].end
-        def_steps = cfg.param_scheduler[0].milestones
-        cfg.param_scheduler[0].milestones = [int(dd/def_epochs*conf.dl_steps) for dd in def_steps]
-        if 'max_epochs' in cfg:
-            cfg.max_epochs = conf.dl_steps
-        else:
-            cfg.param_scheduler[0].end = conf.dl_steps
-        cfg.param_scheduler[0].end = conf.dl_steps
-        cfg.param_scheduler[0].by_epoch = False
+    rescale_param_scheduler(cfg, conf)
 
     # cfg.gpu_ids = [0]
     cfg.seed = None
@@ -1045,15 +1307,46 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
             backup_url = BACKUP_URL_ROOT + BACKUP_PTH_FILES['detr']
             cfg.load_from = backup_url
 
+    elif parse_rtmdet_net(conf.mmdetect_net) is not None:
+
+        rtmdet_size = parse_rtmdet_net(conf.mmdetect_net)
+        cfg.model.bbox_head.num_classes = 1
+
+        if not conf.get('mmdetect_use_default_sz', True):
+            # RTMDet sizes appear in several pipeline stages plus the mosaic/mixup
+            # scratch buffers, so rewrite them all rather than just the Resize.
+            set_rtmdet_pipeline_size(cfg, im_sz)
+
+        if conf.multi_loss_mask:
+            # Honour the regions the user certified as fully labelled; see
+            # APTDynamicSoftLabelAssigner.
+            cfg.model.train_cfg.assigner.type = 'APTDynamicSoftLabelAssigner'
+            # Keep the assigner's ignore band aligned with the NMS actually in use, so
+            # that training only supervises the priors NMS cannot remove for us.
+            cfg.model.train_cfg.assigner.neg_iou_hi = cfg.model.test_cfg.nms.iou_threshold
+
+        url = RTMDET_pretrained_urls[rtmdet_size]
+        try:
+            response = requests.head(url, allow_redirects=True)
+            cfg.load_from = response.url
+        except Exception as e:
+            logging.warning(f'Could not access pretrained weights from {url}. Error {e}. Trying direct link')
+            backup_url = BACKUP_URL_ROOT + BACKUP_PTH_FILES['rtmdet_' + rtmdet_size]
+            cfg.load_from = backup_url
+
 
     # cfg.train_pipeline[-1]['keys'].append('gt_bboxes_ignore')
     # cfg.data.train.pipeline[-1]['keys'].append('gt_bboxes_ignore')
+
+    convert_epoch_hooks_to_iter(cfg, conf, original_max_epochs)
 
     if 'train_cfg' in cfg:
         cfg.train_cfg.type = 'IterBasedTrainLoop'
         cfg.train_cfg.max_iters = conf.dl_steps
         cfg.train_cfg.val_interval = conf.dl_steps+100
         cfg.train_cfg.pop('max_epochs', None)
+        # Epoch-keyed, and validation is disabled anyway.
+        cfg.train_cfg.pop('dynamic_intervals', None)
 
     return cfg
 
@@ -1100,6 +1393,8 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
             self.cfg_file = 'configs/detr/detr_r50_8xb2-150e_coco.py'
         # elif mmdetect_net == 'test':
         #     self.cfg_file = 'configs/APT/roian.py'
+        elif parse_rtmdet_net(mmdetect_net) is not None:
+            self.cfg_file = RTMDET_CONFIG_FILES[parse_rtmdet_net(mmdetect_net)]
 
         else:
             assert False, 'Unknown mmpose net type'

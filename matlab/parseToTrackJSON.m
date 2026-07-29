@@ -116,9 +116,15 @@ for i = 1:nmovies,
     toTrackOut.link_type = jsonData.link_type;
   end
   if isfield(jsonData, 'id_maintain_identity')
-    toTrackOut.id_maintain_identity = jsonData.id_maintain_identity;
+    toTrackOut.id_maintain_identity = logical(jsonData.id_maintain_identity) ;
   end
-  
+  if isfield(jsonData, 'id_known_num_animals')
+    toTrackOut.id_known_num_animals = jsonData.id_known_num_animals;
+  end
+  if isfield(jsonData, 'id_num_animals')
+    toTrackOut.id_num_animals = jsonData.id_num_animals;
+  end
+
 end
 
 function sviews = parseViews(s,nviews,required)

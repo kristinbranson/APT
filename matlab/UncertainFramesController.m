@@ -57,11 +57,17 @@ classdef UncertainFramesController < handle
         strings = model.displayStringFromBoutIndex ;
         entryCount = numel(strings) ;
         obj.listbox_.Items = strings ;
-        previousIndex = obj.listbox_.ValueIndex ;
-        if isempty(previousIndex)
+        % uilistbox has no ValueIndex property on this MATLAB version; derive
+        %/set the index by matching against Items instead.
+        if isempty(obj.listbox_.Value)
           previousIndex = 1 ;
+        else
+          previousIndex = find(strcmp(obj.listbox_.Items, obj.listbox_.Value), 1) ;
+          if isempty(previousIndex)
+            previousIndex = 1 ;
+          end
         end
-        obj.listbox_.ValueIndex = max(1, min(previousIndex, entryCount)) ;
+        obj.listbox_.Value = obj.listbox_.Items{max(1, min(previousIndex, entryCount))} ;
         obj.listbox_.Enable = 'on' ;
       else
         obj.listbox_.Items = {} ;

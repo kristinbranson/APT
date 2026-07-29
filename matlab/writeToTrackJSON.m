@@ -85,7 +85,13 @@ if isfield(toTrack, 'link_type')
   res.link_type = toTrack.link_type;
 end
 if isfield(toTrack, 'id_maintain_identity')
-  res.id_maintain_identity = toTrack.id_maintain_identity;
+  res.id_maintain_identity = double(toTrack.id_maintain_identity) ;
+end
+if isfield(toTrack, 'id_known_num_animals')
+  res.id_known_num_animals = toTrack.id_known_num_animals;
+end
+if isfield(toTrack, 'id_num_animals')
+  res.id_num_animals = toTrack.id_num_animals;
 end
 
 saveJSONfile(res,jsonfile);

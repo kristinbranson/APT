@@ -165,6 +165,11 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.tvtrx.updateColors() ;
     end
 
+    function setTrajectoryCosmetics(obj, prefs)
+      % Delegate trajectory line width / font size update to tvtrx.
+      obj.tvtrx.setTrajectoryCosmetics(prefs) ;
+    end
+
     function setMarkerCosmetics(obj, pvargs)
       obj.tvmt.setMarkerCosmetics(pvargs) ;
     end

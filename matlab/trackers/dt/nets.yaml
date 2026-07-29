@@ -282,6 +282,22 @@ detect_mmdetect:
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
+detect_rtmdet:
+  shortString: rtmdet
+  displayString: RTMDet Object Detection
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, traindata*]
+  trkAuxFields: []
+  trkAuxLabels: []
+  doesOccPred: 0
+  isMultiAnimal: 1
+  description: >
+    RTMDet is a fast, fully-convolutional single-stage network for generic object detection, and is
+    substantially more accurate than Faster R-CNN on COCO at comparable speed. It is implemented by the
+    <a href="https://mmdetection.readthedocs.io/en/latest/overview.html">MMDetection</a> library.
+
+    <i>Lyu, C., et al., 2022. "RTMDet: An empirical study of designing real-time object detectors", arXiv:2212.07784.</i>
+
 detect_frcnn:
   shortString: frcnn
   displayString: FRCNN Object Detection

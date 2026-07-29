@@ -105,6 +105,7 @@ classdef Labeler < handle
     updateStatusAndPointer
     didSetTrx
     updateTrxVisibility
+    updateTrxCosmetics
     updateTrxTable
     updateFrameTableIncremental
     updateFrameTableComplete
@@ -241,6 +242,7 @@ classdef Labeler < handle
 
   properties
     projTempDirDontClearOnDestructor = false  % transient. set to true for eg CI testing
+    movieDontAskRmMovieWithLabels = false  % If true, won't warn about removing-movies-with-labels. Public: set by the controller when the user picks "don't ask again".
   end
 
   properties (SetAccess=private)
@@ -356,7 +358,6 @@ classdef Labeler < handle
     movieReader = []  % [1xnview] MovieReader objects. init: C
     movieInfoAll = {}  % cell-of-structs, same size as movieFilesAll
     movieInfoAllGT = {}  % same as .movieInfoAll but for GT mode
-    movieDontAskRmMovieWithLabels = false  % If true, won't warn about removing-movies-with-labels    
     projectHasTrx = false  % whether there are trx files for any movie
   end
 
@@ -706,10 +707,15 @@ classdef Labeler < handle
     gtSuggMFTable  % [nGTSugg x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
     gtSuggMFTableLbled  % [nGTSuggx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
 
-    gtTblRes  % [nGTcomp x ncol] table, or []. Most recent GT performance results. 
+    gtTblRes  % [nGTcomp x ncol] table, or []. Most recent GT performance results.
       % gtTblRes(:,MFTable.FLDSID) need not match
-      % gtSuggMFTable(:,MFTable.FLDSID) because eg GT performance can be 
+      % gtSuggMFTable(:,MFTable.FLDSID) because eg GT performance can be
       % computed even if some suggested frames are not be labeled.
+    gtCocoResults = []  % [1xnview] struct array of COCO keypoint mAP metrics from the
+      % most recent GT performance computation (see
+      % DeepTracker.trackGTgtmat2tbl, APT_interface.py's
+      % compute_coco_map_list), or [] if not computed (e.g. no GT labels were
+      % available to the backend, or an older run predating this feature).
     gtPlotParams = struct('prc_vals',[50,75,90,95,98],...
       'nbins',50); % parameters for ShowGTResults
   end
@@ -3308,6 +3314,19 @@ classdef Labeler < handle
       % - obj...Saving.CacheDir is unchanged
       % - all DMCs need not have .rootDirs that point to projtempdir
                   
+      % Generate tracking config (fortracking=true, no addExtraParams) so that
+      % apt-track-wrapper can use it without a live Matlab session.
+      % This reflects the current trackParams at save time.
+      trkConfigPath = fullfile(projtempdir,'tracking_config.json');
+      try
+        if ~isempty(obj.tracker) && isa(obj.tracker,'DeepTracker') && ~isempty(obj.tracker.trnLastDMC)
+          obj.tracker.trkCreateConfig(trkConfigPath);
+          allModelFiles{end+1} = trkConfigPath;
+        end
+      catch ME
+        warningNoTrace('Could not generate tracking_config.json for apt-track-wrapper: %s',ME.message);
+      end
+
       pat = [regexprep(projtempdir,'\\','\\\\') '[/\\]'];
       allModelFiles = cellfun(@(x) regexprep(x,pat,''),...
         allModelFiles,'UniformOutput',false);
@@ -7810,10 +7829,15 @@ classdef Labeler < handle
     %   display preds from multiple tracker objs at the same time, and
     %   any such changes are not currently serialized.
     
-    function setLandmarkAndSkeletonCosmetics(obj, colorSpecs, mrkrSpecs, skelSpecs)
+    function setLandmarkAndSkeletonCosmetics(obj, colorSpecs, mrkrSpecs, skelSpecs, trajSpecs)
+      % Apply keypoint color/marker/skeleton cosmetics, and (for projects
+      % with trajectories) trajectory cosmetics.  trajSpecs is optional.
       obj.setLandmarkColors_(colorSpecs);
       obj.setLandmarkCosmetics_(mrkrSpecs);
       obj.setSkeletonCosmetics_(skelSpecs);
+      if exist('trajSpecs', 'var') && ~isempty(trajSpecs)
+        obj.setTrajectoryCosmetics_(trajSpecs);
+      end
     end
     
     function setLandmarkColors_(obj, colorSpecs)
@@ -9228,6 +9252,13 @@ classdef Labeler < handle
       oc = onCleanup(@()(obj.popBusyStatus())) ;
       tblMFT = obj.gtGetTblSuggAndLbled(whichlabels);
 
+      % Add the GT label positions (.p, .tfocc) to the table.  These get
+      % written into the list file as COCO-style keypoints, which lets the
+      % Python backend compute COCO mAP metrics alongside tracking and save
+      % them in the GT results mat file.  Must happen before .mov is
+      % remapped below, since labelAddLabelsMFTable needs MovieIndex movs.
+      tblMFT = obj.labelAddLabelsMFTable(tblMFT) ;
+
       % Tracking runs in a separate async process spawned by shell.
       % .showGTResults() gets called from a callback registered on the completion of
       % this async process.
@@ -9293,10 +9324,11 @@ classdef Labeler < handle
     end  % function
     
     function showGTResults(obj,varargin)
-      [gtResultTbl,tblLbl] = ...
+      [gtResultTbl,tblLbl,cocoResults] = ...
         myparse(varargin,...
                 'gtResultTbl',[],...
-                'lblTbl',[]);
+                'lblTbl',[],...
+                'cocoResults',[]);
 
       if isempty(tblLbl)
         if ~isempty(gtResultTbl),
@@ -9307,6 +9339,7 @@ classdef Labeler < handle
       end
 
       obj.gtComputeGTPerformanceTable(tblLbl,gtResultTbl); % also sets obj.gtTblRes
+      obj.gtCocoResults = cocoResults;  % [1xnview] struct array or [], see DeepTracker.trackGTgtmat2tbl
       % obj.didSpawnTrackingForGT_ = [] ;  % reset this
       obj.notify_('didComputeGTResults') ;
       obj.popBusyStatus();
@@ -9410,6 +9443,7 @@ classdef Labeler < handle
 
     function gtClearGTPerformanceTable(obj)
       obj.gtTblRes = [] ;
+      obj.gtCocoResults = [] ;
       obj.notify_('gtResUpdated') ;
     end
 
@@ -11190,7 +11224,7 @@ classdef Labeler < handle
     
     function deleteCurrentTracker(obj)
       obj.pushBusyStatus('Deleting current tracker and all tracking results...');
-      oc = onCleanup(@()(obj.popBusyStatus())) ;      
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       trackers = obj.trackerHistory_ ;
       if numel(trackers) > 1 ,
         delete(trackers{1}) ;
@@ -11201,6 +11235,23 @@ classdef Labeler < handle
       end
       obj.notify_('update_text_trackerinfo') ;
       obj.notify_('update_menu_track_tracker_history') ;
+    end  % function
+
+    function trackSetCurrentTrackerDMC(obj, dmc)
+      % Attach an externally-supplied DeepModelChainOnDisk (eg an already-
+      % trained model directory imported via addTrackerFromDir) to the
+      % current tracker, and notify the GUI so the current-tracker display
+      % and tracker-history menu pick up the change immediately.  Without
+      % this, setting tracker.trnLastDMC directly leaves the GUI showing
+      % stale state until some unrelated action forces a refresh.
+      tracker = obj.tracker ;
+      tracker.trnLastDMC = dmc ;
+      if isempty(tracker.sPrm)
+        tracker.setAllParams(obj.trackGetTrainingParams()) ;
+      end
+      obj.notify_('didSetCurrTracker') ;
+      obj.notify_('update_menu_track_tracker_history') ;
+      obj.notify_('update_text_trackerinfo') ;
     end  % function
     
     function [tfsucc,tblPCache,s] = trackCreateDeepTrackerStrippedLbl(obj, varargin)
@@ -13791,6 +13842,16 @@ classdef Labeler < handle
     %   result =strcmp(currentTrackerAlgoName, algoNameFromTrackersAllIndex) ;
     % end
     
+    function setTrajectoryCosmetics_(obj, trajSpecs)
+      % Update trajectory appearance (line width, color, font size) for all
+      % multi-animal trackers that have a trajectory visualizer.
+      flds = fieldnames(trajSpecs);
+      for iF = 1:numel(flds)
+        obj.projPrefs.Trx.(flds{iF}) = trajSpecs.(flds{iF});
+      end
+      obj.notify_('updateTrxCosmetics') ;
+    end
+
     function gtToggleGTMode(obj)
       gt = obj.gtIsGTMode;
       gtNew = ~gt;
@@ -13905,6 +13966,26 @@ classdef Labeler < handle
       
       % Make a ToTrackInfo object from toTrackRaw
       toTrack = tidyToTrackStructForBatchTracking(toTrackRaw) ;
+      linkType = 'simple' ;
+      if isfield(toTrack, 'link_type') ,
+        linkType = toTrack.link_type ;
+      end
+      idMaintainIdentity = false ;
+      if isfield(toTrack, 'id_maintain_identity') ,
+        idMaintainIdentity = toTrack.id_maintain_identity ;
+      end
+      idKnownNumAnimals = false ;
+      if isfield(toTrack, 'id_known_num_animals') ,
+        idKnownNumAnimals = toTrack.id_known_num_animals ;
+      end
+      idNumAnimals = [] ;
+      if isfield(toTrack, 'id_num_animals') ,
+        idNumAnimals = toTrack.id_num_animals ;
+      end
+      doContinue = false ;
+      if isfield(toTrack, 'docontinue') ,
+        doContinue = toTrack.docontinue ;
+      end
       totrackinfo = ...
         ToTrackInfo('movfiles',toTrack.movfiles,...
                     'trxfiles',toTrack.trxfiles,...
@@ -13915,7 +13996,12 @@ classdef Labeler < handle
                     'calibrationfiles',toTrack.calibrationfiles,...
                     'frm0',toTrack.f0s,...
                     'frm1',toTrack.f1s,...
-                    'trxids',toTrack.targets);
+                    'trxids',toTrack.targets,...
+                    'link_type',linkType,...
+                    'id_maintain_identity',idMaintainIdentity,...
+                    'id_known_num_animals',idKnownNumAnimals,...
+                    'id_num_animals',idNumAnimals,...
+                    'docontinue',doContinue);
       
       % Call obj.tracker.track to do the real tracking
       obj.tracker.track('totrackinfo',totrackinfo, ...

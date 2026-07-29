@@ -60,7 +60,7 @@
     "mdn_backbone": {
       "AffectsTraining": true,
       "DefaultValue": "resnet50",
-      "Description": "Backbone network to use for GRONe. Available options are resnet50, hrnet, vit, convnext, swin",
+      "Description": "Backbone network to use for GRONe. Available options are resnet50, hrnet, vit, convnext, swin, hrformer",
       "DispName": "Backbone",
       "Level": "Beginner",
       "ParamViz": "",

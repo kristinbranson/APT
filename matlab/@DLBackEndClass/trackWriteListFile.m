@@ -80,6 +80,42 @@ function trackWriteListFile(obj, movFileNativePath, movidx, tMFTConc, listFileNa
     end
   end
 
+  % Populate listinfo.labels with COCO-style keypoints if tMFTConc carries
+  % ground-truth labels (fields .p and .tfocc, as added by
+  % Labeler.labelAddLabelsMFTable).  The Python backend uses these to compute
+  % COCO keypoint scores after tracking the list.  All values are 1-based
+  % (Matlab convention); Python converts on read.
+  doesHaveLabels = tblfldscontains(tMFTConc, 'p') && tblfldscontains(tMFTConc, 'tfocc') ;
+  if doesHaveLabels
+    labels = cell(0,1) ;
+    isMultiAnimal = (ndims(tMFTConc.p) == 3) ;  % [nrow x maxanimals x npts*2] for multianimal
+    for irow = 1:size(tMFTConc,1)
+      imovset = idxm(irow) ;
+      frm = tMFTConc.frm(irow) ;
+      if isMultiAnimal
+        animalCount = size(tMFTConc.p, 2) ;
+        for ianimal = 1:animalCount
+          p = reshape(tMFTConc.p(irow, ianimal, :), 1, []) ;
+          occ = reshape(tMFTConc.tfocc(irow, ianimal, :), 1, []) ;
+          if all(~isfinite(p))
+            continue
+          end
+          labels{end+1,1} = struct('mov', imovset, 'frm', frm, 'tgt', ianimal, ...
+                                   'keypoints', cocoKeypointsFromLabels(p, occ)) ;  %#ok<AGROW>
+        end
+      else
+        p = tMFTConc.p(irow, :) ;
+        occ = tMFTConc.tfocc(irow, :) ;
+        if all(~isfinite(p))
+          continue
+        end
+        labels{end+1,1} = struct('mov', imovset, 'frm', frm, 'tgt', tMFTConc.iTgt(irow), ...
+                                 'keypoints', cocoKeypointsFromLabels(p, occ)) ;  %#ok<AGROW>
+      end
+    end
+    listinfo.labels = labels ;
+  end
+
   % Encode listinfo struct to json and write to file
   listinfo_as_json_string = jsonencode(listinfo) ;
   listFileNativePath = apt.MetaPath(listFileNativePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;

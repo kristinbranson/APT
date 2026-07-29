@@ -588,8 +588,14 @@ def read_frame(cap, fnum, cur_trx, offset=0, stationary=True,flipud=False):
 def get_patch_trx(cap, cur_trx, fnum, conf, locs, offset=0, stationary=True,flipud=False,bbox=None):
     # assert conf.imsz[0] == conf.imsz[1]
     im, x, y, theta,a  = read_frame(cap, fnum, cur_trx, offset, stationary,flipud)
-    dx = np.abs(a*4*np.sin(theta)+x); dy = np.abs(a*4*np.cos(theta)+y)
-    bbox = np.array([x-dx,y-dy,x+dx,y+dy])
+    if bbox is None:
+        # a is the length of the major axis (i.e, the distance between the head and the tail) of the animal  or the maximum of height or width of the bbox, but divided by 4. So when finding dx and dy we multiply a by 2 to get the full length of the major axis or the full height because we add dx and subtract dx to x to get the bbox
+        if conf.use_bbox_trx:
+            dx = np.abs(a*2)
+            dy = np.abs(a*2)
+        else:
+            dx = np.abs(a*2*np.sin(theta)); dy = np.abs(a*2*np.cos(theta))
+        bbox = np.array([x-dx,y-dy,x+dx,y+dy])
     return crop_patch_trx(conf, im,x,y,theta, locs,bbox=bbox)
 
 

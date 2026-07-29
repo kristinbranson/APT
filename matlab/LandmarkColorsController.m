@@ -13,7 +13,7 @@ classdef LandmarkColorsController < handle
     hFig  % the dialog figure
     parent_  % a LabelerController
     labeler_  % a Labeler
-    applyCbkFcn_  % cbk(colorSpecs, markerSpecs, skeletonSpecs)
+    applyCbkFcn_  % cbk(colorSpecs, markerSpecs, skeletonSpecs, trajSpecs)
 
     % State (formerly stored in guidata)
     nlandmarks_
@@ -45,12 +45,22 @@ classdef LandmarkColorsController < handle
     uipanel6_  % the "Skeleton" panel
     sldSkeletonLineWidth_
     pbSkeletonColor_
+
+    % Trajectory pane (only shown for projects with trajectories: trx or MA)
+    tfTrajControlsShown_ = false
+    pnlTraj_
+    pbTrajColor_
+    sldTrajLineWidth_
+    txTrajLineWidth_
+    editTrajFontSize_
+    hTrajSldListener_  % listener on the trajectory-line-width slider's ContinuousValueChange
+    sPropsTraj0_  % trajectory state at open, for change detection
   end  % properties
 
   methods
     function obj = LandmarkColorsController(parent, labeler, applyCbkFcn)
       % Build the dialog and initialize its state from the Labeler.
-      % applyCbkFcn signature: cbk(colorSpecs, markerSpecs, skeletonSpecs).
+      % applyCbkFcn signature: cbk(colorSpecs, markerSpecs, skeletonSpecs, trajSpecs).
       obj.parent_ = parent ;
       obj.labeler_ = labeler ;
       obj.applyCbkFcn_ = applyCbkFcn ;
@@ -100,6 +110,11 @@ classdef LandmarkColorsController < handle
                     @(s,e)(obj.sldSkeletonLineWidthActuated_())) ;
       obj.skelControlsSet_(sPropsSkel) ;
 
+      % Trajectory pane, only for projects that draw trajectories.
+      if labeler.hasTrx || labeler.maIsMA
+        obj.initTrajPane_() ;
+      end
+
       obj.saved_ = [] ;
       obj.tblProps_.CellEditCallback = @(s,e)(obj.tblCellEditActuated_()) ;
     end  % function
@@ -108,6 +123,9 @@ classdef LandmarkColorsController < handle
       % Tear down the listener and figure.
       if ~isempty(obj.hSldListener_) && isvalid(obj.hSldListener_)
         delete(obj.hSldListener_) ;
+      end
+      if ~isempty(obj.hTrajSldListener_) && isvalid(obj.hTrajSldListener_)
+        delete(obj.hTrajSldListener_) ;
       end
       deleteValidGraphicsHandles(obj.hFig) ;
       obj.hFig = [] ;
@@ -585,6 +603,140 @@ classdef LandmarkColorsController < handle
         'SkeletonProps', s0) ;
     end  % function
 
+    %%%%%%%%%%%%%%
+    % TRAJECTORY %
+    %%%%%%%%%%%%%%
+
+    function initTrajPane_(obj)
+      % Add a Trajectory panel below the existing content, letting the user
+      % set trajectory color, line width, and ID-label font size.  The panel
+      % is inserted by expanding the figure downward, shifting existing
+      % content up to keep its on-screen position, and moving the Done button
+      % to the new bottom.
+      prefs = obj.labeler_.projPrefs.Trx ;
+      hFig = obj.hFig ;
+      panH = 78 ;   % height added at the bottom for the trajectory panel
+      btnH = 26 ;   % height of the Done button
+      btnMargin = 8 ;
+
+      hFig.Units = 'pixels' ;
+      origPos = hFig.Position ;
+
+      % Expand the figure downward.
+      hFig.Position = [origPos(1) origPos(2)-panH origPos(3) origPos(4)+panH] ;
+
+      % Shift all existing children up so they keep their on-screen positions.
+      for hChild = hFig.Children(:)'
+        try
+          hChild.Units = 'pixels' ;
+          p = hChild.Position ;
+          hChild.Position = [p(1) p(2)+panH p(3) p(4)] ;
+        catch
+        end
+      end
+
+      % Move the Done button to the new bottom.
+      donePos = obj.pbDone_.Position ;
+      obj.pbDone_.Position = [donePos(1) btnMargin donePos(3) donePos(4)] ;
+
+      % Trajectory panel, just above the Done button.
+      pnlY = btnMargin + btnH + 6 ;
+      pnlH = panH - pnlY - 4 ;
+      pnlW = origPos(3) - 10 ;
+      obj.pnlTraj_ = uipanel(hFig, 'Title', 'Trajectory', 'Units', 'pixels', ...
+        'Position', [5 pnlY pnlW pnlH], 'FontAngle', 'italic', 'Tag', 'pnlTraj') ;
+
+      if isnumeric(prefs.TrajColor)
+        trajClr0 = prefs.TrajColor(1,:) ;
+      else
+        trajClr0 = [1 1 0] ;
+      end
+
+      % Single-row layout: Color | Line width slider + value | Font size
+      rowY = 4 ;
+      rowH = 20 ;
+      x = 5 ;
+
+      uicontrol(obj.pnlTraj_, 'Style', 'text', 'String', 'Color:', ...
+        'Units', 'pixels', 'Position', [x rowY 38 rowH], 'HorizontalAlignment', 'right') ;
+      x = x + 42 ;
+      obj.pbTrajColor_ = uicontrol(obj.pnlTraj_, 'Style', 'pushbutton', ...
+        'BackgroundColor', trajClr0, 'String', '', ...
+        'Units', 'pixels', 'Position', [x rowY 50 rowH], 'Tag', 'pbTrajColor', ...
+        'Callback', @(s,e)(obj.pbTrajColorActuated_())) ;
+      x = x + 58 ;
+
+      uicontrol(obj.pnlTraj_, 'Style', 'text', 'String', 'Line width:', ...
+        'Units', 'pixels', 'Position', [x rowY 65 rowH], 'HorizontalAlignment', 'right') ;
+      x = x + 68 ;
+      sldW = pnlW - x - 110 ;
+      obj.sldTrajLineWidth_ = uicontrol(obj.pnlTraj_, 'Style', 'slider', ...
+        'Min', log2(0.5), 'Max', log2(16), ...
+        'Value', log2(max(prefs.TrajLineWidth, 0.5)), ...
+        'Units', 'pixels', 'Position', [x rowY sldW rowH], 'Tag', 'sldTrajLineWidth', ...
+        'Callback', @(s,e)(obj.sldTrajLineWidthActuated_())) ;
+      x = x + sldW + 3 ;
+      obj.txTrajLineWidth_ = uicontrol(obj.pnlTraj_, 'Style', 'text', ...
+        'String', sprintf('%.1f', prefs.TrajLineWidth), ...
+        'Units', 'pixels', 'Position', [x rowY 32 rowH], 'Tag', 'txTrajLineWidth') ;
+      x = x + 36 ;
+
+      uicontrol(obj.pnlTraj_, 'Style', 'text', 'String', 'Font size:', ...
+        'Units', 'pixels', 'Position', [x rowY 58 rowH], 'HorizontalAlignment', 'right') ;
+      x = x + 61 ;
+      obj.editTrajFontSize_ = uicontrol(obj.pnlTraj_, 'Style', 'edit', ...
+        'String', num2str(prefs.TrxIDLblFontSize), ...
+        'Units', 'pixels', 'Position', [x rowY 40 rowH], 'Tag', 'editTrajFontSize', ...
+        'Callback', @(s,e)(obj.editTrajFontSizeActuated_())) ;
+
+      obj.hTrajSldListener_ = ...
+        addlistener(obj.sldTrajLineWidth_, 'ContinuousValueChange', ...
+                    @(s,e)(obj.sldTrajLineWidthActuated_())) ;
+
+      obj.sPropsTraj0_ = struct('TrajColor', trajClr0, ...
+        'TrajLineWidth', prefs.TrajLineWidth, ...
+        'TrxIDLblFontSize', prefs.TrxIDLblFontSize) ;
+
+      obj.tfTrajControlsShown_ = true ;
+    end  % function
+
+    function s = trajControlsGet_(obj)
+      % Read the trajectory controls into a trajSpecs struct with fields
+      % TrajColor, TrajLineWidth, TrxIDLblFontSize.
+      s = struct() ;
+      s.TrajColor = obj.pbTrajColor_.BackgroundColor ;
+      s.TrajLineWidth = 2^obj.sldTrajLineWidth_.Value ;
+      obj.txTrajLineWidth_.String = sprintf('%.1f', s.TrajLineWidth) ;
+      fs = str2double(obj.editTrajFontSize_.String) ;
+      if ~isnan(fs) && fs > 0
+        s.TrxIDLblFontSize = fs ;
+      else
+        % Invalid entry: revert the field and keep the last good value.
+        s.TrxIDLblFontSize = obj.sPropsTraj0_.TrxIDLblFontSize ;
+        obj.editTrajFontSize_.String = num2str(s.TrxIDLblFontSize) ;
+      end
+    end  % function
+
+    function pbTrajColorActuated_(obj)
+      c0 = obj.pbTrajColor_.BackgroundColor ;
+      clr = uisetcolor(c0, 'Trajectory color') ;
+      % uisetcolor returns the empty array if the user cancels the dialog; in
+      % that case leave the trajectory color unchanged and do not re-apply.
+      if isempty(clr) || numel(clr) ~= 3
+        return ;
+      end
+      obj.pbTrajColor_.BackgroundColor = clr ;
+      obj.applyActuated_() ;
+    end  % function
+
+    function sldTrajLineWidthActuated_(obj)
+      obj.applyActuated_() ;
+    end  % function
+
+    function editTrajFontSizeActuated_(obj)
+      obj.applyActuated_() ;
+    end  % function
+
     %%%%%%%%%%%%%%%%%%
     % APPLY/DONE/ETC %
     %%%%%%%%%%%%%%%%%%
@@ -618,10 +770,21 @@ classdef LandmarkColorsController < handle
       tfskelchanged = ~arrayfun(@(x,y)isequaln(x,structoverlay(x,y)), ...
         obj.sPropsSkel0_, sPropsSkel) ;
 
+      % Trajectory specs, only when the trajectory pane is shown and its
+      % values differ from the open-time baseline.
+      trajSpecs = [] ;
+      if obj.tfTrajControlsShown_
+        sPropsTraj = obj.trajControlsGet_() ;
+        if ~isequaln(sPropsTraj, obj.sPropsTraj0_)
+          trajSpecs = sPropsTraj ;
+        end
+      end
+
       obj.saved_ = struct(...
         'colorSpecs', colorSpecs(tfclrchanged), ...
         'markerSpecs', sPropsMrkr(tfmkrchanged), ...
-        'skeletonSpecs', sPropsSkel(tfskelchanged) ...
+        'skeletonSpecs', sPropsSkel(tfskelchanged), ...
+        'trajSpecs', trajSpecs ...
         ) ;
       % Note any field of obj.saved_ could be empty.
     end  % function
@@ -629,7 +792,7 @@ classdef LandmarkColorsController < handle
     function applyActuated_(obj)
       obj.saveState_() ;
       saved = obj.saved_ ;
-      obj.applyCbkFcn_(saved.colorSpecs, saved.markerSpecs, saved.skeletonSpecs) ;
+      obj.applyCbkFcn_(saved.colorSpecs, saved.markerSpecs, saved.skeletonSpecs, saved.trajSpecs) ;
     end  % function
 
     function doneActuated_(obj)

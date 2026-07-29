@@ -16,6 +16,8 @@ classdef SpecifyMovieToTrackController < handle
     pum_path = [];  % path-display (starts/ends) popupmenu
     linktext = [];  % "Linking Method" label (MA projects only)
     pum_linking = [];  % linking-method popupmenu (MA projects only)
+    chk_known_num_animals = [];  % "known number of animals" checkbox (identity linking only)
+    edit_num_animals = [];  % number-of-animals edit field (identity linking only)
     movie = [];  % struct of movie-row widget handles (rowtext, rowedit, rowpb)
     trk = [];  % struct of trk-row widget handles
     trx = [];  % struct of trx-row widget handles
@@ -173,7 +175,13 @@ classdef SpecifyMovieToTrackController < handle
       if ~isfield(obj.movdata,'link_type'),
         obj.movdata.link_type = 'motion';
       end
-      
+      if ~isfield(obj.movdata,'id_known_num_animals'),
+        obj.movdata.id_known_num_animals = false;
+      end
+      if ~isfield(obj.movdata,'id_num_animals'),
+        obj.movdata.id_num_animals = [];
+      end
+
       obj.rowinfo = struct;
       obj.rowinfo.movie = struct;
       obj.rowinfo.movie.prompt = 'Movie';
@@ -252,10 +260,11 @@ classdef SpecifyMovieToTrackController < handle
     
     function createGUI(obj)
       
-      % movies, trks, trx, crop, calibration
-      obj.nfields = 2*obj.nview + double(obj.hastrx)*(obj.nview+1) + ... 
-        double(obj.iscrop)*obj.nview + double(obj.nview>1) + ... 
-        double(obj.isma)*obj.nview + 2;
+      % movies, trks, trx, crop, calibration.  For MA projects there is a
+      % linking-method row and a known-number-of-animals row.
+      obj.nfields = 2*obj.nview + double(obj.hastrx)*(obj.nview+1) + ...
+        double(obj.iscrop)*obj.nview + double(obj.nview>1) + ...
+        double(obj.isma)*obj.nview + double(obj.isma) + 2;
       figname = 'Specify movie to track';
       
       obj.colorinfo.backgroundcolor = [0,0,0];
@@ -486,8 +495,42 @@ classdef SpecifyMovieToTrackController < handle
           'TooltipString','Method used to link detections across frames',...
           'Tag','popupmenu_linking',...
           'Callback',@(src,evt) obj.linkingTypeChanged(src,evt));
-        
-        % rowi = rowi + 1;
+
+        rowi = rowi + 1;
+
+        % Known-number-of-animals controls, only meaningful for identity
+        % linking.  The checkbox is enabled when identity linking is
+        % selected; the edit field is enabled when the checkbox is also
+        % checked.
+        isIdentity = strcmp(obj.link_type,'identity') ;
+        if isempty(obj.movdata.id_num_animals)
+          numAnimalsStr = '' ;
+        else
+          numAnimalsStr = num2str(obj.movdata.id_num_animals) ;
+        end
+        obj.chk_known_num_animals = uicontrol(obj.fig,...
+          'Style','checkbox',...
+          'String','Known number of animals in videos',...
+          'Value',obj.movdata.id_known_num_animals,...
+          'Units','normalized',...
+          'Position',[obj.posinfo.editx obj.posinfo.rowys(rowi) obj.posinfo.editw-0.14 obj.posinfo.rowh],...
+          'ForegroundColor','w',...
+          'BackgroundColor',obj.colorinfo.backgroundcolor,...
+          'Enable',onIff(isIdentity),...
+          'TooltipString','Check if the number of animals in each video is known',...
+          'Tag','checkbox_known_num_animals',...
+          'Callback',@(src,evt) obj.knownNumAnimalsChanged(src,evt));
+        obj.edit_num_animals = uicontrol(obj.fig,...
+          'Style','edit',...
+          'String',numAnimalsStr,...
+          'Units','normalized',...
+          'Position',[obj.posinfo.editx+obj.posinfo.editw-0.12 obj.posinfo.rowys(rowi) 0.12 obj.posinfo.rowh],...
+          'ForegroundColor','w',...
+          'BackgroundColor',obj.colorinfo.editfilecolor,...
+          'Enable',onIff(isIdentity && obj.movdata.id_known_num_animals),...
+          'TooltipString','Number of animals in each video',...
+          'Tag','edit_num_animals',...
+          'Callback',@(src,evt) obj.numAnimalsChanged(src,evt));
 
         % for i = 1:obj.nview,
       %     tag = 'detect';
@@ -935,6 +978,33 @@ classdef SpecifyMovieToTrackController < handle
         obj.link_type = 'motion' ;
       end
       obj.movdata.link_type = obj.link_type ;
+      obj.updateKnownNumAnimalsControls() ;
+    end
+
+    function updateKnownNumAnimalsControls(obj)
+      % Enable/disable the known-number-of-animals controls to match the
+      % current linking method and checkbox state.
+      if isempty(obj.chk_known_num_animals) || ~isvalid(obj.chk_known_num_animals)
+        return
+      end
+      isIdentity = strcmp(obj.link_type, 'identity') ;
+      obj.chk_known_num_animals.Enable = onIff(isIdentity) ;
+      isNumAnimalsEnabled = isIdentity && obj.movdata.id_known_num_animals ;
+      obj.edit_num_animals.Enable = onIff(isNumAnimalsEnabled) ;
+    end
+
+    function knownNumAnimalsChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the known-number-of-animals checkbox
+      obj.movdata.id_known_num_animals = logical(get(obj.chk_known_num_animals, 'Value')) ;
+      obj.updateKnownNumAnimalsControls() ;
+    end
+
+    function numAnimalsChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the number-of-animals edit field
+      val = str2double(get(obj.edit_num_animals, 'String')) ;
+      if ~isnan(val) && val > 0
+        obj.movdata.id_num_animals = round(val) ;
+      end
     end
 
     function trk = genTrkfile(obj,movie,defaulttrk,varargin)

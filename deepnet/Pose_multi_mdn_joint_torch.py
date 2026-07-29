@@ -136,7 +136,8 @@ class my_vit(nn.Module):
 def my_convnext_backbone():
     from mmpretrain.models.backbones.convnext import ConvNeXt
     backbone = ConvNeXt(arch='base',
-        frozen_stages=2,
+        frozen_stages=1,
+        drop_path_rate=0.5,
         out_indices=(0, 1, 2, 3),
         gap_before_final_norm = False,
         init_cfg=dict(
@@ -169,7 +170,8 @@ def my_swin_backbone(im_sz):
         img_size=im_sz,
         window_size=7,
         out_indices=(0, 1, 2, 3),
-        frozen_stages=2,
+        frozen_stages=1,
+        drop_path_rate=0.5,
         init_cfg=dict(
             type='Pretrained',
             checkpoint='https://download.openmmlab.com/mmclassification/v0/swin-transformer/convert/swin_base_patch4_window7_224_22kto1k-f967f799.pth'))
@@ -245,6 +247,61 @@ class hrnet_fpn(nn.Module):
         x = self.backbone(x)[0]
         return {'0':x,'1':x,'2':x,'3':x}
 
+
+def my_hrformer_backbone():
+    # HRFormer-Base: same repeated multi-resolution fusion structure as HRNet
+    # (my_hrnet_fpn_backbone above), but with local-window self-attention
+    # blocks (HRFORMERBLOCK) in stages 2-4 instead of conv bottleneck blocks.
+    # Config and checkpoint match mmpose's bundled
+    # configs/body_2d_keypoint/topdown_heatmap/coco/td-hm_hrformer-base_8xb32-210e_coco-256x192.py
+    from mmpose.models import HRFormer
+    extra = dict(
+        drop_path_rate=0.2,
+        with_rpe=True,
+        stage1=dict(
+            num_modules=1,
+            num_branches=1,
+            block='BOTTLENECK',
+            num_blocks=(2, ),
+            num_channels=(64, ),
+            num_heads=[2],
+            mlp_ratios=[4]),
+        stage2=dict(
+            num_modules=1,
+            num_branches=2,
+            block='HRFORMERBLOCK',
+            num_blocks=(2, 2),
+            num_channels=(78, 156),
+            num_heads=[2, 4],
+            mlp_ratios=[4, 4],
+            window_sizes=[7, 7]),
+        stage3=dict(
+            num_modules=4,
+            num_branches=3,
+            block='HRFORMERBLOCK',
+            num_blocks=(2, 2, 2),
+            num_channels=(78, 156, 312),
+            num_heads=[2, 4, 8],
+            mlp_ratios=[4, 4, 4],
+            window_sizes=[7, 7, 7]),
+        stage4=dict(
+            num_modules=2,
+            num_branches=4,
+            block='HRFORMERBLOCK',
+            num_blocks=(2, 2, 2, 2),
+            num_channels=(78, 156, 312, 624),
+            num_heads=[2, 4, 8, 16],
+            mlp_ratios=[4, 4, 4, 4],
+            window_sizes=[7, 7, 7, 7]))
+
+    backbone = HRFormer(extra, in_channels=3,
+        init_cfg=dict(
+            type='Pretrained',
+            checkpoint='https://download.openmmlab.com/mmpose/'
+            'pretrain_models/hrformer_base-32815020_20220226.pth'))
+    backbone.init_weights()
+    return hrnet_fpn(backbone)
+
 def my_resnet_fpn_backbone(backbone_name, pretrained, norm_layer=misc_nn_ops.FrozenBatchNorm2d, trainable_layers=3):
     """
     From torchvision backbone utils.
@@ -319,6 +376,9 @@ class mdn_joint(nn.Module):
             elif backbone_type == 'swin':
                 backbone = my_swin(im_sz)
                 n_ftrs = 1024
+            elif backbone_type == 'hrformer':
+                backbone = my_hrformer_backbone()
+                n_ftrs = 78
             else:
                 backbone = my_hrnet_fpn_backbone()
                 n_ftrs = 32
@@ -635,7 +695,11 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         n_classes = self.conf.n_classes
         offset = self.offset
         locs_joint, wts_joint, locs_ref, wts_ref, occ_pred,dist_pred = preds
-        j_wt_factor = max(0,(self.step[1]*0.5-self.step[0])/(self.step[1]*0.5))
+        if self.init_from_model_file:
+            # The wt_offset boost curriculum is for training from scratch. Applying it when starting from a trained model shifts the loss optimum for the detection logits down by wt_offset, suppressing detections at prediction time for the first half of training.
+            j_wt_factor = 0.
+        else:
+            j_wt_factor = max(0,(self.step[1]*0.5-self.step[0])/(self.step[1]*0.5))
         wts_joint = wts_joint - self.wt_offset*j_wt_factor
 
         # ll_joint has the weight logits
@@ -885,7 +949,11 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         n_classes = self.conf.n_classes
         offset = self.offset
         locs_joint, wts_joint, locs_ref, wts_ref, occ_pred = preds
-        j_wt_factor = max(0,(self.step[1]*0.5-self.step[0])/(self.step[1]*0.5))
+        if self.init_from_model_file:
+            # The wt_offset boost curriculum is for training from scratch. Applying it when starting from a trained model shifts the loss optimum for the detection logits down by wt_offset, suppressing detections at prediction time for the first half of training.
+            j_wt_factor = 0.
+        else:
+            j_wt_factor = max(0,(self.step[1]*0.5-self.step[0])/(self.step[1]*0.5))
         wts_joint = wts_joint - self.wt_offset*j_wt_factor
 
         # ll_joint has the weight logits
@@ -1038,8 +1106,19 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         k_ref = locs_ref.shape[-3]
         k_joint = locs_joint.shape[-3]
         ll_joint_flat = logits_joint.reshape([-1,k_joint*n_x_j*n_y_j])
+
+        # to view the locs_ref
+        # xx, yy = np.meshgrid(np.arange(locs_ref.shape[-1]), np.arange(locs_ref.shape[-2]))
+        # pt.show_stack(tn(locs_ref[0, 9, :, 0]) - np.stack([xx, yy]), 1, 2, 'jet')
+
+        #overlaid on input image imn
+        # ff(); imshow(imn,'gray'); imshow(cv2.resize(tn(locs_ref[0,9,0,0])-xx,imn.shape[::-1]),alpha=0.8)
+        # ff(); imshow(imn,'gray'); imshow(cv2.resize(tn(locs_ref[0,9,1,0])-yy,imn.shape[::-1]),alpha=0.8)
+
         if not self.hmap_loss:
             locs_ref = locs_ref * self.ref_scale
+
+
 
         if hasattr(self.conf,'mdn_joint_thres'):
             joint_thres = self.conf.mdn_joint_thres
@@ -1101,7 +1180,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         if not self.hmap_loss:
             # Ref map coordinates for all candidates
             rpred_all = all_joint_locs * self.offset / self.ref_scale  # (bsz, k, n_classes, 2)
-            mm_all = torch.round(rpred_all).int()  # (bsz, k, n_classes, 2)
+            mm_all = torch.round(rpred_all).long()  # (bsz, k, n_classes, 2)
             isout = (mm_all[..., 0] >= n_x_r) | (mm_all[..., 1] >= n_y_r) | \
                     (mm_all[..., 0] < 0) | (mm_all[..., 1] < 0)  # (bsz, k, n_classes)
 
@@ -1689,9 +1768,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             locs_sz = (conf.batch_size, conf.n_classes, 2)
             locs_dummy = np.zeros(locs_sz)
             ims_in, _ = PoseTools.preprocess_ims(ims_in,locs_dummy,conf,False,conf.rescale)
-            # Pad to multiple of 32
-            pad1 = int(np.ceil(ims_in.shape[1]/32)*32 - ims_in.shape[1])
-            pad2 = int(np.ceil(ims_in.shape[2]/32)*32 - ims_in.shape[2])
+            if conf.mdn_backbone in ['swin','vit']:
+                pad1 = int(np.ceil(conf.imsz[0]/conf.rescale/32))*32 - ims_in.shape[1]
+                pad2 = int(np.ceil(conf.imsz[1]/conf.rescale/32))*32 - ims_in.shape[2]
+            else:
+                # Pad to multiple of 32
+                pad1 = int(np.ceil(ims_in.shape[1]/32)*32 - ims_in.shape[1])
+                pad2 = int(np.ceil(ims_in.shape[2]/32)*32 - ims_in.shape[2])
             if pad1 > 0 or pad2 > 0:
                 ims_in = np.pad(ims_in, [[0,0],[0,pad1],[0,pad2],[0,0]], mode='constant', constant_values=0)
             return ims_in

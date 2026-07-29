@@ -111,7 +111,19 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
       xy = nan(npts, 2, nTrx) ;
       tfeo = false(npts, nTrx) ;
       has_occ = isfield(ptrx, 'pocc') ;
-      sel_pts = min(npts, size(ptrx(1).p, 1)) ;
+      
+      % find the number of tracked points based on the trk data. Since some
+      % of the tracklets can be empty, go through till non-empty one to
+      % find the size
+      ptrx_pts = 1;
+      for ndx = 1:numel(ptrx)
+        if ~isempty(ptrx(ndx).p)
+          ptrx_pts = size(ptrx(ndx).p,1);
+          break;
+        end
+      end
+
+      sel_pts = min(npts, ptrx_pts) ;
       for j = 1:nTrx
         ptrxJ = ptrx(iTrx(j)) ;
         if ~isempty(ptrxJ.p)

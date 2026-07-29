@@ -83,8 +83,7 @@
         "Level": "Beginner",
         "ParamViz": "",
         "Requirements": [
-          "hasTrx",
-          "isHeadTail"
+          "ma"
         ],
         "Type": "boolean",
         "isEditable": true
@@ -106,12 +105,12 @@
       "multi_scale_by_bbox": {
         "AffectsTraining": true,
         "DefaultValue": true,
-        "Description": "For pose estimation (stage 2), crop the image around animal based on their detected size and scale the cropped image to a common size before estimating the pose. Useful if the visual scale of the animals varies a lot. Unselect if the apparent scale of all the animals does not change. In this case, all detected animals are cropped uniformly.",
+        "Description": "For pose estimation (stage 2) or for ID Linking, crop the image around animal based on their detected size and scale the cropped image to a common size before estimating the pose. Useful if the visual scale of the animals varies a lot. Unselect if the apparent scale of all the animals does not change. In this case, all detected animals are cropped uniformly.",
         "DispName": "Scale bounding box?",
         "Level": "Important",
         "ParamViz": "ParameterVisualizationAutoParams#multi_scale_by_bbox",
         "Requirements": [
-          "isTopDown"
+          "ma"
         ],
         "Type": "boolean",
         "isEditable": true
@@ -417,7 +416,20 @@
           "Requirements": [
             "ma"
           ],
-          "Type": "signed",
+          "Type": "boolean",
+          "isEditable": true
+        },
+        "link_id_cluster_occ_thresh": {
+          "AffectsTraining": false,
+          "DefaultValue": 0.2,
+          "Description": "Maximum occlusion fraction allowed for a tracklet to be used when computing identity cluster centers. Increase this if too few tracklets qualify and identity assignment fails.",
+          "DispName": "ID cluster occlusion threshold",
+          "Level": "Beginner",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "float",
           "isEditable": true
         }
       }

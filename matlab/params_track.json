@@ -36,6 +36,17 @@
       "Requirements": [],
       "Type": "unsigned",
       "isEditable": true
+    },
+    "coco_oks_sigma": {
+      "AffectsTraining": false,
+      "DefaultValue": 0.05,
+      "Description": "Object Keypoint Similarity (OKS) sigma used when computing COCO keypoint mAP metrics during GT performance evaluation. Larger values tolerate larger position errors when matching predicted to ground-truth keypoints.",
+      "DispName": "COCO OKS Sigma",
+      "Level": "Advanced",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "float",
+      "isEditable": true
     }
   }
 }

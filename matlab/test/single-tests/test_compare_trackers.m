@@ -79,8 +79,8 @@ end
 
 % The model starts with no current bout, so no listbox item should be
 % selected.
-if ~isempty(listbox.ValueIndex)
-  error('Expected no listbox item to be selected initially, but ValueIndex is %d', listbox.ValueIndex) ;
+if ~isempty(listboxValueIndex_(listbox))
+  error('Expected no listbox item to be selected initially, but ValueIndex is %d', listboxValueIndex_(listbox)) ;
 end
 
 % With no bout selected, the preview image and pose overlays are hidden.
@@ -101,7 +101,7 @@ end
 % Selecting a bout through the model should select the matching listbox
 % item.
 labeler.compareTrackersCurrentBoutIndexMaybe = 1 ;
-if ~isequal(listbox.ValueIndex, 1)
+if ~isequal(listboxValueIndex_(listbox), 1)
   error('Expected listbox ValueIndex to be 1 after selecting bout 1') ;
 end
 
@@ -196,8 +196,8 @@ end
 
 % The bout list was rebuilt when the test tracker changed, so the bout
 % selection should have been reset to none.
-if ~isempty(listbox.ValueIndex)
-  error('Expected listbox selection to reset after the bout list was rebuilt, but ValueIndex is %d', listbox.ValueIndex) ;
+if ~isempty(listboxValueIndex_(listbox))
+  error('Expected listbox selection to reset after the bout list was rebuilt, but ValueIndex is %d', listboxValueIndex_(listbox)) ;
 end
 
 % Now make the selected test tracker the current tracker.  Because the
@@ -257,8 +257,8 @@ if strcmp(listbox.FontAngle, 'italic')
 end
 
 % Rebuilding the bout list resets the selection to none.
-if ~isempty(listbox.ValueIndex)
-  error('Expected the bout selection to reset after switching mode, but ValueIndex is %d', listbox.ValueIndex) ;
+if ~isempty(listboxValueIndex_(listbox))
+  error('Expected the bout selection to reset after switching mode, but ValueIndex is %d', listboxValueIndex_(listbox)) ;
 end
 
 % Each line follows the "Frm <range>  UnmatchedCount <n>" format, with no
@@ -277,7 +277,7 @@ end
 
 % Selecting a bout shows the whole peak frame with no pose decorations.
 labeler.compareTrackersCurrentBoutIndexMaybe = 1 ;
-if ~isequal(listbox.ValueIndex, 1)
+if ~isequal(listboxValueIndex_(listbox), 1)
   error('Expected listbox ValueIndex to be 1 after selecting bout 1 in unmatched-count mode') ;
 end
 if ~strcmp(previewImage.Visible, 'on') || isempty(previewImage.CData)
@@ -420,6 +420,19 @@ if strcmp(unmatchedTestCentroidScatter.Visible, 'on') || strcmp(matchedTestCentr
   error('Expected the test-centroid markers to be hidden in Maximum Landmark Distance mode') ;
 end
 
+end  % function
+
+
+
+function idx = listboxValueIndex_(listbox)
+% uilistbox has no ValueIndex property on this MATLAB version; derive the
+% selected index by matching Value against Items instead. Returns [] when
+% nothing is selected, matching the semantics ValueIndex would have had.
+if isempty(listbox.Value)
+  idx = [] ;
+else
+  idx = find(strcmp(listbox.Items, listbox.Value), 1) ;
+end
 end  % function
 
 

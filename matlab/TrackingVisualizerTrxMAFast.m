@@ -151,7 +151,7 @@ classdef TrackingVisualizerTrxMAFast < handle
 
     end
     
-    function clrsT = setColors(obj,nTrx)
+    function clrsT = setColors(obj,prefs)
       % init/set .clrsTrx, .clrTrxCurrent from lObj.projPrefs.Trx
             
       prefsTrx = obj.lObj.projPrefs.Trx;
@@ -376,11 +376,43 @@ classdef TrackingVisualizerTrxMAFast < handle
     function hittest_on_all(obj)
       obj.set_hittest('on');
     end
-  
-%   Currently trx txtlbl viz controlled by lObj.showTrxIDLbl    
+
+    function setTrajectoryCosmetics(obj, prefs)
+      % Update trajectory line width, colors, and ID label font size.
+      % prefs: struct with fields from projPrefs.Trx (TrajLineWidth,
+      %   TrajColor, TrajColorCurrent, TrxIDLblFontSize).
+      clrsT = obj.setColors();
+      if isfield(prefs, 'TrajLineWidth')
+        if isvalid(obj.hTraj)
+          obj.hTraj.LineWidth = prefs.TrajLineWidth;
+        end
+        if isvalid(obj.hTrajPrim)
+          obj.hTrajPrim.LineWidth = prefs.TrajLineWidth;
+        end
+      end
+      if isfield(prefs, 'TrajColor') && isvalid(obj.hTraj)
+        obj.hTraj.Color = clrsT;
+      end
+      if isfield(prefs, 'TrajColor') && all(isvalid(obj.hTrxTxt))
+        [obj.hTrxTxt.Color] = deal(clrsT);
+      end
+      if isfield(prefs, 'TrajColorCurrent') && isvalid(obj.hTrajPrim)
+        obj.hTrajPrim.Color = obj.clrTrxCurrent;
+      end
+      if isfield(prefs, 'TrxIDLblFontSize')
+        if ~isempty(obj.hTrxTxt) && all(isvalid(obj.hTrxTxt))
+          [obj.hTrxTxt.FontSize] = deal(prefs.TrxIDLblFontSize);
+        end
+        if isvalid(obj.hTrxTxtPrim)
+          obj.hTrxTxtPrim.FontSize = prefs.TrxIDLblFontSize;
+        end
+      end
+    end
+
+%   Currently trx txtlbl viz controlled by lObj.showTrxIDLbl
 %     function setHideTextLbls(obj,tfshow)
 %     end
-    
+
   end
-  
+
 end

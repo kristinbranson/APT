@@ -209,8 +209,18 @@ classdef TrxVisualizer < handle
       end
     end  % function
     
+    function setTrajectoryCosmetics(obj, prefs)
+      % Apply trajectory line width and font size to existing graphics handles.
+      if ~isempty(obj.hTraj) && isfield(prefs, 'TrajLineWidth')
+        [obj.hTraj.LineWidth] = deal(prefs.TrajLineWidth) ;
+      end
+      if ~isempty(obj.hTrxTxt) && isfield(prefs, 'TrxIDLblFontSize')
+        [obj.hTrxTxt.FontSize] = deal(prefs.TrxIDLblFontSize) ;
+      end
+    end  % function
+
     function updatePrimary(~, ~)
-      % none    
+      % none
     end
     
     function setShow(obj,tfShow)

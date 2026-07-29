@@ -585,7 +585,15 @@ classdef TrkFile < dynamicprops
       end
       
       if ~isempty(obj.pTrk)
-        obj.npts = size(obj.pTrk{1},1); 
+        obj.npts = 1; % in case all pTrk are empty;
+        for n = 1:numel(obj.pTrk)
+          if isempty(obj.pTrk{n}),
+            continue
+          else
+            obj.npts = size(obj.pTrk{n},1); 
+            break
+          end
+        end
         obj.nframes = double(max(obj.endframes));
       else
         try 
@@ -1332,9 +1340,11 @@ classdef TrkFile < dynamicprops
         end
       else
         xy = nan(npt,2,nfrm,ntgt);
-        tfocc = false(npt,nfrm,ntgt); 
+        tfocc = false(npt,nfrm,ntgt);
         pcell = obj.pTrk;
         pcelltag = obj.pTrkTag;
+        tfHasTag = iscell(pcelltag);  % pTrkTag defaults to TrkFile.unsetVal (a char), not a
+                                       % cell, when a trk file never populated occlusion tags
         for iaux=naux:-1:1
           %pcellaux only created if naux>=1
           pcellaux{iaux} = obj.(auxflds{iaux});
@@ -1355,11 +1365,13 @@ classdef TrkFile < dynamicprops
 
           j = iTgt(i);
           ptgt = pcell{j};
-          ptag = pcelltag{j};
 
           idx = f(isinterval) + offs(j);
           xy(:,:,isinterval,i) = ptgt(:,:,idx);
-          tfocc(:,isinterval,i) = ptag(:,idx);
+          if tfHasTag
+            ptag = pcelltag{j};
+            tfocc(:,isinterval,i) = ptag(:,idx);
+          end
           for iaux=1:naux
             paux = pcellaux{iaux}{j};
             if isempty(paux),
