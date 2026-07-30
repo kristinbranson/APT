@@ -1464,7 +1464,7 @@ classdef LabelerController < handle
           end
         end
         rowNames = arrayfun(@(vi)sprintf('View %d',vi),1:nviewCoco,'uni',0);
-        fig_coco = figure('Name','Groundtruth COCO keypoint mAP');
+        fig_coco = uifigure('Name','Groundtruth COCO keypoint mAP');
         obj.gtResultFigures_(end+1) = fig_coco ;
         uitable('Parent',fig_coco,'Data',cocoData,'ColumnName',statNames,'RowName',rowNames,...
           'Units','normalized','Position',[0.02,0.05,0.96,0.9],'ColumnSortable',true);
