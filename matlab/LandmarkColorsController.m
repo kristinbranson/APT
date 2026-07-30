@@ -6,14 +6,14 @@ classdef LandmarkColorsController < handle
   % The figure is built programmatically in createGui_() (layout lifted from
   % GUIDE's export), the widget handles live as instance properties (no more
   % guidata reach-throughs), and the dialog is modal but non-blocking (no
-  % uiwait): edits are applied to the model live via the apply callback, so the
-  % constructor returns immediately.
+  % uiwait): edits are applied to the model live by calling
+  % setLandmarkAndSkeletonCosmetics() on the Labeler, so the constructor
+  % returns immediately.
 
   properties (Transient)
     hFig  % the dialog figure
     parent_  % a LabelerController
     labeler_  % a Labeler
-    applyCbkFcn_  % cbk(colorSpecs, markerSpecs, skeletonSpecs, trajSpecs)
 
     % State (formerly stored in guidata)
     nlandmarks_
@@ -58,12 +58,10 @@ classdef LandmarkColorsController < handle
   end  % properties
 
   methods
-    function obj = LandmarkColorsController(parent, labeler, applyCbkFcn)
+    function obj = LandmarkColorsController(parent, labeler)
       % Build the dialog and initialize its state from the Labeler.
-      % applyCbkFcn signature: cbk(colorSpecs, markerSpecs, skeletonSpecs, trajSpecs).
       obj.parent_ = parent ;
       obj.labeler_ = labeler ;
-      obj.applyCbkFcn_ = applyCbkFcn ;
       obj.nlandmarks_ = labeler.nPhysPoints ;
 
       obj.createGui_() ;
@@ -792,7 +790,7 @@ classdef LandmarkColorsController < handle
     function applyActuated_(obj)
       obj.saveState_() ;
       saved = obj.saved_ ;
-      obj.applyCbkFcn_(saved.colorSpecs, saved.markerSpecs, saved.skeletonSpecs, saved.trajSpecs) ;
+      obj.labeler_.setLandmarkAndSkeletonCosmetics(saved.colorSpecs, saved.markerSpecs, saved.skeletonSpecs, saved.trajSpecs) ;
     end  % function
 
     function doneActuated_(obj)

@@ -46,6 +46,9 @@ interface is `APT_interface.py`.
 - **Local backend tests**: `matlab/test/single-tests/` (conda, docker)
 - **Remote backend tests**: `matlab/test/single-tests/remote/` (aws, bsub)
 - Each test is a Matlab function that errors on failure, exits normally on success
+- Test functions should not print a message announcing that they
+  passed.  Reporting pass/fail is `test_apt()`'s job, so a per-test
+  "PASSED" print is redundant.
 
 ### Running Tests
 ```matlab

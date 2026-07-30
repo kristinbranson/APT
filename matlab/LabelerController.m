@@ -6475,8 +6475,7 @@ classdef LabelerController < handle
 
     function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      cbkApply = @(varargin)(labeler.setLandmarkAndSkeletonCosmetics(varargin{:})) ;
-      keypointAppearanceController = LandmarkColorsController(obj, labeler, cbkApply) ;
+      keypointAppearanceController = LandmarkColorsController(obj, labeler) ;
       obj.keypointAppearanceFigure_ = keypointAppearanceController.hFig ;
     end
 

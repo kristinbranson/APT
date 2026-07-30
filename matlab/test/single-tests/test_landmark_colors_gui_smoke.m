@@ -11,11 +11,11 @@ function test_landmark_colors_gui_smoke()
   % apply-to-model path once.
 
   applyCallCount = 0 ;
-  cbkApply = @(varargin)(recordApply()) ;
 
   labeler = makeMockLabeler_() ;
+  labeler.setLandmarkAndSkeletonCosmetics = @(varargin)(recordApply()) ;
   parent = struct('mainFigurePixelPosition', [100 100 800 600]) ;
-  controller = LandmarkColorsController(parent, labeler, cbkApply) ;
+  controller = LandmarkColorsController(parent, labeler) ;
   cleaner = onCleanup(@()(delete(controller))) ;
 
   assert(~isempty(controller.hFig) && isgraphics(controller.hFig, 'figure'), ...
@@ -47,8 +47,6 @@ function test_landmark_colors_gui_smoke()
   % and invoke the apply callback without error.
   controller.applyActuated_() ;
   assert(applyCallCount == 1, 'Apply callback was not invoked exactly once (count=%d)', applyCallCount) ;
-
-  fprintf('test_landmark_colors_gui_smoke: PASSED\n') ;
 
   function recordApply()
     applyCallCount = applyCallCount + 1 ;

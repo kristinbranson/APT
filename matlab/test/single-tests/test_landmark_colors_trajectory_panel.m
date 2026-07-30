@@ -5,18 +5,20 @@ function test_landmark_colors_trajectory_panel()
   % label font size) for projects that draw trajectories (trx or MA).  This
   % test constructs the controller with a lightweight mock Labeler, asserts the
   % pane and its widgets appear for an MA project, that editing them sends a
-  % trajSpecs struct (with the expected fields/values) through the apply
-  % callback, and that the pane is absent for a project with no trajectories.
+  % trajSpecs struct (with the expected fields/values) to
+  % setLandmarkAndSkeletonCosmetics(), and that the pane is absent for a project
+  % with no trajectories.
 
   % ---------------------------------------------------------------------------
   % MA project: the Trajectory pane should be present.
   % ---------------------------------------------------------------------------
   lastTrajSpecs = [] ;
-  cbkApply = @(colorSpecs, markerSpecs, skeletonSpecs, trajSpecs)(recordApply(trajSpecs)) ;
 
   labeler = makeMockLabeler_(true) ;  % maIsMA = true
+  labeler.setLandmarkAndSkeletonCosmetics = ...
+    @(colorSpecs, markerSpecs, skeletonSpecs, trajSpecs)(recordApply(trajSpecs)) ;
   parent = struct('mainFigurePixelPosition', [100 100 800 600]) ;
-  controller = LandmarkColorsController(parent, labeler, cbkApply) ;
+  controller = LandmarkColorsController(parent, labeler) ;
   cleaner = onCleanup(@()(delete(controller))) ;
 
   assert(controller.tfTrajControlsShown_, ...
@@ -63,15 +65,15 @@ function test_landmark_colors_trajectory_panel()
   % Non-trajectory project: the Trajectory pane should be absent.
   % ---------------------------------------------------------------------------
   labelerNoTraj = makeMockLabeler_(false) ;  % maIsMA = false, hasTrx = false
-  controllerNoTraj = LandmarkColorsController(parent, labelerNoTraj, cbkApply) ;
+  labelerNoTraj.setLandmarkAndSkeletonCosmetics = ...
+    @(colorSpecs, markerSpecs, skeletonSpecs, trajSpecs)(recordApply(trajSpecs)) ;
+  controllerNoTraj = LandmarkColorsController(parent, labelerNoTraj) ;
   cleaner2 = onCleanup(@()(delete(controllerNoTraj))) ;
 
   assert(~controllerNoTraj.tfTrajControlsShown_, ...
          'Trajectory pane was shown for a project with no trajectories') ;
   assert(isempty(controllerNoTraj.pnlTraj_), ...
          'Trajectory panel handle should be empty for a project with no trajectories') ;
-
-  fprintf('test_landmark_colors_trajectory_panel: PASSED\n') ;
 
   function recordApply(trajSpecs)
     lastTrajSpecs = trajSpecs ;
