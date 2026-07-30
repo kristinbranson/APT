@@ -14160,13 +14160,18 @@ classdef Labeler < handle
     end
 
     function result = hasTimelinePrediction(obj)
-      % Check if timeline has prediction data available
+      % Check if timeline has prediction data available.
       itm = obj.infoTimelineModel ;
-      result = isvalid(obj.tracker);
+      result = isvalid(obj.tracker) ;
       if result
-        pcode = itm.props_tracker(1);
-        data = obj.tracker.getPropValues(pcode);
-        result = ~isempty(data) && any(~isnan(data(:)));
+        % Probe for prediction data using the 'x' position feature.  The 'x'
+        % feature is a base label feature that can be computed from any predicted
+        % positions, so it reliably reflects whether prediction data is present.
+        propTrackerNames = {itm.props_tracker.name} ;
+        iPropToProbe = find(strcmp(propTrackerNames, 'x'), 1) ;
+        pcode = itm.props_tracker(iPropToProbe) ;
+        data = obj.tracker.getPropValues(pcode) ;
+        result = ~isempty(data) && any(~isnan(data(:))) ;
       end
     end
 
