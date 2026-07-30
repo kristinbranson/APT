@@ -23,6 +23,11 @@ function test_landmark_colors_gui_smoke()
   assert(strcmp(controller.hFig.Tag, 'figure_landmarkcolors'), ...
          'Dialog figure has unexpected Tag "%s"', controller.hFig.Tag) ;
 
+  % The layout is fixed-pixel with no reflow logic, so the dialog must not be
+  % resizable (a resize would strand widgets at their original coordinates).
+  assert(strcmp(controller.hFig.Resize, 'off'), ...
+         'Dialog figure should not be resizable (Resize="%s")', controller.hFig.Resize) ;
+
   % Every widget the controller drives should be a live graphics handle parented
   % (directly or indirectly) to the dialog figure.  We check the instance
   % properties rather than findobj-by-Tag because imagesc() legitimately resets
