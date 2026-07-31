@@ -1897,7 +1897,7 @@ classdef DLBackEndClass < handle
                         'sshargs',{}) ;
     
       % Wrap for docker
-      dockerimg = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere' ;
+      dockerimg = sprintf('%s:%s', DLBackEndClass.defaultDockerImgRoot, DLBackEndClass.defaultDockerImgTag) ;
       homePathWsl = apt.MetaPath('/home', 'wsl', 'slashhome') ;
       bindpath = {homePathWsl} ;
       codestr = ...
