@@ -1,6 +1,19 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import contextlib
 import logging
+import os
+import tempfile
+import urllib.request
+import warnings
 from argparse import ArgumentParser
+
+# mmengine imports pkg_resources, which emits a deprecation UserWarning on
+# import.  Silence just that warning, before importing the mm* packages that
+# trigger it.
+warnings.filterwarnings(
+    'ignore',
+    message='pkg_resources is deprecated as an API',
+    category=UserWarning)
 
 from mmcv.image import imread
 from mmengine.logging import print_log
@@ -8,6 +21,46 @@ from mmengine.logging import print_log
 from mmpose.apis import inference_topdown, init_model
 from mmpose.registry import VISUALIZERS
 from mmpose.structures import merge_data_samples
+
+
+# Known download URLs for checkpoints, keyed by file basename.  Used to fetch a
+# checkpoint from the OpenMMLab model zoo when it is not present locally.
+CHECKPOINT_URL_BY_BASENAME = {
+    'td-hm_hrnet-w48_8xb32-210e_coco-256x192-0e67c616_20220913.pth':
+        'https://download.openmmlab.com/mmpose/v1/body_2d_keypoint/'
+        'topdown_heatmap/coco/'
+        'td-hm_hrnet-w48_8xb32-210e_coco-256x192-0e67c616_20220913.pth',
+}
+
+
+def ensure_checkpoint(checkpoint):
+    # Download the checkpoint to the given path if it does not already exist.
+    if os.path.exists(checkpoint):
+        return
+    basename = os.path.basename(checkpoint)
+    url = CHECKPOINT_URL_BY_BASENAME.get(basename)
+    if url is None:
+        raise FileNotFoundError(
+            'Checkpoint {} does not exist and no download URL is known for it.'
+            .format(checkpoint))
+    print_log(
+        'Checkpoint {} not found; downloading from {}'.format(checkpoint, url),
+        logger='current',
+        level=logging.INFO)
+    # Download to a temporary file in the same directory, then rename, so an
+    # interrupted download does not leave a truncated file at the final path.
+    destination_directory = os.path.dirname(os.path.abspath(checkpoint))
+    os.makedirs(destination_directory, exist_ok=True)
+    file_descriptor, temporary_path = tempfile.mkstemp(
+        dir=destination_directory, suffix='.partial')
+    os.close(file_descriptor)
+    try:
+        urllib.request.urlretrieve(url, temporary_path)
+        os.replace(temporary_path, checkpoint)
+    except BaseException:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
+        raise
 
 
 def parse_args():
@@ -62,17 +115,24 @@ def parse_args():
 def main():
     args = parse_args()
 
+    # download the checkpoint if it is not already present
+    ensure_checkpoint(args.checkpoint)
+
     # build the model from a config file and a checkpoint file
     if args.draw_heatmap:
         cfg_options = dict(model=dict(test_cfg=dict(output_heatmaps=True)))
     else:
         cfg_options = None
 
-    model = init_model(
-        args.config,
-        args.checkpoint,
-        device=args.device,
-        cfg_options=cfg_options)
+    # init_model prints a bare "Loads checkpoint by ... backend from path: ..."
+    # line to stdout via print() (not the logger), so redirect stdout to
+    # silence just that.
+    with open(os.devnull, 'w') as devnull, contextlib.redirect_stdout(devnull):
+        model = init_model(
+            args.config,
+            args.checkpoint,
+            device=args.device,
+            cfg_options=cfg_options)
 
     # init visualizer
     model.cfg.visualizer.radius = args.radius
@@ -101,12 +161,6 @@ def main():
         skeleton_style=args.skeleton_style,
         show=args.show,
         out_file=args.out_file)
-
-    if args.out_file is not None:
-        print_log(
-            f'the output image has been saved at {args.out_file}',
-            logger='current',
-            level=logging.INFO)
 
 
 if __name__ == '__main__':
