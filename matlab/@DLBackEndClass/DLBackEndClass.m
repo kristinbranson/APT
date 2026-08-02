@@ -44,7 +44,7 @@ classdef DLBackEndClass < handle
 
   properties (Constant)
     minFreeMem = 9000  % in MiB
-    defaultDockerImgTag = 'apt-20260506-tf215-pytorch21-hopper'
+    defaultDockerImgTag = 'apt-20260801-tf215-pytorch21-hopper'
     defaultDockerImgRoot = 'bransonlabapt/apt_docker'
  
     jrchost = 'login1.int.janelia.org'
@@ -54,11 +54,11 @@ classdef DLBackEndClass < handle
     default_jrcnslots_track = 4
     default_jrcJobDuration = 10080  % in minutes; 10080 = 7 days
 
-    default_conda_env = 'apt-20250626-tf215-pytorch21-hopper' 
+    default_conda_env = 'apt-20260801-tf215-pytorch21-hopper' 
     % new docker and singularity iamges have graph-cut-opt package for id
     % linking. Didn't really know how to add it to conda without
     % recreateing it, so didn't add it. MK 20260506
-    DEFAULT_SINGULARITY_IMAGE_PATH = apt.MetaPath('/groups/branson/bransonlab/apt/sif/apt-20260506-tf215-pytorch21-hopper.sif', 'wsl', 'universal')
+    DEFAULT_SINGULARITY_IMAGE_PATH = apt.MetaPath('/groups/branson/bransonlab/apt/sif/apt-20260801-tf215-pytorch21-hopper.sif', 'wsl', 'universal')
       % Since this path's filerole is universal, the locale doesn't really
       % matter much.  We use wsl to maintain consistency with the internal storage invariant.
   end
