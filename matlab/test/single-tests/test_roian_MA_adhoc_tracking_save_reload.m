@@ -47,6 +47,29 @@ function test_roian_MA_adhoc_tracking_save_reload()
   labeler.projSave(temporaryProjectFilePath) ;
   oc2 = onCleanup(@()(delete(temporaryProjectFilePath))) ;
 
+  % Saving generates a tracking_config.json (via DeepTracker.trkCreateConfig)
+  % in the project temp dir.  For an MA project whose ID-linking crop sizes
+  % have not been set, that config generation is supposed to auto-compute them
+  % from the labels so the backend gets valid (positive) values.  Verify it
+  % did.  This guards against a bug where the auto-compute always failed --
+  % trkCreateConfig passed a bad positional argument to all2TrackParams and
+  % looked up the compute_auto_params keys without their 'ROOT.' prefix -- so
+  % the crop sizes silently stayed at their -1 default.
+  trackingConfigPath = fullfile(labeler.projTempDir, 'tracking_config.json') ;
+  if ~exist(trackingConfigPath, 'file')
+    error('Expected tracking config %s to exist after saving the project', trackingConfigPath) ;
+  end
+  trackingConfig = jsondecode(fileread(trackingConfigPath)) ;
+  cropHeights = collectFieldValues_(trackingConfig, 'link_id_cropsz_height') ;
+  cropWidths = collectFieldValues_(trackingConfig, 'link_id_cropsz_width') ;
+  if isempty(cropHeights) || isempty(cropWidths)
+    error('tracking_config.json does not contain the ID-linking crop sizes (link_id_cropsz_height/width)') ;
+  end
+  if any(cropHeights <= 0) || any(cropWidths <= 0)
+    error(['ID-linking crop sizes were not auto-computed: found height(s) %s, width(s) %s; ' ...
+           'expected all to be positive'], mat2str(cropHeights), mat2str(cropWidths)) ;
+  end
+
   % Close APT, then wait for the cache dir to be deleted (the Labeler
   % destructor deletes it asynchronously)
   cacheDirPath = labeler.projTempDir ;
@@ -79,5 +102,30 @@ function test_roian_MA_adhoc_tracking_save_reload()
   % presence or absence of the results themselves after the reload.)
   if contains(commandWindowText, 'Failed to load trkfile')
     error('Reloading the saved project warned about a missing .trk file') ;
+  end
+end  % function
+
+function values = collectFieldValues_(item, fieldName)
+  % Recursively collect all scalar-numeric values stored under fieldName
+  % anywhere within item (a struct/cell hierarchy, e.g. from jsondecode).
+  values = [] ;
+  if isstruct(item)
+    for elementIndex = 1:numel(item)  % handle struct arrays
+      element = item(elementIndex) ;
+      fieldNameList = fieldnames(element) ;
+      for fieldIndex = 1:numel(fieldNameList)
+        thisFieldName = fieldNameList{fieldIndex} ;
+        thisValue = element.(thisFieldName) ;
+        if strcmp(thisFieldName, fieldName) && isnumeric(thisValue) && isscalar(thisValue)
+          values = [values, thisValue] ;  %#ok<AGROW>
+        else
+          values = [values, collectFieldValues_(thisValue, fieldName)] ;  %#ok<AGROW>
+        end
+      end
+    end
+  elseif iscell(item)
+    for cellIndex = 1:numel(item)
+      values = [values, collectFieldValues_(item{cellIndex}, fieldName)] ;  %#ok<AGROW>
+    end
   end
 end  % function
