@@ -2690,8 +2690,8 @@ classdef DeepTracker < LabelTracker
           try
             autoparams = apt.compute_auto_params(obj.lObj) ;
             updatedPrm = APTParameters.all2TrackParams(obj.sPrmAll) ;
-            keyH = 'MultiAnimal.Track.TrackletStitch.link_id_cropsz_height' ;
-            keyW = 'MultiAnimal.Track.TrackletStitch.link_id_cropsz_width' ;
+            keyH = 'ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_height' ;
+            keyW = 'ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_width' ;
             if isKey(autoparams, keyH)
               updatedPrm.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_height = autoparams(keyH) ;
             end
