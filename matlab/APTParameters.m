@@ -229,6 +229,7 @@ classdef APTParameters
         end
       end
     end
+
     function [tPrm,minLevel] = propagateLevelFromLeaf(tPrm)
       % [tPrm,minLevel] = propagateLevelFromLeaf(tPrm)
       % Level is set in leaf nodes, set level for intermediate nodes of tree to
@@ -242,8 +243,7 @@ classdef APTParameters
         [tPrm.Children(i),minLevelCurr] = APTParameters.propagateLevelFromLeaf(tPrm.Children(i));
         minLevel = min(minLevel,minLevelCurr);
       end
-      tPrm.Data.Level = PropertyLevelsEnum(minLevel);
-      
+      tPrm.Data.Level = PropertyLevelsEnum(minLevel);      
     end
 
     function [tPrm,rqts] = propagateRequirementsFromLeaf(tPrm)
@@ -263,8 +263,7 @@ classdef APTParameters
           rqts = intersect(rqts,rqts1);
         end
       end
-      tPrm.Data.Requirements = rqts;
-      
+      tPrm.Data.Requirements = rqts;      
     end
 
     function filterPropertiesByLevel(tree,level)
@@ -282,8 +281,7 @@ classdef APTParameters
           APTParameters.filterPropertiesByLevel(tree.Children(i),level);
           tree.Data.Visible = tree.Data.Visible || tree.Children(i).Data.Visible;
         end
-      end
-      
+      end      
     end
 
     function filterPropertiesByAffectsTraining(tree,istrain)
@@ -811,10 +809,10 @@ classdef APTParameters
         end
         i = find(strcmp(oldflds,fld),1);
         if isempty(i),
-          fps{end+1,1} = fpcurr;
+          fps{end+1,1} = fpcurr;  %#ok<AGROW>
         else
           fpschild = APTParameters.modernizeMoveSubTrees(childnew,told.Children(i),fpcurr);
-          fps = [fps;fpschild];
+          fps = [fps;fpschild];  %#ok<AGROW>
         end
       end
     end
@@ -868,15 +866,16 @@ classdef APTParameters
       % equalization, neighbor masking) is no longer supported; drop any
       % stale copy carried by an older project so it does not linger in
       % the param struct.
-      rmflds = {'ROOT.ImageProcessing',
-        'ROOT.CPR',
-        'ROOT.Track.ChunkSize',
-        'ROOT.MultiAnimal.Track.TrackletStitch.link_id',
-        'ROOT.DeepTrack.DeepPoseKit',
-        'ROOT.DeepTrack.MMDetect.test'
-        'ROOT.MultiAnimalDetect.DeepTrack.MMDetect.test'
-        'ROOT.DeepTrack.MMDetect_FRCNN.test',
-        'ROOT.MultiAnimalDetect.DeepTrack.MMDetect_FRCNN.test',};
+      rmflds = ...
+        { 'ROOT.ImageProcessing'; ...
+          'ROOT.CPR'; ...
+          'ROOT.Track.ChunkSize'; ...
+          'ROOT.MultiAnimal.Track.TrackletStitch.link_id'; ...
+          'ROOT.DeepTrack.DeepPoseKit'; ...
+          'ROOT.DeepTrack.MMDetect.test'; ...
+          'ROOT.MultiAnimalDetect.DeepTrack.MMDetect.test'; ...
+          'ROOT.DeepTrack.MMDetect_FRCNN.test'; ...
+          'ROOT.MultiAnimalDetect.DeepTrack.MMDetect_FRCNN.test' } ;
       for i = 1:numel(rmflds),
         oldfld = rmflds{i};
         if structisfield(sPrmAll,oldfld),
