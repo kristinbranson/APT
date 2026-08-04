@@ -2689,7 +2689,7 @@ classdef DeepTracker < LabelTracker
         if needsIDCropSz
           try
             autoparams = apt.compute_auto_params(obj.lObj) ;
-            updatedPrm = APTParameters.all2TrackParams(obj.sPrmAll, false) ;
+            updatedPrm = APTParameters.all2TrackParams(obj.sPrmAll) ;
             keyH = 'MultiAnimal.Track.TrackletStitch.link_id_cropsz_height' ;
             keyW = 'MultiAnimal.Track.TrackletStitch.link_id_cropsz_width' ;
             if isKey(autoparams, keyH)
