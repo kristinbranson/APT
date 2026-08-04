@@ -161,13 +161,10 @@ classdef ParameterSetupModalController < handle
       % Reset which tree nodes are visible for the current labeler state.
       APTParameters.setAllVisible(obj.tree_);
       APTParameters.filterPropertiesByCondition(obj.tree_,obj.labeler_);
-      if obj.istrain_,
-        % only show training parameters
-        APTParameters.filterPropertiesByAffectsTraining(obj.tree_,true);
-      end
-
-      % currently everything seems to affect training
-      %APTParameters.filterPropertiesByAffectsTraining(obj.tree_,obj.istrain_);
+      % Show only the parameters for this dialog: training parameters
+      % (AffectsTraining==true) for the training dialog, tracking parameters
+      % (AffectsTraining==false) for the tracking dialog.
+      APTParameters.filterPropertiesByAffectsTraining(obj.tree_,obj.istrain_);
     end  % function
 
     function idxvisible = getChildrenIdxVisible(obj, tprm)  %#ok<INUSD>
