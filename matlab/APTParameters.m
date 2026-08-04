@@ -1,4 +1,35 @@
 classdef APTParameters
+  % Static utility class defining and manipulating APT's deep-learning
+  % parameter set (training, tracking, pre/post-processing, and per-network-
+  % architecture parameters).  Never instantiated -- used as a namespace.
+  %
+  % The parameter *schema* (names, defaults, display names, help text, Level,
+  % whether a parameter AffectsTraining, and applicability Requirements) lives
+  % in the params_*.json files under matlab/trackers/dt/.  Those are parsed
+  % once into TreeNode hierarchies cached in the Constant PARAM_FILES_TREES;
+  % getParamTrees() returns copies, since the trees are mutable handles.
+  %
+  % A project's parameter *values* are carried as one nested struct (informally
+  % "sPrmAll", rooted at .ROOT).  The methods here operate over that struct and
+  % the schema trees:
+  %   build   - defaultParamsTree/Struct, defaultTrackParamsTree, net variants
+  %   view    - filter a tree to a GUI list: by AffectsTraining (the Training
+  %             vs Tracking lists), by Level, by project-state Requirements
+  %             (filterPropertiesByCondition)
+  %   convert - subset/reshape for consumers: all2TrackParams,
+  %             toDeepTrackerParams, shared-DeepTrack merge/split helpers
+  %   access  - getParam/setParam and typed per-parameter accessors
+  %   migrate - modernize() upgrades param structs from older APT versions
+  %   check   - enforceConsistency, checkParams, isEqual*Params
+  %
+  % NOTE: a few methods here are really view/presentation code and do not
+  % belong on this model-side utility.  autosetparamsGUI,
+  % raiseAcceptAutoParamsDialog, and button_pressed raise modal dialogs and
+  % block on uiwait, and autosetparamsGUI additionally mutates Labeler state
+  % directly.  Per the MVP architecture these should move into
+  % LabelerController (and be made modal-but-non-blocking); they live here
+  % only for historical reasons.
+
   properties (Constant)
     % This property stores parsetrees for jsons so that json files only 
     % need to be parsed once.
