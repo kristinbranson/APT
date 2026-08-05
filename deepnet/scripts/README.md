@@ -9,8 +9,9 @@ from a single conda environment specification and is named like
 apt-20260801-tf215-pytorch21-hopper
 ```
 
-The name is `apt-` followed by a *tag* that encodes the build date and the major
-dependency/architecture targets.
+The name encodes the build date and the major dependency/architecture targets.
+That whole name is the *tag* you give the build script; it becomes the name of
+the production conda environment, and the dev environment is `<tag>-dev`.
 
 `create_production_images.py` builds (and optionally publishes) a whole
 complement in one command, resumably: run it, fix whatever breaks, run it again.
@@ -18,11 +19,11 @@ complement in one command, resumably: run it, fix whatever breaks, run it again.
 
 ## Building a complement
 
-From this directory (`deepnet/scripts`), run the script with the tag (note the
-tag includes the date):
+From this directory (`deepnet/scripts`), run the script with the tag (the tag is
+the full name, including the date):
 
 ```
-./create_production_images.py 20260801-tf215-pytorch21-hopper
+./create_production_images.py apt-20260801-tf215-pytorch21-hopper
 ```
 
 This builds everything for `apt-20260801-tf215-pytorch21-hopper` locally but does
@@ -32,15 +33,15 @@ for the smoke tests.
 The script runs these stages in order, **skipping any whose output already
 exists**:
 
-1.  Create the dev folder `apt-<tag>-dev`.
-2.  Seed `apt-<tag>-dev/environment.yaml` from `dev-environment-template.yaml`.
+1.  Create the dev folder `<tag>-dev`.
+2.  Seed `<tag>-dev/environment.yaml` from `dev-environment-template.yaml`.
 3.  Build the dev conda environment, then smoke-test it.
-4.  Create the prod folder `apt-<tag>`.
-5.  Freeze the dev environment into `apt-<tag>/environment.yaml` — a
+4.  Create the prod folder `<tag>`.
+5.  Freeze the dev environment into `<tag>/environment.yaml` — a
     fully-pinned `conda env export` of the (working) dev environment, with the
     `name:` de-`-dev`'d and the machine-specific `prefix:` line removed.
 6.  Build the prod conda environment, then smoke-test it.
-7.  Write `apt-<tag>/Dockerfile` (templated with the name and CUDA version).
+7.  Write `<tag>/Dockerfile` (templated with the name and CUDA version).
 8.  Build the Docker image, then smoke-test it.
 9.  Build the Apptainer `.sif` from the local Docker image (via the
     `docker-daemon://` transport, so no Docker Hub round-trip), then smoke-test
@@ -51,7 +52,8 @@ exists**:
 
 If any stage errors, the whole script errors.
 
-Only `environment.yaml` and `Dockerfile` in the prod directory are committed to
+Only `environment.yaml` in the dev directory and `environment.yaml`
+and `Dockerfile` in the prod directory should normally be committed to
 the repo; the built `.sif` also lands there but is git-ignored (the repo-root
 `.gitignore` ignores `*.sif`).
 
@@ -81,18 +83,18 @@ resumable, the loop is just:
 
 1. Run `./create_production_images.py <tag>`.
 2. If the dev environment fails to build or test, fix its spec.  On the first
-   run the script seeds `apt-<tag>-dev/environment.yaml` from the template; a
+   run the script seeds `<tag>-dev/environment.yaml` from the template; a
    later run will **not** overwrite it, so edit that file (or the template) to
    fix the dependencies.  If the environment built but is broken, remove it with
-   `conda env remove --name apt-<tag>-dev` so the next run rebuilds it.
+   `conda env remove --name <tag>-dev` so the next run rebuilds it.
 3. Run the script again; it skips the stages that already succeeded and retries
    the rest.
 
-To iterate on just the conda environments without building the (slow) Docker and
+To iterate on just the conda environments without building the Docker and
 Apptainer images, pass `--conda-only`:
 
 ```
-./create_production_images.py 20260801-tf215-pytorch21-hopper --conda-only
+./create_production_images.py apt-20260801-tf215-pytorch21-hopper --conda-only
 ```
 
 `--conda-only` builds and tests only the dev and prod conda environments
@@ -105,13 +107,13 @@ By default nothing is published.  When you are ready to share the images, pass
 `--publish`:
 
 ```
-./create_production_images.py 20260801-tf215-pytorch21-hopper --publish
+./create_production_images.py apt-20260801-tf215-pytorch21-hopper --publish
 ```
 
 This additionally:
 
 - pushes the Docker image to Docker Hub as
-  `bransonlabapt/apt_docker:apt-<tag>` (needed by the docker backend and the
+  `bransonlabapt/apt_docker:<tag>` (needed by the docker backend and the
   AWS/remote backends); and
 - copies the Apptainer `.sif` into `/groups/branson/bransonlab/apt/sif/`, where
   the bsub/cluster backend loads it from.

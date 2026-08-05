@@ -1,23 +1,24 @@
 #! /usr/bin/env python3
 """Build and publish a full APT conda / Docker / Apptainer complement, resumably.
 
-Given a single tag that includes the date (e.g. ``20260801-tf215-pytorch21-hopper``),
-this builds the whole complement for ``apt-<tag>`` in one command, and does so
-idempotently: every stage first checks whether its output already exists and, if
-so, skips it and moves on.  So you can run it, fix whatever broke, and run it
-again; it re-does only what is missing and always makes progress toward having a
-working conda environment, Docker image, and Apptainer image.
+Given a single tag -- the production environment name, which includes the date,
+e.g. ``apt-20260801-tf215-pytorch21-hopper`` -- this builds the whole complement
+in one command, and does so idempotently: every stage first checks whether its
+output already exists and, if so, skips it and moves on.  So you can run it, fix
+whatever broke, and run it again; it re-does only what is missing and always
+makes progress toward having a working conda environment, Docker image, and
+Apptainer image.
 
 Stages, in order (each skipped if its output already exists):
 
-  1.  Create the dev folder ``apt-<tag>-dev``.
-  2.  Seed ``apt-<tag>-dev/environment.yaml`` from ``dev-environment-template.yaml``
+  1.  Create the dev folder ``<tag>-dev``.
+  2.  Seed ``<tag>-dev/environment.yaml`` from ``dev-environment-template.yaml``
       (you may edit it between runs; a later run will not overwrite it).
   3.  Build the dev conda environment, then smoke-test it.
-  4.  Create the prod folder ``apt-<tag>``.
-  5.  Freeze the dev environment into ``apt-<tag>/environment.yaml``.
+  4.  Create the prod folder ``<tag>``.
+  5.  Freeze the dev environment into ``<tag>/environment.yaml``.
   6.  Build the prod conda environment, then smoke-test it.
-  7.  Write ``apt-<tag>/Dockerfile``.
+  7.  Write ``<tag>/Dockerfile``.
   8.  Build the Docker image, then smoke-test it.
   9.  Build the Apptainer .sif from the local Docker image, then smoke-test it.
   10. Push the Docker image to Docker Hub.            (only with --publish)
@@ -316,8 +317,8 @@ def main():
     description='Build and publish an APT conda/Docker/Apptainer complement, resumably.')
   argumentParser.add_argument(
     'tag',
-    help='The dated tag for the complement, e.g. 20260801-tf215-pytorch21-hopper.  '
-         'The complement is named apt-<tag>.')
+    help='Name of the production environment / complement, e.g. '
+         'apt-20260801-tf215-pytorch21-hopper.  The dev environment is <tag>-dev.')
   modeGroup = argumentParser.add_mutually_exclusive_group()
   modeGroup.add_argument(
     '--publish',
@@ -332,14 +333,11 @@ def main():
          'Docker and Apptainer image builds.  Cannot be combined with --publish.')
   arguments = argumentParser.parse_args()
 
-  tag = arguments.tag
-  if tag.startswith('apt-'):
-    tag = tag[len('apt-'):]
-  if tag.endswith('-dev'):
-    die('Give the tag without the -dev suffix, e.g. 20260801-tf215-pytorch21-hopper')
+  prodName = arguments.tag
+  if prodName.endswith('-dev'):
+    die('The tag is the production environment name; it must not end in -dev.')
 
   scriptsDirectory = os.path.dirname(os.path.abspath(__file__))
-  prodName = 'apt-' + tag
   devName = prodName + '-dev'
   devDirectory = os.path.join(scriptsDirectory, devName)
   prodDirectory = os.path.join(scriptsDirectory, prodName)
@@ -391,7 +389,7 @@ def main():
 
   if arguments.conda_only:
     announce('Done')
-    print('Conda environments for apt-%s are built (--conda-only; skipped Docker and Apptainer).' % tag)
+    print('Conda environments for %s are built (--conda-only; skipped Docker and Apptainer).' % prodName)
     print('  dev conda env:  %s' % devName)
     print('  prod conda env: %s' % prodName)
     return
@@ -435,12 +433,12 @@ def main():
 
   announce('Done')
   if arguments.publish:
-    print('Complement apt-%s is built and published.' % tag)
+    print('Complement %s is built and published.' % prodName)
     print('  conda env:       %s' % prodName)
     print('  docker image:    docker://%s' % imageTag)
     print('  apptainer image: %s' % sharedSifPath)
   else:
-    print('Complement apt-%s is built (not published; pass --publish to publish).' % tag)
+    print('Complement %s is built (not published; pass --publish to publish).' % prodName)
     print('  conda env:       %s' % prodName)
     print('  docker image:    %s  (local; not pushed)' % imageTag)
     print('  apptainer image: %s  (local; not copied to %s)' % (prodSifPath, SHARED_SIF_DIRECTORY))
