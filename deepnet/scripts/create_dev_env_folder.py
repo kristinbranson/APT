@@ -8,7 +8,7 @@ environment, with the ``name:`` rewritten to match the new folder).  Run this
 from deepnet/scripts.
 
 Usage:
-    ./create-dev-env-folder.py [tag]
+    ./create_dev_env_folder.py [tag]
 
 If the tag is not given on the command line, you will be prompted for it.
 
@@ -110,7 +110,7 @@ def main():
   print('')
   print('Created dev environment folder %s.' % devName)
   print('Edit %s as needed, then build the environment with:' % targetFilePath)
-  print('  ./create-conda-env.py %s' % devName)
+  print('  ./create_conda_env.py %s' % devName)
 
 
 if __name__ == '__main__':

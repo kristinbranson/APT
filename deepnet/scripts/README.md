@@ -18,13 +18,13 @@ stage that freezes it and produces the images.
 
 ## 1. Development stage (manual, iterative)
 
-Create the dev environment folder with `create-dev-env-folder.py`.  It prompts
+Create the dev environment folder with `create_dev_env_folder.py`.  It prompts
 for a *tag* — the dependency/architecture part of the name, e.g.
 `tf215-pytorch21-hopper` — and synthesizes the folder name from today's date
 (you can also pass the tag as an argument):
 
 ```
-./create-dev-env-folder.py
+./create_dev_env_folder.py
 ```
 
 This creates a directory named `apt-<today>-<tag>-dev` and seeds an
@@ -38,10 +38,10 @@ Iterate on `environment.yaml` until the environment builds.  From this
 directory (`deepnet/scripts`), run:
 
 ```
-./create-conda-env.py apt-20260801-tf215-pytorch21-hopper-dev
+./create_conda_env.py apt-20260801-tf215-pytorch21-hopper-dev
 ```
 
-`create-conda-env.py` reads the CUDA version from the environment file's
+`create_conda_env.py` reads the CUDA version from the environment file's
 `cuda-version` pin and passes it as `CONDA_OVERRIDE_CUDA`.  Once the command
 succeeds, confirm the environment actually works for APT by running the same
 smoke test the production stage uses (`test.py`, which runs the pose-estimation
@@ -54,7 +54,7 @@ conda run --no-capture-output --name apt-20260801-tf215-pytorch21-hopper-dev pyt
 
 `--no-capture-output` lets the demo's progress stream to your terminal, and
 running from `deepnet/scripts` is required so `test.py` can find the demo assets
-and `compare-to-target.py`.  The test ends with a `PASS:`/`FAIL:` line; it
+and `compare_to_target.py`.  The test ends with a `PASS:`/`FAIL:` line; it
 needs a working GPU and ImageMagick (`compare`/`identify`) on the host.  Iterate
 on the environment until it passes before moving to the production stage.
 
@@ -65,7 +65,7 @@ Once the dev environment builds and works, freeze it and build the images with
 the Python script:
 
 ```
-./create-production-complement.py apt-20260801-tf215-pytorch21-hopper-dev
+./create_production_complement.py apt-20260801-tf215-pytorch21-hopper-dev
 ```
 
 The script (Python 3.6, standard library only) does the following:
@@ -92,7 +92,7 @@ The script (Python 3.6, standard library only) does the following:
 
 Each smoke test runs the pose-estimation demo (`test.py` / `image_demo.py`) in
 the environment/image under test and compares the result to
-`demo-output-target.jpg` using perceptual similarity (`compare-to-target.py`,
+`demo-output-target.jpg` using perceptual similarity (`compare_to_target.py`,
 which shells out to ImageMagick — a host tool, so the check does not depend on
 the environment being tested).  A failing test aborts the run.  The Docker and
 Apptainer tests generate their output inside the container (with the scripts
@@ -115,13 +115,13 @@ directory after a run, but is git-ignored (the repo-root `.gitignore` ignores
 
 ## 3. Publishing the images
 
-`create-production-complement.py` builds and tests everything locally but does
+`create_production_complement.py` builds and tests everything locally but does
 not deploy anything.  When you are ready to share the images with the world, run
-`push-docker-and-apptainer-images.py` from the production directory:
+`push_docker_and_apptainer_images.py` from the production directory:
 
 ```
 cd apt-20260801-tf215-pytorch21-hopper
-../push-docker-and-apptainer-images.py
+../push_docker_and_apptainer_images.py
 ```
 
 It does two things:
@@ -133,7 +133,7 @@ It does two things:
   from.
 
 You must be logged in to Docker Hub (`docker login`) with push access to the
-`bransonlabapt` organization before running it.  The `push-*` scripts are
+`bransonlabapt` organization before running it.  The `push_*` scripts are
 hard-coded to a single image name, so edit them to match the version you are
 releasing.
 

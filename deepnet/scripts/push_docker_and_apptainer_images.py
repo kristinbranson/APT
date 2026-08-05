@@ -1,9 +1,9 @@
 #! /usr/bin/env python3
 """Share the production images with the world.
 
-Pushes the Docker image to Docker Hub (push-docker-image.py) and copies the
-Apptainer .sif into the shared image directory (push-apptainer-image.py).  Run
-this from the production directory, since push-apptainer-image.py copies the .sif
+Pushes the Docker image to Docker Hub (push_docker_image.py) and copies the
+Apptainer .sif into the shared image directory (push_apptainer_image.py).  Run
+this from the production directory, since push_apptainer_image.py copies the .sif
 from the current directory.
 
 This script uses only the Python 3.6 standard library.
@@ -17,7 +17,7 @@ import sys
 def main():
   # Run both publish steps, in the current working directory.
   scriptDirectory = os.path.dirname(os.path.abspath(__file__))
-  for scriptName in ('push-docker-image.py', 'push-apptainer-image.py'):
+  for scriptName in ('push_docker_image.py', 'push_apptainer_image.py'):
     subprocess.run([sys.executable, os.path.join(scriptDirectory, scriptName)], check=True)
 
 

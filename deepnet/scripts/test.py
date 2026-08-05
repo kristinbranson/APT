@@ -2,7 +2,7 @@
 """Smoke-test the current environment/image by running the pose-estimation demo.
 
 Runs ``image_demo.py`` to generate ``demo-output.jpg``, then compares it to the
-known-good target with ``compare-to-target.py``.  Meant to be run inside the
+known-good target with ``compare_to_target.py``.  Meant to be run inside the
 environment/image under test (e.g. ``conda run --name <env> python test.py``, or
 inside a container).
 
@@ -23,7 +23,7 @@ DEMO_SCRIPT = 'image_demo.py'
 DEMO_INPUT_IMAGE = 'demo-input.jpg'
 DEMO_CONFIG = 'td-hm_hrnet-w48_8xb32-210e_coco-256x192.py'
 DEMO_CHECKPOINT = 'td-hm_hrnet-w48_8xb32-210e_coco-256x192-0e67c616_20220913.pth'
-COMPARE_SCRIPT = 'compare-to-target.py'
+COMPARE_SCRIPT = 'compare_to_target.py'
 OUTPUT_IMAGE = 'demo-output.jpg'
 
 

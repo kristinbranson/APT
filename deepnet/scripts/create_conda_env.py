@@ -5,10 +5,10 @@ Reads ``environment.yaml`` (or ``environment.yml``) from the given directory and
 runs ``conda env create`` on it.  Run this from deepnet/scripts.
 
 Usage:
-    ./create-conda-env.py <env-dir>
+    ./create_conda_env.py <env-dir>
 
 Example:
-    ./create-conda-env.py apt-20260801-tf215-pytorch21-hopper-dev
+    ./create_conda_env.py apt-20260801-tf215-pytorch21-hopper-dev
 
 This script uses only the Python 3.6 standard library.
 """

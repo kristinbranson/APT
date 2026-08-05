@@ -4,7 +4,7 @@
 Pulls from Docker Hub, so the Docker image must have been pushed first.  (To
 build the .sif from the local Docker store instead, without a registry
 round-trip, use ``apptainer build <name>.sif docker-daemon://<image>``, which is
-what create-production-complement.py does.)  Run this from the production
+what create_production_complement.py does.)  Run this from the production
 directory.
 
 This script uses only the Python 3.6 standard library.

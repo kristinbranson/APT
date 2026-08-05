@@ -6,7 +6,7 @@ conda environment / image under test, so the check does not rely on whatever
 produced the output.
 
 Usage:
-    ./compare-to-target.py <output-image> [target-image]
+    ./compare_to_target.py <output-image> [target-image]
 
 The target image defaults to ``demo-output-target.jpg``.  Exits nonzero (with a
 "FAIL:" message) if the output is missing, the wrong size, or too dissimilar.
