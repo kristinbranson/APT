@@ -42,18 +42,28 @@ if isempty(kpcolors),
   % make sure we get red
   kpcolors = flipud(hsv((nkpts-1)*5+1));
   kpcolors = kpcolors(1:5:end,:);
+end
+
+% The axes/text colors depend only on the theme, not on where the keypoint colors
+% came from, and everything below uses them.
+if islight,
+  axescolor = 'w';
+  textcolor = 'k';
 else
-  if islight,
-    axescolor = 'w';
-    textcolor = 'k';
-  else
-    axescolor = 'k';
-    textcolor = [.99,.99,.99];
-  end
+  axescolor = 'k';
+  textcolor = [.99,.99,.99];
 end
 
 if isempty(binedges),
   maxerr = prctile(errs(:),maxprctile);
+  if ~(isfinite(maxerr) && maxerr > 0)
+    % There is no spread in the data to derive bin edges from: either every error
+    % is missing (e.g. the tracker predicted nothing for any ground-truth frame,
+    % so all rows were dropped as all-NaN) or every error is the same value.
+    % Fall back to a unit range so the histograms, empty as they are, still draw
+    % rather than histcounts() erroring on NaN or non-increasing bin edges.
+    maxerr = 1;
+  end
   binedgesplot = linspace(0,maxerr,nbins+1);
   binedges = binedgesplot;
   binedges(end) = inf; % include everything
@@ -70,7 +80,13 @@ for viewi = 1:nviews,
     haxcurr = hax(kp,viewi);
     counts = histcounts(errs(:,kp,viewi),binedges);
     ncurr = nnz(~isnan(errs(:,kp,viewi)));
-    frac = counts / ncurr;
+    if ncurr == 0,
+      % No errors for this keypoint, so plot an empty histogram rather than the
+      % NaNs that dividing by a zero count would give.
+      frac = zeros(size(counts));
+    else
+      frac = counts / ncurr;
+    end
     y = [zeros(1,nbins);frac(:)';frac(:)'];
     patch(x,[y(:);0],kpcolors(kp,:),'Parent',haxcurr,'EdgeColor',axescolor);
   end
@@ -109,7 +125,7 @@ for viewi = 1:nviews,
     if numel(kpnames) >= kp,
       s = sprintf('(%d) %s',kp,kpnames{kp});
     else
-      sprintf('(%d)',kp);
+      s = sprintf('(%d)',kp);
     end
     if nviews > 1,
       s = [s,sprintf(', view %d',viewi)];

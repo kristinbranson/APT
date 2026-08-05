@@ -1322,6 +1322,14 @@ classdef LabelerController < handle
         exampleLbl = t(1,:).pLbl;
       end
 
+      if isempty(l2err_filtered)
+        % Tracking matched no prediction to any ground-truth frame, so every plot
+        % below is empty.  Say so, rather than leaving the user to work it out from
+        % blank figures.
+        warndlg('Tracking produced no predictions for any of the ground-truth frames, so the ground-truth error plots are empty.', ...
+                'No ground-truth predictions') ;
+      end
+
       units = get(obj.mainFigure_,'Units');
       set(obj.mainFigure_,'Units','pixels');
       mainfig_pos = get(obj.mainFigure_,'Position');
