@@ -1126,6 +1126,10 @@ classdef LabelerController < handle
         obj.lblCoreController_.updateLabelCoords() ;
         obj.lblCoreController_.updateLabelVisibility() ;
         obj.lblCoreController_.updateState() ;
+        % Draw the per-frame overlay (for MA: other targets' labels and the
+        % target ROI/pch).  The model's updateNewFrameTarget event fired during
+        % labelingInit_ before this controller existed, so re-sync it now.
+        obj.lblCoreController_.updateNewFrameTarget() ;
         % Also sync ROI graphics and ROI button visibility to the current
         % labeler.showMaRoi / labeler.showMaRoiAux.
         obj.updateViewMenu() ;

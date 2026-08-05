@@ -190,6 +190,12 @@ classdef LabelCoreController < handle
       % State changed. Override in subclasses for state-dependent UI.
     end  % function
 
+    function updateNewFrameTarget(obj) %#ok<MANU>
+      % Frame/target changed. Override in subclasses that draw per-frame
+      % overlays beyond the primary label points (e.g. LabelCoreSeqMA draws
+      % the other targets' labels and the target ROI/pch here).
+    end  % function
+
     function updateOccluded(obj)
       % Occluded flags changed. Refresh occluded point display.
       obj.refreshOccludedPts() ;
