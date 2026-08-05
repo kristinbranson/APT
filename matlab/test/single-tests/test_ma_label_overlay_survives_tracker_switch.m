@@ -1,7 +1,7 @@
 function test_ma_label_overlay_survives_tracker_switch()
 % Switching the current tracker must not blank the multi-animal label
 % overlay.  Regression test for a bug where Labeler.labelingInit_ fired the
-% LabelCore model's updateNewFrameTarget event before the new LabelCore
+% LabelCore model's updateMultiTargetLabelOverlay event before the new LabelCore
 % controller existed, so LabelCoreSeqMAController never redrew the other
 % targets' labels or the target ROI/pch after a tracker switch -- leaving
 % only the current target's editable points on screen.

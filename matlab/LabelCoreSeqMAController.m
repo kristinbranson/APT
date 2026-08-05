@@ -73,7 +73,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Register additional model listeners for SeqMA-specific events
       obj.listeners_ = [obj.listeners_ ; ...
         addlistener(mdl, 'updateTwoClickState',  @(s,e)obj.updateTwoClickState()) ; ...
-        addlistener(mdl, 'updateNewFrameTarget', @(s,e)obj.updateNewFrameTarget()) ; ...
+        addlistener(mdl, 'updateMultiTargetLabelOverlay', @(s,e)obj.updateMultiTargetLabelOverlay()) ; ...
         addlistener(mdl, 'updateAccepted',       @(s,e)obj.updateAccepted()) ; ...
         addlistener(mdl, 'updateAcceptedReset',   @(s,e)obj.updateAcceptedReset()) ; ...
         addlistener(mdl, 'updateBeginLabel',     @(s,e)obj.updateBeginLabel()) ; ...
@@ -102,8 +102,18 @@ classdef LabelCoreSeqMAController < LabelCoreController
       obj.enableControls() ;
     end  % function
 
-    function updateNewFrameTarget(obj)
-      % Sync track visualization and ROI to new frame/target data.
+    function updateMultiTargetLabelOverlay(obj)
+      % Redraw the multi-target label overlay for the current frame so it
+      % matches the project's labels.  Every target's labeled coordinates are
+      % pushed into the multi-target visualizer (tv_), which draws point
+      % markers and a shaded box (pch) for each target.  The current
+      % (primary) target's point markers are then hidden -- those points are
+      % drawn separately as the editable LabelCore points -- but its box is
+      % left visible, so the net result is label points for every target
+      % except the current one and boxes for all targets including it.  This
+      % also refreshes the primary-target highlight and, when ROI display is
+      % on and not in GT mode, the user-drawn ROI rectangles.  It complements
+      % updateLabelCoords, which handles the current target's editable points.
 
       % mdl = obj.model_ ;
       lObj = obj.labeler_ ;
