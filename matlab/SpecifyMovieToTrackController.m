@@ -298,6 +298,7 @@ classdef SpecifyMovieToTrackController < handle
         
       figW = figWidth ;
       figH = figHeight ;
+      obj.posinfo.figH = figH ;
       border_w = round(0.025 * figW) ;
       border_h = round(0.025 * figH) ;
       obj.posinfo.border_h = border_h ;
@@ -1021,7 +1022,19 @@ classdef SpecifyMovieToTrackController < handle
     end
     
     function figureResizeCallback(obj, src, evt)  %#ok<INUSD>
-      % Refresh path-truncation when the figure resizes (component widths change).
+      % Keep controls anchored to upper-left when figure resizes.
+      newFigH = get(obj.fig, 'Position') ;
+      newFigH = newFigH(4) ;
+      deltaH = newFigH - obj.posinfo.figH ;
+      if deltaH ~= 0
+        controls = findobj(obj.fig, 'Type', 'uicontrol') ;
+        for i = 1:numel(controls)
+          pos = get(controls(i), 'Position') ;
+          pos(2) = pos(2) + deltaH ;
+          set(controls(i), 'Position', pos) ;
+        end
+        obj.posinfo.figH = newFigH ;
+      end
       obj.updatePathDisplay() ;
     end
 
