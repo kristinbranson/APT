@@ -262,7 +262,7 @@ classdef SpecifyMovieToTrackController < handle
       
     end
     
-    function createGUI(obj)
+    function createGUI(obj) 
       
       % movies, trks, trx, crop, calibration.  For MA projects there is a
       % linking-method row and a known-number-of-animals row.
@@ -306,22 +306,23 @@ classdef SpecifyMovieToTrackController < handle
 
       % Fixed-width column constants (pixels, independent of figure width)
       borderW = 32 ;
-      labelW = 134 ;
+      labelW = 120 ;
       ellipsisW = 64 ;
+      rowBorder = 4 ;
       colBorder = 6 ;
       controlButtonW = 192 ;
-      pathPopupW = 127 ;
-      editNumAnimalsW = 77 ;
+      pathPopupW = 128 ;
+      editNumAnimalsW = 60 ;
       chkKnownAnimalsW = 270 ;
 
-      border_h = round(0.025 * figH) ;
+      borderHeight = 4 ;
 
       % Store everything needed by figureResizeCallback in posinfo
       obj.posinfo.figW = figW ;
       obj.posinfo.figH = figH ;
       obj.posinfo.borderW = borderW ;
-      obj.posinfo.border_h = border_h ;
-      obj.posinfo.rowborder = round(0.01 * figH) ;
+      obj.posinfo.border_h = borderHeight ;
+      obj.posinfo.rowborder = rowBorder ;
       obj.posinfo.colborder = colBorder ;
       obj.posinfo.ellipsisW = ellipsisW ;
       obj.posinfo.editNumAnimalsW = editNumAnimalsW ;
@@ -337,12 +338,12 @@ classdef SpecifyMovieToTrackController < handle
       obj.posinfo.detailsbuttonx = layoutW - borderW - ellipsisW ;
 
       % Vertical layout
-      obj.posinfo.controly = border_h ;
-      maxallrowh = figH - 3*border_h - obj.posinfo.controly ...
+      obj.posinfo.controly = borderHeight ;
+      maxallrowh = figH - 3*borderHeight - obj.posinfo.controly ...
         - (obj.nfields-1)*obj.posinfo.rowborder ;
       obj.posinfo.rowh = floor(maxallrowh/(obj.nfields+1)) ;
-      obj.posinfo.rowys = figH - border_h + obj.posinfo.rowborder ...
-        - (obj.posinfo.rowborder + obj.posinfo.rowh)*(1:obj.nfields) ;
+      obj.posinfo.rowys = ...
+        figH - borderHeight + obj.posinfo.rowborder - (obj.posinfo.rowborder + obj.posinfo.rowh)*(1:obj.nfields) ;
             
       % 1 - controly - 3*border - (n-1)*rowborder= (n+1)*rowh
       % border
@@ -495,12 +496,16 @@ classdef SpecifyMovieToTrackController < handle
       if obj.isma && obj.detailed_options
 
         obj.linktext = ...
-        uicontrol('Style','text','String','Linking Method',...
-        'ForegroundColor','w','BackgroundColor',obj.colorinfo.backgroundcolor,'FontWeight','normal',...
-        'Units','pixels','Position',[obj.posinfo.textx,obj.posinfo.rowys(rowi),obj.posinfo.textw,obj.posinfo.rowh],...
-        'Tag','text_link',...
-        'HorizontalAlignment','right',...
-        'Parent',obj.fig);
+          uicontrol('Style','text', ...
+                    'String','Linking Method:',...
+                    'ForegroundColor','w', ...
+                    'BackgroundColor',obj.colorinfo.backgroundcolor, ...
+                    'FontWeight','normal',...
+                    'Units','pixels', ...
+                    'Position',[obj.posinfo.textx,obj.posinfo.rowys(rowi)-2,obj.posinfo.textw,obj.posinfo.rowh],...
+                    'Tag','text_link',...
+                    'HorizontalAlignment','right',...
+                    'Parent',obj.fig);
 
         % Linking-method popupmenu (replaces broken uiradiobuttons; see
         % path-display popupmenu above for rationale)
@@ -529,7 +534,7 @@ classdef SpecifyMovieToTrackController < handle
         % checked.
         isIdentity = strcmp(obj.link_type,'identity') ;
         if isempty(obj.movdata.id_num_animals)
-          numAnimalsStr = '' ;
+          numAnimalsStr = '10' ;  % Otherwise just looks like a random white box
         else
           numAnimalsStr = num2str(obj.movdata.id_num_animals) ;
         end
@@ -657,7 +662,7 @@ classdef SpecifyMovieToTrackController < handle
       obj.(key).rowtext(i) = ...
         uicontrol('Style','text','String',textstr,...
         'ForegroundColor','w','BackgroundColor',obj.colorinfo.backgroundcolor,'FontWeight','normal',...
-        'Units','pixels','Position',[obj.posinfo.textx,rowy,obj.posinfo.textw,obj.posinfo.rowh],...
+        'Units','pixels','Position',[obj.posinfo.textx,rowy-1,obj.posinfo.textw,obj.posinfo.rowh],...
         'Tag',['text_',tag],...
         'HorizontalAlignment','right',...
         'Parent',obj.fig);
