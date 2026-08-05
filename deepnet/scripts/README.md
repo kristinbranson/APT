@@ -18,16 +18,21 @@ stage that freezes it and produces the images.
 
 ## 1. Development stage (manual, iterative)
 
-Create a directory whose name ends in `-dev`, e.g.
+Create the dev environment folder with `create-dev-env-folder.bash`.  It prompts
+for a *tag* — the dependency/architecture part of the name, e.g.
+`tf215-pytorch21-hopper` — and synthesizes the folder name from today's date
+(you can also pass the tag as an argument):
 
 ```
-apt-20260801-tf215-pytorch21-hopper-dev
+./create-dev-env-folder.bash
 ```
 
-and put an `environment.yaml` in it.  This is the *unpinned* spec: it lists the
-direct dependencies with loose version constraints (see an existing `-dev`
-directory's `environment.yml`/`environment.yaml` for a starting point).  The
-`name:` inside the file should match the directory name.
+This creates a directory named `apt-<today>-<tag>-dev` and seeds an
+`environment.yaml` in it, copied from the most recent existing `-dev`
+environment with the `name:` rewritten to match the new folder.  That
+`environment.yaml` is the *unpinned* spec: it lists the direct dependencies with
+loose version constraints.  Edit it to add, remove, or adjust dependencies for
+the new environment.
 
 Iterate on `environment.yaml` until the environment builds.  From this
 directory (`deepnet/scripts`), run:
