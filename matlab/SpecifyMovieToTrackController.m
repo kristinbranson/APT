@@ -54,26 +54,30 @@ classdef SpecifyMovieToTrackController < handle
         );
 
       obj.lObj = lObj;
-      obj.isma = lObj.maIsMA;
+      if isempty(lObj)
+        obj.isma = true ;
+      else
+        obj.isma = lObj.maIsMA;
+      end
       obj.parent_ = parent;
       obj.detailed_options = detailed_options;
 
-      obj.nview = obj.lObj.nview;
-      obj.hastrx = obj.lObj.hasTrx;
+      obj.nview = lObj.nview;
+      obj.hastrx = lObj.hasTrx;
       obj.iscrop = ~obj.hastrx;
-      %obj.iscrop = obj.lObj.cropProjHasCrops; % to do: allow cropping when trained without cropping?
+      %obj.iscrop = lObj.cropProjHasCrops; % to do: allow cropping when trained without cropping?
       if obj.nview > 1 
-        prms = obj.lObj.trackParams ;
+        prms = lObj.trackParams ;
         docalibrate = ~strcmpi(APTParameters.getPostProcessReconcile3dType(prms), 'none') ;
       else
         docalibrate = false ;
       end
       obj.docalibrate = docalibrate ;
       if obj.iscrop,
-        if obj.lObj.cropProjHasCrops,
-          obj.cropwh = obj.lObj.cropGetCurrentCropWidthHeightOrDefault();
+        if lObj.cropProjHasCrops,
+          obj.cropwh = lObj.cropGetCurrentCropWidthHeightOrDefault();
         else
-          [minnc,minnr] = obj.lObj.getMinMovieWidthHeight();
+          [minnc,minnr] = lObj.getMinMovieWidthHeight();
           obj.cropwh = [minnc(:)-1,minnr(:)-1];
         end
       end
@@ -293,25 +297,46 @@ classdef SpecifyMovieToTrackController < handle
         'Units','pixels',...
         'Position',obj.posinfo.figpos,...
         'WindowStyle','modal',...
-        'CloseRequestFcn',@(src,evt) obj.parent_.deleteSpecifyMovieToTrackController(),...
-        'ResizeFcn',@(src,evt) obj.figureResizeCallback(src,evt));
+        'CloseRequestFcn',@(src,evt) obj.parent_.deleteSpecifyMovieToTrackController());
         
       figW = figWidth ;
       figH = figHeight ;
-      obj.posinfo.figH = figH ;
-      border_w = round(0.025 * figW) ;
+      minLayoutW = 858 ;
+      layoutW = max(figW, minLayoutW) ;
+
+      % Fixed-width column constants (pixels, independent of figure width)
+      borderW = 32 ;
+      labelW = 134 ;
+      ellipsisW = 64 ;
+      colBorder = 6 ;
+      controlButtonW = 192 ;
+      pathPopupW = 127 ;
+      editNumAnimalsW = 77 ;
+      chkKnownAnimalsW = 270 ;
+
       border_h = round(0.025 * figH) ;
+
+      % Store everything needed by figureResizeCallback in posinfo
+      obj.posinfo.figW = figW ;
+      obj.posinfo.figH = figH ;
+      obj.posinfo.borderW = borderW ;
       obj.posinfo.border_h = border_h ;
       obj.posinfo.rowborder = round(0.01 * figH) ;
-      obj.posinfo.colborder = round(0.005 * figW) ;
-      % border_w  text  border_w  edit  colborder  filebutton  border_w
-      obj.posinfo.textx = border_w ;
-      obj.posinfo.textw = round(0.3 * figW) ;
-      obj.posinfo.detailsbuttonw = round(0.05 * figW) ;
-      obj.posinfo.editx = obj.posinfo.textx + obj.posinfo.textw + border_w ;
-      obj.posinfo.editw = figW - 3*border_w - obj.posinfo.colborder ...
-        - obj.posinfo.textw - obj.posinfo.detailsbuttonw ;
-      obj.posinfo.detailsbuttonx = figW - border_w - obj.posinfo.detailsbuttonw ;
+      obj.posinfo.colborder = colBorder ;
+      obj.posinfo.ellipsisW = ellipsisW ;
+      obj.posinfo.editNumAnimalsW = editNumAnimalsW ;
+      obj.posinfo.pathPopupW = pathPopupW ;
+      obj.posinfo.minLayoutW = minLayoutW ;
+
+      % Horizontal layout: borderW | label | borderW | edit | colBorder | ellipsis | borderW
+      obj.posinfo.textx = borderW ;
+      obj.posinfo.textw = labelW + borderW - 3 ;
+      obj.posinfo.detailsbuttonw = ellipsisW ;
+      obj.posinfo.editx = borderW + labelW + borderW ;
+      obj.posinfo.editw = layoutW - obj.posinfo.editx - colBorder - ellipsisW - borderW ;
+      obj.posinfo.detailsbuttonx = layoutW - borderW - ellipsisW ;
+
+      % Vertical layout
       obj.posinfo.controly = border_h ;
       maxallrowh = figH - 3*border_h - obj.posinfo.controly ...
         - (obj.nfields-1)*obj.posinfo.rowborder ;
@@ -336,10 +361,8 @@ classdef SpecifyMovieToTrackController < handle
         [0,0,.8
         0,.7,.7];
       ncontrolbuttons = numel(controlbuttonstrs);
-      controlbuttonw = round(0.15 * figW) ;
-      allcontrolbuttonw = ncontrolbuttons*controlbuttonw + (ncontrolbuttons-1)*obj.posinfo.colborder;
-      controlbuttonx1 = round((figW - allcontrolbuttonw)/2) ;
-      controlbuttonxs = controlbuttonx1 + (controlbuttonw+obj.posinfo.colborder)*(0:ncontrolbuttons-1);
+      controlbuttonw = controlButtonW ;
+      controlbuttonxs = obj.posinfo.editx + (controlbuttonw+obj.posinfo.colborder)*(0:ncontrolbuttons-1);
       controlbuttony = obj.posinfo.controly ;
 
 
@@ -352,7 +375,6 @@ classdef SpecifyMovieToTrackController < handle
       end
 
       % Add path-display popupmenu, right-aligned with the edit fields above
-      pathPopupW = round(0.099 * figW) ;  % ~60% of the prior toggle-pair width
       pathPopupX1 = obj.posinfo.editx + obj.posinfo.editw - pathPopupW ;
       if obj.showPathEnds
         pathPopupValue = 2;
@@ -511,13 +533,12 @@ classdef SpecifyMovieToTrackController < handle
         else
           numAnimalsStr = num2str(obj.movdata.id_num_animals) ;
         end
-        editNumAnimalsW = round(0.06 * figW) ;
         obj.chk_known_num_animals = uicontrol(obj.fig,...
           'Style','checkbox',...
           'String','Known number of animals in videos:',...
           'Value',obj.movdata.id_known_num_animals,...
           'Units','pixels',...
-          'Position',[obj.posinfo.editx obj.posinfo.rowys(rowi) obj.posinfo.editw-editNumAnimalsW-obj.posinfo.colborder obj.posinfo.rowh],...
+          'Position',[obj.posinfo.editx obj.posinfo.rowys(rowi) chkKnownAnimalsW obj.posinfo.rowh],...
           'ForegroundColor','w',...
           'BackgroundColor',obj.colorinfo.backgroundcolor,...
           'Enable',onIff(isIdentity),...
@@ -529,7 +550,7 @@ classdef SpecifyMovieToTrackController < handle
           'String',numAnimalsStr,...
           'HorizontalAlignment','left',...
           'Units','pixels',...
-          'Position',[obj.posinfo.editx+obj.posinfo.editw-editNumAnimalsW obj.posinfo.rowys(rowi) editNumAnimalsW obj.posinfo.rowh],...
+          'Position',[obj.posinfo.editx+chkKnownAnimalsW+obj.posinfo.colborder obj.posinfo.rowys(rowi) obj.posinfo.editNumAnimalsW obj.posinfo.rowh],...
           'ForegroundColor','w',...
           'BackgroundColor',obj.colorinfo.editfilecolor,...
           'Enable',onIff(isIdentity && obj.movdata.id_known_num_animals),...
@@ -548,6 +569,10 @@ classdef SpecifyMovieToTrackController < handle
         % end
 
       end  % if obj.isma etc
+
+      % Set ResizeFcn now that layout is fully initialized, so the callback
+      % cannot fire before posinfo is ready.
+      set(obj.fig, 'ResizeFcn', @(src,evt) obj.figureResizeCallback(src,evt)) ;
 
       % Initial updatePathDisplay() is deferred to run(), since the
       % WM-realized geometry isn't available until the figure has actually
@@ -1022,18 +1047,58 @@ classdef SpecifyMovieToTrackController < handle
     end
     
     function figureResizeCallback(obj, src, evt)  %#ok<INUSD>
-      % Keep controls anchored to upper-left when figure resizes.
-      newFigH = get(obj.fig, 'Position') ;
-      newFigH = newFigH(4) ;
+      % Keep controls anchored to upper-left; expand edit column on width change.
+      newFigPos = get(obj.fig, 'Position') ;
+      newFigW = newFigPos(3) ;
+      newFigH = newFigPos(4) ;
       deltaH = newFigH - obj.posinfo.figH ;
+      deltaW = newFigW - obj.posinfo.figW ;
       if deltaH ~= 0
+        % Shift all controls vertically to stay anchored to the top.
         controls = findobj(obj.fig, 'Type', 'uicontrol') ;
-        for i = 1:numel(controls)
-          pos = get(controls(i), 'Position') ;
+        for k = 1:numel(controls)
+          pos = get(controls(k), 'Position') ;
           pos(2) = pos(2) + deltaH ;
-          set(controls(i), 'Position', pos) ;
+          set(controls(k), 'Position', pos) ;
         end
         obj.posinfo.figH = newFigH ;
+      end
+      if deltaW ~= 0
+        % Recompute edit column width and ellipsis x from new figure width.
+        newLayoutW = max(newFigW, obj.posinfo.minLayoutW) ;
+        newEditW = newLayoutW - obj.posinfo.editx ...
+          - obj.posinfo.colborder - obj.posinfo.ellipsisW - obj.posinfo.borderW ;
+        newDetailsBtnX = newLayoutW - obj.posinfo.borderW - obj.posinfo.ellipsisW ;
+        % Widen all row-edit fields (full edit column width).
+        editControls = findobj(obj.fig, '-regexp', 'Tag', '^edit_') ;
+        for k = 1:numel(editControls)
+          if ~strcmp(get(editControls(k), 'Tag'), 'edit_num_animals')
+            pos = get(editControls(k), 'Position') ;
+            pos(3) = newEditW ;
+            set(editControls(k), 'Position', pos) ;
+          end
+        end
+        % Move ellipsis buttons to new right edge.
+        pbControls = findobj(obj.fig, '-regexp', 'Tag', '^pb_') ;
+        for k = 1:numel(pbControls)
+          pos = get(pbControls(k), 'Position') ;
+          pos(1) = newDetailsBtnX ;
+          set(pbControls(k), 'Position', pos) ;
+        end
+        % Widen linking popupmenu (MA only).
+        if ~isempty(obj.pum_linking) && isvalid(obj.pum_linking)
+          pos = get(obj.pum_linking, 'Position') ;
+          pos(3) = newEditW ;
+          set(obj.pum_linking, 'Position', pos) ;
+        end
+        % Slide path-display PUM to stay flush-right in edit column.
+        if ~isempty(obj.pum_path) && isvalid(obj.pum_path)
+          pos = get(obj.pum_path, 'Position') ;
+          pos(1) = obj.posinfo.editx + newEditW - obj.posinfo.pathPopupW ;
+          set(obj.pum_path, 'Position', pos) ;
+        end
+        obj.posinfo.editw = newEditW ;
+        obj.posinfo.figW = newFigW ;
       end
       obj.updatePathDisplay() ;
     end
