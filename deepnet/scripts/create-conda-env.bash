@@ -7,7 +7,7 @@
 #   ./create-conda-env.bash <env-dir>
 #
 # Example:
-#   ./create-conda-env.bash apt-20260730-tf215-pytorch21-hopper-dev
+#   ./create-conda-env.bash apt-20260801-tf215-pytorch21-hopper-dev
 
 set -e
 

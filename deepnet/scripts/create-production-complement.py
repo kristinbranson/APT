@@ -11,8 +11,10 @@ production complement:
      templated with the production name.
   2. The production conda environment, actually created on this machine so the
      local conda backend can use it.
-  3. A Docker image, built and pushed to Docker Hub.
-  4. An Apptainer ``.sif`` file, pulled from the pushed Docker image.
+  3. A Docker image, built locally (not pushed; push it afterward with
+     ``push-docker-image.bash`` -- see the README).
+  4. An Apptainer ``.sif`` file, built from the local Docker image via the
+     ``docker-daemon://`` transport (no registry round-trip).
 
 At each stage the corresponding environment/image is smoke-tested by running
 the pose-estimation demo (``test.sh`` / ``image_demo.py``) and comparing its
@@ -21,9 +23,9 @@ environment is tested first, before any of the (expensive) build steps.
 
 Typical usage, run from deepnet/scripts:
 
-    ./create-conda-env.bash apt-20260730-tf215-pytorch21-hopper-dev  # iterate until this works
-    conda activate apt-20260730-tf215-pytorch21-hopper-dev            # sanity-check the env
-    ./create-production-complement.py apt-20260730-tf215-pytorch21-hopper-dev
+    ./create-conda-env.bash apt-20260801-tf215-pytorch21-hopper-dev  # iterate until this works
+    conda activate apt-20260801-tf215-pytorch21-hopper-dev            # sanity-check the env
+    ./create-production-complement.py apt-20260801-tf215-pytorch21-hopper-dev
 
 This script uses only the Python 3.6 standard library.
 """
@@ -328,10 +330,10 @@ def main():
   # Parse arguments, run the checks, and produce the production complement.
   argumentParser = argparse.ArgumentParser(
     description='Turn a working "dev" conda environment into a production '
-                'conda environment, a pushed Docker image, and an Apptainer .sif file.')
+                'conda environment, a locally-built Docker image, and an Apptainer .sif file.')
   argumentParser.add_argument(
     'developmentDirectory',
-    help='The dev environment directory, e.g. apt-20260730-tf215-pytorch21-hopper-dev.  '
+    help='The dev environment directory, e.g. apt-20260801-tf215-pytorch21-hopper-dev.  '
          'Its name must end in "-dev".')
   argumentParser.add_argument(
     '--force',
@@ -413,19 +415,18 @@ def main():
               environmentOverride={'PIP_NO_DEPS': '1', 'CONDA_OVERRIDE_CUDA': cudaOverride})
   test_conda_environment(condaPath, scriptsDirectory, productionName)
 
-  # 4. Build the Docker image and test it before pushing.
+  # 4. Build the Docker image and test it.  (It is not pushed to Docker Hub
+  # here; do that afterward with push-docker-image.bash -- see the README.)
   announce('Building Docker image %s' % imageTag)
   run_command([dockerPath, 'build', '--file', 'Dockerfile', '--tag', imageTag, '.'],
               cwd=productionDirectory)
   test_docker_image(dockerPath, scriptsDirectory, imageTag)
 
-  # 5. Push the Docker image.
-  announce('Pushing Docker image %s' % imageTag)
-  run_command([dockerPath, 'push', imageTag])
-
-  # 6. Pull the Apptainer .sif from the pushed Docker image, and test it.
+  # 5. Build the Apptainer .sif from the local Docker image, and test it.  The
+  # docker-daemon:// transport reads the just-built image straight from the
+  # local Docker store, so no push/pull round-trip through Docker Hub is needed.
   announce('Creating Apptainer image %s.sif' % productionName)
-  run_command([apptainerPath, 'pull', productionName + '.sif', 'docker://' + imageTag],
+  run_command([apptainerPath, 'build', productionName + '.sif', 'docker-daemon://' + imageTag],
               cwd=productionDirectory)
   sifPath = os.path.join(productionDirectory, productionName + '.sif')
   test_apptainer_image(apptainerPath, scriptsDirectory, sifPath)
@@ -433,8 +434,11 @@ def main():
   announce('Done')
   print('Production complement created in %s' % productionDirectory)
   print('  conda env:       %s' % productionName)
-  print('  docker image:    docker://%s:%s' % (DOCKER_IMAGE_REPOSITORY, productionName))
+  print('  docker image:    %s:%s  (local; not yet pushed)' % (DOCKER_IMAGE_REPOSITORY, productionName))
   print('  apptainer image: %s' % os.path.join(productionDirectory, productionName + '.sif'))
+  print('')
+  print('When ready to share the images with the world, run')
+  print('push-docker-and-apptainer-images.bash from the production directory (see the README).')
 
 
 if __name__ == '__main__':
