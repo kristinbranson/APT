@@ -3,7 +3,7 @@
 
 Given a development environment directory (one whose name ends in ``-dev`` and
 that contains an ``environment.yaml`` you have already gotten to build with
-``./create-conda-env.bash <dir>``), this script produces the matching
+``./create-conda-env.py <dir>``), this script produces the matching
 production complement:
 
   1. A production conda environment directory (the ``-dev`` suffix dropped),
@@ -12,18 +12,18 @@ production complement:
   2. The production conda environment, actually created on this machine so the
      local conda backend can use it.
   3. A Docker image, built locally (not pushed; push it afterward with
-     ``push-docker-image.bash`` -- see the README).
+     ``push-docker-image.py`` -- see the README).
   4. An Apptainer ``.sif`` file, built from the local Docker image via the
      ``docker-daemon://`` transport (no registry round-trip).
 
 At each stage the corresponding environment/image is smoke-tested by running
-the pose-estimation demo (``test.sh`` / ``image_demo.py``) and comparing its
+the pose-estimation demo (``test.py`` / ``image_demo.py``) and comparing its
 output to ``demo-output-target.jpg``; a failing test aborts the run.  The dev
 environment is tested first, before any of the (expensive) build steps.
 
 Typical usage, run from deepnet/scripts:
 
-    ./create-conda-env.bash apt-20260801-tf215-pytorch21-hopper-dev  # iterate until this works
+    ./create-conda-env.py apt-20260801-tf215-pytorch21-hopper-dev  # iterate until this works
     conda activate apt-20260801-tf215-pytorch21-hopper-dev            # sanity-check the env
     ./create-production-complement.py apt-20260801-tf215-pytorch21-hopper-dev
 
@@ -47,8 +47,8 @@ DEMO_SCRIPT = 'image_demo.py'
 DEMO_INPUT_IMAGE = 'demo-input.jpg'
 DEMO_CONFIG = 'td-hm_hrnet-w48_8xb32-210e_coco-256x192.py'
 DEMO_CHECKPOINT = 'td-hm_hrnet-w48_8xb32-210e_coco-256x192-0e67c616_20220913.pth'
-TEST_SCRIPT = 'test.sh'
-COMPARE_SCRIPT = 'compare-to-target.bash'
+TEST_SCRIPT = 'test.py'
+COMPARE_SCRIPT = 'compare-to-target.py'
 
 # Directories to search (in addition to $PATH) when looking for a required
 # executable in its "standard" location.
@@ -289,14 +289,14 @@ def image_demo_command(outputBaseName):
 def compare_to_target(scriptsDirectory, outputBaseName):
   # Compare a demo output image to the target using the host-side ImageMagick
   # comparison script.  Raises CalledProcessError if it does not match.
-  run_command(['bash', COMPARE_SCRIPT, outputBaseName], cwd=scriptsDirectory)
+  run_command([sys.executable, COMPARE_SCRIPT, outputBaseName], cwd=scriptsDirectory)
 
 
 def test_conda_environment(condaPath, scriptsDirectory, environmentName):
   # Run the smoke test (generate + compare) inside the named conda environment.
   announce('Testing conda environment %s' % environmentName)
   run_command([condaPath, 'run', '--no-capture-output', '--name', environmentName,
-               'bash', TEST_SCRIPT],
+               'python', TEST_SCRIPT],
               cwd=scriptsDirectory)
 
 
@@ -379,7 +379,7 @@ def main():
   # this script picks up from).
   if not conda_environment_exists(condaPath, developmentEnvironmentName):
     die('The dev conda environment "%s" does not exist.  Create it first with '
-        './create-conda-env.bash %s' % (developmentEnvironmentName, developmentDirectoryName))
+        './create-conda-env.py %s' % (developmentEnvironmentName, developmentDirectoryName))
 
   dockerPath = toolPathByName['docker']
   apptainerPath = toolPathByName['apptainer']
@@ -416,7 +416,7 @@ def main():
   test_conda_environment(condaPath, scriptsDirectory, productionName)
 
   # 4. Build the Docker image and test it.  (It is not pushed to Docker Hub
-  # here; do that afterward with push-docker-image.bash -- see the README.)
+  # here; do that afterward with push-docker-image.py -- see the README.)
   announce('Building Docker image %s' % imageTag)
   run_command([dockerPath, 'build', '--file', 'Dockerfile', '--tag', imageTag, '.'],
               cwd=productionDirectory)
@@ -438,7 +438,7 @@ def main():
   print('  apptainer image: %s' % os.path.join(productionDirectory, productionName + '.sif'))
   print('')
   print('When ready to share the images with the world, run')
-  print('push-docker-and-apptainer-images.bash from the production directory (see the README).')
+  print('push-docker-and-apptainer-images.py from the production directory (see the README).')
 
 
 if __name__ == '__main__':
