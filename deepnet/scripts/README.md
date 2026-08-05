@@ -44,19 +44,20 @@ directory (`deepnet/scripts`), run:
 `create_conda_env.py` reads the CUDA version from the environment file's
 `cuda-version` pin and passes it as `CONDA_OVERRIDE_CUDA`.  Once the command
 succeeds, confirm the environment actually works for APT by running the same
-smoke test the production stage uses (`test.py`, which runs the pose-estimation
-demo and compares its output to `demo-output-target.jpg`).  From this directory
-(`deepnet/scripts`), run it in the dev environment with `conda run`:
+smoke test the production stage uses (`test_pose_estimation.py`, which runs the
+pose-estimation demo and compares its output to `demo-output-target.jpg`).  From
+this directory (`deepnet/scripts`), run it in the dev environment with
+`conda run`:
 
 ```
-conda run --no-capture-output --name apt-20260801-tf215-pytorch21-hopper-dev python test.py
+conda run --no-capture-output --name apt-20260801-tf215-pytorch21-hopper-dev python test_pose_estimation.py
 ```
 
-`--no-capture-output` lets the demo's progress stream to your terminal, and
-running from `deepnet/scripts` is required so `test.py` can find the demo assets
-and `compare_to_target.py`.  The test ends with a `PASS:`/`FAIL:` line; it
-needs a working GPU and ImageMagick (`compare`/`identify`) on the host.  Iterate
-on the environment until it passes before moving to the production stage.
+`--no-capture-output` lets the demo's progress stream to your terminal.  The
+test ends with a `PASS:`/`FAIL:` line and needs a working GPU; the image
+comparison is done in Python (numpy), so no extra host tools are required.
+Iterate on the environment until it passes before moving to the production
+stage.
 
 
 ## 2. Production stage (automated)
@@ -70,8 +71,7 @@ the Python script:
 
 The script (Python 3.6, standard library only) does the following:
 
-1. Checks that `conda`, `docker`, `apptainer`, and ImageMagick
-   (`compare`/`identify`, used by the smoke test) are installed in standard
+1. Checks that `conda`, `docker`, and `apptainer` are installed in standard
    locations, erroring out early if any is missing.
 2. Smoke-tests the dev environment first (before any expensive build step), so
    a broken environment fails fast.
@@ -90,15 +90,15 @@ The script (Python 3.6, standard library only) does the following:
    just-built local Docker image (via the `docker-daemon://` transport, so no
    Docker Hub round-trip), and smoke-tests it.
 
-Each smoke test runs the pose-estimation demo (`test.py` / `image_demo.py`) in
-the environment/image under test and compares the result to
-`demo-output-target.jpg` using perceptual similarity (`compare_to_target.py`,
-which shells out to ImageMagick — a host tool, so the check does not depend on
-the environment being tested).  A failing test aborts the run.  The Docker and
-Apptainer tests generate their output inside the container (with the scripts
-directory bind-mounted) and compare on the host, since the images themselves do
-not include ImageMagick.  The demo runs on the GPU (`--gpus all` for Docker,
-`--nv` for Apptainer), so a working GPU is required.
+Each smoke test runs `test_pose_estimation.py` in the environment/image under
+test: it runs the pose-estimation demo and compares the result to
+`demo-output-target.jpg`.  The comparison is a normalized RMS pixel difference
+computed in Python with numpy, so it needs no tools beyond the environment under
+test, and the whole test — compute and compare — runs inside that environment or
+image (the scripts directory is bind-mounted into the Docker/Apptainer
+containers so the test script and assets are available).  A failing test aborts
+the run.  The demo runs on the GPU (`--gpus all` for Docker, `--nv` for
+Apptainer), so a working GPU is required.
 
 Pass `--force` to overwrite an existing production directory.
 

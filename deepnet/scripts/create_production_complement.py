@@ -17,7 +17,7 @@ production complement:
      ``docker-daemon://`` transport (no registry round-trip).
 
 At each stage the corresponding environment/image is smoke-tested by running
-the pose-estimation demo (``test.py`` / ``image_demo.py``) and comparing its
+the pose-estimation smoke test (``test_pose_estimation.py``), which compares its
 output to ``demo-output-target.jpg``; a failing test aborts the run.  The dev
 environment is tested first, before any of the (expensive) build steps.
 
@@ -41,14 +41,11 @@ import sys
 # Docker Hub repository that production images are tagged under.
 DOCKER_IMAGE_REPOSITORY = 'bransonlabapt/apt_docker'
 
-# Files (all living in this scripts directory) that make up the smoke test: run
-# the pose-estimation demo and compare its output to a known-good target.
-DEMO_SCRIPT = 'image_demo.py'
-DEMO_INPUT_IMAGE = 'demo-input.jpg'
-DEMO_CONFIG = 'td-hm_hrnet-w48_8xb32-210e_coco-256x192.py'
-DEMO_CHECKPOINT = 'td-hm_hrnet-w48_8xb32-210e_coco-256x192-0e67c616_20220913.pth'
-TEST_SCRIPT = 'test.py'
-COMPARE_SCRIPT = 'compare_to_target.py'
+# The smoke-test script (lives in this scripts directory).  It runs the
+# pose-estimation demo and compares its output to a known-good target, doing the
+# comparison itself in Python, so the whole test runs inside the environment or
+# image under test.
+TEST_SCRIPT = 'test_pose_estimation.py'
 
 # Directories to search (in addition to $PATH) when looking for a required
 # executable in its "standard" location.
@@ -106,10 +103,8 @@ def find_conda():
 
 
 def require_executables():
-  # Verify that conda, docker, apptainer, and ImageMagick (compare/identify)
-  # are all installed in standard locations.  Return their paths as a dict.
-  # Exit with an error otherwise.  compare/identify are used by the smoke test
-  # to compare demo output to the target image.
+  # Verify that conda, docker, and apptainer are all installed in standard
+  # locations.  Return their paths as a dict.  Exit with an error otherwise.
   announce('Checking for required executables')
   toolPathByName = {}
 
@@ -120,15 +115,12 @@ def require_executables():
   print('Found conda at %s' % condaPath)
   toolPathByName['conda'] = condaPath
 
-  packageHintByProgram = {'compare': 'ImageMagick', 'identify': 'ImageMagick'}
-  for programName in ('docker', 'apptainer', 'compare', 'identify'):
+  for programName in ('docker', 'apptainer'):
     programPath = find_executable_in_standard_locations(programName)
     if programPath is None:
-      packageHint = packageHintByProgram.get(programName)
-      hintText = (' (provided by %s)' % packageHint) if packageHint else ''
-      die('%s%s was not found in $PATH or any standard location (%s).  '
+      die('%s was not found in $PATH or any standard location (%s).  '
           'Please install it before running this script.'
-          % (programName, hintText, ', '.join(STANDARD_BIN_DIRECTORIES)))
+          % (programName, ', '.join(STANDARD_BIN_DIRECTORIES)))
     print('Found %s at %s' % (programName, programPath))
     toolPathByName[programName] = programPath
 
@@ -278,20 +270,6 @@ def write_production_directory_files(productionDirectory, productionName, frozen
   print('Wrote %s' % dockerfilePath)
 
 
-def image_demo_command(outputBaseName):
-  # Return the argv that runs the pose-estimation demo, writing its result to
-  # outputBaseName.  Meant to run with the scripts directory as the working
-  # directory (natively, or bind-mounted into a container).
-  return ['python', DEMO_SCRIPT, DEMO_INPUT_IMAGE, DEMO_CONFIG, DEMO_CHECKPOINT,
-          '--out-file', outputBaseName, '--draw-heatmap']
-
-
-def compare_to_target(scriptsDirectory, outputBaseName):
-  # Compare a demo output image to the target using the host-side ImageMagick
-  # comparison script.  Raises CalledProcessError if it does not match.
-  run_command([sys.executable, COMPARE_SCRIPT, outputBaseName], cwd=scriptsDirectory)
-
-
 def test_conda_environment(condaPath, scriptsDirectory, environmentName):
   # Run the smoke test (generate + compare) inside the named conda environment.
   announce('Testing conda environment %s' % environmentName)
@@ -301,29 +279,26 @@ def test_conda_environment(condaPath, scriptsDirectory, environmentName):
 
 
 def test_docker_image(dockerPath, scriptsDirectory, imageTag):
-  # Run the demo inside the Docker image (scripts dir bind-mounted so the demo
-  # assets are available and the output lands back on the host), then compare
-  # the output to the target on the host (the image has no ImageMagick).
+  # Run the smoke test inside the Docker image (scripts dir bind-mounted so the
+  # test script and demo assets are available and any output lands back on the
+  # host).  The test does its own comparison in Python, so nothing runs on the
+  # host.
   announce('Testing Docker image %s' % imageTag)
-  outputBaseName = 'docker-output.jpg'
   run_command([dockerPath, 'run', '--rm', '--gpus', 'all',
                '--volume', scriptsDirectory + ':/mnt',
                '--workdir', '/mnt',
-               imageTag]
-              + image_demo_command(outputBaseName))
-  compare_to_target(scriptsDirectory, outputBaseName)
+               imageTag,
+               'python', TEST_SCRIPT, '--output', 'docker-output.jpg'])
 
 
 def test_apptainer_image(apptainerPath, scriptsDirectory, sifPath):
-  # Run the demo inside the Apptainer image (which runs in the scripts
-  # directory, so the demo assets and output are on the host), then compare the
-  # output to the target on the host.
+  # Run the smoke test inside the Apptainer image (which runs in the scripts
+  # directory, so the test script, demo assets, and any output are on the host).
+  # The test does its own comparison in Python.
   announce('Testing Apptainer image %s' % sifPath)
-  outputBaseName = 'apptainer-output.jpg'
-  run_command([apptainerPath, 'exec', '--nv', sifPath]
-              + image_demo_command(outputBaseName),
+  run_command([apptainerPath, 'exec', '--nv', sifPath,
+               'python', TEST_SCRIPT, '--output', 'apptainer-output.jpg'],
               cwd=scriptsDirectory)
-  compare_to_target(scriptsDirectory, outputBaseName)
 
 
 def main():
