@@ -35,6 +35,9 @@ exists**:
 
 1.  Create the dev folder `<tag>-dev`.
 2.  Seed `<tag>-dev/environment.yaml` from `dev-environment-template.yaml`.
+    When this file is first created, the script **stops here** so you can review
+    and edit it before the build (see "Editing the environment and iterating"
+    below); re-run to continue.
 3.  Build the dev conda environment, then smoke-test it.
 4.  Create the prod folder `<tag>`.
 5.  Freeze the dev environment into `<tag>/environment.yaml` — a
@@ -77,18 +80,19 @@ New dev environments are seeded from `dev-environment-template.yaml` — the
 *unpinned* spec listing the direct dependencies with loose version constraints.
 To change what new environments get, edit that file.
 
-The development stage is inherently iterative: a fresh set of dependencies may
-not solve, or may fail the smoke test, on the first try.  Because the script is
-resumable, the loop is just:
+The development stage is inherently iterative: you usually want to adjust the
+seeded dependencies, and a fresh set may not solve, or may fail the smoke test,
+on the first try.  Because the script is resumable, the loop is:
 
-1. Run `./create_production_images.py <tag>`.
-2. If the dev environment fails to build or test, fix its spec.  On the first
-   run the script seeds `<tag>-dev/environment.yaml` from the template; a
-   later run will **not** overwrite it, so edit that file (or the template) to
-   fix the dependencies.  If the environment built but is broken, remove it with
-   `conda env remove --name <tag>-dev` so the next run rebuilds it.
-3. Run the script again; it skips the stages that already succeeded and retries
-   the rest.
+1. Run `./create_production_images.py <tag>`.  The first time, it seeds
+   `<tag>-dev/environment.yaml` from the template and **stops**, so you can
+   review and edit it.
+2. Edit `<tag>-dev/environment.yaml` (a later run will **not** overwrite it), then
+   run the script again to build and test the environment.
+3. If a build or test fails, fix the spec and re-run; the script skips the stages
+   that already succeeded and retries the rest.  If the conda environment built
+   but is broken, remove it with `conda env remove --name <tag>-dev` so the next
+   run rebuilds it.
 
 To iterate on just the conda environments without building the Docker and
 Apptainer images, pass `--conda-only`:

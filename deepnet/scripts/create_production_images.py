@@ -12,8 +12,10 @@ Apptainer image.
 Stages, in order (each skipped if its output already exists):
 
   1.  Create the dev folder ``<tag>-dev``.
-  2.  Seed ``<tag>-dev/environment.yaml`` from ``dev-environment-template.yaml``
-      (you may edit it between runs; a later run will not overwrite it).
+  2.  Seed ``<tag>-dev/environment.yaml`` from ``dev-environment-template.yaml``.
+      When this file is first created, the script stops here so you can review
+      and edit it before the (expensive) build; re-run to continue (a later run
+      will not overwrite your edits).
   3.  Build the dev conda environment, then smoke-test it.
   4.  Create the prod folder ``<tag>``.
   5.  Freeze the dev environment into ``<tag>/environment.yaml``.
@@ -304,11 +306,13 @@ def write_dockerfile(prodDirectory, prodName):
 
 def run_stage(description, isDoneFunction, actionFunction):
   # Run one idempotent stage: skip it if its output already exists, else do it.
+  # Return True if the action ran, False if the stage was already done.
   announce(description)
   if isDoneFunction():
     print('Already present; skipping.')
-    return
+    return False
   actionFunction()
+  return True
 
 
 def main():
@@ -357,9 +361,17 @@ def main():
             lambda: os.mkdir(devDirectory))
 
   # 2. Dev environment.yaml (seeded; not overwritten if you have edited it).
-  run_stage('Create dev environment.yaml',
-            lambda: os.path.isfile(devEnvironmentFile),
-            lambda: write_seed_dev_environment(scriptsDirectory, devDirectory, devName))
+  # When it is first created, stop so the user can review/edit it before the
+  # (expensive) conda build; re-running picks up from here.
+  didCreateDevEnvironmentFile = run_stage(
+      'Create dev environment.yaml',
+      lambda: os.path.isfile(devEnvironmentFile),
+      lambda: write_seed_dev_environment(scriptsDirectory, devDirectory, devName))
+  if didCreateDevEnvironmentFile:
+    announce('Review the dev environment')
+    print('Seeded %s.' % devEnvironmentFile)
+    print('Edit it as needed, then re-run this script to build the environment.')
+    return
 
   # 3. Dev conda environment, then smoke-test it.
   def build_dev_environment():
