@@ -645,6 +645,10 @@ classdef DLBackEndClass < handle
       switch obj.type
         case DLBackEnd.Bsub
           r = APT.Root;
+          % The bsub job runs the deep-learning code from this root on a cluster
+          % compute node, which can only see /groups and /nrs.  Fail fast with a
+          % clear message if this copy of APT is not on one of those.
+          errorIfAptRootNotClusterVisible(r) ;
         case DLBackEnd.AWS
           r = char(AWSec2.remoteAPTSourceRootDir) ;
         case DLBackEnd.Docker
