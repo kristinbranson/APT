@@ -238,9 +238,15 @@ def smoke_test_conda_environment(condaPath, scriptsDirectory, environmentName):
 
 
 def smoke_test_docker_image(scriptsDirectory, imageTag):
-  # Run the smoke test inside the Docker image (scripts dir bind-mounted).
+  # Run the smoke test inside the Docker image (scripts dir bind-mounted).  Run
+  # the container as the host user (with a writable HOME for any caches) so the
+  # output file written to the bind-mounted scripts directory is owned by the
+  # host user rather than root.
   announce('Smoke-testing Docker image %s' % imageTag)
+  userSpecification = '%d:%d' % (os.getuid(), os.getgid())
   run_command(['docker', 'run', '--rm', '--gpus', 'all',
+               '--user', userSpecification,
+               '--env', 'HOME=/tmp',
                '--volume', scriptsDirectory + ':/mnt',
                '--workdir', '/mnt',
                imageTag,
