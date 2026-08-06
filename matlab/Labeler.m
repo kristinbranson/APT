@@ -7703,6 +7703,16 @@ classdef Labeler < handle
     end
     
     function [xy,occ] = labelMAGetLabelsFrm(obj,frm)
+      if obj.currMovie==0
+        % No current movie (e.g. a just-created project): return no labels, as
+        % a [nPhysPoints x 2 x 0] array of target positions and a matching
+        % [nPhysPoints x 0] occlusion array.  The empty third dimension is what
+        % marks "zero targets" for the consumer (size(xy,3)==0); returning []
+        % here would read as one target and error downstream.
+        xy = zeros(obj.nPhysPoints, 2, 0) ;
+        occ = false(obj.nPhysPoints, 0) ;
+        return
+      end
       if obj.gtIsGTMode
         lpos = obj.labelsGT;
       else
@@ -7788,17 +7798,16 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
-    function v = labelroiGet(obj,frm)
-      % Get rois for current frm
-%       assert(~obj.gtIsGTMode);
+    function v = labelroiGet(obj, frm)
+      % Get the ROIs for current movie, frame
       iMov = obj.currMovie;
-      %frm = obj.currFrame;
-      if ~obj.gtIsGTMode
-        s = obj.labelsRoi{iMov};
-        v = LabelROI.getF(s,frm);
-      else
-        v = [];
+      if iMov==0 || obj.gtIsGTMode
+        % No current movie (e.g. a just-created project) or in GT mode: no ROIs.
+        v = [] ;
+        return
       end
+      s = obj.labelsRoi{iMov};
+      v = LabelROI.getF(s,frm);
     end
 
    

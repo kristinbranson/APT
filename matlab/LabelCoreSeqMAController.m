@@ -125,7 +125,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       obj.tv_.updateTrackRes(xy, occ) ;
 
       % Update primary target highlight
-      obj.newPrimaryTarget() ;
+      obj.updatePrimaryTargetHighlight() ;
 
       % Update ROI display
       if lObj.showMaRoiAux && ~lObj.gtIsGTMode
@@ -362,7 +362,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
         camroll(obj.hAx_(1), -2) ;
       elseif strcmp(key, 'w') && tfCtrl
         mdl.cbkNewTgt() ;
-        obj.newPrimaryTarget() ;
+        obj.updatePrimaryTargetHighlight() ;
       elseif strcmp(key, 'z') && tfCtrl
         mdl.undoLastLabel() ;
       elseif strcmp(key, 'o') && ~tfCtrl
@@ -544,7 +544,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
     function cbkNewTgt(obj)
       % Callback for New Target button press.
       obj.model_.cbkNewTgt() ;
-      obj.newPrimaryTarget() ;
+      obj.updatePrimaryTargetHighlight() ;
     end  % function
 
     function cbkDelTgt(obj)
@@ -578,7 +578,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       end
     end  % function
 
-    function newPrimaryTarget(obj)
+    function updatePrimaryTargetHighlight(obj)
       % Update which target is hidden in the multi-target visualizer.
       % The 'primary target' for LabelCoreSeqMA always matches lObj.currTarget.
 
