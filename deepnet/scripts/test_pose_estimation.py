@@ -2,9 +2,11 @@
 """Smoke-test a pose-estimation environment/image end to end.
 
 Runs the mmpose top-down demo on a fixed input image and compares the rendered
-result to a known-good target image, passing/failing accordingly.  This
-consolidates what used to be three scripts: image_demo.py (the computation),
-test.py (the orchestration), and compare_to_target.py (the comparison).
+result to a known-good target image, passing/failing accordingly.  On success
+the rendered output image is deleted; on failure it is left for inspection.
+This consolidates what used to be three scripts: image_demo.py (the
+computation), test.py (the orchestration), and compare_to_target.py (the
+comparison).
 
 The comparison is done in Python with numpy (a normalized RMS pixel
 difference), rather than by shelling out to ImageMagick, which suits a
@@ -184,6 +186,8 @@ def main():
   if distance <= arguments.threshold:
     print('PASS: %s matches %s (normalized RMS difference %.4f <= %.4f)'
           % (arguments.output, arguments.target, distance, arguments.threshold))
+    # Clean up the output on success; on failure it is left for inspection.
+    os.remove(arguments.output)
   else:
     print('FAIL: %s differs from %s (normalized RMS difference %.4f > %.4f)'
           % (arguments.output, arguments.target, distance, arguments.threshold))
