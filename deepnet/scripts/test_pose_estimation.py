@@ -8,8 +8,8 @@ This consolidates what used to be three scripts: image_demo.py (the
 computation), test.py (the orchestration), and compare_to_target.py (the
 comparison).
 
-The comparison is done in Python with numpy (a normalized RMS pixel
-difference), rather than by shelling out to ImageMagick, which suits a
+The comparison is done in Python with scikit-image (single-scale structural
+similarity, SSIM), rather than by shelling out to ImageMagick, which suits a
 scientific-computing environment and lets the whole test -- compute and compare
 -- run inside the environment or image under test.
 
@@ -38,9 +38,9 @@ warnings.filterwarnings(
     message='pkg_resources is deprecated as an API',
     category=UserWarning)
 
-import numpy as np
 from mmcv.image import imread
 from mmengine.logging import print_log
+from skimage.metrics import structural_similarity
 
 from mmpose.apis import inference_topdown, init_model
 from mmpose.registry import VISUALIZERS
@@ -62,11 +62,12 @@ LINE_THICKNESS = 1
 BOX_ALPHA = 0.8
 SKELETON_STYLE = 'mmpose'
 
-# Maximum normalized RMS pixel difference (over [0, 1]) for the output to count
-# as matching the target.  A JPEG re-encode of the same render scores under
-# 0.02, while a small shift or a genuinely different render scores 0.15 or more,
-# so 0.05 leaves a wide margin on both sides.
-DEFAULT_THRESHOLD = 0.05
+# Minimum structural similarity (single-scale SSIM, Wang et al. 2004) for the
+# output to count as matching the target.  Identical renders score 1.0, and a
+# JPEG re-encode of the same render stays above ~0.92, while a small shift or a
+# genuinely different render scores below ~0.65, so 0.90 leaves a wide margin on
+# both sides.
+DEFAULT_THRESHOLD = 0.90
 
 # Known download URL(s) for the checkpoint, keyed by file basename.  Used to
 # fetch the checkpoint from the OpenMMLab model zoo when it is not present.
@@ -141,15 +142,19 @@ def run_pose_estimation(inputImagePath, configPath, checkpointPath, outputImageP
       out_file=outputImagePath)
 
 
-def normalized_rms_difference(outputImagePath, targetImagePath):
-  # Compare two images by normalized RMS pixel difference in [0, 1].  Return
-  # (matchesDimensions, distance); distance is None when the dimensions differ.
-  outputImage = imread(outputImagePath, channel_order='rgb').astype(np.float64)
-  targetImage = imread(targetImagePath, channel_order='rgb').astype(np.float64)
+def structural_similarity_score(outputImagePath, targetImagePath):
+  # Compare two images by single-scale SSIM (Wang et al. 2004).  Return
+  # (matchesDimensions, score); score is None when the dimensions differ.  SSIM
+  # is 1.0 for identical images and lower for more-different ones.
+  outputImage = imread(outputImagePath, channel_order='rgb')
+  targetImage = imread(targetImagePath, channel_order='rgb')
   if outputImage.shape != targetImage.shape:
     return False, None
-  distance = float(np.sqrt(np.mean((outputImage - targetImage) ** 2)) / 255.0)
-  return True, distance
+  score = float(structural_similarity(outputImage, targetImage,
+                                      channel_axis=-1, data_range=255,
+                                      gaussian_weights=True, sigma=1.5,
+                                      use_sample_covariance=False))
+  return True, score
 
 
 def main():
@@ -163,7 +168,7 @@ def main():
       '--target', default=DEFAULT_TARGET_IMAGE, help='Known-good target image to compare against')
   argumentParser.add_argument(
       '--threshold', type=float, default=DEFAULT_THRESHOLD,
-      help='Maximum normalized RMS pixel difference to count as a match')
+      help='Minimum SSIM to count as a match')
   arguments = argumentParser.parse_args()
 
   # Resolve asset paths relative to this script's directory, so the test works
@@ -179,18 +184,18 @@ def main():
   if not os.path.isfile(arguments.target):
     print('FAIL: target image %s does not exist' % arguments.target)
     sys.exit(1)
-  matchesDimensions, distance = normalized_rms_difference(arguments.output, arguments.target)
+  matchesDimensions, score = structural_similarity_score(arguments.output, arguments.target)
   if not matchesDimensions:
     print('FAIL: %s and %s have different dimensions' % (arguments.output, arguments.target))
     sys.exit(1)
-  if distance <= arguments.threshold:
-    print('PASS: %s matches %s (normalized RMS difference %.4f <= %.4f)'
-          % (arguments.output, arguments.target, distance, arguments.threshold))
+  if score >= arguments.threshold:
+    print('PASS: %s matches %s (SSIM %.4f >= %.4f)'
+          % (arguments.output, arguments.target, score, arguments.threshold))
     # Clean up the output on success; on failure it is left for inspection.
     os.remove(arguments.output)
   else:
-    print('FAIL: %s differs from %s (normalized RMS difference %.4f > %.4f)'
-          % (arguments.output, arguments.target, distance, arguments.threshold))
+    print('FAIL: %s differs from %s (SSIM %.4f < %.4f)'
+          % (arguments.output, arguments.target, score, arguments.threshold))
     sys.exit(1)
 
 

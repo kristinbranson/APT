@@ -65,10 +65,11 @@ the repo; the built `.sif` also lands there but is git-ignored (the repo-root
 
 Each conda environment and image is smoke-tested with `test_pose_estimation.py`,
 which runs the mmpose pose-estimation demo and compares the result to
-`demo-output-target.jpg`.  The comparison is a normalized RMS pixel difference
-computed in Python with numpy, so it needs no tools beyond the environment under
-test — the whole test, compute and compare, runs inside that environment or
-image.  It needs a GPU (`--gpus all` for Docker, `--nv` for Apptainer).
+`demo-output-target.jpg`.  The comparison is a structural-similarity (SSIM)
+score computed in Python with scikit-image, so it needs no tools beyond the
+environment under test — the whole test, compute and compare, runs inside that
+environment or image.  It needs a GPU (`--gpus all` for Docker, `--nv` for
+Apptainer).
 
 A smoke test runs only when its environment/image is (re)built in a given run; an
 environment/image that already exists is trusted and not re-tested.
