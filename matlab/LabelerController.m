@@ -7008,67 +7008,6 @@ classdef LabelerController < handle
       end        
     end  % function
 
-    function [tPrm, did_update, was_canceled] = setAutoParams(obj)
-      % Compute auto parameters and update them based on user feedback.
-      %
-      % AL: note this sets the project-level params based on the current
-      % tracker; if a user uses multiple tracker types (eg: MA-BU and 
-      % MA-TD) and switches between them, the behavior may be odd (eg the
-      % user may get prompted constantly about "changed suggestions" etc)
-
-      % On exit, returns the current parameter tree in the labeler in tPrm (whether
-      % modified or not).  do_update is a logical scalar that is true iff the
-      % suggested automatically-determined paramters were applied to the labeler.
-
-      labeler = obj.labeler_ ;
-        
-      sPrmCurrent = labeler.trackGetTrainingParams();
-      % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
-      % eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
-      % over.
-      
-      % Start with default "new" parameter tree/specification
-      tPrm = APTParameters.defaultParamsTree() ;
-      % Overlay our starting point
-      tPrm.structapply(sPrmCurrent) ;
-      
-      if labeler.isMultiView        
-        warningNoTrace('Multiview project: not auto-setting params.');
-        did_update = false;
-        was_canceled = false ;
-        return
-      end      
-      
-      if labeler.trackerIsTwoStage && ~labeler.trackerIsObjDet && isempty(labeler.skelHead)
-        uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks', [], 'modal')) ;
-        LandmarkSpecs('parent', obj, 'lObj', labeler, 'waiton_ui', true) ;
-        if isempty(labeler.skelHead)
-          uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters', ...
-                         [], ...
-                         'modal'));
-          did_update = false;
-          was_canceled = false ;        
-          return
-        end
-      end
-      
-      mainFigurePosition = obj.mainFigurePixelPosition() ;
-      [tPrm, was_canceled, do_update] = APTParameters.autosetparamsGUI(tPrm, labeler, mainFigurePosition) ;
-      if was_canceled
-        did_update = false ;
-        return
-      end
-
-      % Finally, apply the update, if called for.
-      if do_update
-        sPrmNew = tPrm.structize() ;
-        labeler.trackSetTrainingParams(sPrmNew);
-        did_update = true ;
-      else
-        did_update = false ;
-      end
-    end  % function
-        
     function [docontinue, stg1ctorargs, stg2ctorargs] = raiseDialogsToChooseStageAlgosForCustomTopDownTracker(obj, stg1mode, stg2mode)
       % What it says on the tin.
       dlnets = enumeration('DLNetType') ;
