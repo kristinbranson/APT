@@ -427,26 +427,18 @@ classdef ParameterSetupModalController < handle
       hauto = struct;
 
       % automatically set the parameters based on labels.
-      [autoparams,vizdataAutoparams] = apt.compute_auto_params(obj.labeler_);
+      [autoparams,vizdataAutoparams,autodescr] = apt.compute_auto_params(obj.labeler_);
       obj.autoparams_ = autoparams;
       obj.vizdata_.autoparams = vizdataAutoparams;
       kk = obj.autoparams_.keys();
 
+      % The keypoint-pairs button is shown whenever flip augmentation is
+      % available, so the user can define the corresponding keypoint pairs.
       [horz_flip_prm,vert_flip_prm] = APTParameters.getDataAugmentationFlipParams(obj.tree_,false);
+      toShowKeypointButton = horz_flip_prm.Data.Visible || vert_flip_prm.Data.Visible;
 
-      align_trx_theta_prm = APTParameters.getAlignTrxTheta(obj.tree_,false);
-
-      nfields = 1;
-      if align_trx_theta_prm.Data.Visible,
-        nfields = nfields + 1;
-      end
-      if horz_flip_prm.Data.Visible,
-        nfields = nfields + 1;
-      end
-      if vert_flip_prm.Data.Visible,
-        nfields = nfields + 1;
-      end
-      if horz_flip_prm.Data.Visible || vert_flip_prm.Data.Visible,
+      nfields = 0;
+      if toShowKeypointButton,
         nfields = nfields + 1;
       end
       for i = 1:numel(kk),
@@ -460,43 +452,30 @@ classdef ParameterSetupModalController < handle
       parent = hauto.gl;
       hauto.auto = {};
 
-
-      % todo: put these in compute_auto_parameters
-      if align_trx_theta_prm.Data.Visible,
-        % Using head-tail for the first stage
-        align_trx_theta = align_trx_theta_prm.Data.Value;
-        hauto.auto{end+1} = obj.InitLeaf(align_trx_theta_prm,parent,'suggestedvalue',true,...
-          'extradescr','Aligning animals using head-tail direction will lead to better performance.');
-      else
-        align_trx_theta = false;
-      end
-      if align_trx_theta,
-        suggestedvalue = struct('horz',true,'vert',false);
-        extradescr = 'Head-tail alignment is true. Horizontal flipping and not vertical flipping is recommended as the animal is rotated to face up.';
-      else
-        suggestedvalue = struct('horz',{[]},'vert',{[]});
-        extradescr = '';
-      end
-      if horz_flip_prm.Data.Visible,
-        hauto.auto{end+1} = obj.InitLeaf(horz_flip_prm,parent,'suggestedvalue',suggestedvalue.horz,...
-          'extradescr',extradescr);
-        flipcolor = obj.nodeNum2Color_(horz_flip_prm.Data.Index);
-      end
-      if vert_flip_prm.Data.Visible,
-        hauto.auto{end+1} = obj.InitLeaf(vert_flip_prm,parent,'suggestedvalue',suggestedvalue.vert,...
-          'extradescr',extradescr);
-        flipcolor = obj.nodeNum2Color_(vert_flip_prm.Data.Index);
-      end
-
-      if horz_flip_prm.Data.Visible || vert_flip_prm.Data.Visible,
+      if toShowKeypointButton,
+        if horz_flip_prm.Data.Visible,
+          flipcolor = obj.nodeNum2Color_(horz_flip_prm.Data.Index);
+        else
+          flipcolor = obj.nodeNum2Color_(vert_flip_prm.Data.Index);
+        end
         hauto.auto{end+1} = obj.InitKeypointParamsButton(parent,flipcolor);
       end
 
+      % Render each auto-computed suggestion uniformly, carrying its
+      % explanatory message (if any) as extra description.  This includes the
+      % head-tail alignment and flip suggestions, which are emitted by
+      % compute_auto_params.
       for i = 1:numel(kk),
         k = kk{i};
         nprm = obj.tree_.findnode(k);
         if nprm.Data.Visible,
-          hauto.auto{end+1} = obj.InitLeaf(nprm,parent,'suggestedvalue',obj.autoparams_(k));
+          if isKey(autodescr,k),
+            extradescr = autodescr(k);
+          else
+            extradescr = '';
+          end
+          hauto.auto{end+1} = obj.InitLeaf(nprm,parent,'suggestedvalue',obj.autoparams_(k),...
+            'extradescr',extradescr);
         end
       end
 

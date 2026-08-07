@@ -1,4 +1,9 @@
-function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
+function [autoparams,vizdata,autodescr] = compute_auto_params(lobj,varargin)
+  % Compute suggested ("auto-tuned") training parameters from the labels.
+  % autoparams is a containers.Map from parameter path to a bare
+  % numeric/logical suggested value.  autodescr is a parallel
+  % containers.Map from parameter path to an explanatory message for those
+  % suggestions that carry one (e.g. the head-tail alignment recommendation).
 
   [prmtree,SCALE_PRCTILE_SPAN,...
     THRESH_MULTI_BBOX_SCALE,...
@@ -35,6 +40,7 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
   %% collate all labels and compute distances between centroids of bounding boxes of pairs of animals labeled on the same frame
   view = 1;
   autoparams = containers.Map();
+  autodescr = containers.Map();
   vizdata = struct;
 
   nmov = numel(lobj.labels);
@@ -215,11 +221,32 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
   autoparams('ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_height') = id_crop_sz(1);
   autoparams('ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_width') = id_crop_sz(2);
 
+  %% head-tail alignment and flip suggestions
+
+  % AlignUsingTrxTheta is a multi-animal parameter (requirement "ma").
+  % Recommend head-tail alignment for two-stage MA trackers; for bottom-up
+  % MA it is not applicable, so recommend leaving it off.  When head-tail
+  % alignment is recommended, also recommend horizontal (and not vertical)
+  % flipping, since the animal is rotated to face up.
+  if lobj.maIsMA
+    toAlignUsingTrxTheta = lobj.trackerIsTwoStage;
+    autoparams(APTParameters.alignTrxThetaPath) = toAlignUsingTrxTheta;
+    if toAlignUsingTrxTheta
+      autodescr(APTParameters.alignTrxThetaPath) = ...
+        'Aligning animals using head-tail direction will lead to better performance.';
+      horzFlipPath = [APTParameters.deepSharedPath,'.DataAugmentation.horz_flip'];
+      vertFlipPath = [APTParameters.deepSharedPath,'.DataAugmentation.vert_flip'];
+      autoparams(horzFlipPath) = true;
+      autoparams(vertFlipPath) = false;
+      flipDescr = ['Head-tail alignment is recommended. Horizontal flipping and not vertical ', ...
+                   'flipping is recommended as the animal is rotated to face up.'];
+      autodescr(horzFlipPath) = flipDescr;
+      autodescr(vertFlipPath) = flipDescr;
+    end
+  end
+
   %% rotation range parameters
 
-  if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
-    autoparams(APTParameters.alignTrxThetaPath) = false;
-  end
 
   % flip to best match template
   [horzflip,vertflip] = APTParameters.getDataAugmentationFlipParams(prmtree);
