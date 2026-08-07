@@ -1,4 +1,4 @@
-function [toDiffer, autoparams, vizdata] = doAutoParamsDifferFromCurrent(labeler)
+function [toDiffer, autoparams, vizdata, autodescr] = doAutoParamsDifferFromCurrent(labeler)
   % Determine whether the automatically-computed training parameters differ
   % from the ones currently set in the labeler by more than 10%.
   %
@@ -6,15 +6,15 @@ function [toDiffer, autoparams, vizdata] = doAutoParamsDifferFromCurrent(labeler
   % parameter differs from its current value by more than 10% (or has no
   % current value to compare against).  A flipped logical yields a large
   % relative difference, so the head-tail alignment and flip recommendations
-  % are covered by the same test.  autoparams and vizdata are returned as
-  % well (as computed by apt.compute_auto_params), so callers that also need
-  % the suggestions do not have to recompute them.
+  % are covered by the same test.  autoparams, vizdata, and autodescr are
+  % returned as well (as computed by apt.compute_auto_params), so callers
+  % that also need the suggestions do not have to recompute them.
 
   sPrmCurrent = labeler.trackGetTrainingParams() ;
   tPrm = APTParameters.defaultParamsTree() ;
   tPrm.structapply(sPrmCurrent) ;
 
-  [autoparams, vizdata] = apt.compute_auto_params(labeler) ;
+  [autoparams, vizdata, autodescr] = apt.compute_auto_params(labeler) ;
 
   paramPaths = autoparams.keys() ;
   toDiffer = false ;

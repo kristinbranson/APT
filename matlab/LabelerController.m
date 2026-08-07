@@ -22,6 +22,8 @@ classdef LabelerController < handle
     parameterSetupModalController_  % ParameterSetupModalController, or []
     trackBatchGUIController_  % TrackBatchGUIController, or []
     specifyMovieToTrackController_  % SpecifyMovieToTrackController, or []
+    trainDoJustGenerateDB_  % stashed 'do_just_generate_db' training option, read by trainAfterParametersChosen_
+    trainDoCallAPTInterfaceDotPy_  % stashed 'do_call_apt_interface_dot_py' training option, read by trainAfterParametersChosen_
   end
 
   properties  % "uncontrolled" satellite figures---satellite figures that aren't managed by controllers (at present)
@@ -1193,6 +1195,13 @@ classdef LabelerController < handle
     function train_core_(obj, source, event, varargin)
       % This is like pbTrain_Callback() in LabelerGUI.m, but set up to stop just
       % after DB creation.
+      %
+      % This is the pre-dialog part of training.  If auto-set is on and the
+      % auto-computed parameters differ from the current ones by more than
+      % 10%, it raises the (non-blocking) Training Parameters window and
+      % returns; Apply then calls trainAfterParametersChosen_() to continue,
+      % while Cancel/close aborts.  Otherwise it calls
+      % trainAfterParametersChosen_() directly to train now.
 
       % Process keyword args
       [do_just_generate_db, ...
@@ -1200,8 +1209,15 @@ classdef LabelerController < handle
         myparse(varargin, ...
                 'do_just_generate_db', false, ...
                 'do_call_apt_interface_dot_py', true) ;
-      
-      % Switch to watch cursor
+
+      % Stash the training options so the continuation (which may run now, or
+      % later from the Training Parameters window's Apply) can read them.
+      obj.trainDoJustGenerateDB_ = do_just_generate_db ;
+      obj.trainDoCallAPTInterfaceDotPy_ = do_call_apt_interface_dot_py ;
+
+      % Switch to watch cursor.  This status is popped when this method
+      % returns, which is correct: if we raise the Training Parameters window,
+      % we do not want a busy cursor while the user reviews parameters.
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Spawning training job...') ;  % Want to do this here, b/c the stuff in this method can take a while
       oc = onCleanup(@()(labeler.popBusyStatus()));
@@ -1217,7 +1233,7 @@ classdef LabelerController < handle
           return
         elseif strcmp(res,'Save As')
           obj.menu_file_saveas_actuated_(source, event) ;
-        end    
+        end
       end
 
       % See if the tracker is in a fit state to be trained
@@ -1225,13 +1241,70 @@ classdef LabelerController < handle
       if ~tfCanTrain,
         error('Tracker not fit to be trained: %s', reason) ;
       end
-      
-      % See if the automatically-determined parameters differ from the currently set
-      % ones.  If so, offer user the option to change to the auto-determined params.
-      [~, ~, was_canceled] = obj.setAutoParams();
-      if was_canceled 
+
+      % If auto-set is off, or the project is multiview (which
+      % compute_auto_params does not handle), train now with the current
+      % parameters.
+      if ~labeler.trackAutoSetParams || labeler.isMultiView
+        obj.trainAfterParametersChosen_() ;
         return
       end
+
+      % Auto-set is on.  Head-tail two-stage trackers need head and tail
+      % landmarks defined before auto-params can be computed.
+      if labeler.trackerIsTwoStage && ~labeler.trackerIsObjDet && isempty(labeler.skelHead)
+        uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks', [], 'modal')) ;
+        LandmarkSpecs('parent', obj, 'lObj', labeler, 'waiton_ui', true) ;
+        if isempty(labeler.skelHead)
+          uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters', ...
+                         [], ...
+                         'modal')) ;
+          obj.trainAfterParametersChosen_() ;
+          return
+        end
+      end
+
+      % See if the automatically-determined parameters differ from the
+      % currently-set ones by more than 10%.  If not, train now.
+      [toDiffer, autoparams, vizdata, autodescr] = doAutoParamsDifferFromCurrent(labeler) ;
+      if ~toDiffer
+        obj.trainAfterParametersChosen_() ;
+        return
+      end
+
+      % They differ: let the user review them in the Training Parameters
+      % window.  The window is modal but non-blocking; on Apply it continues
+      % to training via trainAfterParametersChosen_(), on Cancel/close it
+      % aborts.  Thread the already-computed suggestions in so it opens
+      % without recomputing them.
+      obj.deleteParameterSetupModalController() ;
+      obj.parameterSetupModalController_ = ...
+        ParameterSetupModalController(obj, labeler, ...
+                                      'istrain', true, ...
+                                      'isDuringTraining', true, ...
+                                      'autoparams', autoparams, ...
+                                      'vizdata', vizdata, ...
+                                      'autodescr', autodescr) ;
+    end  % method
+
+    function trainAfterParametersChosen_(obj)
+      % Continuation of train_core_ after the user has chosen training
+      % parameters (either directly, or via the Training Parameters window
+      % that train_core_ raised when the auto-computed parameters differed).
+      % Reads and clears the stashed training options, does the GPU-memory
+      % check, then asks the labeler to train.
+      labeler = obj.labeler_ ;
+
+      % Read and clear the stashed training options.
+      do_just_generate_db = obj.trainDoJustGenerateDB_ ;
+      do_call_apt_interface_dot_py = obj.trainDoCallAPTInterfaceDotPy_ ;
+      obj.trainDoJustGenerateDB_ = [] ;
+      obj.trainDoCallAPTInterfaceDotPy_ = [] ;
+
+      % Re-push the busy status, since train_core_'s was popped when it
+      % returned (e.g. while the Training Parameters window was up).
+      labeler.pushBusyStatus('Spawning training job...') ;
+      oc = onCleanup(@()(labeler.popBusyStatus()));  %#ok<NASGU>
 
       % Make sure we have enough GPU memory
       if ~obj.trackCheckGPUMem_()

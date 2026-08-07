@@ -39,6 +39,7 @@ classdef ParameterSetupModalController < handle
     vizid_  % id of the currently-shown visualization, or ''
     vizobj_  % the currently-shown visualization object, or []
     autoparams_  % containers.Map of automatically-computed parameters
+    isDuringTraining_  % true if raised during training start (Apply then trains)
   end
 
   methods
@@ -46,8 +47,14 @@ classdef ParameterSetupModalController < handle
       % Construct and show the modal parameter-setup dialog.
       obj.labelerController_ = labelerController ;
       obj.labeler_ = labeler;
-      [obj.istrain_] = ...
-        myparse(varargin,'istrain',true);
+      [obj.istrain_, isDuringTraining, autoparams, vizdataAutoparams, autodescr] = ...
+        myparse(varargin, ...
+                'istrain', true, ...
+                'isDuringTraining', false, ...
+                'autoparams', [], ...
+                'vizdata', [], ...
+                'autodescr', []) ;
+      obj.isDuringTraining_ = isDuringTraining ;
 
       if obj.istrain_,
         sPrmCurrent = obj.labeler_.trackGetTrainingParams();
@@ -106,7 +113,7 @@ classdef ParameterSetupModalController < handle
         obj.tabgroup_params_ = uitabgroup('Parent',obj.gl_left_,'Tag','tabgroup_params');
         obj.tab_autotune_ = uitab('Parent',obj.tabgroup_params_,...
           'Title','Auto-tune','Scrollable','on','ForegroundColor',[1,0,1]);
-        obj.hauto_ = obj.InitAutoTune();
+        obj.hauto_ = obj.InitAutoTune(autoparams, vizdataAutoparams, autodescr);
 
         obj.tab_important_ = uitab('Parent',obj.tabgroup_params_,...
           'Title','Important','Scrollable','on','ForegroundColor',[1,0,0]);
@@ -421,13 +428,17 @@ classdef ParameterSetupModalController < handle
 
     end  % function
 
-    function hauto = InitAutoTune(obj)
+    function hauto = InitAutoTune(obj, autoparams, vizdataAutoparams, autodescr)
       % Build the contents of the auto-tune tab.
 
       hauto = struct;
 
-      % automatically set the parameters based on labels.
-      [autoparams,vizdataAutoparams,autodescr] = apt.compute_auto_params(obj.labeler_);
+      % Use the auto-computed suggestions passed in (e.g. by the training
+      % flow, which has already computed them to decide whether to raise this
+      % window), or compute them now if none were provided.
+      if ~isa(autoparams,'containers.Map')
+        [autoparams,vizdataAutoparams,autodescr] = apt.compute_auto_params(obj.labeler_);
+      end
       obj.autoparams_ = autoparams;
       obj.vizdata_.autoparams = vizdataAutoparams;
       kk = obj.autoparams_.keys();
@@ -693,11 +704,19 @@ classdef ParameterSetupModalController < handle
 
     function cbkApply(obj, src, evt)  %#ok<INUSD>
       % Write the edited parameters to the labeler, then dismiss the dialog.
+      % If this dialog was raised during training start, continue on to
+      % training now that the user has accepted the parameters.
       obj.clearParamViz();
       sPrmNew = obj.tree_.structize();
       keypointParams = obj.keypointParamState_;
       obj.labeler_.setParametersAndKeypointParams(obj.istrain_, sPrmNew, keypointParams);
-      obj.labelerController_.deleteParameterSetupModalController();
+      % Capture what we need before self-deletion, which invalidates obj.
+      labelerController = obj.labelerController_ ;
+      isDuringTraining = obj.isDuringTraining_ ;
+      labelerController.deleteParameterSetupModalController();
+      if isDuringTraining
+        labelerController.trainAfterParametersChosen_() ;
+      end
     end  % function
 
     function cbkCancel(obj, src, evt)  %#ok<INUSD>
