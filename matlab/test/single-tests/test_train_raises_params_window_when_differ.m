@@ -1,8 +1,9 @@
 function test_train_raises_params_window_when_differ()
-% Test that starting training raises the Training Parameters window (rather
-% than training immediately) when auto-set is on and the auto-computed
-% parameters differ from the current ones by more than 10%, and that
-% cancelling that window aborts training.
+% Test that starting training, when auto-set is on and the auto-computed
+% parameters differ from the current ones by more than 10%, first raises a
+% heads-up dialog (rather than training immediately): cancelling it aborts
+% training, while continuing opens the Training Parameters window, and
+% cancelling that window aborts training too.
 
 linuxProjectFilePath = ...
   '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
@@ -39,16 +40,42 @@ labeler.doesNeedSave_ = false ;
 assert(doAutoParamsDifferFromCurrent(labeler), ...
        'Test precondition failed: auto-params do not differ from current') ;
 
-% Start training as the Train button would.  With auto-set on and the
-% params differing, this should raise the (non-blocking) Training Parameters
-% window and return without training.
+% Start training as the Train button would.  With auto-set on and the params
+% differing, this should raise the (non-blocking) heads-up dialog and return
+% without training or opening the Training Parameters window yet.
 controller.pbTrain_actuated_([], []) ;
 
-hFig = findall(0, 'Type', 'figure', 'Name', 'Training Parameters') ;
-assert(isscalar(hFig), 'The Training Parameters window was not raised at training start') ;
-dialogCleanupObj = onCleanup(@()(deleteIfValid(hFig))) ;  %#ok<NASGU>
+headsUpFig = findall(0, 'Type', 'figure', 'Name', 'Auto-tune parameters differ') ;
+assert(isscalar(headsUpFig), 'The auto-params-differ heads-up dialog was not raised') ;
+assert(isempty(findall(0, 'Type', 'figure', 'Name', 'Training Parameters')), ...
+       'The Training Parameters window opened before the user acknowledged the heads-up') ;
+assert(~labeler.bgTrnIsRunning, ...
+       'Training started even though the heads-up dialog is still up') ;
 
-% Training must not have started yet: the window is up awaiting the user.
+% Cancelling the heads-up must abort training and open no window.
+cancelHeadsUp = findall(headsUpFig, 'Tag', 'pb_cancel') ;
+assert(isscalar(cancelHeadsUp), 'No Cancel button in the heads-up dialog') ;
+feval(cancelHeadsUp.ButtonPushedFcn, cancelHeadsUp, []) ;
+drawnow ;
+assert(isempty(findall(0, 'Type', 'figure', 'Name', 'Auto-tune parameters differ')), ...
+       'The heads-up dialog was not dismissed on Cancel') ;
+assert(isempty(findall(0, 'Type', 'figure', 'Name', 'Training Parameters')), ...
+       'The Training Parameters window opened after the heads-up was cancelled') ;
+assert(~labeler.bgTrnIsRunning, 'Training started after the heads-up was cancelled') ;
+
+% Start training again and this time continue through the heads-up, which
+% should open the Training Parameters window.
+controller.pbTrain_actuated_([], []) ;
+headsUpFig = findall(0, 'Type', 'figure', 'Name', 'Auto-tune parameters differ') ;
+assert(isscalar(headsUpFig), 'The heads-up dialog was not raised on the second attempt') ;
+continueHeadsUp = findall(headsUpFig, 'Tag', 'pb_continue') ;
+assert(isscalar(continueHeadsUp), 'No Continue button in the heads-up dialog') ;
+feval(continueHeadsUp.ButtonPushedFcn, continueHeadsUp, []) ;
+drawnow ;
+
+hFig = findall(0, 'Type', 'figure', 'Name', 'Training Parameters') ;
+assert(isscalar(hFig), 'The Training Parameters window was not opened after Continue') ;
+dialogCleanupObj = onCleanup(@()(deleteIfValid(hFig))) ;  %#ok<NASGU>
 assert(~labeler.bgTrnIsRunning, ...
        'Training started even though the parameters window is still up') ;
 

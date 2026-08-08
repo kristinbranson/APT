@@ -43,6 +43,7 @@ classdef LabelerController < handle
     plotAllLabelsFigure_ = gobjects(1,0)
     labelingActionsFigure_ = gobjects(1,0)
     nonmodalMessageBoxFigure_ = gobjects(1,0)
+    autoParamsDifferDialogFigure_ = gobjects(1,0)  % the modal "auto-tune params differ" heads-up dialog, or empty
   end
 
   properties  % private/protected by convention
@@ -695,6 +696,8 @@ classdef LabelerController < handle
       obj.labelingActionsFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.nonmodalMessageBoxFigure_) ;
       obj.nonmodalMessageBoxFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.autoParamsDifferDialogFigure_) ;
+      obj.autoParamsDifferDialogFigure_ = gobjects(1,0) ;
     end
 
     function deleteExistingSubcontrollers_(obj)    
@@ -1266,23 +1269,86 @@ classdef LabelerController < handle
       % currently-set ones by more than 10%.  If not, train now.
       [doTheyDifferMuch, autoparams, vizdata, autodescr] = doAutoParamsDifferFromCurrent(labeler) ;
       if doTheyDifferMuch
-        % They differ significantly: let the user review them in the Training
-        % Parameters window.  The window is modal but non-blocking; on Apply it
-        % continues to training via trainAfterParametersChosen_(), on Cancel/close
-        % it aborts.  Thread the already-computed suggestions in so it opens
-        % without recomputing them.
-        obj.deleteParameterSetupModalController() ;
-        obj.parameterSetupModalController_ = ...
-          ParameterSetupModalController(obj, labeler, ...
-                                        'istrain', true, ...
-                                        'isDuringTraining', true, ...
-                                        'autoparams', autoparams, ...
-                                        'vizdata', vizdata, ...
-                                        'autodescr', autodescr) ;
+        % They differ significantly: give the user a heads-up, then (on
+        % Continue) open the Training Parameters window so they can review and
+        % optionally accept the suggestions; Cancel/close aborts training.  The
+        % heads-up and the window are both modal but non-blocking.  Thread the
+        % already-computed suggestions through to the window so it opens without
+        % recomputing them.
+        obj.raiseAutoParamsDifferDialog_(...
+          @()(obj.openTrainingParametersDuringTraining_(autoparams, vizdata, autodescr))) ;
       else
         % They don't differ by much, so proceed directly to training proper.
         obj.trainAfterParametersChosen_() ;
       end
+    end  % method
+
+    function raiseAutoParamsDifferDialog_(obj, continueCallback)
+      % Raise a modal-but-non-blocking heads-up dialog telling the user that
+      % some auto-tunable training parameters differ substantially from their
+      % auto-computed values, and that the Training Parameters window will open
+      % so they can review and optionally accept the suggestions.  On Continue,
+      % run continueCallback (which opens that window); on Cancel or close,
+      % abort training (do nothing more).
+      deleteValidGraphicsHandles(obj.autoParamsDifferDialogFigure_) ;
+      fig = uifigure('Name', 'Auto-tune parameters differ', ...
+                     'Units', 'pixels', ...
+                     'Position', [100,100,480,210], ...
+                     'Resize', 'off', ...
+                     'WindowStyle', 'modal', ...
+                     'CloseRequestFcn', @(s,e)(obj.cbkAutoParamsDifferCancel_()), ...
+                     'Tag', 'figure_autoParamsDiffer') ;
+      obj.autoParamsDifferDialogFigure_ = fig ;
+      gl = uigridlayout(fig, [2,1], 'RowHeight', {'1x','fit'}) ;
+      message = ['Some auto-tunable training parameters differ from their ', ...
+                 'auto-computed values by more than 10%.  Aligning them with ', ...
+                 'the values suggested by your labels will lead to better ', ...
+                 'performance.  The Training Parameters window will now open ', ...
+                 'so you can review the suggested values and optionally accept ', ...
+                 'them.  Click Continue to review the parameters, or Cancel to ', ...
+                 'abort training.'] ;
+      uilabel(gl, 'Text', message, 'WordWrap', 'on') ;
+      glButtons = uigridlayout(gl, [1,3], 'ColumnWidth', {'1x',100,100}, 'Padding', [0,0,0,0]) ;
+      pbContinue = uibutton(glButtons, 'Text', 'Continue', 'Tag', 'pb_continue', ...
+                            'ButtonPushedFcn', @(s,e)(obj.cbkAutoParamsDifferContinue_(continueCallback))) ;
+      pbContinue.Layout.Column = 2 ;
+      pbCancel = uibutton(glButtons, 'Text', 'Cancel', 'Tag', 'pb_cancel', ...
+                          'ButtonPushedFcn', @(s,e)(obj.cbkAutoParamsDifferCancel_())) ;
+      pbCancel.Layout.Column = 3 ;
+      mainFigurePosition = obj.mainFigurePixelPosition() ;
+      centerOnOtherFigureGivenPositionBang(fig, mainFigurePosition) ;
+      waitForFigureToSync(fig) ;  % block until the figure is actually visible
+    end  % method
+
+    function cbkAutoParamsDifferContinue_(obj, continueCallback)
+      % Continue from the auto-params-differ heads-up: dismiss it, then run the
+      % continuation (which opens the Training Parameters window).
+      deleteValidGraphicsHandles(obj.autoParamsDifferDialogFigure_) ;
+      obj.autoParamsDifferDialogFigure_ = gobjects(1,0) ;
+      continueCallback() ;
+    end  % method
+
+    function cbkAutoParamsDifferCancel_(obj)
+      % Cancel or close the auto-params-differ heads-up: dismiss it and abort
+      % training (the continuation is never called).
+      deleteValidGraphicsHandles(obj.autoParamsDifferDialogFigure_) ;
+      obj.autoParamsDifferDialogFigure_ = gobjects(1,0) ;
+    end  % method
+
+    function openTrainingParametersDuringTraining_(obj, autoparams, vizdata, autodescr)
+      % Open the Training Parameters window during training start.  The window
+      % is modal but non-blocking; on Apply it continues to training via
+      % trainAfterParametersChosen_(), on Cancel/close it aborts.  The
+      % already-computed suggestions are threaded in so it opens without
+      % recomputing them.
+      obj.deleteParameterSetupModalController() ;
+      obj.parameterSetupModalController_ = ...
+        ParameterSetupModalController(obj, obj.labeler_, ...
+                                      'istrain', true, ...
+                                      'isDuringTraining', true, ...
+                                      'autoparams', autoparams, ...
+                                      'vizdata', vizdata, ...
+                                      'autodescr', autodescr) ;
     end  % method
 
     function trainAfterParametersChosen_(obj)
