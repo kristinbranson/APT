@@ -1304,7 +1304,7 @@ classdef LabelerController < handle
       % Re-push the busy status, since train_core_'s was popped when it
       % returned (e.g. while the Training Parameters window was up).
       labeler.pushBusyStatus('Spawning training job...') ;
-      oc = onCleanup(@()(labeler.popBusyStatus()));  %#ok<NASGU>
+      oc = onCleanup(@()(labeler.popBusyStatus()));
 
       % Make sure we have enough GPU memory
       if ~obj.trackCheckGPUMem_()

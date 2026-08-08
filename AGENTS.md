@@ -312,6 +312,11 @@ end  % function
 Validation should almost always happen in the model, never in the
 controller.
 
+You do not need to add the `%#ok<NASGU>` pragma to lines with an
+`onCleanup()` call.  The cleanup object is deliberately unused (it exists
+only to run its cleanup action when it goes out of scope), and this is a
+common enough idiom that the pragma just adds noise.
+
 
 
 ## Git conventions
