@@ -1180,19 +1180,19 @@ classdef LabelerController < handle
 %       mftset = mfts(idx);      
 %     end
 
-    function menu_debug_generate_db_actuated_(obj, source, event)
-      obj.prepForTrainingThenTrain_(source, event, 'do_just_generate_db', true) ;
+    function menu_debug_generate_db_actuated_(obj, source, event)  %#ok<INUSD>
+      obj.prepForTrainingThenTrain_('do_just_generate_db', true) ;
     end
 
-    function pbTrain_actuated_(obj, source, event)      
-      obj.prepForTrainingThenTrain_(source, event) ;
+    function pbTrain_actuated_(obj, source, event)  %#ok<INUSD>
+      obj.prepForTrainingThenTrain_() ;
     end
 
-    function menu_start_training_but_dont_call_python_actuated_(obj, source, event)
-      obj.prepForTrainingThenTrain_(source, event, 'do_call_apt_interface_dot_py', false) ;
+    function menu_start_training_but_dont_call_python_actuated_(obj, source, event)  %#ok<INUSD>
+      obj.prepForTrainingThenTrain_('do_call_apt_interface_dot_py', false) ;
     end
 
-    function prepForTrainingThenTrain_(obj, source, event, varargin)
+    function prepForTrainingThenTrain_(obj, varargin)
       % This is like pbTrain_Callback() in LabelerGUI.m, but set up to stop just
       % after DB creation.
       %
@@ -1232,7 +1232,7 @@ classdef LabelerController < handle
         if strcmp(res,'Cancel')
           return
         elseif strcmp(res,'Save As')
-          obj.menu_file_saveas_actuated_(source, event) ;
+          obj.menu_file_saveas_actuated_([], []) ;
         end
       end
 
