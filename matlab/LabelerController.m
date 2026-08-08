@@ -1193,15 +1193,13 @@ classdef LabelerController < handle
     end
 
     function prepForTrainingThenTrain_(obj, varargin)
-      % This is like pbTrain_Callback() in LabelerGUI.m, but set up to stop just
-      % after DB creation.
-      %
-      % This is the pre-dialog part of training.  If auto-set is on and the
-      % auto-computed parameters differ from the current ones by more than
-      % 10%, it raises the (non-blocking) Training Parameters window and
-      % returns; Apply then calls trainAfterParametersChosen_() to continue,
-      % while Cancel/close aborts.  Otherwise it calls
-      % trainAfterParametersChosen_() directly to train now.
+      % This method does the pre-dialog prep for training, then daisy-chains the
+      % training, either directly or indirectly.  If auto-set is on and the
+      % auto-computed parameters differ from the current ones by more than 10%,
+      % it raises the (non-blocking) Training Parameters window and returns;
+      % Apply then calls trainAfterParametersChosen_() to continue, while
+      % Cancel/close aborts.  Otherwise it calls trainAfterParametersChosen_()
+      % directly to launch training.
 
       % Process keyword args
       [do_just_generate_db, ...
@@ -1266,25 +1264,25 @@ classdef LabelerController < handle
 
       % See if the automatically-determined parameters differ from the
       % currently-set ones by more than 10%.  If not, train now.
-      [toDiffer, autoparams, vizdata, autodescr] = doAutoParamsDifferFromCurrent(labeler) ;
-      if ~toDiffer
+      [doTheyDifferMuch, autoparams, vizdata, autodescr] = doAutoParamsDifferFromCurrent(labeler) ;
+      if doTheyDifferMuch
+        % They differ significantly: let the user review them in the Training
+        % Parameters window.  The window is modal but non-blocking; on Apply it
+        % continues to training via trainAfterParametersChosen_(), on Cancel/close
+        % it aborts.  Thread the already-computed suggestions in so it opens
+        % without recomputing them.
+        obj.deleteParameterSetupModalController() ;
+        obj.parameterSetupModalController_ = ...
+          ParameterSetupModalController(obj, labeler, ...
+                                        'istrain', true, ...
+                                        'isDuringTraining', true, ...
+                                        'autoparams', autoparams, ...
+                                        'vizdata', vizdata, ...
+                                        'autodescr', autodescr) ;
+      else
+        % They don't differ by much, so proceed directly to training proper.
         obj.trainAfterParametersChosen_() ;
-        return
       end
-
-      % They differ: let the user review them in the Training Parameters
-      % window.  The window is modal but non-blocking; on Apply it continues
-      % to training via trainAfterParametersChosen_(), on Cancel/close it
-      % aborts.  Thread the already-computed suggestions in so it opens
-      % without recomputing them.
-      obj.deleteParameterSetupModalController() ;
-      obj.parameterSetupModalController_ = ...
-        ParameterSetupModalController(obj, labeler, ...
-                                      'istrain', true, ...
-                                      'isDuringTraining', true, ...
-                                      'autoparams', autoparams, ...
-                                      'vizdata', vizdata, ...
-                                      'autodescr', autodescr) ;
     end  % method
 
     function trainAfterParametersChosen_(obj)
