@@ -45,7 +45,7 @@ assert(doAutoParamsDifferFromCurrent(labeler), ...
 % without training or opening the Training Parameters window yet.
 controller.pbTrain_actuated_([], []) ;
 
-headsUpFig = findall(0, 'Type', 'figure', 'Name', 'Auto-tune parameters differ') ;
+headsUpFig = findall(0, 'Type', 'figure', 'Name', 'Auto-Tune Parameters Differ') ;
 assert(isscalar(headsUpFig), 'The auto-params-differ heads-up dialog was not raised') ;
 assert(isempty(findall(0, 'Type', 'figure', 'Name', 'Training Parameters')), ...
        'The Training Parameters window opened before the user acknowledged the heads-up') ;
@@ -57,7 +57,7 @@ cancelHeadsUp = findall(headsUpFig, 'Tag', 'pb_cancel') ;
 assert(isscalar(cancelHeadsUp), 'No Cancel button in the heads-up dialog') ;
 feval(cancelHeadsUp.ButtonPushedFcn, cancelHeadsUp, []) ;
 drawnow ;
-assert(isempty(findall(0, 'Type', 'figure', 'Name', 'Auto-tune parameters differ')), ...
+assert(isempty(findall(0, 'Type', 'figure', 'Name', 'Auto-Tune Parameters Differ')), ...
        'The heads-up dialog was not dismissed on Cancel') ;
 assert(isempty(findall(0, 'Type', 'figure', 'Name', 'Training Parameters')), ...
        'The Training Parameters window opened after the heads-up was cancelled') ;
@@ -66,7 +66,7 @@ assert(~labeler.bgTrnIsRunning, 'Training started after the heads-up was cancell
 % Start training again and this time continue through the heads-up, which
 % should open the Training Parameters window.
 controller.pbTrain_actuated_([], []) ;
-headsUpFig = findall(0, 'Type', 'figure', 'Name', 'Auto-tune parameters differ') ;
+headsUpFig = findall(0, 'Type', 'figure', 'Name', 'Auto-Tune Parameters Differ') ;
 assert(isscalar(headsUpFig), 'The heads-up dialog was not raised on the second attempt') ;
 continueHeadsUp = findall(headsUpFig, 'Tag', 'pb_continue') ;
 assert(isscalar(continueHeadsUp), 'No Continue button in the heads-up dialog') ;
