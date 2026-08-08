@@ -1181,18 +1181,18 @@ classdef LabelerController < handle
 %     end
 
     function menu_debug_generate_db_actuated_(obj, source, event)
-      obj.train_core_(source, event, 'do_just_generate_db', true) ;
+      obj.prepForTrainingThenTrain_(source, event, 'do_just_generate_db', true) ;
     end
 
     function pbTrain_actuated_(obj, source, event)      
-      obj.train_core_(source, event) ;
+      obj.prepForTrainingThenTrain_(source, event) ;
     end
 
     function menu_start_training_but_dont_call_python_actuated_(obj, source, event)
-      obj.train_core_(source, event, 'do_call_apt_interface_dot_py', false) ;
+      obj.prepForTrainingThenTrain_(source, event, 'do_call_apt_interface_dot_py', false) ;
     end
 
-    function train_core_(obj, source, event, varargin)
+    function prepForTrainingThenTrain_(obj, source, event, varargin)
       % This is like pbTrain_Callback() in LabelerGUI.m, but set up to stop just
       % after DB creation.
       %
@@ -1288,11 +1288,11 @@ classdef LabelerController < handle
     end  % method
 
     function trainAfterParametersChosen_(obj)
-      % Continuation of train_core_ after the user has chosen training
-      % parameters (either directly, or via the Training Parameters window
-      % that train_core_ raised when the auto-computed parameters differed).
-      % Reads and clears the stashed training options, does the GPU-memory
-      % check, then asks the labeler to train.
+      % Continuation of prepForTrainingThenTrain_ after the user has chosen
+      % training parameters (either directly, or via the Training Parameters
+      % window that prepForTrainingThenTrain_ raised when the auto-computed
+      % parameters differed).  Reads and clears the stashed training options,
+      % does the GPU-memory check, then asks the labeler to train.
       labeler = obj.labeler_ ;
 
       % Read and clear the stashed training options.
@@ -1301,8 +1301,8 @@ classdef LabelerController < handle
       obj.trainDoJustGenerateDB_ = [] ;
       obj.trainDoCallAPTInterfaceDotPy_ = [] ;
 
-      % Re-push the busy status, since train_core_'s was popped when it
-      % returned (e.g. while the Training Parameters window was up).
+      % Re-push the busy status, since prepForTrainingThenTrain_'s was popped
+      % when it returned (e.g. while the Training Parameters window was up).
       labeler.pushBusyStatus('Spawning training job...') ;
       oc = onCleanup(@()(labeler.popBusyStatus()));
 
