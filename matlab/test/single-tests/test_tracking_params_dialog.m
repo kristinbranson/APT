@@ -78,18 +78,18 @@ editControl.Value = newEditValue ;
 feval(editControl.ValueChangedFcn, editControl, []) ;
 drawnow ;
 
-% Apply: writes the edited parameters to the Labeler and closes the dialog
-applyButton = findall(hFig, 'Tag', 'pb_apply') ;
-assert(isscalar(applyButton), 'No Apply button in the dialog') ;
-feval(applyButton.ButtonPushedFcn, applyButton, []) ;
+% OK: writes the edited parameters to the Labeler and closes the dialog
+okButton = findall(hFig, 'Tag', 'pb_ok') ;
+assert(isscalar(okButton), 'No OK button in the dialog') ;
+feval(okButton.ButtonPushedFcn, okButton, []) ;
 drawnow ;
 
-% The edit made in the dialog, applied with the Apply button, should
+% The edit made in the dialog, applied with the OK button, should
 % have propagated to the model
 sPrmAfter = labeler.trackGetTrainingParams() ;
 editValueFromLabeler = sPrmAfter.ROOT.Track.NFramesNeighborhood ;
 assert(isequal(double(editValueFromLabeler), double(newEditValue)), ...
-       'NFramesNeighborhood is %g after Apply, expected %g', ...
+       'NFramesNeighborhood is %g after OK, expected %g', ...
        double(editValueFromLabeler), double(newEditValue)) ;
 
 fprintf('test_tracking_params_dialog passed.\n') ;

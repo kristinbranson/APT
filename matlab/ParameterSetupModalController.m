@@ -32,7 +32,7 @@ classdef ParameterSetupModalController < handle
     htree_  % tree handles for the single tracking tab (tracking only)
     gl_buttons_  % grid layout holding the level dropdown and buttons
     popupmenu_level_  % the level-selection dropdown
-    pb_apply_  % the Apply button
+    pb_ok_  % the OK button
     pb_cancel_  % the Cancel button
     panel_right_  % right-column panel holding the visualization
     tile_viz_  % tiled layout holding the visualization
@@ -139,8 +139,8 @@ classdef ParameterSetupModalController < handle
       obj.popupmenu_level_ = uidropdown('Parent',obj.gl_buttons_,...
         'Items',obj.levels_str_,'Value',lastLevel,...
         'ValueChangedFcn',@obj.cbkLevelChanged,'Tag','popupmenu_level');
-      obj.pb_apply_ = uibutton(obj.gl_buttons_,'Text','OK',...
-        'ButtonPushedFcn',@obj.cbkApply,'Tag','pb_apply');
+      obj.pb_ok_ = uibutton(obj.gl_buttons_,'Text','OK',...
+        'ButtonPushedFcn',@obj.cbkOK,'Tag','pb_ok');
       obj.pb_cancel_ = uibutton(obj.gl_buttons_,'Text','Cancel',...
         'ButtonPushedFcn',@obj.cbkCancel,'Tag','pb_cancel');
 
@@ -702,7 +702,7 @@ classdef ParameterSetupModalController < handle
       obj.vizobj_.update();
     end  % function
 
-    function cbkApply(obj, src, evt)  %#ok<INUSD>
+    function cbkOK(obj, src, evt)  %#ok<INUSD>
       % Write the edited parameters to the labeler, then dismiss the dialog.
       % If this dialog was raised during training start, continue on to
       % training now that the user has accepted the parameters.

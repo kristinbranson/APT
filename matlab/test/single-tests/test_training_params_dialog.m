@@ -83,10 +83,10 @@ editControl.Value = newEditValue ;
 feval(editControl.ValueChangedFcn, editControl, []) ;
 drawnow ;
 
-% Apply: writes the edited parameters to the Labeler and closes the dialog
-applyButton = findall(hFig, 'Tag', 'pb_apply') ;
-assert(isscalar(applyButton), 'No Apply button in the dialog') ;
-feval(applyButton.ButtonPushedFcn, applyButton, []) ;
+% OK: writes the edited parameters to the Labeler and closes the dialog
+okButton = findall(hFig, 'Tag', 'pb_ok') ;
+assert(isscalar(okButton), 'No OK button in the dialog') ;
+feval(okButton.ButtonPushedFcn, okButton, []) ;
 drawnow ;
 
 % The edit made in the dialog, applied with the Apply button, should
