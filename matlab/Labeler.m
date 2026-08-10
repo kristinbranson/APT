@@ -165,10 +165,10 @@ classdef Labeler < handle
     cropUpdateCropGUITools
 
     update_text_trackerinfo
-    refreshTrackMonitorViz
-    updateTrackMonitorViz
-    refreshTrainMonitorViz
-    updateTrainMonitorViz
+    refreshTrackMonitorController
+    updateTrackMonitorController
+    refreshTrainMonitorController
+    updateTrainMonitorController
     % raiseTrainingStoppedDialog
     updateTargetCentrationAndZoom
     updateMainAxisHighlight
@@ -2705,10 +2705,10 @@ classdef Labeler < handle
         end
       end
 
-      % Set this so all the prop-setting below doesn't create issues 
+      % Set this so all the prop-setting below doesn't create issues
       % when the associated events fire.
       obj.isinit = true;
-      
+
       t0 = tic;
       obj.initFromConfig_(s.cfg);
       fprintf('Initialized configuration (%f s).\n',toc(t0));
@@ -2723,7 +2723,16 @@ classdef Labeler < handle
                                               Labeler.SAVEBUTNOTLOADPROPS));
       path_to_replace = replace_path{1} ;
       target_path = replace_path{2} ;
-      for i = 1 : numel(LOADPROPS) 
+      % Suppress view-update notifications while the saved property values are
+      % restored.  During this loop the model is in an inconsistent,
+      % partially-loaded state; unlike isinit (which does not gate notify_()),
+      % the enablement counter actually suppresses the events.  This prevents
+      % setters such as set.showSkeleton from driving the view (e.g. the
+      % skeleton visualizer) before the new project's state is set up.
+      % Re-enabled right after the loop, so newProject/movieSet construction and
+      % the final 'update' notification still refresh the view.
+      obj.disableNotifications_() ;
+      for i = 1 : numel(LOADPROPS)
         prop_name = LOADPROPS{i} ;
         if ~isfield(s, prop_name)          
           warningNoTrace('Labeler:load','Missing load field ''%s''.',prop_name);
@@ -2751,6 +2760,7 @@ classdef Labeler < handle
           end
         end
       end  % for
+      obj.enableNotificationsMaybe_() ;
 
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
@@ -2808,8 +2818,19 @@ classdef Labeler < handle
 
       % Initialize preprocessed data cache
       if isfield(s, 'ppdb') && ~isempty(s.ppdb)
-        fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
-        obj.ppdb = s.ppdb;
+        if isa(s.ppdb,'PreProcDB') && isa(s.ppdb.dat,'PreProcData')
+          fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
+          obj.ppdb = s.ppdb;
+        else
+          % The saved cache did not deserialize as a PreProcData -- it was
+          % likely saved by an older APT version holding the pre-rename
+          % CPRData class. The data cache is regenerable, so just drop it
+          % (leaving obj.ppdb empty for ppdbInit to recreate later).
+          warningNoTrace('Labeler:dataCache', ...
+            ['Dropping the saved DL data cache: it could not be loaded as ' ...
+             'a PreProcData (likely saved by an older APT version). It will ' ...
+             'be regenerated as needed.']) ;
+        end
       end
       fprintf('Initialized properties from loaded data (%f s).\n',toc(t0));
 
@@ -3762,13 +3783,10 @@ classdef Labeler < handle
       s = reorganizeDLParams(s); 
             
       % KB 20191218: replaced scale_range with scale_factor_range
-      if isstruct(s.trackParams) && isfield(s.trackParams,'ROOT') && ...
-          isstruct(s.trackParams.ROOT) && isfield(s.trackParams.ROOT,'DeepTrack') && ...
-          isstruct(s.trackParams.ROOT.DeepTrack) && isfield(s.trackParams.ROOT.DeepTrack,'DataAugmentation') && ...
-          isstruct(s.trackParams.ROOT.DeepTrack.DataAugmentation) && ...
-          ~isfield(s.trackParams.ROOT.DeepTrack.DataAugmentation,'scale_factor_range') && ...
-          isfield(s.trackParams.ROOT.DeepTrack.DataAugmentation,'scale_range'),
-        if s.trackParams.ROOT.DeepTrack.DataAugmentation.scale_range ~= 0,
+      % KB 20250904 hardcoded parameter paths ok here
+      if ~structisfield(s.trackParams,'ROOT.DeepTrack.DataAugmentation.scale_factor_range') && ...
+          structisfield(s.trackParams,'ROOT.DeepTrack.DataAugmentation.scale_range')
+       if s.trackParams.ROOT.DeepTrack.DataAugmentation.scale_range ~= 0,
           warningNoTrace(['"Scale range" data augmentation parameter has been replaced by "Scale factor range". ' ...
             'These are very similar, so we have auto-populated "Scale factor range" based on your '...
             '"Scale range" parameter. However, these are not the same. Please examine "Scale factor range" '...
@@ -3797,11 +3815,14 @@ classdef Labeler < handle
             tfCPR = strcmp(s.trackerClass{i}{1},'CPRLabelTracker');
             tfDT = strcmp(s.trackerClass{i}{1},'DeepTracker');
             s.trackerData{i}.sPrmAll = s.trackParams;
-            
+
             if tfCPR
-              CPRParams1 = APTParameters.all2CPRParams(s.trackerData{i}.sPrmAll,...
-                numel(s.cfg.LabelPointNames),s.cfg.NumViews);
-              assert(isequaln(CPRParams1,s.trackerData{i}.sPrm));
+              % Legacy CPR project: CPR is no longer supported and the
+              % tracker is dropped on load, so just keep the modernized
+              % sPrmAll and discard the old-style .sPrm below.  (This
+              % formerly round-tripped the CPR params via all2CPRParams and
+              % asserted equality, but that conversion machinery, along with
+              % the ROOT.CPR parameter subtree, has been removed.)
             elseif tfDT
               DLSpecificParams1 = APTParameters.all2DLSpecificParams(...
                 s.trackerData{i}.sPrmAll,s.trackerClass{i}{3});
@@ -5079,18 +5100,11 @@ classdef Labeler < handle
       cInfo = obj.movieFilesAllCropInfoGTaware{iMov};
       tfHasCrop = ~isempty(cInfo);
 
-      ppPrms = obj.preProcParams;
-      if ~isempty(ppPrms)
-        bgsubPrms = ppPrms.BackSub;
-        bgArgs = {'bgType',bgsubPrms.BGType,'bgReadFcn',bgsubPrms.BGReadFcn};
-      else
-        bgArgs = {};
-      end        
       for iView=1:obj.nview
         mov = movsAllFull{iMov,iView};
         mr = obj.movieReader(iView);
         mr.preload = obj.movieReadPreLoadMovies;
-        mr.open(mov,bgArgs{:}); % should already be faithful to .forceGrayscale
+        mr.open(mov); % should already be faithful to .forceGrayscale
         if tfHasCrop
           mr.setCropInfo(cInfo(iView)); % cInfo(iView) is a handle/pointer!
         else
@@ -5111,7 +5125,7 @@ classdef Labeler < handle
       cmax_auto = nan(1,obj.nview); %#ok<*PROPLC>
       for iView = 1:obj.nview,
         im = obj.movieReader(iView).readframe(1,...
-          'doBGsub',false,'docrop',false);
+          'docrop',false);
         cmax_auto(iView) = GuessImageMaxValue(im);
         if numel(obj.cmax_auto) >= iView && cmax_auto(iView) == obj.cmax_auto(iView) && ...
             size(obj.clim_manual,1) >= iView && all(~isnan(obj.clim_manual(iView,:))),
@@ -6328,6 +6342,31 @@ classdef Labeler < handle
 
     function setSkelNames(obj,names)
       obj.skelNames = names;
+    end
+
+    function setKeypointParams(obj,state)
+      obj.setSkeletonEdges(state.sklEdges);
+      obj.setSkelHead(state.htHead);
+      obj.setSkelTail(state.htTail);
+      obj.setFlipLandmarkMatches(state.spEdges);
+      obj.setSkelNames(state.ptNames);
+    end
+    function state = getKeypointParams(obj)
+      state = struct;
+      state.sklEdges = obj.skeletonEdges;
+      if isempty(state.sklEdges)
+        state.sklEdges = zeros(0,2);
+      end
+      state.spEdges = obj.flipLandmarkMatches;
+      if isempty(state.spEdges)
+        state.spEdges = zeros(0,2);
+      end
+      state.htHead = obj.skelHead;
+      state.htTail = obj.skelTail;
+      state.ptNames = obj.skelNames;
+      if isempty(state.ptNames)
+        state.ptNames = arrayfun(@(x)sprintf('pt%d',x),(1:obj.nLabelPoints)','uni',0);
+      end
     end
         
   end
@@ -7664,6 +7703,16 @@ classdef Labeler < handle
     end
     
     function [xy,occ] = labelMAGetLabelsFrm(obj,frm)
+      if obj.currMovie==0
+        % No current movie (e.g. a just-created project): return no labels, as
+        % a [nPhysPoints x 2 x 0] array of target positions and a matching
+        % [nPhysPoints x 0] occlusion array.  The empty third dimension is what
+        % marks "zero targets" for the consumer (size(xy,3)==0); returning []
+        % here would read as one target and error downstream.
+        xy = zeros(obj.nPhysPoints, 2, 0) ;
+        occ = false(obj.nPhysPoints, 0) ;
+        return
+      end
       if obj.gtIsGTMode
         lpos = obj.labelsGT;
       else
@@ -7749,17 +7798,16 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
     
-    function v = labelroiGet(obj,frm)
-      % Get rois for current frm
-%       assert(~obj.gtIsGTMode);
+    function v = labelroiGet(obj, frm)
+      % Get the ROIs for current movie, frame
       iMov = obj.currMovie;
-      %frm = obj.currFrame;
-      if ~obj.gtIsGTMode
-        s = obj.labelsRoi{iMov};
-        v = LabelROI.getF(s,frm);
-      else
-        v = [];
+      if iMov==0 || obj.gtIsGTMode
+        % No current movie (e.g. a just-created project) or in GT mode: no ROIs.
+        v = [] ;
+        return
       end
+      s = obj.labelsRoi{iMov};
+      v = LabelROI.getF(s,frm);
     end
 
    
@@ -7800,10 +7848,15 @@ classdef Labeler < handle
     %   display preds from multiple tracker objs at the same time, and
     %   any such changes are not currently serialized.
     
-    function setLandmarkAndSkeletonCosmetics(obj, colorSpecs, mrkrSpecs, skelSpecs)
+    function setLandmarkAndSkeletonCosmetics(obj, colorSpecs, mrkrSpecs, skelSpecs, trajSpecs)
+      % Apply keypoint color/marker/skeleton cosmetics, and (for projects
+      % with trajectories) trajectory cosmetics.  trajSpecs is optional.
       obj.setLandmarkColors_(colorSpecs);
       obj.setLandmarkCosmetics_(mrkrSpecs);
       obj.setSkeletonCosmetics_(skelSpecs);
+      if exist('trajSpecs', 'var') && ~isempty(trajSpecs)
+        obj.setTrajectoryCosmetics_(trajSpecs);
+      end
     end
     
     function setLandmarkColors_(obj, colorSpecs)
@@ -8106,7 +8159,7 @@ classdef Labeler < handle
   methods
     function [toTrack, tfok] = mIdx2TrackList(obj, mIdx)
       % Make a toTrack struct from selected movies in the project, suitable for
-      % use with TrackBatchGUI.
+      % use with TrackBatchGUIController.
       %
       % tfok is false iff the user, when asked about preexisting trkfiles
       % with the default output names, cancelled.  If tfok is false,
@@ -8398,7 +8451,7 @@ classdef Labeler < handle
       end
       
       if obj.maIsMA
-        maxn = obj.trackParams.ROOT.MultiAnimal.Track.max_n_animals;
+        maxn = APTParameters.getMaxNAnimals(obj.trackParams);
       else
         maxn = 1;
       end
@@ -8537,7 +8590,7 @@ classdef Labeler < handle
         tfaf = [];
       end
       if obj.maIsMA
-        max_animals = obj.tracker.sPrmAll.ROOT.MultiAnimal.Track.max_n_animals;
+        max_animals = APTParameters.getMaxNAnimals(obj.tracker.sPrmAll);
       else
         max_animals = 1;
       end
@@ -8669,11 +8722,11 @@ classdef Labeler < handle
 % 
     function crop_sz = get_ma_crop_sz(obj)
       % Get crop sz for MA
-%      fprintf('Setting crop size for multi-animal project\n');
+      lossMaskParams = APTParameters.getMALossMaskParam(obj.trackParams);
       sagg = TrnPack.aggregateLabelsAddRoi(obj,false,...
-        obj.trackParams.ROOT.MultiAnimal.Detect.BBox,...
-        obj.trackParams.ROOT.MultiAnimal.LossMask);
-      min_crop = 32;% obj.trackParams.ROOT.MultiAnimal.LossMask.PadFloor;
+        APTParameters.getMABBoxParam(obj.trackParams),...
+        lossMaskParams);
+      min_crop = 32;% lossMaskParams.PadFloor;
       maxx = min_crop; maxy = min_crop;
       for ndx = 1:numel(sagg)
         frs = unique(sagg(ndx).frm);
@@ -8738,7 +8791,7 @@ classdef Labeler < handle
       % roi: [4x2] [x(:) y(:)] corners of rectangular roi
 
       if nargin<3
-        sPrmLoss = obj.trackParams.ROOT.MultiAnimal.LossMask;
+        sPrmLoss = APTParameters.getMALossMaskParams(obj.trackParams);
       end      
 
       tfHT = ~isempty(obj.skelHead) && ~isempty(obj.skelTail);
@@ -9351,7 +9404,7 @@ classdef Labeler < handle
       tblTrkRes = tblTrkRes(loc,:);
       
       if obj.maIsMA
-        maxn = obj.trackParams.ROOT.MultiAnimal.Track.max_n_animals;
+        maxn = APTParameters.getMaxNAnimals(obj.trackParams);
       else
         maxn = 1;
       end
@@ -9359,7 +9412,8 @@ classdef Labeler < handle
       tblMFT_SuggAndLbled = obj.labelAddLabelsMFTable(tblMFT_SuggAndLbled,'isma',obj.maIsMA,'maxanimals',maxn);
 
       if obj.maIsMA
-        [err,fp,fn] = computeMAErr(tblTrkRes,tblMFT_SuggAndLbled,obj.tracker.sPrmAll.ROOT.MultiAnimal.multi_loss_mask);  % nframes x maxn x nkeypoints
+        multi_loss_mask = APTParameters.getMAMultiLossMask(obj.tracker.sPrmAll);
+        [err,fp,fn] = computeMAErr(tblTrkRes,tblMFT_SuggAndLbled,multi_loss_mask);  % nframes x maxn x nkeypoints
         fp = sum(fp,2,'omitmissing');
         fn = sum(fn,2,'omitmissing');
       else
@@ -9762,18 +9816,18 @@ classdef Labeler < handle
       %   - no .roi
       %   - set .pAbs (pabsfld) to be .p (pfld)
       
-      [prmsTgtCrop,doRemoveOOB,pfld,pabsfld,proifld] = myparse(varargin,...
-        'prmsTgtCrop',[],...
+      [roiRadius,doRemoveOOB,pfld,pabsfld,proifld] = myparse(varargin,...
+        'maTgtCropRad',[],...
         'doRemoveOOB',true,...
         'pfld','p',...  % see desc above
         'pabsfld','pAbs',... % etc
         'proifld','pRoi'... % 
         );
-      if isempty(prmsTgtCrop)
+      if isempty(roiRadius)
         if isempty(obj.trackParams)
           error('Please set tracking parameters.');
         else
-          prmsTgtCrop = obj.trackParams.ROOT.MultiAnimal.TargetCrop;
+          roiRadius = APTParameters.getMATargetCropRadiusManual(obj.trackParams);
         end
       end
       
@@ -9792,7 +9846,6 @@ classdef Labeler < handle
             tblP(:,'roi') = [];
           end
           if obj.hasTrx
-            roiRadius = maGetTgtCropRad(prmsTgtCrop);
             tblP = obj.labelMFTableAddROITrx(tblP,roiRadius,...
               'rmOOB',doRemoveOOB,...
               'pfld',pfld,'proifld',proifld);
@@ -9831,14 +9884,14 @@ classdef Labeler < handle
       %   * The position relative to .roi for multi-target trackers
       % - .roi is guaranteed when .hasTrx or .cropProjHasCropInfo
 
-      [wbObj,tblMFTrestrict,gtModeOK,prmsTgtCrop,doRemoveOOB,...
+      [wbObj,tblMFTrestrict,gtModeOK,maTgtCropRad,doRemoveOOB,...
         treatInfPosAsOcc] = myparse(varargin,...
         'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
                     ... % 1. obj const 
                     ... % 2. tblP indeterminate
         'tblMFTrestrict',[],... % see labelGetMFTableLabeld
         'gtModeOK',false,... % by default, this meth should not be called in GT mode
-        'prmsTgtCrop',[],...
+        'maTgtCropRad',[],...
         'doRemoveOOB',true,...
         'treatInfPosAsOcc',true  ... % if true, treat inf labels as 
                                  ... % 'fully occluded'; if false, remove 
@@ -9907,7 +9960,7 @@ classdef Labeler < handle
         tblP = tblP(~tfinf,:);
       end
       
-      tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'prmsTgtCrop',prmsTgtCrop,...
+      tblP = obj.preProcCropLabelsToRoiIfNec(tblP,'maTgtCropRad',maTgtCropRad,...
         'doRemoveOOB',doRemoveOOB);
     end
     
@@ -9986,7 +10039,7 @@ classdef Labeler < handle
 %       %
 %       % Input args: See PreProcDataUpdate
 %       %
-%       % data: CPRData handle, equal to obj.preProcData
+%       % data: PreProcData handle, equal to obj.preProcData
 %       % dataIdx. data.I(dataIdx,:) gives the rows corresponding to tblP
 %       %   (out); order preserved
 %       % tblP (out): subset of tblP (input), rows for failed reads removed
@@ -10144,7 +10197,7 @@ classdef Labeler < handle
 %       if nNew>0
 %         fprintf(1,'Adding %d new rows to data...\n',nNew);
 % 
-%         [I,nNborMask,didread] = CPRData.getFrames(tblPNewConcrete,...
+%         [I,nNborMask,didread] = PreProcData.getFrames(tblPNewConcrete,...
 %           'wbObj',wbObj,...
 %           'forceGrayscale',obj.movieForceGrayscale,...
 %           'preload',obj.movieReadPreLoadMovies,...
@@ -10162,7 +10215,7 @@ classdef Labeler < handle
 %           % obj unchanged
 %           return;
 %         end
-%         % Include only FLDSALLOWED in metadata to keep CPRData md
+%         % Include only FLDSALLOWED in metadata to keep PreProcData md
 %         % consistent (so can be appended)
 %         
 %         didreadallviews = all(didread,2);
@@ -10193,10 +10246,10 @@ classdef Labeler < handle
 %             if tfWB
 %               wbObj.endPeriod();
 %             end
-%             dataNew = CPRData(I,tblPnewMD);            
+%             dataNew = PreProcData(I,tblPnewMD);            
 %           else
 %             J = obj.movieHistEqApplyLUTs(I,tblPnewMD.mov); 
-%             dataNew = CPRData(J,tblPnewMD);
+%             dataNew = PreProcData(J,tblPnewMD);
 %             dataNew.H0 = obj.preProcH0.hgram;
 % 
 %             if ~isPreProcParamsIn && dataCurr.N==0
@@ -10205,7 +10258,7 @@ classdef Labeler < handle
 %             end
 %           end
 %         else
-%           dataNew = CPRData(I,tblPnewMD);
+%           dataNew = PreProcData(I,tblPnewMD);
 %         end
 %                 
 %         if ~isempty(prmpp.channelsFcn)
@@ -10555,6 +10608,36 @@ classdef Labeler < handle
       obj.notify_('update_text_trackerinfo') ;
     end  % function
 
+    function [tfsucc,msg] = trackImportTracker(obj,infile)
+      % WORKING HERE
+      tfsucc = false;
+      % msg = '';
+      [~,~,ext] = fileparts(infile);
+      if strcmp(ext,'.json'),
+        injsonfile = infile;
+      else
+        % TODO
+        error('not implemented');
+      end
+      [fileinfo,trackerinfo,scfg] = TrnPack.loadTracker(injsonfile);
+      nottrained = isempty(trackerinfo.trnNetTypeString) || any(cellfun(@isempty,trackerinfo.trnNetTypeString)) || ...
+        any(any(cellfun(@isempty,fileinfo.netfiles)));
+      if nottrained,
+        msg = 'Networks not trained for at least one stage/view';
+        return
+      end
+      trackerinfo.nettypes = cellfun(@(key) DLNetType(key),trackerinfo.trnNetTypeString);
+      obj.trackMakeNewTrackerGivenNetTypes(trackerinfo.nettypes);
+      [tfsucc,msg,sPrmAll] = obj.tracker.importTracker(fileinfo,trackerinfo,scfg);
+
+      % set current parameters to those in sPrmAll
+      obj.trackSetTrainingParams(sPrmAll);
+      
+
+      obj.trainingEndedRetrograde(EndCause.load, '');
+    end
+
+
     % function trackMakeNewTrackerGivenAlgoName(obj, algoName, varargin)
     %   algorithmNameFromTciIndex = cellfun(@(tracker)(tracker.algorithmName), ...
     %                                       obj.trackersAll_, ...
@@ -10598,10 +10681,10 @@ classdef Labeler < handle
     end  % function
 
     function sPrm = setTrackNFramesParams(obj,sPrm)
-      obj.trackNFramesSmall = sPrm.ROOT.Track.NFramesSmall;
-      obj.trackNFramesLarge = sPrm.ROOT.Track.NFramesLarge;
-      obj.trackNFramesNear = sPrm.ROOT.Track.NFramesNeighborhood;
-      sPrm.ROOT.Track = rmfield(sPrm.ROOT.Track,{'NFramesSmall','NFramesLarge','NFramesNeighborhood'});
+      obj.trackNFramesSmall = APTParameters.getTrackNFramesSmall(sPrm);
+      obj.trackNFramesLarge = APTParameters.getTrackNFramesLarge(sPrm);
+      obj.trackNFramesNear = APTParameters.getTrackNFramesNeighborhood(sPrm);
+      sPrm = APTParameters.removeTrackNFramesParams(sPrm);
     end
     
     function trackSetTrainingParams(obj, sPrm, varargin)
@@ -10646,17 +10729,7 @@ classdef Labeler < handle
         assert(~istrack);
         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
         obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
-        
-        bgPrms = sPrm.ROOT.ImageProcessing.BackSub;
-        mrs = obj.movieReader;
-        for i=1:numel(mrs)
-          mrs(i).open(mrs(i).filename,...
-                      'bgType',bgPrms.BGType,...
-                      'bgReadFcn',bgPrms.BGReadFcn);
-          % mrs(i) should already be faithful to .forceGrayscale,
-          % .movieInvert, cropInfo
-        end
-        
+
         if obj.maIsMA && ~istrack,
           obj.notify_('updatePreProcParams') ;
         end
@@ -10664,15 +10737,12 @@ classdef Labeler < handle
       
     end  % function trackSetParams
     
-    function tPrm = trackGetTrackParams(obj)
+    function tPrm = trackGetTrackParams(obj,varargin)
       % Get current parameters related to tracking
 
       sPrmCurrent = obj.trackGetTrainingParams();
-      sPrmCurrent = APTParameters.all2TrackParams(sPrmCurrent);
-      % Start with default "new" parameter tree/specification
-      tPrm = APTParameters.defaultTrackParamsTree();  % object of class TreeNode
-      % Overlay our starting pt
-      tPrm.structapply(sPrmCurrent);      
+      tPrm = APTParameters.all2TrackParams(sPrmCurrent,'outputformat','tree');
+      
     end
     
     % function sPrmAll = trackSetTrackParamsCore_(obj,sPrmTrack,varargin)      
@@ -10687,28 +10757,6 @@ classdef Labeler < handle
     %   end
     % end  % function
     
-    function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
-        trackNFramesNear] = convertNew2OldParams(obj,sPrm) % obj CONST
-      % Conversion routine
-      % 
-      % sPrm: scalar struct containing *NEW*-style params:
-      % sPrm.ROOT.Track
-      %          .CPR
-      %          .DeepTrack
-              
-      sPrm = APTParameters.enforceConsistency(sPrm);
-      
-      sPrmDT = sPrm.ROOT.DeepTrack;
-      sPrmPPandCPR = sPrm;
-      sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
-      
-      [sPrmPPandCPRold,trackNFramesSmall,trackNFramesLarge,...
-        trackNFramesNear] = cprParamNew2Old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
-      
-      ppPrms = sPrmPPandCPRold.PreProc;
-      sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
-    end
-    
     function sPrm = trackGetTrainingParams(obj,varargin)
       % Get all user-settable parameters, including preproc etc.
       %
@@ -10718,11 +10766,11 @@ classdef Labeler < handle
 %       assert(~getall);
 
       sPrm = obj.trackParams;
-      sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
-      sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
-      sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;      
+      sPrm = APTParameters.setTrackNFramesSmall(sPrm,obj.trackNFramesSmall);
+      sPrm = APTParameters.setTrackNFramesLarge(sPrm,obj.trackNFramesLarge);
+      sPrm = APTParameters.setTrackNFramesNeighborhood(sPrm,obj.trackNFramesNear);
       if obj.maIsMA ,
-        sPrm.ROOT.MultiAnimal.multi_crop_im_sz = obj.get_ma_crop_sz() ;
+        sPrm = APTParameters.setMAMultCropImSz(sPrm,obj.get_ma_crop_sz());
       end
 
 %       if getall,
@@ -10808,6 +10856,111 @@ classdef Labeler < handle
           sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
       end      
     end  % function
+
+    function [imsz,downsample,batchsize] = trackGetTrainImageSize(obj,varargin)
+      % [imsz,downsample,batchsize] = trackGetTrainImageSize(obj,varargin)
+      % Get information about the network input size during training
+      % imsz: The input image w x h for networks during training.
+      % imsz is 2 x nstages, with imsz(:,i) being the size for stage i
+      % downsample: Downsample factor, 1 x nstages
+      % batchsize: Batch size: 1 x nstages
+      % Optional inputs:
+      % sPrm: struct version of parameters, if empty will be grabbed from
+      % obj.trackGetTrainingParams. This input is used in parameter
+      % visualization. Default: []
+      % stages: which stage(s) to compute imsz for. If empty, then computes
+      % for all stages. Default: []
+      [sPrm,stages] = myparse(varargin,'sPrm',[],'stages',[]);
+      if isempty(sPrm),
+        sPrm = obj.trackGetTrainingParams();
+      end
+      is_ma = obj.maIsMA;
+      is2stage = obj.trackerIsTwoStage;
+      if isempty(stages),
+        if is2stage,
+          stages = 1:2;
+        else
+          stages = 1;
+        end
+      end
+      imsz = nan(2,numel(stages));
+      downsample = nan(1,numel(stages));
+      batchsize = nan(1,numel(stages));
+      for stagei = 1:numel(stages),
+        stage = stages(stagei);
+        if obj.hasTrx || (is_ma && is2stage && (stage==2))
+          cropRad = APTParameters.getMATargetCropRadiusManual(sPrm);
+          imsz(:,stagei) = cropRad*2+[1,1];
+        elseif is_ma,
+          if APTParameters.getMAMultiCropIms(sPrm),
+            i_sz = APTParameters.getMAMultCropImSz(sPrm);
+          else
+            i_sz = obj.getMovieRoiMovIdx(MovieIndex(1));
+            i_sz = max(i_sz(2)-i_sz(1)+1,i_sz(4)-i_sz(3)+1);
+          end
+          imsz(:,stagei) = [i_sz,i_sz];
+        else
+          nmov = obj.nmoviesGTaware;
+          rois = nan(nmov,obj.nview,4);
+          for i = 1:nmov
+            rois(i,:,:) = obj.getMovieRoiMovIdx(MovieIndex(i));
+          end
+          if obj.isMultiView,
+            warningNoTrace('Memory analysis based on first view only.');
+          end
+          rois = reshape(rois(:,1,:),nmov,4);
+          hs = rois(:,4)-rois(:,3)+1;
+          ws = rois(:,2)-rois(:,1)+1;
+          if ~all(hs==hs(1)) || ~all(ws==ws(1)),
+            warningNoTrace('Memory analysis based on first movie size.');
+          end
+          imsz(:,stagei) = [hs(1),ws(1)];
+        end
+
+        if is_ma && is2stage && stage == 1,
+          stagename = 'detect';
+        else
+          stagename = 'pose';
+        end
+        downsample(stagei) = APTParameters.getScaleParam(sPrm,stagename);
+        batchsize(stagei) = APTParameters.getBatchSizeParam(sPrm,stagename);
+      end
+    end
+
+    function nettype = trackGetNetType(obj,varargin)
+      % nettype = trackGetNetType(obj,varargin)
+      % Get the names of the networks for each stage.
+      % nettype is a cell of size 1 x nstages, with nettype{i} a string
+      % indicating the network type for that stage
+      % Optional input:
+      % stages: which stage(s) to compute imsz for. If empty, then computes
+      % for all stages. Default: []
+
+      [stages] = myparse(varargin,'stages',[]);
+      is_ma = obj.maIsMA;
+      is2stage = obj.trackerIsTwoStage;
+      if isempty(stages),
+        if is2stage,
+          stages = 1:2;
+        else
+          stages = 1;
+        end
+      end
+      nettype = cell(1,numel(stages));
+      for stagei = 1:numel(stages),
+        stage = stages(stagei);
+        if is_ma && is2stage && stage == 2
+          nettype{stagei} = string(obj.tracker.trnNetType);
+        elseif is_ma && is2stage && stage == 1
+          nettype{stagei} = obj.tracker.stage1Tracker.algorithmName;
+        elseif is_ma
+          nettype{stagei} = string(obj.tracker.trnNetType);
+        else
+          nettype{stagei} = obj.tracker.algorithmName;
+        end
+      end
+      
+    end
 
     function result = bgTrnIsRunningFromTrackerIndex(obj)
       trackers = obj.trackerHistory_ ;
@@ -11194,7 +11347,7 @@ classdef Labeler < handle
           tblfldscontainsassert(tblPCache,MFTable.FLDSCORE);
         end
         
-        prmsTgtCropTmp = tObj.sPrmAll.ROOT.MultiAnimal.TargetCrop;
+        prmsTgtCropTmp = APTParameters.getMATargetCropParams(tObj.sPrmAll);
 %         if tObj.trnNetMode.isTrnPack
 %           % Temp fix; prob should just skip adding imcache to stripped lbl
 %           prmsTgtCropTmp.AlignUsingTrxTheta = false;
@@ -11264,7 +11417,7 @@ classdef Labeler < handle
       if ~isempty(ppdata) % includes tfSkipPPData
 %         ppdbICache = true(ppdata.N,1);
       else
-        % De-objectize .ppdb.dat (CPRData)
+        % De-objectize .ppdb.dat (PreProcData)
         ppdata = s.ppdb.dat;
       end
       
@@ -11377,37 +11530,37 @@ classdef Labeler < handle
         nedge = size(skel,1);
         skelstr = arrayfun(@(x)sprintf('%d %d',skel(x,1),skel(x,2)),1:nedge,'uni',0);
         skelstr = String.cellstr2CommaSepList(skelstr);
-        sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = skelstr;
-        sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.OpenPose.affinity_graph = skelstr;
       else
-        sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
-        sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.OpenPose.affinity_graph = '';
+        skelstr = '';
       end
+      sPrmAll = APTParameters.setSkeletonString(sPrmAll,skelstr);
             
       % add landmark matches
       matches = obj.flipLandmarkMatches;
       nedge = size(matches,1);
       matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
       matchstr = String.cellstr2CommaSepList(matchstr);
-      sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
-      sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
+      sPrmAll = APTParameters.setFlipLandmarkMatchStr(sPrmAll,matchstr);
       
       % ma stuff
-      prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop;
-      r = maGetTgtCropRad(prmsTgtCrop);
-      % actual radius that will be used by backend
-      sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius = r;
+
+      % removing this, as maGetTgtCropRad just returns ManualRadius
+      % prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop; 
+      % r = maGetTgtCropRad(prmsTgtCrop);
+      % % actual radius that will be used by backend
+      % sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius = r;
+
       tfBackEnd = exist('netmode','var');
       if tfBackEnd
-        sPrmAll.ROOT.MultiAnimal.is_multi = netmode.is_multi;
+        sPrmAll = APTParameters.setMAIsMulti(sPrmAll,netmode.is_multi);
         can_multi_crop_ims = netmode.multi_crop_ims;
-        if sPrmAll.ROOT.MultiAnimal.multi_crop_ims && ~can_multi_crop_ims
+        if APTParameters.getMAMultiCropIms(sPrmAll) && ~can_multi_crop_ims
           warningNoTrace('setting multi_crop_ims to False.');
-          sPrmAll.ROOT.MultiAnimal.multi_crop_ims = false;
+          sPrmAll = APTParameters.setMAMultiCropIms(sPrmAll,false);
         end
-        sPrmAll.ROOT.MultiAnimal.Detect.multi_only_ht = netmode.multi_only_ht;
-        sPrmAll.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = ...
-          netmode.isHeadTail || netmode==DLNetMode.multiAnimalTDPoseTrx;
+        sPrmAll = APTParameters.setMAMultiOnlyHT(sPrmAll,netmode.multi_only_ht);
+        sPrmAll = APTParameters.setMAAlignUsingTrxTheta(sPrmAll,...
+          netmode.isHeadTail || netmode==DLNetMode.multiAnimalTDPoseTrx);
       end
       % headtail
       if ~isempty(obj.skelHead)
@@ -11420,32 +11573,26 @@ classdef Labeler < handle
       else
         iptTail = 0;
       end        
-      sPrmAll.ROOT.MultiAnimal.Detect.ht_pts = [iptHead iptTail];
+      sPrmAll = APTParameters.setHeadTailKeypoints(sPrmAll,[iptHead iptTail]);
     end
     
     function sPrmAll = setExtraParams(obj,sPrmAll)
       % AL 20200409 sets .skeletonEdges and .setFliplandmarkMatches from 
       % sPrmAll fields.
       
-      if structisfield(sPrmAll,'ROOT.DeepTrack.OpenPose.affinity_graph'),
-        skelstr = sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph;
+      skelstr = APTParameters.getSkeletonString(sPrmAll);
+      if ischar(skelstr),
         skel = Labeler.hlpParseCommaSepGraph(skelstr);
         obj.skeletonEdges = skel;
-        sPrmAll.ROOT.DeepTrack.OpenPose = rmfield(sPrmAll.ROOT.DeepTrack.OpenPose,'affinity_graph');
-        if isempty(fieldnames(sPrmAll.ROOT.DeepTrack.OpenPose)),
-          sPrmAll.ROOT.DeepTrack.OpenPose = '';
-        end
+        sPrmAll = APTParameters.removeOpenPoseAffinityGraphParams(sPrmAll);
       end
 
       % add landmark matches
-      if structisfield(sPrmAll,'ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches'),
-        matchstr = sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches;
+      matchstr = APTParameters.getFlipLandmarkMatchStr(sPrmAll);
+      if ischar(matchstr),
         matches = Labeler.hlpParseCommaSepGraph(matchstr);
         obj.setFlipLandmarkMatches(matches);
-        sPrmAll.ROOT.DeepTrack.DataAugmentation = rmfield(sPrmAll.ROOT.DeepTrack.DataAugmentation,'flipLandmarkMatches');
-        if isempty(fieldnames(sPrmAll.ROOT.DeepTrack.DataAugmentation)),
-          sPrmAll.ROOT.DeepTrack.DataAugmentation = '';
-        end
+        sPrmAll = APTParameters.removeFlipLandmarkMatches(sPrmAll);
       end
     end
             
@@ -11571,84 +11718,6 @@ classdef Labeler < handle
       dErr = mean(dErr,2); % [nTrkLblx1] L2 err, mean across pts      
       trkErr = nan(height(tblBig),1);
       trkErr(tf) = dErr;
-    end
-    
-    function sPrm = trackGetParamsFromStruct(s)
-      % Get all parameters:
-      %  - preproc
-      %  - cpr
-      %  - common dl
-      %  - specific dl
-      %
-      % sPrm: scalar struct containing NEW-style params:
-      % sPrm.ROOT.Track
-      %          .CPR
-      %          .DeepTrack (if applicable)
-      % Top-level fields .Track, .CPR, .DeepTrack may be missing if they
-      % don't exist yet.
-      
-      % Future TODO: As in trackSetParams, currently this is hardcoded when
-      % it ideally would just be a generic loop
-      
-      if isfield(s,'trackParams'),
-        sPrm = s.trackParams;
-        return;
-      end
-      
-      prmCpr = [];
-      for iTrk=1:numel(s.trackerData)
-        if strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker') && ~isempty(s.trackerData{iTrk})
-          prmCpr = s.trackerData{iTrk}.sPrm;
-          break;
-        end
-      end
-      
-      prmPP = s.preProcParams;
-      
-      prmDLCommon = s.trackDLParams;
-      
-      prmDLSpecific = struct;
-      for i = 1:numel(s.trackerData),
-        if ~strcmp(s.trackerClass{i}{1},'DeepTracker') || isempty(s.trackerData{i}),
-          continue;
-        end
-        prmField = APTParameters.getParamField(s.trackerData{i}.trnNetType);
-        prmDLSpecific.(prmField) = s.trackerData{i}.sPrm;
-      end
-      
-      prmTrack = struct;
-      prmTrack.trackNFramesSmall = s.cfg.Track.PredictFrameStep;
-      prmTrack.trackNFramesLarge = s.cfg.Track.PredictFrameStepBig;
-      prmTrack.trackNFramesNear = s.cfg.Track.PredictNeighborhood;
-      
-      sPrm = Labeler.trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,...
-                                          prmDLSpecific,prmTrack);      
-    end
-    
-    function sPrmAll = trackGetParamsHelper(prmCpr,prmPP,prmDLCommon,prmDLSpecific,obj)
-      
-      sPrmAll = APTParameters.defaultParamsStructAll;
-      
-%      assert(~xor(isempty(prmCpr),isempty(prmPP)));
-      if ~isempty(prmCpr)
-        sPrmAll = APTParameters.setCPRParams(sPrmAll,prmCpr);
-      end
-      if ~isempty(prmPP),
-        sPrmAll = APTParameters.setPreProcParams(sPrmAll,prmPP);
-      end
-      if ~isempty(obj)
-        sPrmAll = APTParameters.setNFramesTrackParams(sPrmAll,obj);
-      end
-      if ~isempty(prmDLCommon)
-        sPrmAll = APTParameters.setTrackDLParams(sPrmAll,prmDLCommon);
-      end
-            
-      % specific parameters
-      fns = fieldnames(prmDLSpecific);
-      for i = 1:numel(fns),
-        sPrmAll = APTParameters.setDLSpecificParams(sPrmAll,fns{i},prmDLSpecific.(fns{i}));
-      end
-      
     end
     
   end
@@ -12243,7 +12312,7 @@ classdef Labeler < handle
 %       tblMFT = table(mov,frm,iTgt);
 %       wbObj = WaitBarWithCancel('Montage');
 %       oc = onCleanup(@()delete(wbObj));      
-%       I1 = CPRData.getFrames(tblMFT,...
+%       I1 = PreProcData.getFrames(tblMFT,...
 %         'movieInvert',obj.movieInvert,...
 %         'wbObj',wbObj);
 %       I1 = cellfun(@DataAugMontage.convertIm2Double,I1,'uni',0);
@@ -12713,12 +12782,10 @@ classdef Labeler < handle
         if tfCropMode
           [obj.currIm{iView}, ~, obj.currImRoi{iView}] = ...
             obj.movieReader(iView).readframe(obj.currFrame, ...
-                                             'doBGsub', false, ...
                                              'docrop', false) ;
         else
           [obj.currIm{iView}, ~, obj.currImRoi{iView}] = ...
             obj.movieReader(iView).readframe(obj.currFrame, ...
-                                             'doBGsub', false, ...
                                              'docrop', true) ;
         end
       end
@@ -12737,12 +12804,10 @@ classdef Labeler < handle
         if tfCropMode
           [obj.prevIm, ~, obj.prevImRoi] = ...
             obj.movieReader(1).readframe(obj.prevFrame, ...
-                                         'doBGsub', false, ...
                                          'docrop', false) ;
         else
           [obj.prevIm, ~, obj.prevImRoi] = ...
             obj.movieReader(1).readframe(obj.prevFrame, ...
-                                         'doBGsub', false, ...
                                          'docrop', true) ;
         end
       else
@@ -12911,7 +12976,6 @@ classdef Labeler < handle
       % end
       [im,~,imRoi] = ...
         mr.readframe(frm,...
-                     'doBGsub',false,...
                      'docrop',~obj.cropIsCropMode);
 
       % to do: figure out what to do when there are multiple views
@@ -13675,30 +13739,30 @@ classdef Labeler < handle
     %   obj.notify_('update_text_trackerinfo') ;
     % end
     
-    function needRefreshTrackMonitorViz(obj)
-      obj.notify_('refreshTrackMonitorViz') ;
+    function needRefreshTrackMonitorController(obj)
+      obj.notify_('refreshTrackMonitorController') ;
     end
 
     function didReceivePollResultsRetrograde(obj, track_or_train)
       if strcmp(track_or_train, 'train') ,
-        obj.notify_('updateTrainMonitorViz') ;
+        obj.notify_('updateTrainMonitorController') ;
       elseif strcmp(track_or_train, 'track') ,
-        obj.notify_('updateTrackMonitorViz') ;
+        obj.notify_('updateTrackMonitorController') ;
       else
         error('Internal error: %s should be ''track'' or ''train''', track_or_train) ;
       end
     end
 
     % function didReceiveTrackingPollResults_(obj)
-    %   obj.notify_('updateTrackMonitorViz') ;
+    %   obj.notify_('updateTrackMonitorController') ;
     % end
     % 
     % function didReceiveTrainingPollResults_(obj)
-    %   obj.notify_('updateTrainMonitorViz') ;
+    %   obj.notify_('updateTrainMonitorController') ;
     % end    
 
-    function needRefreshTrainMonitorViz(obj)
-      obj.notify_('refreshTrainMonitorViz') ;
+    function needRefreshTrainMonitorController(obj)
+      obj.notify_('refreshTrainMonitorController') ;
     end
 
     function result = get.backend(obj)
@@ -13797,25 +13861,14 @@ classdef Labeler < handle
     %   result =strcmp(currentTrackerAlgoName, algoNameFromTrackersAllIndex) ;
     % end
     
-    function hlpApplyCosmetics(obj, colorSpecs, mrkrSpecs, skelSpecs, trajSpecs)
-      obj.setLandmarkColors_(colorSpecs);
-      obj.setLandmarkCosmetics_(mrkrSpecs);
-      obj.setSkeletonCosmetics_(skelSpecs);
-      if exist('trajSpecs', 'var') && ~isempty(trajSpecs)
-        obj.updateTrajectoryCosmetics(trajSpecs);
-      end
-    end
-
-    function updateTrajectoryCosmetics(obj, trajSpecs)
+    function setTrajectoryCosmetics_(obj, trajSpecs)
       % Update trajectory appearance (line width, color, font size) for all
       % multi-animal trackers that have a trajectory visualizer.
       flds = fieldnames(trajSpecs);
       for iF = 1:numel(flds)
         obj.projPrefs.Trx.(flds{iF}) = trajSpecs.(flds{iF});
       end
-      trajSpecs = obj.projPrefs.Trx;
-
-      obj.notify('updateTrxCosmetics') ;
+      obj.notify_('updateTrxCosmetics') ;
     end
 
     function gtToggleGTMode(obj)
@@ -13844,6 +13897,19 @@ classdef Labeler < handle
         end
         obj.setDoesNeedSave(true, 'Parameters changed') ;
       end
+    end  % function
+
+    function setParametersAndKeypointParams(obj, isTrain, sPrm, keypointParams)
+      % Set the training or tracking parameters (per isTrain) together with
+      % the keypoint parameters, and mark the project as needing a save.
+      % Called when the user applies edits in the parameter-setup dialog.
+      if isTrain
+        obj.trackSetTrainingParams(sPrm) ;
+      else
+        obj.setTrackingParameters(sPrm) ;
+      end
+      obj.setKeypointParams(keypointParams) ;
+      obj.setDoesNeedSave(true, 'Parameters changed') ;
     end  % function
 
     function projRemoveOtherTempDirs(obj, todelete)
@@ -14103,13 +14169,18 @@ classdef Labeler < handle
     end
 
     function result = hasTimelinePrediction(obj)
-      % Check if timeline has prediction data available
+      % Check if timeline has prediction data available.
       itm = obj.infoTimelineModel ;
-      result = isvalid(obj.tracker);
+      result = isvalid(obj.tracker) ;
       if result
-        pcode = itm.props_tracker(1);
-        data = obj.tracker.getPropValues(pcode);
-        result = ~isempty(data) && any(~isnan(data(:)));
+        % Probe for prediction data using the 'x' position feature.  The 'x'
+        % feature is a base label feature that can be computed from any predicted
+        % positions, so it reliably reflects whether prediction data is present.
+        propTrackerNames = {itm.props_tracker.name} ;
+        iPropToProbe = find(strcmp(propTrackerNames, 'x'), 1) ;
+        pcode = itm.props_tracker(iPropToProbe) ;
+        data = obj.tracker.getPropValues(pcode) ;
+        result = ~isempty(data) && any(~isnan(data(:))) ;
       end
     end
 

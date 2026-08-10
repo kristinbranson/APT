@@ -1,0 +1,438 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "MultiAnimal": {
+    "Description": "Settings related to multi-animal trackers",
+    "DispName": "",
+    "multi_loss_mask": {
+      "AffectsTraining": true,
+      "DefaultValue": true,
+      "Description": "In frames that are labeled, are SOME or ALL animals labeled? If set to False, then you must label all animals (in each frame you label). If set to True, you may selectively label animals. In this case, you must pay attention to the boxes indicating which regions of the frame are considered labeled. ",
+      "DispName": "Unlabeled animals present?",
+      "Level": "Important",
+      "ParamViz": "",
+      "Requirements": [
+        "ma"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "multi_crop_ims": {
+      "AffectsTraining": true,
+      "DefaultValue": true,
+      "Description": "During training, should we zoom in on labeled regions of interest? Set this to True to zoom, False to force training on the entire image/frame. Setting this to True can speed up training and increase the resolution of the network.",
+      "DispName": "Zoom during training",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "~isObjDet",
+        "ma"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "multi_crop_im_sz": {
+      "AffectsTraining": true,
+      "DefaultValue": 32,
+      "Description": "If Zoom during training == True, this is the side length of the square we zoom in on. This value is auto-computed based on the size of the smallest square that covers the largest cluster of labeled animals.",
+      "DispName": "Zoom box size",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "~isObjDet",
+        "ma"
+      ],
+      "Type": "unsigned",
+      "isEditable": false
+    },
+    "multi_match_dist": {
+      "AffectsTraining": false,
+      "DefaultValue": 20,
+      "Description": "We use non-maximal suppression to prevent the same animal being detected multiple times. The distance between two poses is compared to their bounding box sizes. If the average distance between the keypoints is smaller than this percentage of bounding box edge size, then merge the two predictions. (Currently only use in multi-animal GRONe.)",
+      "DispName": "Non-maximal suppression distance",
+      "Level": "Advanced",
+      "ParamViz": "",
+      "Requirements": [
+        "ma"
+      ],
+      "Type": "float",
+      "isEditable": true
+    },
+    "TargetCrop": {
+      "Description": "APT crops out regions centered around each animal detected in the first/detection stage, then runs the pose recognition network on these image crops. These parameters describe how image patches around individual animals are cropped out.",
+      "DispName": "Cropping around animals",
+      "ManualRadius": {
+        "AffectsTraining": true,
+        "DefaultValue": 50,
+        "Description": "If 'Scale bounding box' is False, we crop a  Radius (in pixels) of the square cropped around each detection (the square side will be 2*radius pixels). This value should be bigger than the animal size.",
+        "DispName": "Animal box radius",
+        "Level": "Important",
+        "ParamViz": "ParameterVisualizationTgtCropRadius",
+        "Requirements": [
+          "isTopDown",
+          "hasTrx"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "AlignUsingTrxTheta": {
+        "AffectsTraining": true,
+        "DefaultValue": true,
+        "Description": "Boxes cropped around animals are either aligned based on the head and tail keypoints, or are aligned with the x- and y-axes of the image. If True, align cropped images using head-tail orientation (or trx.theta if the project uses trx files). If False, align with th image axes",
+        "DispName": "Align using tail->head body axis",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "ma"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "PadBkgd": {
+        "AffectsTraining": true,
+        "DefaultValue": 0,
+        "Description": "If the cropped regions go outside the image, pad the image with this intensity.",
+        "DispName": "Pad intensity",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "hasTrx",
+          "isTopDown"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "multi_scale_by_bbox": {
+        "AffectsTraining": true,
+        "DefaultValue": true,
+        "Description": "For pose estimation (stage 2) or for ID Linking, crop the image around animal based on their detected size and scale the cropped image to a common size before estimating the pose. Useful if the visual scale of the animals varies a lot. Unselect if the apparent scale of all the animals does not change. In this case, all detected animals are cropped uniformly.",
+        "DispName": "Scale bounding box?",
+        "Level": "Important",
+        "ParamViz": "ParameterVisualizationAutoParams#multi_scale_by_bbox",
+        "Requirements": [
+          "ma"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      }
+    },
+    "LossMask": {
+      "Description": "Parameters related to the network loss function optimized during training when some animals are unlabeled. This is handled using masks that specify which pixels are considered labeled and not. ",
+      "DispName": "Training with unlabeled animals",
+      "MinAspectRatio": {
+        "AffectsTraining": true,
+        "DefaultValue": 0.3,
+        "Description": "Minimum aspect ratio for mask boxes around labeled animals.",
+        "DispName": "Minimum mask aspect ratio",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "ma"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "PadFactor": {
+        "AffectsTraining": true,
+        "DefaultValue": 1.5,
+        "Description": "Dimensionless factor controlling padding of mask around each labeled animal. A value of 1 indicates a tight fit around the keypoints' convex hull.",
+        "DispName": "Mask padding factor",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "ma"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "PadFloor": {
+        "AffectsTraining": true,
+        "DefaultValue": 32,
+        "Description": "Minimum width of padding of mask around each target, in pixels.",
+        "DispName": "Minimum padding",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "ma"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "AlignHeadTail": {
+        "AffectsTraining": true,
+        "DefaultValue": false,
+        "Description": "Whether the masks around each labeled animal are aligned based on the body axis (True) or the image axes (False). If True, you MUST set the head and tail keypoints in the keypoint parameters.",
+        "DispName": "Align mask using tail->head body axis",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "ma"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      }
+    },
+    "Track": {
+      "Description": "Settings related to multi-animal tracking inference",
+      "DispName": "Multi-animal tracking parameters",
+      "min_n_animals": {
+        "AffectsTraining": false,
+        "DefaultValue": 0,
+        "Description": "APT will detect at least this many animals in each frame.",
+        "DispName": "Minimum number of animals",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "ma"
+        ],
+        "Type": "unsigned",
+        "isEditable": false
+      },
+      "max_n_animals_user": {
+        "AffectsTraining": false,
+        "DefaultValue": 30,
+        "Description": "APT will detect at most this many animals in each frame.",
+        "DispName": "Maximum number of animals",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+          "ma"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "max_n_animals": {
+        "AffectsTraining": false,
+        "DefaultValue": 30,
+        "Description": "APT will detect at most this many animals in each frame.",
+        "DispName": "Maximum number of animals to detect",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "ma"
+        ],
+        "Type": "unsigned",
+        "isEditable": false
+      },
+      "TrackletStitch": {
+        "Description": "Settings related to stitching poses detected on each frame into tracklets across many video frames.",
+        "DispName": "Tracklet Stitching",
+        "link_stage": {
+          "AffectsTraining": false,
+          "DefaultValue": "second",
+          "Description": "Whether to stitch detections into tracklets at the first/detection stage, the second/pose stage, or not at all. If 'first', matching across frames will be based on distances between detections. If 'second', matching across frames will be based on distances between all keypoints. If 'none', stitching is not done.",
+          "DispName": "Stitching stage",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": [
+            "first",
+            "second",
+            "none"
+          ],
+          "isEditable": true
+        },
+        "link_maxcost_heuristic": {
+          "AffectsTraining": false,
+          "DefaultValue": "secondorder",
+          "Description": "Method to estimate distance threshold used in linking detections into tracklets: detections are only matched if their distances are less than this threshold. We compute this threshold by looking at the distribution of distances between potential matches. 'secondorder' sets the threshold to where the curve of sorted match distances sharply increases (large second derivative). 'prctile' sets this threshold as a the 'Linking threshold percentile' of matched distances. ",
+          "DispName": "Linking distance threshold estimation",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": [
+            "secondorder",
+            "prctile"
+          ],
+          "isEditable": true
+        },
+        "link_maxcost_mult": {
+          "AffectsTraining": false,
+          "DefaultValue": 1,
+          "Description": "How permissive should we be in linking detections into tracklets? Small values are conservative, and will potentially break true trajectories into multiple tracklets. Large values are permissive, and may merge detections belonging to different animals into a single tracklet. Computationally, this is a multiplier on the threshold computed using the 'Linking distance threshold estimation' method. If this is 1, it will directly use the estimated threshold. You can making linking more or less permissive by increasing/decreasing this multiplier.",
+          "DispName": "Linking permissiveness",
+          "Level": "Beginner",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "float",
+          "isEditable": true
+        },
+        "link_maxcost_prctile": {
+          "AffectsTraining": false,
+          "DefaultValue": 95,
+          "Description": "When 'Linking distance threshold estimation' method is 'prctile', this is the percentile used to compute the match distance threshold.",
+          "DispName": "Linking distance threshold percentile",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "float",
+          "isEditable": true
+        },
+        "link_maxframes_delete": {
+          "AffectsTraining": false,
+          "DefaultValue": 10,
+          "Description": "Sometimes there will be spurious detections in short intervals of frames that do not persist. We can identify these if they only persist for a few frames. This is the threshold of the minimum length in frames of a trajectory to keep; we delete tracklets shorter than this. ",
+          "DispName": "Minimum trajectory duration",
+          "Level": "Beginner",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "unsigned",
+          "isEditable": true
+        },
+        "link_maxframes_missed": {
+          "AffectsTraining": false,
+          "DefaultValue": 10,
+          "Description": "Sometimes we will not detect an animal for short intervals of frames. We can identify these based on short gaps in a longer trajectory. This is the threshold of the maximum gap duration in frames that we will link across.",
+          "DispName": "Maximum trajectory gap duration",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "unsigned",
+          "isEditable": true
+        },
+        "link_strict_match_thres": {
+          "AffectsTraining": false,
+          "DefaultValue": 2,
+          "Description": "To ensure that we do not swap identities, we can compare the distance to the closest match and the second-closest match. If these are too similar, we lack confidence in our match choice, and break our tracklets. We only match detections if their distance is smaller than the distance to the next closest match by this factor. Large values are more conservative, small values are more permissive. This number should be >= 1.",
+          "DispName": "Matching distance uniqueness",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "float",
+          "isEditable": true
+        },
+        "link_id_training_iters": {
+          "AffectsTraining": false,
+          "DefaultValue": 100000,
+          "Description": "Number of iterations to train the identity recognition network for.",
+          "DispName": "Identity recognition training iterations",
+          "Level": "Beginner",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "unsigned",
+          "isEditable": true
+        },
+        "link_id_tracklet_samples": {
+          "AffectsTraining": false,
+          "DefaultValue": 25,
+          "Description": "When linking tracklets into trajectories based on individual identity recognition, we sample frames from the tracklet, and pool information across these samples. How many frames should we sample from a tracklet when assigning identity?",
+          "DispName": "Identity recogntiion tracklet samples",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "unsigned",
+          "isEditable": true
+        },
+        "link_id_rescale": {
+          "AffectsTraining": false,
+          "DefaultValue": 1,
+          "Description": "Factor to downsample snapshots of animals for the identity recognition network.",
+          "DispName": "Identity recognition downsampling factor",
+          "Level": "Beginner",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "float",
+          "isEditable": true
+        },
+        "link_id_batch_size": {
+          "AffectsTraining": false,
+          "DefaultValue": 16,
+          "Description": "Batch size to use for training the identity recognition network.",
+          "DispName": "Identity recognition batch size",
+          "Level": "Beginner",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "unsigned",
+          "isEditable": true
+        },
+        "link_id_mining_steps": {
+          "AffectsTraining": false,
+          "DefaultValue": 10,
+          "Description": "To improve the efficiency of training the identity recognition, we find and upweight hard examples at particular intervals. How many times during training should we mine for hard examples.",
+          "DispName": "Identity recognition hard-example mining steps",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "unsigned",
+          "isEditable": true
+        },
+        "link_id_cropsz_height": {
+          "AffectsTraining": false,
+          "DefaultValue": -1,
+          "Description": "Height of the crop to use for ID linking after the animal is aligned to face up",
+          "DispName": "Crop height for ID Linking",
+          "Level": "Advanced",
+          "ParamViz": "ParameterVisualizationTgtCropRadiusID",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "signed",
+          "isEditable": true
+        },
+        "link_id_cropsz_width": {
+          "AffectsTraining": false,
+          "DefaultValue": -1,
+          "Description": "Width of the crop to use for ID linking after the animal is aligned to face up",
+          "DispName": "Crop width for ID Linking",
+          "Level": "Advanced",
+          "ParamViz": "ParameterVisualizationTgtCropRadiusID",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "signed",
+          "isEditable": true
+        },
+        "link_id_motion_link": {
+          "AffectsTraining": false,
+          "DefaultValue": false,
+          "Description": "Whether to create trajectories by first linking detections into tracklets based on motion (True), or by clustering appearance (False)",
+          "DispName": "Link based on motion first",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "boolean",
+          "isEditable": true
+        },
+        "link_id_cluster_occ_thresh": {
+          "AffectsTraining": false,
+          "DefaultValue": 0.2,
+          "Description": "Maximum occlusion fraction allowed for a tracklet to be used when computing identity cluster centers. Increase this if too few tracklets qualify and identity assignment fails.",
+          "DispName": "ID cluster occlusion threshold",
+          "Level": "Beginner",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "float",
+          "isEditable": true
+        }
+      }
+    }
+  }
+}

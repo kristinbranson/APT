@@ -179,7 +179,7 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       s = struct();
       for cam=obj.viewNames(:)',cam=cam{1}; %#ok<FXSET>
         jsonfile = fullfile(expdir,obj.BIASCONFIGFILES.(cam));
-        tmp = loadjson(jsonfile);
+        tmp = jsondecode(fileread(jsonfile));
         s.(cam) = tmp.camera.format7Settings.roi;
       end
       

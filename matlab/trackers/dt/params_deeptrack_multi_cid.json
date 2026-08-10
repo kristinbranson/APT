@@ -1,0 +1,78 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "CiD": {
+    "Description": "Contextual Instance Decoupling (CID)",
+    "DispName": "",
+    "ignore_occluded": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Do not train on keypoints labeled as 'occluded'",
+      "DispName": "Ignore occluded keypoints during training",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_cid",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "predict_occluded": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Should we train the pose network to also predict whether keypoints are labeled as 'occluded' or not? Recall that you can label a point as 'occluded' or not. It may be helpful in your downstream task to know whether a keypoint is occluded, and this predicted category could be used for that. ",
+      "DispName": "Train 'occluded' classifier",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_cid",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "mmpose_net": {
+      "AffectsTraining": true,
+      "DefaultValue": "cid",
+      "Description": "Which pose estimation network to use from MMPose ",
+      "DispName": "Network from MMPose",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_cid",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": true
+    },
+    "mmpose_use_apt_augmentation": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Use APT's augmentation routines for data augmention. Else use MMPose's native routines",
+      "DispName": "Use APT augmentation",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_cid",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "db_format": {
+      "AffectsTraining": true,
+      "DefaultValue": "coco",
+      "Description": "Format for the training database",
+      "DispName": "Database format",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_cid",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": false
+    }
+  }
+}

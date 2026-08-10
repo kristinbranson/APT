@@ -2,42 +2,81 @@ classdef ParameterVisualization < handle
   % Parameters that want a visualization when they are being set should
   % subclass this abstract base class
   
-  properties 
-    
-    axPos = [0.0473118279569892 0.0493358633776091 0.911827956989247 0.929791271347249];
-    
+  properties
+    hTile
+    hAx
+    lObj
+    prm
+    propFullName
+    is_ma = false;
+    is2stage = false;
+    is_ma_net = false;
+    stage = 1;
   end
-  
+
   methods (Abstract)
     
-    % Called when a property is selected for consideration, eg when a user
-    % clicks a row in the parameter tree
-    %
+    % Called when a property is visualized
     % hAx: scalar axes. Concrete ParameterVisualizations draw here as
     %   desired.
     % lObj: Labeler obj
-    % sPrm: current *NEW-STYLE* params in UI/PropertyTable. All
-    %   ParameterSetup/ParameterVisualization code works with parameters in
-    %   "new-style" parameter space, as this is how params are presented to
-    %   the user.
+    % prm: current params, TreeNode object
     %   NOTE: Besides being new-style vs old-style, sPrm in general will
     %   differ from lObj.trackGetTrainingParams(), as the PropertyTable may be in 
     %   a modified/edited state and these changes are not written to the 
     %   Labeler until the user clicks Apply.
-    propSelected(obj,hAx,lObj,propFullName,sPrm)
     
-    % Called when a property is no longer selected. For cleanup purposes
-    propUnselected(obj)
+    % parameters have changed, update plot
+    update(obj)
+        
+  end
 
-    % All args are as in init(...); sPrm contains the latest/updated
-    % parameters.
-    propUpdated(obj,hAx,lObj,propFullName,sPrm)
-    
-    % Called "on the fly" when a user sets/selects a new property value.
-    % The difference between this and update() is that here, the value val
-    % may be newer than sPrm.
-    propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val)
-    
+  methods
+
+    % initialize the plot and properties
+    function init(obj,hTile,lObj,propFullName,prm,varargin)
+      obj.hTile = hTile;
+      obj.hAx = gobjects(1,0);
+      obj.lObj = lObj;
+      obj.prm = prm;
+      obj.propFullName = propFullName;
+    end
+
+    % For cleanup purposes
+    function clear(obj)
+      for hax = obj.hAx(:)',
+        if ishandle(hax),
+          cla(hax);
+        end
+      end
+      for i = 1:numel(obj.hAx),
+        obj.hAx(i).Title.String = '';
+        obj.hAx(i).XLabel.String = '';
+        obj.hAx(i).YLabel.String = '';
+        obj.hAx(i).ZLabel.String = '';
+        delete(obj.hAx(i).Legend);
+      end
+    end
+
+    function setStage(obj)
+
+      stagestr = APTParameters.getStage(obj.propFullName);
+
+      obj.is_ma = obj.lObj.maIsMA;
+      obj.is2stage = obj.lObj.trackerIsTwoStage;
+      obj.is_ma_net = false;
+      obj.stage = 1;
+
+      if obj.is_ma,
+        if obj.is2stage && strcmp(stagestr,'pose'),
+          obj.stage = 2;
+        else
+          obj.is_ma_net = true;
+        end
+      end
+    end
+
+
   end
   
   methods (Static) % Utilities for subclasses
@@ -56,46 +95,76 @@ classdef ParameterVisualization < handle
           error('Invalid ParameterVisualization specification: %s',pgp.ParamViz);
       end
     end
-    
-    function grayOutAxes(ax,str)
-      if nargin<2
-        str = '';
+
+
+    function v = getParamValue(sPrm,fullPath)
+      if isstruct(sPrm)
+        fns = strsplit(fullPath,'.');
+        v = sPrm;
+        for i = 1:numel(fns),
+          v = v.(fns{i});
+        end
+      elseif isa(sPrm,'TreeNode'),
+        v = sPrm.findnode(fullPath);
+        if isempty(v.Children),
+          v = v.Data.Value;
+        else
+          v = v.structize();
+          fns = fieldnames(v);
+          assert(numel(fns)==1);
+          v = v.(fns{1});
+        end
       end
-      hFig = ancestor(ax,'figure');
-      cla(ax);
-      ax.Color = hFig.Color;
-      title(ax,'');
-      ax.XTick = [];
-      ax.YTick = [];
-      
-      if ~isempty(str)
-        lims = axis(ax);
-        lims = double(lims); % #292 strange err lims can be returned as singles upsetting text()
-        xc = (lims(1)+lims(2))/2;
-        yc = (lims(3)+lims(4))/2;
-        text(xc,yc,str,'horizontalalignment','center','parent',ax);
+
+    end
+
+  end
+
+  methods 
+
+    function hAx = getFirstAx(obj)
+      hAx = obj.hAx(find(ishandle(obj.hAx),1));
+    end
+
+    function grayOutAxes(obj,str)
+      obj.clear();
+      if isempty(obj.hAx) || all(~ishandle(obj.hAx)),
+        return;
+      end
+      [obj.hAx(ishandle(obj.hAx)).Visible] = 'off';
+      if nargin >= 2 && ~isempty(str)
+        hti = title(obj.getFirstAx(),str);
+        hti.Visible = 'on';
       end
     end
     
-    function setBusy(hAx,str)
+    function setBusy(obj,str)
       
+      if isempty(obj.hAx) || all(~ishandle(obj.hAx)),
+        return;
+      end
       if nargin < 2,
         str = 'Updating visualization. Please wait...';
       end
-      xlabel(hAx,str);
-      set(hAx,'XColor','m');
+      hax = obj.getFirstAx();
+      xlabel(hax,str);
+      set(hax,'XColor','m');
       drawnow;
       
     end
     
-    function setReady(hAx)
+    function setReady(obj)
       
-      xlabel(hAx,sprintf('Visualization updated at %s',datestr(now)));
-      set(hAx,'XColor','k');
+      if isempty(obj.hAx) || all(~ishandle(obj.hAx)),
+        return;
+      end
+      hax = obj.getFirstAx();
+      xlabel(hax,sprintf('Visualization updated at %s',datestr(now)));
+      set(hax,'XColor','k');
       drawnow;
       
     end      
-        
+
   end
   
 end

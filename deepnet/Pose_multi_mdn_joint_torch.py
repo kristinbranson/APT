@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from torchvision import models
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone, BackboneWithFPN
+import logging
 import numpy as np
 import PoseTools
 from torchvision.ops import misc as misc_nn_ops
@@ -558,7 +559,14 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         if not os.path.exists(tfile):
             # during inference train file might not exist. Use default value because it doesn't matter.
             return 0.05
-        ims, pts = PoseTools.read_coco(tfile)
+        try:
+            ims, pts = PoseTools.read_coco(tfile)
+        except (KeyError, TypeError):
+            # a model trained before the switch to coco-format training
+            # databases has a train file in the old format; as above, the
+            # value doesn't matter during inference
+            logging.info(f'{tfile} is not in coco format; using default ref noise')
+            return 0.05
         occ = pts[...,2]
         pts = pts[...,:2]
         pts[occ<.5] = np.nan

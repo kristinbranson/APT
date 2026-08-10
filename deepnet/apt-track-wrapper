@@ -14,10 +14,77 @@ import copy
 
 
 
+def determine_default_backend_specs():
+    '''
+    Determine the default conda environment name, docker image tag, and
+    apptainer image spec by inspecting the scripts/ directory.
+
+    Looks in scripts/ (relative to this script's location) for a subdirectory
+    whose name starts with "apt-" and does not end in "-dev", and which
+    contains an "environment.yaml" file.  Of these, picks the one with the
+    most recent date encoded immediately after the "apt-" part of the name.
+    The conda environment name is read from the "name:" field of that
+    directory's environment.yaml; the docker image tag and apptainer image
+    spec are synthesized from it following the established pattern.
+
+    Returns a tuple
+    (conda_environment_name, docker_image_tag, apptainer_image_spec).
+    '''
+    this_script_directory_path = os.path.dirname(os.path.realpath(__file__))
+    scripts_directory_path = os.path.join(this_script_directory_path, 'scripts')
+
+    # Find the qualifying subdirectory with the most recent encoded date.
+    best_date = None
+    best_environment_file_path = None
+    for entry_name in os.listdir(scripts_directory_path):
+        if not entry_name.startswith('apt-'):
+            continue
+        if entry_name.endswith('-dev'):
+            continue
+        entry_path = os.path.join(scripts_directory_path, entry_name)
+        if not os.path.isdir(entry_path):
+            continue
+        environment_file_path = os.path.join(entry_path, 'environment.yaml')
+        if not os.path.isfile(environment_file_path):
+            continue
+        # The date is the token immediately following the "apt-" prefix,
+        # e.g. "20260730" in "apt-20260730-tf215-pytorch21-hopper".
+        tokens = entry_name.split('-')
+        if len(tokens) < 2 or not tokens[1].isdigit():
+            continue
+        date = tokens[1]
+        if best_date is None or date > best_date:
+            best_date = date
+            best_environment_file_path = environment_file_path
+
+    if best_environment_file_path is None:
+        raise RuntimeError(
+            'Unable to find a suitable apt-*/environment.yaml under %s to '
+            'determine the default backend specs' % scripts_directory_path)
+
+    # Read the environment name from the "name:" field of environment.yaml.
+    conda_environment_name = None
+    with open(best_environment_file_path, 'rt') as environment_file:
+        for line in environment_file:
+            stripped_line = line.strip()
+            if stripped_line.startswith('name:'):
+                conda_environment_name = stripped_line[len('name:'):].strip()
+                break
+    if conda_environment_name is None:
+        raise RuntimeError(
+            'Unable to read the environment name from %s'
+            % best_environment_file_path)
+
+    # Synthesize the docker/apptainer specs from the environment name.
+    docker_image_tag = 'bransonlabapt/apt_docker:' + conda_environment_name
+    apptainer_image_spec = 'docker://bransonlabapt/apt_docker:' + conda_environment_name
+    return (conda_environment_name, docker_image_tag, apptainer_image_spec)
+
+
+
 # Default backends for each backend type
-conda_default_environment_name = 'apt_20230427_tf211_pytorch113_ampere'
-docker_default_image_tag = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
-apptainer_default_image_spec = 'docker://bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
+conda_default_environment_name, docker_default_image_tag, apptainer_default_image_spec = \
+    determine_default_backend_specs()
 
 # These are argument keys that are either a file name or a list of file names.    
 file_name_arg_keys = ['lbl_file', 'mov', 'trx', 'log_file', 'err_file', 'out_files', 'predict_trk_files', 'id_wts_file', 'config_file']

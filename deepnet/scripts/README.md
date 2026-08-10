@@ -1,121 +1,141 @@
-# Conda
+# Building the APT conda / Docker / Apptainer images
 
-The conda environment file used to make the most recent conda
-environment (as of this writing) is in
-```
-apt_20230427_tf211_pytorch113_ampere.env.yaml
-```
-and inside the file declares the environment's name to be
-`apt_20230427_tf211_pytorch113_ampere`.  But the old conda environment
-file is still around, in
-```
-old_apt_conda_environment.yml
-```
-and that one uses the name `APT`.  The APT front-end code defaults to
-using the environment `apt_20230427_tf211_pytorch113_ampere` for new
-projects.
+APT runs its deep-learning backends out of a matched set of images: a conda
+environment (conda backend), a Docker image (docker backend), and an Apptainer
+`.sif` image (bsub/cluster backend).  Each such set — a "complement" — is built
+from a single conda environment specification and is named like
 
-Currently, each project stores what images it will use for the
-Conda/Docker/Singularity backends, and these will not change for an
-existing project until the user changes them manually.
-
-The conda environment above is a 'pinned' environment, which specifies
-the exact versions of all dependencies, both direct and transitive.
-
-There is also a 'development' conda environment, specified in
 ```
-apt_development.env.yaml
-```
-and named `apt_development`.  This dev environment specifies just the
-major and minor versions of all the direct dependencies.  The idea
-here is that you use the development environment when you're want to
-update the dependencies, and then once you've got it all worked out
-you use
-```
-conda env export
-```
-to produce (after some manual editing) the pinned version.
-
-To create the conda environment from the environment file, run the
-bash script
-```
-./make_conda_environment_apt_20230427_tf211_pytorch113_ampere.bash
-```
-or
-```
-./make_conda_environment_apt_development.bash
-```
-depending on which version you want.
-
-## KB 20250706
-These conda environments didn't work on my desktop, which has CUDA 12.2 installed on it.
-I created a new conda environment.yml file which sets the cuda version (11.6 seemed to work):
-```
-apt_2507.env.yaml
-```
-which has all the dependencies except the MM dependencies. As I use openmim to install
-mmcv-full, I made a script
-```
-make_conda_environment_apt_2507.bash
-```
-which creates the conda environment and then uses openmim to install mmcv-full, followed
-by pip to install mmdet and mmpose.
-
-# Docker
-
-The docker image is specified by the dockerfile
-```
-apt_20230427_tf211_pytorch113_ampere.dockerfile
-```
-which itself uses the pinned
-`apt_20230427_tf211_pytorch113_ampere.env.yaml` file to create a conda
-environment inside the docker container.
-
-You produce the docker image using the command
-```
-./make_docker_image_apt_20230427_tf211_pytorch113_ampere.bash
+apt-20260801-tf215-pytorch21-hopper
 ```
 
-You can push the docker image to DockerHub using the command
-```
-./push_docker_image_apt_20230427_tf211_pytorch113_ampere.bash
-```
-An image produced in this way was pushed to DockerHub,so now the docker image lives at the URL:
-```
-docker://bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere
-```
-and can be pulled using the command
-```
-./pull_docker_image_apt_20230427_tf211_pytorch113_ampere.bash
-```
+The name encodes the build date and the major dependency/architecture targets.
+That whole name is the *tag* you give the build script; it becomes the name of
+the production conda environment, and the dev environment is `<tag>-dev`.
 
-The frontend source code was changed to use this docker spec by
-default.  (But you can change the docker spec in the UI now, and old
-label files will keep using what they've been using.)
+`create_production_images.py` builds (and optionally publishes) a whole
+complement in one command, resumably: run it, fix whatever breaks, run it again.
 
 
+## Building a complement
 
-# Singularity
+From this directory (`deepnet/scripts`), run the script with the tag (the tag is
+the full name, including the date):
 
-When using the JRC Cluster backend, the frontend source has been modified to default to using the Singularity image at
 ```
-/groups/branson/bransonlab/apt/sif/apt_20230427_tf211_pytorch113_ampere.sif
-```
-
-It used to use the image at
-```
-/groups/branson/bransonlab/apt/sif/prod.sif
-```
-or the one at
-```
-/groups/branson/bransonlab/apt/sif/det.sif
-```
-depending on whether the network in use was one-phase or two-phase, and which model was being run.
-
-You can re-make the singularity image using the command
-```
-./make_singularity_image_apt_20230427_tf211_pytorch113_ampere.bash
+./create_production_images.py apt-20260801-tf215-pytorch21-hopper
 ```
 
-ALT
-2023-05-25
+This builds everything for `apt-20260801-tf215-pytorch21-hopper` locally but does
+not publish it.  It needs `conda`, `docker`, and `apptainer`, and a working GPU
+for the smoke tests.
+
+The script runs these stages in order, **skipping any whose output already
+exists**:
+
+1.  Create the dev folder `<tag>-dev`.
+2.  Seed `<tag>-dev/environment.yaml` from `dev-environment-template.yaml`.
+    When this file is first created, the script **stops here** so you can review
+    and edit it before the build (see "Editing the environment and iterating"
+    below); re-run to continue.
+3.  Build the dev conda environment, then smoke-test it.
+4.  Create the prod folder `<tag>`.
+5.  Freeze the dev environment into `<tag>/environment.yaml` — a
+    fully-pinned `conda env export` of the (working) dev environment, with the
+    `name:` de-`-dev`'d and the machine-specific `prefix:` line removed.
+6.  Build the prod conda environment, then smoke-test it.
+7.  Write `<tag>/Dockerfile` (templated with the name and CUDA version).
+8.  Build the Docker image, then smoke-test it.
+9.  Build the Apptainer `.sif` from the local Docker image (via the
+    `docker-daemon://` transport, so no Docker Hub round-trip), then smoke-test
+    it.
+10. Push the Docker image to Docker Hub. &nbsp;&nbsp;*(only with `--publish`)*
+11. Copy the `.sif` into `/groups/branson/bransonlab/apt/sif/`.
+    &nbsp;&nbsp;*(only with `--publish`)*
+
+If any stage errors, the whole script errors.
+
+Only `environment.yaml` in the dev directory and `environment.yaml`
+and `Dockerfile` in the prod directory should normally be committed to
+the repo; the built `.sif` also lands there but is git-ignored (the repo-root
+`.gitignore` ignores `*.sif`).
+
+
+## The smoke test
+
+Each conda environment and image is smoke-tested with `test_pose_estimation.py`,
+which runs the mmpose pose-estimation demo and compares the result to
+`demo-output-target.jpg`.  The comparison is a structural-similarity (SSIM)
+score computed in Python with scikit-image, so it needs no tools beyond the
+environment under test — the whole test, compute and compare, runs inside that
+environment or image.  It needs a GPU (`--gpus all` for Docker, `--nv` for
+Apptainer).
+
+A smoke test runs only when its environment/image is (re)built in a given run; an
+environment/image that already exists is trusted and not re-tested.
+
+
+## Editing the environment and iterating
+
+New dev environments are seeded from `dev-environment-template.yaml` — the
+*unpinned* spec listing the direct dependencies with loose version constraints.
+To change what new environments get, edit that file.
+
+The development stage is inherently iterative: you usually want to adjust the
+seeded dependencies, and a fresh set may not solve, or may fail the smoke test,
+on the first try.  Because the script is resumable, the loop is:
+
+1. Run `./create_production_images.py <tag>`.  The first time, it seeds
+   `<tag>-dev/environment.yaml` from the template and **stops**, so you can
+   review and edit it.
+2. Edit `<tag>-dev/environment.yaml` (a later run will **not** overwrite it), then
+   run the script again to build and test the environment.
+3. If a build or test fails, fix the spec and re-run; the script skips the stages
+   that already succeeded and retries the rest.  If the conda environment built
+   but is broken, remove it with `conda env remove --name <tag>-dev` so the next
+   run rebuilds it.
+
+To iterate on just the conda environments without building the Docker and
+Apptainer images, pass `--conda-only`:
+
+```
+./create_production_images.py apt-20260801-tf215-pytorch21-hopper --conda-only
+```
+
+`--conda-only` builds and tests only the dev and prod conda environments
+(stages 1–6).  It cannot be combined with `--publish`.
+
+
+## Publishing
+
+By default nothing is published.  When you are ready to share the images, pass
+`--publish`:
+
+```
+./create_production_images.py apt-20260801-tf215-pytorch21-hopper --publish
+```
+
+This additionally:
+
+- pushes the Docker image to Docker Hub as
+  `bransonlabapt/apt_docker:<tag>` (needed by the docker backend and the
+  AWS/remote backends); and
+- copies the Apptainer `.sif` into `/groups/branson/bransonlab/apt/sif/`, where
+  the bsub/cluster backend loads it from.
+
+You must be logged in to Docker Hub (`docker login`) with push access to the
+`bransonlabapt` organization before publishing.  Both publish steps are
+idempotent: the push is skipped if the tag already exists on Docker Hub, and the
+copy is skipped if the `.sif` is already in the shared directory.
+
+
+## Using a new complement in APT
+
+Each APT project records which conda/Docker/Apptainer images it uses, and an
+existing project keeps using what it was built with until changed.  Point the
+APT frontend defaults (and/or the per-project backend settings in the UI) at the
+new names to adopt a freshly built complement:
+
+- conda environment: `apt-20260801-tf215-pytorch21-hopper`
+- Docker image: `docker://bransonlabapt/apt_docker:apt-20260801-tf215-pytorch21-hopper`
+- Apptainer image: `.../sif/apt-20260801-tf215-pytorch21-hopper.sif`

@@ -1,10 +1,10 @@
 function result = synthesize_backend_params(backend)
-  % environment_base_name = 'apt_20230427_tf211_pytorch113_ampere' ;
-  environment_base_name = 'apt-20260506-tf215-pytorch21-hopper' ;
-  conda_base_name = 'apt-20250626-tf215-pytorch21-hopper' ;
-  % conda and other environments are out of sync because of graph-cut-opt
-  % package installed to docker and singularity MK 20260506. 
-  user_name = get_user_name() ;  
+  % Synthesize a name-value list of backend parameters for use in the test suite.
+  % The image/environment name is taken from the DLBackEndClass defaults in all
+  % cases, so that tests run against whatever image/environment the class considers
+  % current, and so that a stale image/environment override baked into a loaded
+  % project gets replaced by the class default at test time.
+  user_name = get_user_name() ;
   % We could just result a list with params for *all* backends, but then we
   % would have to error if user has not customized this function to add *their*
   % AWS info, even if they're not using the AWS backend.
@@ -14,13 +14,11 @@ function result = synthesize_backend_params(backend)
     else
       jrcAdditionalBsubArgs = '' ;
     end
-    sif_name = sprintf('%s.sif', environment_base_name) ;
-    sif_path = fullfile('/groups/branson/bransonlab/apt/sif', sif_name) ;
     result = { ...
-      'singularity_image_path', sif_path, ...
+      'singularity_image_path', DLBackEndClass.DEFAULT_SINGULARITY_IMAGE_PATH, ...
       'jrcgpuqueue','gpu_a100', ...
       'jrcnslots',4, ...
-      'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs } ;    
+      'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs } ;
   elseif strcmp(backend, 'aws')
     generalAWSParams = {'awsInstanceID', 'i-0c893bbd7b6cf1853'} ;
     if strcmp(user_name, 'taylora') ,
@@ -28,12 +26,16 @@ function result = synthesize_backend_params(backend)
         'awsKeyName', 'alt_taylora-ws4', ...
         'awsPEM', '/home/taylora/.ssh/alt_taylora-ws4.pem' } ;
     else
-      error('You need to customize %s.m to contain your AWS key name and PEM file location', mfilename()) ; 
+      error('You need to customize %s.m to contain your AWS key name and PEM file location', mfilename()) ;
     end
     result = horzcat(generalAWSParams, personalAWSParams) ;
   elseif strcmp(backend, 'docker')
-    result = { 'dockerimgroot', 'bransonlabapt/apt_docker', 'dockerimgtag', environment_base_name } ;
+    result = { ...
+      'dockerimgroot', DLBackEndClass.defaultDockerImgRoot, ...
+      'dockerimgtag', DLBackEndClass.defaultDockerImgTag } ;
   elseif strcmp(backend, 'conda')
-    result = { 'condaEnv', conda_base_name } ;
+    result = { 'condaEnv', DLBackEndClass.default_conda_env } ;
+  else
+    error('APT:invalidValue', 'Unknown backend type "%s"', backend) ;
   end
-end  % function    
+end  % function

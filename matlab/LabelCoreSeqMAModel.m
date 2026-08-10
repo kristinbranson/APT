@@ -71,7 +71,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
 
   events
     updateTwoClickState     % tcOn_/tcipt_ changed
-    updateNewFrameTarget    % new frame/target data ready for controller
+    updateMultiTargetLabelOverlay  % frame/target changed; redraw the overlay
     updateAccepted          % entering accepted state
     updateAcceptedReset     % entering accepted state with reset
     updateBeginLabel        % entering label state
@@ -170,8 +170,8 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
         obj.beginAcceptedReset() ;
       end
 
-      % Notify controller to update all MA track results and ROI
-      obj.notify_('updateNewFrameTarget') ;
+      % Notify controller to redraw the multi-target label overlay
+      obj.notify_('updateMultiTargetLabelOverlay') ;
     end  % function
 
     function resetState(obj)

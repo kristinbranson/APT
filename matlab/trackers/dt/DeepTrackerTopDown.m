@@ -127,8 +127,8 @@ classdef DeepTrackerTopDown < DeepTracker
     end
 
     function iterFinal = getIterFinal(obj)
-      sPrmGDStg1 = obj.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.GradientDescent;
-      iterFinal = [sPrmGDStg1.dl_steps,getIterFinal@DeepTracker(obj)];
+      sPrmGDStg1 = APTParameters.getGradientDescentSteps(obj.sPrmAll,'detect');
+      iterFinal = [sPrmGDStg1,getIterFinal@DeepTracker(obj)];
     end    
     
     function  [tfCanTrain,reason] = canTrain(obj)
@@ -161,8 +161,8 @@ classdef DeepTrackerTopDown < DeepTracker
     
     function s = getTrackSaveToken(obj)
       s = obj.getSaveToken();
-      s.stg1.sPrmAll = APTParameters.all2TrackParams(s.stg1.sPrmAll,false);
-      s.stg2.sPrmAll = APTParameters.all2TrackParams(s.stg2.sPrmAll,false);
+      s.stg1.sPrmAll = APTParameters.all2TrackParams(s.stg1.sPrmAll);
+      s.stg2.sPrmAll = APTParameters.all2TrackParams(s.stg2.sPrmAll);
     end
     
     function loadSaveToken(obj,s)
