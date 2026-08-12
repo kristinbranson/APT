@@ -193,7 +193,6 @@ classdef ProjectSetup < handle
       buttonHeight = 32 ;
       withinSectionRowSpacing = 8 ;  % gap between a section's label-and-control row and its details label
       outerGridRowSpacing = 12 ;  % gap between outerGrid rows
-      copySettingsOverlapAmount = 6 ;  % how far the Copy Settings button overlaps into the Has Body Tracking details
 
       % Create the figure
       obj.fig_ = uifigure('Visible', 'off') ;
@@ -209,9 +208,7 @@ classdef ProjectSetup < handle
       end
 
       % Outer column: 7 rows.  Rows 1-5 are content sections (sized 'fit').
-      % Row 6 is reserved empty space for the Copy Settings button, which is
-      % added as a direct child of the figure (not the grid) so it can
-      % overlap the Has Body Tracking details area above.  Row 7 holds the
+      % Row 6 holds the right-aligned Copy Settings button.  Row 7 holds the
       % bottom buttons.
       outerGrid = uigridlayout(obj.fig_, [7 1]) ;
       outerGrid.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', buttonHeight, buttonHeight} ;
@@ -414,12 +411,26 @@ classdef ProjectSetup < handle
       obj.has_body_tracking_details_label_.FontColor = labelColor ;
       obj.has_body_tracking_details_label_.BackgroundColor = bgColor ;
 
-      % Row 6 is reserved empty space; copy_settings_from_button_ is added below as
-      % a direct child of the figure so it can overlap the Has Body Tracking
-      % details area in row 5.
-      emptyRow = uigridlayout(outerGrid, [1 1]) ;
-      emptyRow.Padding = [0 0 0 0] ;
-      emptyRow.BackgroundColor = bgColor ;
+      % Row 6: the Copy Settings... button, right-aligned in its own grid
+      % row.  (It used to float over the grid with a hard-coded overlap into
+      % the Has Body Tracking details area, which broke whenever font metrics
+      % wrapped that text differently.)
+      copySettingsRow = uigridlayout(outerGrid, [1 2]) ;
+      copySettingsRow.ColumnWidth = {'1x', copySettingsButtonWidth} ;
+      copySettingsRow.RowHeight = {buttonHeight} ;
+      copySettingsRow.Padding = [0 0 0 0] ;
+      copySettingsRow.ColumnSpacing = 0 ;
+      copySettingsRow.BackgroundColor = bgColor ;
+
+      obj.copy_settings_from_button_ = uibutton(copySettingsRow, 'push') ;
+      obj.copy_settings_from_button_.Tag = 'copy_settings_from_button_' ;
+      obj.copy_settings_from_button_.Layout.Column = 2 ;
+      obj.copy_settings_from_button_.ButtonPushedFcn = @(src, evt) obj.copy_settings_from_button_actuated_(src, evt) ;
+      obj.copy_settings_from_button_.BackgroundColor = fieldBgColor ;
+      obj.copy_settings_from_button_.FontSize = bigFontSize ;
+      obj.copy_settings_from_button_.FontColor = labelColor ;
+      obj.copy_settings_from_button_.Tooltip = 'Copy settings from an existing project' ;
+      obj.copy_settings_from_button_.Text = 'Copy Settings...' ;
 
       % Row 7: Bottom buttons (Create Project + Cancel, centered, with
       % an explicit gap between the two buttons) -------------------
@@ -453,26 +464,6 @@ classdef ProjectSetup < handle
       % then resize the figure to fit the natural content height.
       obj.fig_.Visible = 'on' ;
       shrinkFigureToFitContentBang(obj.fig_, outerGrid) ;
-
-      % Copy Settings... button.  Created as a direct child of the figure
-      % (not inside outerGrid) so it can overlap into the Has Body Tracking
-      % details area above, matching the look of the original GUIDE layout.
-      % Drawn on top of outerGrid because it is created later.
-      obj.copy_settings_from_button_ = uibutton(obj.fig_, 'push') ;
-      obj.copy_settings_from_button_.Tag = 'copy_settings_from_button_' ;
-      obj.copy_settings_from_button_.ButtonPushedFcn = @(src, evt) obj.copy_settings_from_button_actuated_(src, evt) ;
-      obj.copy_settings_from_button_.BackgroundColor = fieldBgColor ;
-      obj.copy_settings_from_button_.FontSize = bigFontSize ;
-      obj.copy_settings_from_button_.FontColor = labelColor ;
-      obj.copy_settings_from_button_.Tooltip = 'Copy settings from an existing project' ;
-      obj.copy_settings_from_button_.Text = 'Copy Settings...' ;
-      % Position derived from the known outerGrid layout.  Bottom of the Has
-      % Body Tracking details label, measured from the figure bottom, is:
-      %   marginWidth + row 7 + spacing + row 6 + spacing
-      detailsBottomY = marginWidth + buttonHeight + outerGridRowSpacing + buttonHeight + outerGridRowSpacing ;
-      copySettingsButtonX = (figWidth - marginWidth) - copySettingsButtonWidth ;
-      copySettingsButtonY = detailsBottomY + copySettingsOverlapAmount - buttonHeight ;
-      obj.copy_settings_from_button_.Position = [copySettingsButtonX, copySettingsButtonY, copySettingsButtonWidth, buttonHeight] ;
 
       % Do a final centering
       if ~isempty(hParentFig)
