@@ -207,11 +207,11 @@ classdef ProjectSetup < handle
         centerOnParentFigure(obj.fig_, hParentFig) ;
       end
 
-      % Outer column: 7 rows.  Rows 1-5 are content sections (sized 'fit').
-      % Row 6 holds the right-aligned Copy Settings button.  Row 7 holds the
-      % bottom buttons.
-      outerGrid = uigridlayout(obj.fig_, [7 1]) ;
-      outerGrid.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', buttonHeight, buttonHeight} ;
+      % Outer column: 8 rows.  Rows 1-5 are content sections (sized 'fit').
+      % Row 6 holds the right-aligned Copy Settings button.  Row 7 is an
+      % empty spacer.  Row 8 holds the bottom buttons.
+      outerGrid = uigridlayout(obj.fig_, [8 1]) ;
+      outerGrid.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', buttonHeight, buttonHeight, buttonHeight} ;
       outerGrid.ColumnWidth = {'1x'} ;
       outerGrid.Padding = [marginWidth marginWidth marginWidth marginWidth] ;
       outerGrid.RowSpacing = outerGridRowSpacing ;
@@ -432,7 +432,15 @@ classdef ProjectSetup < handle
       obj.copy_settings_from_button_.Tooltip = 'Copy settings from an existing project' ;
       obj.copy_settings_from_button_.Text = 'Copy Settings...' ;
 
-      % Row 7: Bottom buttons (Create Project + Cancel, centered, with
+      % Row 7: empty spacer above the bottom buttons.  A child grid rather
+      % than a bare row: shrinkFigureToFitContentBang sizes rows by their
+      % children's rendered heights, so a childless row would count as zero
+      % and the figure would come out a row short.
+      spacerRow = uigridlayout(outerGrid, [1 1]) ;
+      spacerRow.Padding = [0 0 0 0] ;
+      spacerRow.BackgroundColor = bgColor ;
+
+      % Row 8: Bottom buttons (Create Project + Cancel, centered, with
       % an explicit gap between the two buttons) -------------------
       betweenBottomButtonsWidth = 20 ;
       bottomButtonsRow = uigridlayout(outerGrid, [1 5]) ;
