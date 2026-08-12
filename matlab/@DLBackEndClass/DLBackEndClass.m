@@ -1619,7 +1619,7 @@ classdef DLBackEndClass < handle
     function prepareFilesForTracking(backend, toTrackInfo)
       backend.ensureFoldersNeededForTrackingExist_(toTrackInfo) ;
       backend.ensureCacheFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file') ;
-      if ~toTrackInfo.getDoContinue
+      if ~toTrackInfo.getDoContinue()
         backend.ensureCacheFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result') ;
       end
       %backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files') ;
@@ -1627,7 +1627,7 @@ classdef DLBackEndClass < handle
 
     function ensureFoldersNeededForTrackingExist_(obj, toTrackInfo)
       % Paths in toTrackInfo are native paths
-      nativeDirPathAsCharFromIndex = toTrackInfo.trkoutdir ;
+      nativeDirPathAsCharFromIndex = toTrackInfo.trkoutdir() ;
       desc = 'trk cache dir' ;
       for i = 1:numel(nativeDirPathAsCharFromIndex) ,
         nativeDirPathAsChar = nativeDirPathAsCharFromIndex{i} ;

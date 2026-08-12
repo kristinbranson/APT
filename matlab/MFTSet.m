@@ -30,7 +30,7 @@ classdef MFTSet < handle
       % Create pretty-string for UI
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       
-      movstr = obj.movieIndexSet.getPrettyString;
+      movstr = obj.movieIndexSet.getPrettyString();
       frmstr = lower(obj.frameSet.getPrettyString(labelerObj));
       [decstr,decval] = obj.decimation.getPrettyString(labelerObj);
       decstr = lower(decstr);
@@ -60,7 +60,7 @@ classdef MFTSet < handle
       % Create shorter pretty-string for UI, iss #161
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       
-      movstr = obj.movieIndexSet.getPrettyString;
+      movstr = obj.movieIndexSet.getPrettyString();
       if ~strcmpi(movstr,'current movie')
         str = obj.getPrettyStr(labelerObj);
         return;
@@ -90,7 +90,7 @@ classdef MFTSet < handle
       % Create shorter pretty-string for UI, iss #161
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       
-      movstr = obj.movieIndexSet.getPrettyString;
+      movstr = obj.movieIndexSet.getPrettyString();
       if ~strcmpi(movstr,'current movie')
         str = obj.getPrettyStr(labelerObj);
         return;

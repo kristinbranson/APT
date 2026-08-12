@@ -1244,7 +1244,7 @@ classdef Labeler < handle
       n = numel(iMov);
       v = cell(n,obj.nview);
       
-      sMacro = obj.projMacrosGetWithAuto;
+      sMacro = obj.projMacrosGetWithAuto();
       mfa = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,sMacro);
       mfaGT = FSPath.fullyLocalizeStandardize(obj.movieFilesAllGT,sMacro);
       tfa = obj.trxFilesAll;
@@ -2495,7 +2495,7 @@ classdef Labeler < handle
         [~,fname] = fileparts(obj.projectfile);
         obj.projname = fname;
       end
-      obj.popBusyStatus;
+      obj.popBusyStatus();
     end  % function
 
 
@@ -5016,7 +5016,7 @@ classdef Labeler < handle
         end
       end
       
-      obj.projMacroClear;
+      obj.projMacroClear();
     end
     
     function tfok = checkFrameAndTargetInBounds(obj,frm,tgt)
@@ -5888,7 +5888,7 @@ classdef Labeler < handle
     end
 
     function tia = getTrxInfoMovIdx(obj,iMov)
-      [movi,gt] = iMov.get;
+      [movi,gt] = iMov.get();
       if gt,
         tia = obj.trxInfoAll(:,movi);
       else
@@ -5899,7 +5899,7 @@ classdef Labeler < handle
     function frm2trx = getFrm2Trx(obj,movi,varargin)
       [tgts,gt] = myparse(varargin,'tgts','unset','gt',[]);
       if isa(movi,'MovieIndex')
-        [movi,gt] = movi.get;
+        [movi,gt] = movi.get();
       elseif isempty(gt)
         gt = false;
       end
@@ -6386,7 +6386,7 @@ classdef Labeler < handle
      
       nPts = obj.nLabelPoints;
       lblPtsPlotInfo = obj.labelPointsPlotInfo;
-      lblPtsPlotInfo.Colors = obj.LabelPointColors;
+      lblPtsPlotInfo.Colors = obj.LabelPointColors();
       %template = obj.labelTemplate;
       
       lc = obj.lblCore;
@@ -9564,7 +9564,7 @@ classdef Labeler < handle
     
     function suspInit(obj)
       obj.suspScore = cell(obj.nmovies,1);
-      obj.suspSelectedMFT = MFTable.emptySusp;
+      obj.suspSelectedMFT = MFTable.emptySusp();
       obj.suspComputeFcn = [];
     end
     
@@ -10371,7 +10371,7 @@ classdef Labeler < handle
       % Also delete any untrained trackers.
       trackersNewFirst = trackers(iTrk) ;  % singleton cell array
       trackersNewRestDraft = delete_elements(trackers, iTrk) ;
-      isTrained = cellfun(@(tracker)(tracker.hasBeenTrained), trackersNewRestDraft) ;
+      isTrained = cellfun(@(tracker)(tracker.hasBeenTrained()), trackersNewRestDraft) ;
       trackersNewRest = trackersNewRestDraft(isTrained) ;
       trackersNew = horzcat(trackersNewFirst, trackersNewRest) ;
       obj.trackerHistory_ = trackersNew ;
@@ -10568,7 +10568,7 @@ classdef Labeler < handle
       end
 
       % Filter untrained trackers out of trackers
-      isTrained = cellfun(@(tracker)(tracker.hasBeenTrained), trackers) ;
+      isTrained = cellfun(@(tracker)(tracker.hasBeenTrained()), trackers) ;
       trainedTrackers = trackers(isTrained) ;
 
       % Put the new tracker at the front of the history
@@ -11071,7 +11071,7 @@ classdef Labeler < handle
     end  % function
     
     function tfCanTrack = trackAllCanTrack(obj)
-      tfCanTrack = cellfun(@(t)(t.canTrack), obj.trackerHistory_) ;
+      tfCanTrack = cellfun(@(t)(t.canTrack()), obj.trackerHistory_) ;
     end
     
     function [result, message] = doProjectAndMovieExist(obj)
@@ -11402,7 +11402,7 @@ classdef Labeler < handle
       end
       s.projectFile = obj.projectfile;
 
-      nchan = arrayfun(@(x)x.getreadnchan,obj.movieReader);
+      nchan = arrayfun(@(x)x.getreadnchan(),obj.movieReader);
       nchan = unique(nchan);
       if ~isscalar(nchan)
         error('Number of channels differs across views.');
@@ -12012,7 +12012,7 @@ classdef Labeler < handle
       %
       % wh: [nviewx2] widthHeight of default crop size used. See defns at 
       % top of CropInfo.m.      
-      wh = obj.cropComputeDfltWidthHeight;
+      wh = obj.cropComputeDfltWidthHeight();
       obj.cropInitCropsGen(wh,'movieInfoAll','movieFilesAllCropInfo');
       obj.cropInitCropsGen(wh,'movieInfoAllGT','movieFilesAllGTCropInfo');
       obj.preProcNonstandardParamChanged();

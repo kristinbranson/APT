@@ -223,7 +223,7 @@ classdef InfoTimelineController < handle
       lObj = obj.lObj ;
       nLabelPoints = lObj.nLabelPoints ;
       isMA = lObj.maIsMA ;
-      colors = lObj.LabelPointColors ;
+      colors = lObj.LabelPointColors() ;
       prefsXColor = lObj.projPrefs.InfoTimelines.XColor ;
 
       deleteValidGraphicsHandles(obj.hPts);

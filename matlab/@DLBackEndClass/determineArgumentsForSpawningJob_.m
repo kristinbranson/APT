@@ -3,17 +3,17 @@ function result = determineArgumentsForSpawningJob_(obj, tracker, gpuid, jobinfo
   
   if isequal(train_or_track,'train'),
     dmc = jobinfo;
-    containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
+    containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName());
   else
     dmc = jobinfo.trainDMC;
-    containerName = jobinfo.containerName;
+    containerName = jobinfo.containerName();
   end
   
   switch obj.type
     case DLBackEnd.Bsub
       mntPaths = obj.genContainerMountPathBsubDocker_(tracker,train_or_track,jobinfo);
       if isequal(train_or_track,'train'),
-        nativeLogFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+        nativeLogFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx());
         nslots = obj.jrcnslots;
       else % track
         nativeLogFilePathAsChar = jobinfo.logfile;
@@ -49,7 +49,7 @@ function result = determineArgumentsForSpawningJob_(obj, tracker, gpuid, jobinfo
         };
     case DLBackEnd.Conda
       if isequal(train_or_track,'train'),
-        nativeLogFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+        nativeLogFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx());
       else % track
         nativeLogFilePathAsChar = jobinfo.logfile;
       end

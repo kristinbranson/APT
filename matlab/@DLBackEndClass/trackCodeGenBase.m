@@ -19,7 +19,7 @@ nviews = numel(views);
 if nviews > 1 && totrackinfo.nmovies > 1 && ~totrackinfo.islistjob,
   for i = 1:totrackinfo.nmovies,
     tticurr = totrackinfo.selectSubset('movie',i);
-    tticurr.setJobid(totrackinfo.getJobid);
+    tticurr.setJobid(totrackinfo.getJobid());
     commandForThisMovie = DLBackEndClass.trackCodeGenBase(tticurr,varargin{:});
     if i == 1,
       command = commandForThisMovie;
@@ -193,7 +193,7 @@ else
   else
     command15b = command14b;
   end
-  if totrackinfo.hasTrxfiles,
+  if totrackinfo.hasTrxfiles(),
     nativeTrxFiles = totrackinfo.getTrxFiles('movie',movidx) ;
     trxFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), nativeTrxFiles, 'UniformOutput', false);
     trxFilesWslPath = cellfun(@(x) x.asWsl(), trxFilesNativePath, 'UniformOutput', false);
@@ -217,7 +217,7 @@ else
 end  % if
 % command17 should be the result of everything before here.
 
-nativeDetectFiles = totrackinfo.getDetectTrk;
+nativeDetectFiles = totrackinfo.getDetectTrk();
 if ~isempty(nativeDetectFiles{1})
   detectFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), nativeDetectFiles, 'UniformOutput', false);
   detectFilesWslPath = cellfun(@(x) x.asWsl(), detectFilesNativePath, 'UniformOutput', false);
@@ -226,7 +226,7 @@ else
   command17b = command17;
 end
 
-if totrackinfo.hasCroprois && ~totrackinfo.islistjob,
+if totrackinfo.hasCroprois() && ~totrackinfo.islistjob,
   croproi = totrackinfo.getCroprois('movie',movidx);
   if iscell(croproi)
     croproi = cell2mat(croproi');
@@ -243,7 +243,7 @@ else
   command18 = command17b;
 end
 
-if totrackinfo.getDoContinue
+if totrackinfo.getDoContinue()
   command18b = command18.append('-continue');
 else
   command18b = command18;

@@ -885,7 +885,7 @@ classdef TrkFile < dynamicprops
       % 2. initialize new TrkFile with empty trkflds of right size
       % (nan-filled)
 
-      objMerged = TrkFile(obj.npts,itgtsun,sfsNew,efsNew,obj.trkflds);
+      objMerged = TrkFile(obj.npts,itgtsun,sfsNew,efsNew,obj.trkflds());
 %       if TrkFile.has3Dpts(obj)
 %         objMerged.add3dpts();
 %       end

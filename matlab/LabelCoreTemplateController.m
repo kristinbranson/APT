@@ -107,7 +107,7 @@ classdef LabelCoreTemplateController < LabelCoreController
     function ptBDF(obj, src, evt)
       % Handle point button-down: select point or toggle est-occ.
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady() || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -131,7 +131,7 @@ classdef LabelCoreTemplateController < LabelCoreController
     function wbmf(obj, src, evt)  %#ok<INUSD>
       % Handle window button motion: drag selected point.
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
 
@@ -152,7 +152,7 @@ classdef LabelCoreTemplateController < LabelCoreController
     function wbuf(obj, ~, ~)
       % Handle window button up: end drag, handle click-without-move.
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
 
@@ -175,7 +175,7 @@ classdef LabelCoreTemplateController < LabelCoreController
     function tfKPused = kpf(obj, src, evt)
       % Handle key press: accept, frame nav, arrow-adjust, point select.
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         tfKPused = false ;
         return ;
       end

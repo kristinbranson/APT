@@ -234,7 +234,7 @@ classdef LabelCoreController < handle
 
     function pnlBDF(obj, src, evt)
       % Panel button-down handler: forward clicks within axis bounds to axBDF.
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
       tmp = get(obj.hAx_(1), 'CurrentPoint') ;

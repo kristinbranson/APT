@@ -1479,7 +1479,7 @@ classdef LabelerController < handle
         % aggOverPtsL2err is ground-truth-frame-count x animal-count.
         %   -- ALT, 2024-11-19
       % KB 20181022: Changed colors to match sets instead of points
-      clrs =  labeler.LabelPointColors;
+      clrs =  labeler.LabelPointColors();
       nclrs = size(clrs,1);
       lsz = size(l2err);
       npts = lsz(end);
@@ -2637,7 +2637,7 @@ classdef LabelerController < handle
     function tfKPused = cbkKPF(obj, source, event)
 
       labeler = obj.labeler_ ;
-      if ~labeler.isReady ,
+      if ~labeler.isReady() ,
         return
       end      
       tfKPused = false;
@@ -6582,7 +6582,7 @@ classdef LabelerController < handle
         % user clicked "Adjust Crop Size"
         labeler = obj.labeler_ ;
         if ~labeler.cropProjHasCrops
-          labeler.cropInitCropsAllMovies;
+          labeler.cropInitCropsAllMovies();
           fprintf(1,'Default crop initialized for all movies.\n');
           obj.cropUpdateCropHRects_();
         end
@@ -7110,7 +7110,7 @@ classdef LabelerController < handle
 
     function timelineButtonDown(obj, src, evt)
       labeler = obj.labeler_;
-      if ~labeler.isReady || ~labeler.hasProject || ~labeler.hasMovie
+      if ~labeler.isReady() || ~labeler.hasProject || ~labeler.hasMovie
         return
       end
 

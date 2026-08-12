@@ -443,7 +443,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       [trainConfigNames,idx] = obj.trainConfigName(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [obj.dirProjLnx '/' trainConfigNames{icurr} obj.configFileExt];
+        v{icurr} = [obj.dirProjLnx() '/' trainConfigNames{icurr} obj.configFileExt];
       end
     end
 
@@ -474,24 +474,24 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       [trainConfigNames,idx] = obj.trainConfigName(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [obj.dirProjLnx '/' trainConfigNames{icurr} '.json'];
+        v{icurr} = [obj.dirProjLnx() '/' trainConfigNames{icurr} '.json'];
       end
     end
 
     % full path to training annotations - unused
     function v = trainPackLnx(obj)
-      v = [obj.dirProjLnx '/' obj.trainPackName];      
+      v = [obj.dirProjLnx() '/' obj.trainPackName];      
     end
 
     % full path to training annotations - used - unique
     function v = trainLocLnx(obj)
-      v = [obj.dirProjLnx '/' obj.trainLocName];
+      v = [obj.dirProjLnx() '/' obj.trainLocName];
     end
 
     function [v,idx] = trainCmdfileLnx(obj,varargin)
       [v,idx] = obj.trainCmdfileName(varargin{:});
       for icurr = 1:numel(v),
-        v{icurr} = [obj.dirProjLnx '/' v{icurr}];
+        v{icurr} = [obj.dirProjLnx() '/' v{icurr}];
       end
     end
 
@@ -508,7 +508,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
           viewstr = sprintf('view%d',obj.view(icurr));
         end
         v{icurr} = sprintf('%s%s_%s_%s',obj.modelChainID{icurr},viewstr,obj.trainID{icurr},netModeName{ii});
-        if obj.isSplit,
+        if obj.isSplit(),
           v{icurr} = [v{icurr},'.sh'];
         else
           v{icurr} = [v{icurr},'.cmd'];
@@ -519,14 +519,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     function [v,idx] = splitfileLnx(obj,varargin)
       [v,idx] = obj.splitfileName(varargin{:});
       for icurr = 1:numel(v),
-        v{icurr} = [obj.dirProjLnx '/' v{icurr}];
+        v{icurr} = [obj.dirProjLnx() '/' v{icurr}];
       end
     end
 
     function [v,idx] = splitfileName(obj,varargin)
       idx = obj.select(varargin{:});
       % not sure how multiview works yet
-      if obj.isSplit
+      if obj.isSplit()
         v = cell(1,numel(idx));
         for ii = 1:numel(idx),
           icurr = idx(ii);
@@ -573,7 +573,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       [errfileName,idx] = obj.errfileName(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [obj.dirProjLnx '/' errfileName{icurr}];
+        v{icurr} = [obj.dirProjLnx() '/' errfileName{icurr}];
       end
     end
 
@@ -630,7 +630,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       [trainLogName,idx] = obj.trainLogName(varargin{:});
       v = cell(1,numel(trainLogName));
       for icurr = 1:numel(trainLogName),
-        v{icurr} = [obj.dirProjLnx '/' trainLogName{icurr}];
+        v{icurr} = [obj.dirProjLnx() '/' trainLogName{icurr}];
       end
     end
 
@@ -879,7 +879,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       [aptRepoSnapshotName,idx] = obj.aptRepoSnapshotName(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [obj.dirProjLnx '/' aptRepoSnapshotName{icurr}];
+        v{icurr} = [obj.dirProjLnx() '/' aptRepoSnapshotName{icurr}];
       end
     end
 
@@ -1222,7 +1222,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         gnetspecific = cellfun(@(x)[dmcl{ii} '/' x],gnetspecific,'uni',0);
       
         g{ii} = [{ ...
-          [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID{i},obj.trainID{i})]; ... % lbl
+          [obj.dirProjLnx() '/' sprintf('%s_%s*',obj.modelChainID{i},obj.trainID{i})]; ... % lbl
           [dmcl{ii} '/' sprintf('%s*',obj.trainID{i})]; ... % toks, logs, errs
           };...
           gnetspecific(:)];
@@ -1318,7 +1318,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     function [tf,tpdir] = trnPackExists(obj,varargin)
       % Training package exists
       trainLocLnx = obj.trainLocLnx();  % old-style string
-      tpdir = obj.dirProjLnx;
+      tpdir = obj.dirProjLnx();
       tf = logical(exist(tpdir,'dir')) && logical(exist(trainLocLnx,'file')) ;
     end
   end  % methods

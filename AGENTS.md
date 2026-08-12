@@ -272,6 +272,11 @@ When converting a custom class to a char array, write it as
 When calling `notify()` on an object, write it as
 `obj.notify(<args>)`, not `notify(obj, <args>)`.
 
+Always call methods with explicit parentheses, even with no arguments:
+`x = obj.someMethod() ;`, never `x = obj.someMethod ;`.  The paren-less
+form is ambiguous with a property read for anyone (or any tool) that
+doesn't have the class definition at hand.
+
 All functions and methods should have a comment after the line with
 `function` in it that says what the function does.
 

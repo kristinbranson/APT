@@ -58,7 +58,7 @@ for istage = 1:nstages,
 end
 % trainType has to be unique - only one parameter to APT_interface to
 % specify this
-trainType = DeepModelChainOnDisk.getCheckSingle(dmc.getTrainType);
+trainType = DeepModelChainOnDisk.getCheckSingle(dmc.getTrainType());
 
 % MK 20220128 -- db_format should come from params_deeptrack_net.yaml
 %       confParams = { ... %        'is_multi' 'True' ...    'max_n_animals' num2str(maxNanimals) ...

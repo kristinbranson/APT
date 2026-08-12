@@ -34,7 +34,7 @@ classdef TrackerCreateInfo
     function result = asCellArray(obj)
       % Extract the cell array representation of the TCI.
       % This is what we save to to the project file.
-      result = horzcat( { obj.className }, obj.constructorArgs) ;
+      result = horzcat( { obj.className }, obj.constructorArgs()) ;
     end  % function
 
     function result = constructorArgs(obj)

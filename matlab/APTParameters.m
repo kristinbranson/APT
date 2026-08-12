@@ -178,7 +178,7 @@ classdef APTParameters
       % sPrm0 = defaultParamsStructAll
       % Returns a struct with the default parameter hierarchy, including
       % network-architecture specific parameters
-      tPrm0 = APTParameters.defaultParamsTree;
+      tPrm0 = APTParameters.defaultParamsTree();
       sPrm0 = tPrm0.structize();
     end    
  
@@ -482,7 +482,7 @@ classdef APTParameters
       % Return parameters of struct sPrm that correspond to 
       [tPrm,leftovers] = myparse_nocheck(varargin,'tree',[]);
       if isempty(tPrm),
-        tPrm = APTParameters.defaultParamsTree;
+        tPrm = APTParameters.defaultParamsTree();
       end
       tPrm.structapply(sPrm);
       tPrm = APTParameters.filterPropertiesByCondition(tPrm,[],leftovers{:});
@@ -495,7 +495,7 @@ classdef APTParameters
         isEqualFilteredStructProperties(sPrm0,sPrm1,varargin)
       [tPrm0,leftovers] = myparse_nocheck(varargin,'tree',[]);
       if isempty(tPrm0),
-        tPrm0 = APTParameters.defaultParamsTree;
+        tPrm0 = APTParameters.defaultParamsTree();
       end
       tPrm1 = tPrm0.copy();
       sPrmFilter0 = APTParameters.filterStructPropertiesByCondition(sPrm0,'tree',tPrm0,leftovers{:});
@@ -587,7 +587,7 @@ classdef APTParameters
     % all parameters to common dl parameters
     function v = all2TrackDLParams(sPrmAll)
       sPrmDT = sPrmAll.ROOT.DeepTrack;
-      dlNetTypesPretty = APTParameters.getDLNetTypesPretty;
+      dlNetTypesPretty = APTParameters.getDLNetTypesPretty();
       v = rmfield(sPrmDT,intersect(fieldnames(sPrmDT),dlNetTypesPretty));
       flds2remove = {'LossFunction','Saving','DataAugmentation','GradientDescent'};
       for fndx = 1:numel(flds2remove)
@@ -679,7 +679,7 @@ classdef APTParameters
 
       tshared = APTParameters.PARAM_FILES_TREES.deeptrack_shared.tree.findnode(APTParameters.deepSharedPath);
       prepath = APTParameters.DLStage2Path(stage);
-      tdt = APTParameters.defaultParamsTree.findnode(prepath);
+      tdt = APTParameters.defaultParamsTree().findnode(prepath);
       relpaths = APTParameters.modernizeMoveSubTrees(tshared,tdt,'');
       translateflds = [cellfun(@(relpath) [prepath,'.',relpath],relpaths,'Uni',0),...
         cellfun(@(relpath) [APTParameters.deepSharedPath,'.',relpath],relpaths,'Uni',0)];
@@ -702,7 +702,7 @@ classdef APTParameters
           prmsin{i} = APTParameters.modernize(prmsin{i},'all');
         end
       end
-      sPrmDflt = APTParameters.defaultParamsStructAll;
+      sPrmDflt = APTParameters.defaultParamsStructAll();
       if isempty(prmsin{1}),
         % copy over prmsin{2} into prmsin{1}
         prm = prmsin{2};
@@ -928,7 +928,7 @@ classdef APTParameters
           rmfield(sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch,'link_id_cropsz');
       end
 
-      sPrmDflt = APTParameters.defaultParamsStructAll;
+      sPrmDflt = APTParameters.defaultParamsStructAll();
       sPrmAll = structoverlay(sPrmDflt,sPrmAll,'allowedUnrecogFlds',allowedUnrecogFlds);%,...
         %'dontWarnUnrecog',true); % to allow removal of obsolete params
     end
@@ -1091,12 +1091,12 @@ classdef APTParameters
     end
 
     function v = getMATargetCropRadiusManual(prm,varargin)
-      s = APTParameters.maTargetCropRadiusManualPath;
+      s = APTParameters.maTargetCropRadiusManualPath();
       v = APTParameters.getParam(prm,s,varargin{:});
     end
 
     function prm = setMATargetCropRadiusManual(prm,v)
-      prm = APTParameters.setParam(prm,APTParameters.maTargetCropRadiusManualPath,v);
+      prm = APTParameters.setParam(prm,APTParameters.maTargetCropRadiusManualPath(),v);
     end
 
     function v = getMATargetCropParams(prm,varargin)
@@ -1137,11 +1137,11 @@ classdef APTParameters
     end
 
     function prm = getAlignTrxTheta(prm,varargin)
-      prm = APTParameters.getParam(prm,APTParameters.alignTrxThetaPath,varargin{:});
+      prm = APTParameters.getParam(prm,APTParameters.alignTrxThetaPath(),varargin{:});
     end
 
     function prm = setMAAlignUsingTrxTheta(prm,val)
-      prm = APTParameters.setParam(prm,APTParameters.alignTrxThetaPath,val);
+      prm = APTParameters.setParam(prm,APTParameters.alignTrxThetaPath(),val);
     end
 
     function prm = setHeadTailKeypoints(prm,val)
@@ -1153,7 +1153,7 @@ classdef APTParameters
     end
 
     function v = getMultiScaleByBBox(prm,varargin)
-      v = APTParameters.getParam(prm,APTParameters.multiScaleByBBoxPath,varargin{:});
+      v = APTParameters.getParam(prm,APTParameters.multiScaleByBBoxPath(),varargin{:});
     end
 
     function v = getMaxNAnimals(prm,varargin)

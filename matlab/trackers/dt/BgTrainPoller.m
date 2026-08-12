@@ -165,7 +165,7 @@ classdef BgTrainPoller < BgPoller
       result.identifiers = obj.dmcs_.getIdentifiers();
       result.pollsuccess = false;  % if true, remote poll cmd was successful
       result.pollts = now() ; % datenum time that poll cmd returned
-      result.jsonPath = obj.dmcs_.trainDataLnx; % cell of chars, full paths to json trn loss being polled
+      result.jsonPath = obj.dmcs_.trainDataLnx(); % cell of chars, full paths to json trn loss being polled
       result.jsonPresent = false(1,nModels); % array, true if corresponding file exists. if false, remaining fields are indeterminate
       result.lastTrnIter = nan(1,nModels); % array, (only if jsonPresent==true) last known training iter for this view. Could be eg -1 or 0 if no iters avail yet.
       result.tfUpdate = false(1,nModels); % (only if jsonPresent==true) array, true if the current read represents an updated training iter.
@@ -173,9 +173,9 @@ classdef BgTrainPoller < BgPoller
       result.trainCompletePath = obj.dmcs_.trainCompleteArtifacts(); % cell of cell of char, full paths to artifact indicating train complete
       result.trainFinalModel = obj.dmcs_.trainFinalModelLnx();
       result.tfComplete = false(1,nModels); % array, true if trainCompletePath exists and training job is not running anymore
-      result.errFile = obj.dmcs_.errfileLnx; % cell of char, full path to DL err file
+      result.errFile = obj.dmcs_.errfileLnx(); % cell of char, full path to DL err file
       result.errFileExists = false(1,nModels); % array, true of errFile exists and has size>0
-      result.logFile = obj.dmcs_.trainLogLnx; % cell of char, full path to Bsub logfile
+      result.logFile = obj.dmcs_.trainLogLnx(); % cell of char, full path to Bsub logfile
       result.logFileExists = false(1,nModels); % array logical
       result.isRunning = false(1,nModels) ;
       result.isPopulated = true(1,nModels) ;

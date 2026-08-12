@@ -109,7 +109,7 @@ classdef XYPlotClickSender < handle
       
       expCoordinator.registerAxis(ax,@(eids)obj.signalReceivedCallback(eids));
       
-      obj.bbReset; % init bounding-box state
+      obj.bbReset(); % init bounding-box state
       obj.setSelectionMode('singleClick');
     end
     
@@ -127,7 +127,7 @@ classdef XYPlotClickSender < handle
   methods
     
     function setSelectionMode(obj,mode)
-      obj.bbReset;
+      obj.bbReset();
       hFig = ancestor(obj.fAx,'figure');
       
       % WindowButtonDownFcn, etc cannot be modified while zoom/pan

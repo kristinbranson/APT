@@ -11,7 +11,7 @@ classdef RC
       % get prop if it exists; if not, set prop to default val and return
       % it
       
-      rc = RC.load;
+      rc = RC.load();
       if isfield(rc,name)
         v = rc.(name);
       else
@@ -22,7 +22,7 @@ classdef RC
     
     % AL 20150606: Currently every getprop involves a filesystem read
     function v = getprop(name)      
-      rc = RC.load;
+      rc = RC.load();
       if isfield(rc,name)
         v = rc.(name);
       else

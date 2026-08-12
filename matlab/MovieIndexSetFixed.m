@@ -11,7 +11,7 @@ classdef MovieIndexSetFixed < MovieIndexSet
 
     function str = getPrettyString(obj)
       mi = obj.mIdxs;
-      [tf,gt] = mi.isConsistentSet;
+      [tf,gt] = mi.isConsistentSet();
       if tf
         if gt
           str = sprintf('Movies (gt): %s',mat2str(abs(mi)));

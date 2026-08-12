@@ -118,7 +118,7 @@ classdef TrkInfoController < handle
         pred_trk = [] ;
       end
 
-      has_pred = ~isempty(pred_trk) && pred_trk.hasdata ;
+      has_pred = ~isempty(pred_trk) && pred_trk.hasdata() ;
 
       if ~has_pred
         obj.tbl_.Data = {} ;
@@ -312,8 +312,8 @@ end  % classdef
 function [tdat,sf,ef,breaks,top_links] = trkInfoGetData_(trk)
   % Summarize a TrkFile's tracklets into a table plus start/end/break info.
   n_trk = trk.ntracklets ;
-  sf = trk.getStartFrame ;
-  ef = trk.getEndFrame ;
+  sf = trk.getStartFrame() ;
+  ef = trk.getEndFrame() ;
   varNames = {'ID','N Frm','Trk Len', 'Start','End',...
     'Brks','Avg Bout Sz','Avg Brk Sz',...
     'Median Link','Max Link','90 Prc Link'} ;

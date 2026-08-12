@@ -18,9 +18,9 @@ function [slbl,tp,locg,ntgtstot] = genWriteTrnPack(lObj,dmc,varargin)
 
   tfsplitsprovided = ~isempty(tblsplit);
 
-  packdir = dmc.dirProjLnx;
+  packdir = dmc.dirProjLnx();
   if isempty(jsonfilename),
-    jsonoutf = dmc.trainLocLnx;
+    jsonoutf = dmc.trainLocLnx();
   else
     jsonoutf = fullfile(packdir,jsonfilename);
   end
@@ -46,7 +46,7 @@ function [slbl,tp,locg,ntgtstot] = genWriteTrnPack(lObj,dmc,varargin)
 
   if (~cocoformat) && (strcmp(DeepModelChainOnDisk.configFileExt,'.json')),
     % KB 20250527 -- does the json file get saved twice?
-    TrnPack.hlpSaveJson(jslbl,DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx));
+    TrnPack.hlpSaveJson(jslbl,DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx()));
   end
 
   % use stripped lbl trackerData instead of tObj, as we have called

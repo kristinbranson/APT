@@ -203,7 +203,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Handle axis button-down: place next point, two-click, or relocate.
 
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady() || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -239,7 +239,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Handle occluded-axis button-down.
 
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
       if obj.isPanZoom()
@@ -271,7 +271,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Handle point button-down: select point and possibly start drag.
 
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady || evt.Button > 1
+      if ~obj.labeler_.isReady() || evt.Button > 1
         return ;
       end
       if obj.isPanZoom()
@@ -302,7 +302,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Bypasses event system for responsiveness during continuous drag.
 
       mdl = obj.model_ ;
-      if isempty(mdl.state) || ~obj.labeler_.isReady
+      if isempty(mdl.state) || ~obj.labeler_.isReady()
         return ;
       end
       if mdl.state == LabelState.ACCEPTED
@@ -321,7 +321,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Handle window button up: end drag, persist labels.
 
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
 
@@ -343,7 +343,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Handle key press.
 
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         tfKPused = false ;
         return ;
       end

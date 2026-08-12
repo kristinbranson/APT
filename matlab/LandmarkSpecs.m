@@ -142,7 +142,7 @@ classdef LandmarkSpecs < handle
         pts = [pts,ones(size(pts,1),1)]*targetSpec.A;
         pts = pts(:,1:2);
       end
-      labelCM = lObj.LabelPointColors;
+      labelCM = lObj.LabelPointColors();
       if isempty(labelCM)
         labelCM = jet(size(pts,1));
       end

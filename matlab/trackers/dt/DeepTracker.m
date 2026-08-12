@@ -530,7 +530,7 @@ classdef DeepTracker < LabelTracker
         % This is likely if the targetcrop size changes in which case 
         % we should only reset the second stage but for now resetting the
         % both the stages -- MK 20220520
-        if (obj.lObj.maIsMA && (obj.getNumStages > 1)) || ~obj.lObj.maIsMA
+        if (obj.lObj.maIsMA && (obj.getNumStages() > 1)) || ~obj.lObj.maIsMA
           obj.init();
         end
       end
@@ -990,10 +990,10 @@ classdef DeepTracker < LabelTracker
       if isempty(obj.trnLastDMC)  % Need to guard against this possibility
         prev_models0 = cell(1,0) ;
       else
-        prev_models0 = obj.trnLastDMC.trainFinalModelLnx ;
+        prev_models0 = obj.trnLastDMC.trainFinalModelLnx() ;
         prev_models0_meta = cellfun(@(x) apt.MetaPath(apt.Path(x)),prev_models0,'UniformOutput',false);
         if ~exist(prev_models0{1},'file') && ~obj.backend.fileExists_(prev_models0_meta{1})
-          prev_models0 = obj.trnLastDMC.trainCurrModelLnx;
+          prev_models0 = obj.trnLastDMC.trainCurrModelLnx();
         end
       end
       [tfDoProceed, modelChainID, prev_models] = ...
@@ -1317,7 +1317,7 @@ classdef DeepTracker < LabelTracker
       % Generate/write a trnpack; can be used for both stages.
       %
       
-      dlConfigLclDir = dmc.dirProjLnx;
+      dlConfigLclDir = dmc.dirProjLnx();
       if exist(dlConfigLclDir,'dir')==0
         fprintf('Creating dir: %s\n',dlConfigLclDir);
         [succ,msg] = mkdir(dlConfigLclDir);
@@ -1507,11 +1507,11 @@ classdef DeepTracker < LabelTracker
                                  'iterFinal',zeros(size(stage)),...
                                  'prev_models',[] ) ;
       obj.genTrnPack(dmc,'cocoformat',true,'jsonfilename',jsonfilename);
-      imdir = fullfile(dmc.dirProjLnx,TrnPack.SUBDIRIM());
-      jsonfile = fullfile(dmc.dirProjLnx,jsonfilename);
+      imdir = fullfile(dmc.dirProjLnx(),TrnPack.SUBDIRIM());
+      jsonfile = fullfile(dmc.dirProjLnx(),jsonfilename);
       % this will zip all images in the im directory, not just those
       % generated just now
-      res = zip(outzipfile,{jsonfile,imdir},dmc.dirProjLnx);
+      res = zip(outzipfile,{jsonfile,imdir},dmc.dirProjLnx());
     end
 
     function trnSpawn_(obj, backend, trnType, modelChainID, varargin)
@@ -1724,7 +1724,7 @@ classdef DeepTracker < LabelTracker
       for i = 1:numel(tocopy),
         infile = tocopy{i};
         [~,n,ext] = fileparts(infile);
-        outfile = fullfile(obj.trnLastDMC.dirProjLnx,[n,ext]);
+        outfile = fullfile(obj.trnLastDMC.dirProjLnx(),[n,ext]);
         [tfsucc1,msg] = copyfile(infile,outfile);
         if ~tfsucc1,
           msg = sprintf('Failed to copy %s to %s: %s',infile,outfile,msg);
@@ -2161,7 +2161,7 @@ classdef DeepTracker < LabelTracker
 
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked
-      willLoad = any(obj.lObj.getMovIdxMovieFilesAllFull(totrackinfo.getMovfiles));
+      willLoad = any(obj.lObj.getMovIdxMovieFilesAllFull(totrackinfo.getMovfiles()));
       obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;  % make sure up-to-date
       obj.tidyTrackingResults_();
       isCurr = obj.areTrackingResultsUpToDate_();
@@ -2187,7 +2187,7 @@ classdef DeepTracker < LabelTracker
         tblMFTTracked = obj.getTrackingResultsTable([],'ftonly',true,'aliveonly',true);
         if ~isempty(tblMFTTracked),
           if obj.lObj.maIsMA,
-            if totrackinfo.tblMFTIsSet,
+            if totrackinfo.tblMFTIsSet(),
               assert(all(MFTable.isTgtUnset(totrackinfo.tblMFT)));
             end
             tblMFTTracked = MFTable.unsetTgt(tblMFTTracked);
@@ -2254,7 +2254,7 @@ classdef DeepTracker < LabelTracker
     function gtComplete(obj)
       t0 = tic;
       while true
-        gtmatfiles = obj.trkSysInfo.getListOutfiles;
+        gtmatfiles = obj.trkSysInfo.getListOutfiles();
         gtmovs = obj.lObj.movieFilesAllGTFull;
         [tblGT,cocoResults] = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
         if ~isempty(tblGT),
@@ -2397,7 +2397,7 @@ classdef DeepTracker < LabelTracker
       % % shouldn't be necessary, given previous line checking that these
       % % things are the same??
       % dmcLcl.rootDir = cacheDir ;  % Ensure that dmcLcl is using the *local* version of the cache
-      dmcTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx);
+      dmcTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
       if ~exist(dmcTrainConfig, 'file') ,
         reason = sprintf('Cannot find training file: %s\n',dmcTrainConfig);
         return
@@ -3719,7 +3719,7 @@ classdef DeepTracker < LabelTracker
         end
       end
 
-      if m.isempty && isempty(persistedMIdxs) ,
+      if m.isempty() && isempty(persistedMIdxs) ,
         tblTrkRes = [];
         %pTrkiPt = [];
         return;
@@ -4104,14 +4104,14 @@ classdef DeepTracker < LabelTracker
     function result = getTrainingLogFilesSummary(obj)  % const method
       % Returns a (long) string with a summary of the content of the log files for
       % all the running jobs.
-      logFiles = unique(obj.trnLastDMC.trainLogLnx)' ;
+      logFiles = unique(obj.trnLastDMC.trainLogLnx())' ;
       backend = obj.backend ;
       logFileContents = cellfun(@(fileName)(backend.cacheFileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
       result = apt.summarizePerViewFiles(logFiles, logFileContents) ;
     end  % function
     
     function result = getTrainingErrorFilesSummary(obj)  % const method
-      errFiles = unique(obj.trnLastDMC.errfileLnx)' ;
+      errFiles = unique(obj.trnLastDMC.errfileLnx())' ;
       backend = obj.backend ;
       errFileContents = cellfun(@(fileName)(backend.cacheFileContents(fileName)),errFiles,'uni',0);
       result = apt.summarizePerViewFiles(errFiles, errFileContents) ;

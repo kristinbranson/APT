@@ -226,7 +226,7 @@ classdef APT
       JCPF = 'javaclasspath.txt';
       jcpf = fullfile(pdir,JCPF);
 
-      [~,jp,jprel] = APT.getpath;
+      [~,jp,jprel] = APT.getpath();
       if exist(jcpf,'file')>0
         %aptroot = APT.Root;
         %naptroot = numel(APT.Root);

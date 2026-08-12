@@ -88,7 +88,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       % set things that we can set automatically
       % check things that were set manually
       obj.checkFix(); 
-      if obj.tblMFTIsSet,
+      if obj.tblMFTIsSet(),
         obj = obj.consolidateTblMFT();
       end
     end  % function
@@ -148,7 +148,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function autoSetNMovies(obj)
       props = {'movfiles','trkfiles','frm0','frm1','frmlist','trxfiles','trxids','croprois','calibrationfiles','calibrationdata'};
       obj.nmovies = obj.autoSetSize(obj.nmovies,props,1);
-      if obj.tblMFTIsSet,
+      if obj.tblMFTIsSet(),
         obj.nmovies = max(obj.nmovies,ToTrackInfo.getNMoviesTblMFT(obj.tblMFT));
       end
     end
@@ -230,7 +230,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
 
       if obj.tblMFTIsSet(),
-        assert(~obj.frmIsSet && ~obj.trxidsIsSet);
+        assert(~obj.frmIsSet() && ~obj.trxidsIsSet());
       end
 
       if obj.frmIsSet(),
@@ -283,7 +283,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         szassert(obj.detecttrks,sz);
       end
 
-      if obj.tblMFTIsSet,
+      if obj.tblMFTIsSet(),
         obj.tblMFT = MFTable.sortCanonical(obj.tblMFT);
       end
 
@@ -294,7 +294,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
 
     function obj = consolidateTblMFT(obj)
-      if ~obj.tblMFTIsSet,
+      if ~obj.tblMFTIsSet(),
         return;
       end
       [movskeep] = unique(obj.tblMFT.mov);
@@ -671,7 +671,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       %mov = DeepModelChainOnDisk.getCheckSingle(obj.getMovfiles(1));
       %[~,movS] = fileparts(mov);
       %id = [movS '_' trnstr '_' obj.trackjobid];
-      id = obj.trackjobid;
+      id = obj.trackjobid();
     end
 
     function f = getDefaultOutfile(obj)
@@ -695,25 +695,25 @@ classdef ToTrackInfo < matlab.mixin.Copyable
 
     function setDefaultLogfile(obj)
       
-      obj.logfile = [obj.getDefaultOutfile,'.log'];
+      obj.logfile = [obj.getDefaultOutfile(),'.log'];
 
     end
 
     function setDefaultErrfile(obj)
 
-      obj.errfile = [obj.getDefaultOutfile,'.err'];
+      obj.errfile = [obj.getDefaultOutfile(),'.err'];
 
     end
 
 
     function setDefaultKillfile(obj)
       
-      obj.killfile = [obj.getDefaultOutfile,'.KILLED'];
+      obj.killfile = [obj.getDefaultOutfile(),'.KILLED'];
 
     end
 
     function setDefaultCmdfile(obj)
-      obj.cmdfile = [obj.getDefaultOutfile,'.cmd'];
+      obj.cmdfile = [obj.getDefaultOutfile(),'.cmd'];
     end
 
     function setTrkFiles(obj,v,varargin)
@@ -769,7 +769,8 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         isgt = false;
       end
 
-      trnstr = obj.trainDMC.getTrainID{1} ;
+      trainIDs = obj.trainDMC.getTrainID() ;
+      trnstr = trainIDs{1} ;
       nowstr = datestr(now(), 'yyyymmddTHHMMSS') ;
       if isgt
         extrastr = '_gt';
@@ -1048,7 +1049,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         end
         obj.addMovies('nmovies',nmoviesnew-obj.nmovies,'movfiles',movfilesadd,'movidx',movidxadd);
       end
-      if ~obj.tblMFTIsSet,
+      if ~obj.tblMFTIsSet(),
         obj.setTblMFT(tblMFTadd);
       else
         tblMFTadd = tblMFTadd(:,obj.tblMFT.Properties.VariableNames);
@@ -1063,13 +1064,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         tf = true;
         return;
       end
-      if obj.tblMFTIsSet,
+      if obj.tblMFTIsSet(),
         if ~isempty(obj.tblMFT),
           tf = false;
           return;
         end
       end
-      if ~obj.frmIsSet,
+      if ~obj.frmIsSet(),
         tf = false;
         return;
       end
@@ -1080,7 +1081,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
 
     function removeTblMFT(obj,tblMFTremove)
-      if obj.tblMFTIsSet,
+      if obj.tblMFTIsSet(),
         obj.setTblMFT(MFTable.tblDiff(obj.tblMFT,tblMFTremove));
         return;
       end
@@ -1120,7 +1121,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if isempty(movidxadd),
         movidxadd = max(obj.getMovidx())+(1:nmoviesadd)';
       else
-        assert(isempty(intersect(movidxadd,obj.getMovidx)));
+        assert(isempty(intersect(movidxadd,obj.getMovidx())));
       end
       obj.movidx(end+1:end+nmoviesadd) = movidxadd;
       if ~isempty(tblMFTadd) && istable(tblMFTadd),
@@ -1330,13 +1331,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           movidxadd = [];
         end
         obj.addMovies('nmovies',nmoviesadd,...
-          'movfiles',tti.getMovfiles,...
-          'frm0',tti.getFrm0,'frm1',tti.getFrm1,...
-          'frmlist',tti.getFrmlist,...
-          'trkfiles',tti.getTrkFiles,'trxfiles',tti.getTrxFiles,...
-          'trxids',tti.getTrxids,'croprois',tti.getCroprois,...
-          'calibrationfiles',tti.getCalibrationfiles,...
-          'calibrationdata',tti.getCalibrationdata,...
+          'movfiles',tti.getMovfiles(),...
+          'frm0',tti.getFrm0(),'frm1',tti.getFrm1(),...
+          'frmlist',tti.getFrmlist(),...
+          'trkfiles',tti.getTrkFiles(),'trxfiles',tti.getTrxFiles(),...
+          'trxids',tti.getTrxids(),'croprois',tti.getCroprois(),...
+          'calibrationfiles',tti.getCalibrationfiles(),...
+          'calibrationdata',tti.getCalibrationdata(),...
           'tblMFT',tti.tblMFT,...
           'movidx',movidxadd);
       else
@@ -1438,7 +1439,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
 
     function v = containerName(obj)
-      v = obj.trackjobid;
+      v = obj.trackjobid();
     end
 
     function v = trkoutdir(obj,varargin)

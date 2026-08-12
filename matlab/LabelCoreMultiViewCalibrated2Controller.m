@@ -312,7 +312,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       % Handle axis button-down: identify which axis, jump working set
       % point to click location.
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
 
@@ -359,7 +359,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function axOccBDF(obj, src, evt) %#ok<INUSD>
       % Handle occluded-axis button-down.
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
 
@@ -379,7 +379,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function ptBDF(obj, src, evt)
       % Handle point button-down: initiate drag or toggle est-occ.
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
       ax = get(src, 'Parent') ;
@@ -403,7 +403,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function wbmf(obj, src, evt) %#ok<INUSD>
       % Handle window button motion: drag point.
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
 
@@ -428,7 +428,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function wbuf(obj, src, evt) %#ok<INUSD>
       % Handle window button up: end drag.
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
 
@@ -443,7 +443,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function tfKPused = kpf(obj, src, evt)
       % Handle key press: accept, frame nav, arrow-adjust, working set select.
       mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         tfKPused = false ;
         return ;
       end

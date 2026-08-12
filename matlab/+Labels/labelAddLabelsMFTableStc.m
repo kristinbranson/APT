@@ -49,7 +49,7 @@ function tblMF = labelAddLabelsMFTableStc(tblMF,lbls,varargin)
     else
       wbObj.startPeriod('Compiling labels','shownumden',true,...
                         'denominator',nrow);
-      oc = onCleanup(@()wbObj.endPeriod);
+      oc = onCleanup(@()wbObj.endPeriod());
     end
     wbtime = tic;
     maxwbtime = .1; % update waitbar every second
@@ -75,7 +75,7 @@ function tblMF = labelAddLabelsMFTableStc(tblMF,lbls,varargin)
   bTrxAcc = nan(nrow,nView);
   tfInvalid = false(nrow,1); % flags for invalid rows of tblMF encountered
   
-  iMovsAll = tblMF.mov.get;
+  iMovsAll = tblMF.mov.get();
   frmsAll = tblMF.frm;
   iTgtAll = tblMF.iTgt;
   

@@ -277,7 +277,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
       end
 
       if tfTemplateHasTarget
-        [x1, y1, th1] = labeler.currentTargetLoc ;
+        [x1, y1, th1] = labeler.currentTargetLoc() ;
         if isnan(th1 - tt.theta)
           xys = transformPoints(tt.pts, tt.loc, 0, [x1 y1], 0) ;
         else
@@ -307,7 +307,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
 
     function jumpTo(obj, pos)
       % Handle axis button-down: jump selected point to click location.
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return
       end
 
@@ -337,7 +337,7 @@ classdef LabelCoreTemplateModel < LabelCoreModel
     function handleOccludedAxisButtonDown(obj)
       % Handle occluded-axis button-down.
       % Note: currently occluded axis hidden so this should be uncalled.
-      if ~obj.labeler_.isReady
+      if ~obj.labeler_.isReady()
         return ;
       end
 
