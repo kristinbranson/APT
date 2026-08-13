@@ -1094,6 +1094,34 @@ def rescale_param_scheduler(cfg, conf):
         cfg.max_epochs = conf.dl_steps
 
 
+def scale_lr_for_batch_size(cfg, conf, default_samples_per_gpu):
+    """Scales the config's learning rate from the batch size it was tuned for to APT's.
+
+    The mmdetection configs specify a learning rate for default_samples_per_gpu images on
+    each of 8 GPUs, whereas APT trains on one GPU with conf.batch_size images, so the rate
+    is scaled linearly to match. This matters most for RTMDet, whose 8xb32 config assumes
+    an effective batch of 256 against APT's default of 8.
+
+    Present and working in Pose_detect_mmdetect2x, but lost in the port to mmdetection
+    3.x, where cfg.optimizer became cfg.optim_wrapper.optimizer and the line would have
+    raised rather than run.
+    """
+    designed_batch_size = default_samples_per_gpu * 8
+    scale = conf.learning_rate_multiplier * conf.batch_size / designed_batch_size
+    scaled_lr = cfg.optim_wrapper.optimizer.lr * scale
+    logging.info(f'Scaling learning rate from {cfg.optim_wrapper.optimizer.lr} to {scaled_lr} '
+                 f'for a batch size of {conf.batch_size} against the configured {designed_batch_size}')
+    cfg.optim_wrapper.optimizer.lr = scaled_lr
+
+    # Schedulers can carry absolute learning rates of their own, and those have to move
+    # with the base rate. RTMDet's cosine floor is defined as base_lr*0.05, so leaving it
+    # alone would put the floor above the rate being annealed from and the schedule would
+    # rise rather than decay. Relative terms, start_factor and gamma, need no change.
+    for scheduler in cfg.get('param_scheduler', []):
+        if 'eta_min' in scheduler:
+            scheduler.eta_min = scheduler.eta_min * scale
+
+
 def set_rtmdet_pipeline_size(cfg, im_sz):
     """Rescales every image-size field in the RTMDet pipelines to im_sz.
 
@@ -1257,9 +1285,9 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
             cfg.model.train_cfg.rcnn.assigner.ignore_iof_thr = 0.85
             cfg.model.train_cfg.rpn_proposal.max_per_img *= 10
         # assert (cfg.train_pipeline[2].type == 'Resize'), 'Unsupported train pipeline'
-        # cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
-        # cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
-        
+        cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
+        scale_lr_for_batch_size(cfg, conf, default_samples_per_gpu)
+
         try:
             response = requests.head(FRCNN_pretrained_url, allow_redirects=True)
             cfg.load_from = response.url
@@ -1318,6 +1346,8 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
             # Keep the assigner's ignore band aligned with the NMS actually in use, so
             # that training only supervises the priors NMS cannot remove for us.
             cfg.model.train_cfg.assigner.neg_iou_hi = cfg.model.test_cfg.nms.iou_threshold
+
+        scale_lr_for_batch_size(cfg, conf, default_samples_per_gpu)
 
         url = RTMDET_pretrained_urls[rtmdet_size]
         try:

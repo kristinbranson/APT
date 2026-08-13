@@ -247,12 +247,14 @@ class hrnet_fpn(nn.Module):
         return {'0':x,'1':x,'2':x,'3':x}
 
 
-def my_hrformer_backbone():
+def my_hrformer_backbone(pretrained=True):
     # HRFormer-Base: same repeated multi-resolution fusion structure as HRNet
     # (my_hrnet_fpn_backbone above), but with local-window self-attention
     # blocks (HRFORMERBLOCK) in stages 2-4 instead of conv bottleneck blocks.
     # Config and checkpoint match mmpose's bundled
     # configs/body_2d_keypoint/topdown_heatmap/coco/td-hm_hrformer-base_8xb32-210e_coco-256x192.py
+    # pretrained=False skips the COCO-pose checkpoint (random init), for
+    # comparing against backbones that have no pretrained weights available.
     from mmpose.models import HRFormer
     extra = dict(
         drop_path_rate=0.2,
@@ -293,13 +295,366 @@ def my_hrformer_backbone():
             mlp_ratios=[4, 4, 4, 4],
             window_sizes=[7, 7, 7, 7]))
 
-    backbone = HRFormer(extra, in_channels=3,
-        init_cfg=dict(
-            type='Pretrained',
-            checkpoint='https://download.openmmlab.com/mmpose/'
-            'pretrain_models/hrformer_base-32815020_20220226.pth'))
+    if pretrained:
+        backbone = HRFormer(extra, in_channels=3,
+            init_cfg=dict(
+                type='Pretrained',
+                checkpoint='https://download.openmmlab.com/mmpose/'
+                'pretrain_models/hrformer_base-32815020_20220226.pth'))
+    else:
+        backbone = HRFormer(extra, in_channels=3)
     backbone.init_weights()
     return hrnet_fpn(backbone)
+
+
+# ----------------------------------------------------------------------------
+# DaViT-style dual-attention block engineered into HRFormer's multi-resolution
+# network structure. The block honors mmpose's HRFomerModule._make_one_branch
+# constructor contract (in_features, out_features, num_heads=, window_size=,
+# mlp_ratio=, drop_path=, norm_cfg=, transformer_norm_cfg=, init_cfg=,
+# with_rpe=, with_pad_mask=) and maps (B,C,H,W) -> (B,C,H,W), so it drops into
+# the same per-stage block slot as HRFORMERBLOCK; the branch/fusion topology is
+# untouched. Attention internals follow the official DaViT (Ding et al. 2022):
+# non-shifted window attention + transposed channel-group attention, with all
+# position information from depthwise-conv position encodings (ConvPosEnc)
+# instead of HRFormer's relative position embeddings.
+# ----------------------------------------------------------------------------
+
+class DaViTConvPosEnc(nn.Module):
+    # Depthwise-conv positional encoding, applied to the live feature map each
+    # forward pass, so it adapts to any H/W with no pos-embed interpolation.
+    def __init__(self, dim, k=3):
+        super().__init__()
+        self.proj = nn.Conv2d(dim, dim, k, 1, k // 2, groups=dim)
+
+    def forward(self, x, H, W):
+        # x: (B, N, C)
+        B, N, C = x.shape
+        feat = x.transpose(1, 2).view(B, C, H, W)
+        x = x + self.proj(feat).flatten(2).transpose(1, 2)
+        return x
+
+
+def _davit_build_relative_position_index(window_size):
+    # Standard Swin/HRFormer-style relative position index: for every pair of
+    # positions in a window_size x window_size window, encodes their (dy,dx)
+    # offset as a single index into a (2*ws-1)*(2*ws-1) table. Self-consistent
+    # (same offset -> same index) is all that's required here -- no pretrained
+    # RPE table exists for this hybrid to load, so exact index-numbering
+    # parity with mmpose's own (differently-derived) convention doesn't matter.
+    ws = window_size
+    coords = torch.stack(torch.meshgrid(torch.arange(ws), torch.arange(ws), indexing='ij'))  # 2,ws,ws
+    coords_flat = torch.flatten(coords, 1)  # 2, ws*ws
+    rel = coords_flat[:, :, None] - coords_flat[:, None, :]  # 2, ws*ws, ws*ws
+    rel = rel.permute(1, 2, 0).contiguous()  # ws*ws, ws*ws, 2
+    rel[:, :, 0] += ws - 1
+    rel[:, :, 1] += ws - 1
+    rel[:, :, 0] *= 2 * ws - 1
+    return rel.sum(-1)  # ws*ws, ws*ws
+
+
+class DaViTWindowAttention(nn.Module):
+    # Non-shifted local-window MSA. Optional relative position bias (RPE),
+    # matching HRFormer's own WindowMSA: a learned, zero-initialized table
+    # indexed by relative offset within the window, added to the attention
+    # logits before softmax. RPE only requires a "relative offset between two
+    # tokens" -- meaningful here (spatial window attention) but not for
+    # DaViTChannelAttention (channel groups have no spatial relative offset),
+    # which is why RPE lives only in this class and ConvPosEnc (resolution-
+    # agnostic, works for either attention type) covers the channel half.
+    def __init__(self, dim, num_heads, window_size, with_rpe=True):
+        super().__init__()
+        self.window_size = window_size
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim ** -0.5
+        self.qkv = nn.Linear(dim, dim * 3, bias=True)
+        self.proj = nn.Linear(dim, dim)
+
+        self.with_rpe = with_rpe
+        if with_rpe:
+            ws = window_size
+            self.relative_position_bias_table = nn.Parameter(
+                torch.zeros((2 * ws - 1) * (2 * ws - 1), num_heads))
+            self.register_buffer('relative_position_index',
+                                 _davit_build_relative_position_index(ws))
+
+    def forward(self, x, H, W):
+        # x: (B, N, C)
+        B, N, C = x.shape
+        ws = self.window_size
+        x = x.view(B, H, W, C)
+        pad_h = (ws - H % ws) % ws
+        pad_w = (ws - W % ws) % ws
+        if pad_h or pad_w:
+            x = torch.nn.functional.pad(x, (0, 0, 0, pad_w, 0, pad_h))
+        Hp, Wp = H + pad_h, W + pad_w
+        x = x.view(B, Hp // ws, ws, Wp // ws, ws, C)
+        windows = x.permute(0, 1, 3, 2, 4, 5).reshape(-1, ws * ws, C)
+
+        qkv = self.qkv(windows).reshape(-1, ws * ws, 3, self.num_heads,
+                                        self.head_dim).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        if self.with_rpe:
+            bias = self.relative_position_bias_table[
+                self.relative_position_index.view(-1)].view(ws * ws, ws * ws, -1)
+            bias = bias.permute(2, 0, 1).contiguous()  # heads, ws*ws, ws*ws
+            attn = attn + bias.unsqueeze(0)
+        attn = attn.softmax(dim=-1)
+        out = (attn @ v).transpose(1, 2).reshape(-1, ws * ws, C)
+        out = self.proj(out)
+
+        out = out.view(B, Hp // ws, Wp // ws, ws, ws, C)
+        out = out.permute(0, 1, 3, 2, 4, 5).reshape(B, Hp, Wp, C)
+        if pad_h or pad_w:
+            out = out[:, :H, :W, :]
+        return out.reshape(B, N, C)
+
+
+class DaViTChannelAttention(nn.Module):
+    # DaViT's transposed attention: the attention matrix is head_dim x
+    # head_dim (over channel groups, built from Q and K, summed over the N
+    # spatial positions), applied to V -- the standard cross-covariance
+    # attention form (XCiT/Restormer-style). Cost is linear in N and the
+    # receptive field is global at every resolution.
+    def __init__(self, dim, num_heads):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim ** -0.5
+        self.qkv = nn.Linear(dim, dim * 3, bias=True)
+        self.proj = nn.Linear(dim, dim)
+
+    def forward(self, x, H, W):
+        B, N, C = x.shape
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads,
+                                  self.head_dim).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # each (B, heads, N, head_dim)
+        q = q.transpose(-2, -1)  # (B, heads, head_dim, N)
+        k = k.transpose(-2, -1)
+        v = v.transpose(-2, -1)
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale  # (B, heads, head_dim, head_dim), from Q and K
+        attn = attn.softmax(dim=-1)
+        out = attn @ v                                  # applied to V: (B, heads, head_dim, N)
+
+        out = out.transpose(-2, -1).transpose(1, 2).reshape(B, N, C)
+        return self.proj(out)
+
+
+class DaViTDropPath(nn.Module):
+    # Stochastic depth (per-sample residual drop), standard implementation.
+    def __init__(self, drop_prob=0.):
+        super().__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        if self.drop_prob == 0. or not self.training:
+            return x
+        keep_prob = 1 - self.drop_prob
+        shape = (x.shape[0], ) + (1, ) * (x.ndim - 1)
+        mask = x.new_empty(shape).bernoulli_(keep_prob)
+        return x.div(keep_prob) * mask
+
+
+class DaViTCrossFFN(nn.Module):
+    # FFN with a depthwise 3x3 conv sandwiched between two 1x1 convs, matching
+    # mmpose's HRFormer CrossFFN (BatchNorm2d here instead of CrossFFN's
+    # SyncBN, since that needs a distributed process group). This is HRFormer's
+    # mechanism for spatial mixing ACROSS window boundaries: its windowed
+    # attention never shifts windows (no Swin-style shift), so this dw3x3 is
+    # the only way information crosses a window edge between attention calls.
+    # A plain token-wise MLP (Linear-GELU-Linear, no spatial mixing at all)
+    # would leave DaViTBlock's windows unable to communicate except through
+    # ConvPosEnc's own small 3x3 receptive field, so this replaces that plain
+    # MLP in both the spatial-window and channel-group halves below.
+    def __init__(self, dim, hidden):
+        super().__init__()
+        self.fc1 = nn.Conv2d(dim, hidden, kernel_size=1)
+        self.norm1 = nn.BatchNorm2d(hidden)
+        self.act1 = nn.GELU()
+        self.dw3x3 = nn.Conv2d(hidden, hidden, kernel_size=3, stride=1, padding=1, groups=hidden)
+        self.norm2 = nn.BatchNorm2d(hidden)
+        self.act2 = nn.GELU()
+        self.fc2 = nn.Conv2d(hidden, dim, kernel_size=1)
+        self.norm3 = nn.BatchNorm2d(dim)
+        self.act3 = nn.GELU()
+
+    def forward(self, x, H, W):
+        B, N, C = x.shape
+        x = x.transpose(1, 2).view(B, C, H, W)
+        x = self.act1(self.norm1(self.fc1(x)))
+        x = self.act2(self.norm2(self.dw3x3(x)))
+        x = self.act3(self.norm3(self.fc2(x)))
+        return x.flatten(2).transpose(1, 2)
+
+
+class DaViTBlock(nn.Module):
+    # One DaViT "dual attention" unit: a spatial-window sub-block followed by
+    # a channel-group sub-block, each with its own ConvPosEnc pair, prenorm
+    # and CrossFFN, exactly mirroring how DaViT alternates the two attention
+    # types (CrossFFN swapped in for DaViT's own plain MLP -- see
+    # DaViTCrossFFN docstring above for why).
+    expansion = 1
+
+    def __init__(self, in_features, out_features, num_heads, window_size=7,
+                 mlp_ratio=4.0, drop_path=0.0, norm_cfg=None,
+                 transformer_norm_cfg=None, init_cfg=None, with_rpe=True,
+                 with_pad_mask=False, **kwargs):
+        super().__init__()
+        assert in_features == out_features, 'DaViTBlock is channel-preserving'
+        dim = in_features
+        hidden = int(dim * mlp_ratio)
+
+        # spatial-window half. with_rpe applies ONLY here -- RPE needs a
+        # spatial relative-offset between tokens, which channel attention
+        # (below) has no analog for, so it stays ConvPosEnc-only.
+        self.cpe1a = DaViTConvPosEnc(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
+        self.window_attn = DaViTWindowAttention(dim, num_heads, window_size, with_rpe=with_rpe)
+        self.cpe1b = DaViTConvPosEnc(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
+        self.mlp1 = DaViTCrossFFN(dim, hidden)
+
+        # channel-group half
+        self.cpe2a = DaViTConvPosEnc(dim)
+        self.norm3 = nn.LayerNorm(dim, eps=1e-6)
+        self.channel_attn = DaViTChannelAttention(dim, num_heads)
+        self.cpe2b = DaViTConvPosEnc(dim)
+        self.norm4 = nn.LayerNorm(dim, eps=1e-6)
+        self.mlp2 = DaViTCrossFFN(dim, hidden)
+
+        self.drop_path = DaViTDropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def _forward_impl(self, x):
+        B, C, H, W = x.shape
+        x = x.view(B, C, -1).permute(0, 2, 1)  # (B, N, C)
+
+        x = self.cpe1a(x, H, W)
+        x = x + self.drop_path(self.window_attn(self.norm1(x), H, W))
+        x = self.cpe1b(x, H, W)
+        x = x + self.drop_path(self.mlp1(self.norm2(x), H, W))
+
+        x = self.cpe2a(x, H, W)
+        x = x + self.drop_path(self.channel_attn(self.norm3(x), H, W))
+        x = self.cpe2b(x, H, W)
+        x = x + self.drop_path(self.mlp2(self.norm4(x), H, W))
+
+        return x.permute(0, 2, 1).view(B, C, H, W)
+
+    def forward(self, x):
+        # The dual sub-block pair roughly doubles activation memory vs a
+        # single-attention block, which OOMs an 80GB H100 at batch 4 /
+        # 736x1280 (the stride-4 branch alone is ~59k tokens). Gradient
+        # checkpointing recomputes this block's activations in backward,
+        # trading ~30% speed for fitting the same batch size as the
+        # hrformer baseline.
+        if self.training and torch.is_grad_enabled() and x.requires_grad:
+            return torch.utils.checkpoint.checkpoint(
+                self._forward_impl, x, use_reentrant=False)
+        return self._forward_impl(x)
+
+
+def my_davit_hrformer_backbone():
+    # HRFormer's multi-resolution parallel-branch topology (identical stage
+    # config to my_hrformer_backbone, EXCEPT num_blocks is halved -- see
+    # below) with DaViT dual-attention blocks in stages 2-4 instead of
+    # HRFORMERBLOCK. No pretrained checkpoint exists for this hybrid, so it
+    # trains from random init (compare against backbone_type 'hrformer_scratch'
+    # for a like-for-like baseline).
+    #
+    # num_blocks halved vs my_hrformer_backbone: each DaViTBlock already
+    # contains its own two independently-residualed sub-blocks (spatial-window
+    # attn+residual+MLP+residual, then channel-group attn+residual+MLP+
+    # residual) -- computationally identical to two separate alternating
+    # single-attention blocks stacked back-to-back, exactly how the original
+    # DaViT paper interleaves the two attention types. So num_blocks=(2,2) here
+    # would build 4 single-attention-equivalent sub-blocks per branch, twice
+    # the depth HRFormer's own (2,2) gives with single-attention
+    # HRFORMERBLOCKs. Halving it to (1,1) makes total depth match.
+    from mmpose.models import HRFormer
+    HRFormer.blocks_dict['DAVITBLOCK'] = DaViTBlock
+    extra = dict(
+        drop_path_rate=0.2,
+        with_rpe=True,  # matches HRFormer's own window-attn RPE (DaViTBlock
+                        # applies it only to the window-attn half; the
+                        # channel-attn half has no relative-offset concept to
+                        # bias, so it stays ConvPosEnc-only regardless).
+        stage1=dict(
+            num_modules=1,
+            num_branches=1,
+            block='BOTTLENECK',
+            num_blocks=(2, ),
+            num_channels=(64, ),
+            num_heads=[2],
+            mlp_ratios=[4]),
+        stage2=dict(
+            num_modules=1,
+            num_branches=2,
+            block='DAVITBLOCK',
+            num_blocks=(1, 1),
+            num_channels=(78, 156),
+            num_heads=[2, 4],
+            mlp_ratios=[4, 4],
+            window_sizes=[7, 7]),
+        stage3=dict(
+            num_modules=4,
+            num_branches=3,
+            block='DAVITBLOCK',
+            num_blocks=(1, 1, 1),
+            num_channels=(78, 156, 312),
+            num_heads=[2, 4, 8],
+            mlp_ratios=[4, 4, 4],
+            window_sizes=[7, 7, 7]),
+        stage4=dict(
+            num_modules=2,
+            num_branches=4,
+            block='DAVITBLOCK',
+            num_blocks=(1, 1, 1, 1),
+            num_channels=(78, 156, 312, 624),
+            num_heads=[2, 4, 8, 16],
+            mlp_ratios=[4, 4, 4, 4],
+            window_sizes=[7, 7, 7, 7]))
+
+    backbone = HRFormer(extra, in_channels=3)
+    backbone.init_weights()
+    return hrnet_fpn(backbone)
+
+def my_davit_backbone():
+    # DaViT-Base: every block runs local spatial-window attention and cheap
+    # global channel-group attention in parallel, and position information
+    # comes entirely from a depthwise-conv position encoding (ConvPosEnc,
+    # applied fresh to the actual feature map each forward pass) rather than
+    # an absolute learned position embedding tied to a training-time grid --
+    # so unlike vit/swin it needs no pos-embed interpolation at all, and
+    # handles a different train/inference field-of-view natively.
+    import timm
+    backbone = timm.create_model('davit_base', pretrained=True, features_only=True)
+    return backbone
+
+def my_davit_neck():
+    # from mmpose.models.necks.fpn import FPN
+    # neck = FPN([128, 256, 512, 1024], out_channels=1024, add_extra_convs=True, num_outs=4)
+    from mmpose.models.necks.yolox_pafpn import YOLOXPAFPN
+    neck = YOLOXPAFPN([128, 256, 512, 1024], out_channels=1024, num_csp_blocks=3)
+    neck.init_weights()
+    return neck
+
+class my_davit(nn.Module):
+    def __init__(self):
+        super(my_davit, self).__init__()
+        self.backbone = my_davit_backbone()
+        self.neck = my_davit_neck()
+
+    def forward(self, x):
+        x1 = self.backbone(x)
+        x = self.neck(x1)
+        # Unlike the plain FPN used for swin/convnext, YOLOXPAFPN's bottom-up
+        # pass deliberately re-injects fine-detail information into the
+        # deepest level, so level 3 uses the neck's own output here rather
+        # than bypassing it with the raw backbone feature (x1[-1]).
+        return {'0': x[0], '1': x[1], '2': x[2], '3': x[3]}
 
 def my_resnet_fpn_backbone(backbone_name, pretrained, norm_layer=misc_nn_ops.FrozenBatchNorm2d, trainable_layers=3):
     """
@@ -378,6 +733,15 @@ class mdn_joint(nn.Module):
             elif backbone_type == 'hrformer':
                 backbone = my_hrformer_backbone()
                 n_ftrs = 78
+            elif backbone_type == 'hrformer_scratch':
+                backbone = my_hrformer_backbone(pretrained=False)
+                n_ftrs = 78
+            elif backbone_type == 'davit_hrformer':
+                backbone = my_davit_hrformer_backbone()
+                n_ftrs = 78
+            elif backbone_type == 'davit':
+                backbone = my_davit()
+                n_ftrs = 1024
             else:
                 backbone = my_hrnet_fpn_backbone()
                 n_ftrs = 32
@@ -506,6 +870,9 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num', 3)
                 self.fpn_ref_layer = self.conf.get('mdn_joint_ref_layer_num', 0)
             elif conf.get('mdn_backbone', 'resnet50') == 'swin':
+                self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num', 3)
+                self.fpn_ref_layer = self.conf.get('mdn_joint_ref_layer_num', 0)
+            elif conf.get('mdn_backbone', 'resnet50') == 'davit':
                 self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num', 3)
                 self.fpn_ref_layer = self.conf.get('mdn_joint_ref_layer_num', 0)
             else: #hrnet
@@ -876,9 +1243,12 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             span_dist = torch.norm(label_span,dim=-1,keepdim=True).repeat([1,1,1,2])
             label_span = torch.where(span_dist<dist_closest,label_span,dist_closest_span)
 
-            i1, i2 = torch.meshgrid(torch.arange(0, bsz, device=self.device), torch.arange(0, n_max, device=self.device))
-            locs_joint_flat_dim = locs_joint_flat.repeat([1, n_max, 1, 1, 1])
-            idx_pre = locs_joint_flat_dim[i1, i2, assign_ndx, :, :]*self.offset/self.ref_scale
+            # Index locs_joint_flat directly rather than repeating it n_max times first.
+            # Its dim 1 has size 1, so every copy the repeat made was identical and the
+            # gather below picked among them arbitrarily; i1 and assign_ndx already
+            # broadcast to [bsz, n_max]. Same result, without allocating the copies.
+            i1, _ = torch.meshgrid(torch.arange(0, bsz, device=self.device), torch.arange(0, n_max, device=self.device))
+            idx_pre = locs_joint_flat[i1, 0, assign_ndx, :, :]*self.offset/self.ref_scale
 
             # Add noise to the joint predictions
             if self.locs_noise_type == 'uniform':
@@ -901,20 +1271,24 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 locs_noise = locs_joint_flat
 
             locs_noise = locs_noise * self.offset/self.ref_scale
-            locs_noise_dim = locs_noise.repeat([1, n_max, 1, 1, 1])
-            i1, i2 = torch.meshgrid(torch.arange(0, bsz, device=self.device), torch.arange(0, n_max, device=self.device))
-            idx = torch.round(locs_noise_dim[i1, i2, assign_ndx, :, :]).long()
+            i1, _ = torch.meshgrid(torch.arange(0, bsz, device=self.device), torch.arange(0, n_max, device=self.device))
+            idx = torch.round(locs_noise[i1, 0, assign_ndx, :, :]).long()
 
         idx_y = torch.clamp(idx[..., 1], 0, locs_ref.shape[-2] - 1)
         idx_x = torch.clamp(idx[..., 0], 0, locs_ref.shape[-1] - 1)
 
-        locs_ref_dim = torch.unsqueeze(locs_ref, 1).repeat([1, n_max, 1, 1, 1, 1, 1])
-        wts_ref_dim = torch.unsqueeze(wts_ref, 1).repeat([1, n_max, 1, 1, 1, 1])
-        i1, i2, i3 = torch.meshgrid(torch.arange(bsz, device=self.device), torch.arange(n_max, device=self.device),
-                                    torch.arange(npts, device=self.device))
-        ref_pred = locs_ref_dim[i1, i2, i3, :, :, idx_y, idx_x]
+        # Index the reference maps directly instead of first replicating them n_max times
+        # along a new animal axis. That replication cost n_max copies of the full
+        # resolution maps, all identical and all retained for the backward pass, while the
+        # gather below only ever reads [bsz, n_max, npts] positions out of them, which is
+        # what runs an 80GB card out of memory once max_n_animals is large. idx_y and
+        # idx_x already carry the animal axis, so the old i2 index only ever chose between
+        # identical copies and dropping it leaves the result bit for bit identical.
+        i1, _, i3 = torch.meshgrid(torch.arange(bsz, device=self.device), torch.arange(n_max, device=self.device),
+                                   torch.arange(npts, device=self.device))
+        ref_pred = locs_ref[i1, i3, :, :, idx_y, idx_x]
         ref_pred = ref_pred * self.ref_scale
-        ref_wts = wts_ref_dim[i1, i2, i3, :, idx_y, idx_x]
+        ref_wts = wts_ref[i1, i3, :, idx_y, idx_x]
         ref_wts = torch.softmax(ref_wts, 3)
         ref_dist = torch.norm(ref_pred - torch.unsqueeze(labels, -1), dim=-2)
         ref_loss_all = torch.sum(ref_wts * ref_dist, dim=-1)
@@ -1037,19 +1411,17 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         bsz = labels.shape[0]
         n_max = labels.shape[1]
         npts = labels.shape[2]
-        locs_noise_dim = locs_noise.repeat([1, n_max, 1, 1, 1])
-        i1, i2 = torch.meshgrid(torch.arange(0, bsz, device=self.device), torch.arange(0, n_max, device=self.device))
-        idx = torch.round(locs_noise_dim[i1, i2, assign_ndx, :, :]).long()
+        # See ref_loss above: index directly rather than replicating along an animal axis.
+        i1, _ = torch.meshgrid(torch.arange(0, bsz, device=self.device), torch.arange(0, n_max, device=self.device))
+        idx = torch.round(locs_noise[i1, 0, assign_ndx, :, :]).long()
         idx_y = torch.clamp(idx[..., 1], 0, locs_ref.shape[-2] - 1)
         idx_x = torch.clamp(idx[..., 0], 0, locs_ref.shape[-1] - 1)
 
-        locs_ref_dim = torch.unsqueeze(locs_ref, 1).repeat([1, n_max, 1, 1, 1, 1, 1])
-        wts_ref_dim = torch.unsqueeze(wts_ref, 1).repeat([1, n_max, 1, 1, 1, 1])
-        i1, i2, i3 = torch.meshgrid(torch.arange(bsz, device=self.device), torch.arange(n_max, device=self.device),
-                                    torch.arange(npts, device=self.device))
-        ref_pred = locs_ref_dim[i1, i2, i3, :, :, idx_y, idx_x]
+        i1, _, i3 = torch.meshgrid(torch.arange(bsz, device=self.device), torch.arange(n_max, device=self.device),
+                                   torch.arange(npts, device=self.device))
+        ref_pred = locs_ref[i1, i3, :, :, idx_y, idx_x]
         ref_pred = ref_pred * self.ref_scale
-        ref_wts = wts_ref_dim[i1, i2, i3, :, idx_y, idx_x]
+        ref_wts = wts_ref[i1, i3, :, idx_y, idx_x]
         ref_wts = torch.softmax(ref_wts, 3)
         ref_dist = torch.sum( (ref_pred - torch.unsqueeze(labels, -1))**2, dim=-2)
         ref_loss_all = torch.sum(ref_wts * ref_dist, dim=-1)

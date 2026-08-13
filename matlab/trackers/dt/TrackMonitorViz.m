@@ -82,6 +82,8 @@ classdef TrackMonitorViz < handle
     COLOR_AXSWAIT_BULK_TRACKED = [0 0 1];
     COLOR_AXSWAIT_BULK_EDGE = [0.4 0.4 0.4];
     BULK_NMOV_THRESHOLD = 10; % if you are tracking more than this many movies, you get bulk mode
+    ID_TRAINING_FONT_SIZE = 7; % font size for the ID training axis labels and title
+    ID_TRAINING_TICK_FONT_SIZE = 6; % font size for the ID training axis tick labels
   end
   
   methods (Static)
@@ -903,11 +905,15 @@ classdef TrackMonitorViz < handle
       if ishandle(obj.haxsIDTraining)
         %axes(obj.haxsIDTraining);
         plot(obj.haxsIDTraining,idstep, idloss, 'g-', 'LineWidth', 1.5);
-        xlabel(obj.haxsIDTraining,'Training Step');
-        ylabel(obj.haxsIDTraining,'Training Loss');
-        title(obj.haxsIDTraining,'ID Model Training Progress','Color',[1,1,1]);
+        xlabel(obj.haxsIDTraining,'Training Step', ...
+               'FontSize',TrackMonitorViz.ID_TRAINING_FONT_SIZE);
+        ylabel(obj.haxsIDTraining,'Training Loss', ...
+               'FontSize',TrackMonitorViz.ID_TRAINING_FONT_SIZE);
+        title(obj.haxsIDTraining,'ID Model Training Progress','Color',[1,1,1], ...
+              'FontSize',TrackMonitorViz.ID_TRAINING_FONT_SIZE);
         set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1]);
         set(obj.haxsIDTraining,'YScale','log');
+        set(obj.haxsIDTraining,'FontSize',TrackMonitorViz.ID_TRAINING_TICK_FONT_SIZE);
         grid on;
         drawnow('limitrate', 'nocallbacks');
       end
@@ -978,10 +984,14 @@ classdef TrackMonitorViz < handle
 
       obj.haxsIDTraining = axes('Parent', obj.hfig, ...
                                 'Position', pos_new, ...
-                                'Box', 'on');
-      xlabel(obj.haxsIDTraining, 'ID Training Step');
-      ylabel(obj.haxsIDTraining, 'ID Training Loss');
-      title(obj.haxsIDTraining, 'ID Model Training Progress');
+                                'Box', 'on', ...
+                                'FontSize', TrackMonitorViz.ID_TRAINING_TICK_FONT_SIZE);
+      xlabel(obj.haxsIDTraining, 'ID Training Step', ...
+             'FontSize', TrackMonitorViz.ID_TRAINING_FONT_SIZE);
+      ylabel(obj.haxsIDTraining, 'ID Training Loss', ...
+             'FontSize', TrackMonitorViz.ID_TRAINING_FONT_SIZE);
+      title(obj.haxsIDTraining, 'ID Model Training Progress', ...
+            'FontSize', TrackMonitorViz.ID_TRAINING_FONT_SIZE);
       grid(obj.haxsIDTraining, 'on');
       set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1])
       set(obj.haxsIDTraining,'YScale','log');

@@ -22,6 +22,7 @@ import PoseTools
 import movies
 import tempfile
 import copy
+import warnings
 import multiprocessing as mp
 from tqdm.contrib.concurrent import process_map
 import hdf5storage
@@ -3722,24 +3723,55 @@ def get_link_costs(tt, st, en, params):
     link_costs.append([start_matches, end_matches])
   return link_costs
 
-def embed_dist(xx,yy):
-  ddm = np.zeros([xx.shape[0],yy.shape[0]])
-  for ix in range(xx.shape[0]):
-   ddm[ix, :] = np.mean(np.linalg.norm(xx[ix:ix+1] - yy, axis=-1), axis=(1, 2))
-  return ddm
+def get_id_dist_mat(embed, dtype=np.float32, memory_budget=512 * 1024 ** 2):
+  """Mean distance between every pair of tracklets' sampled embeddings.
 
-def get_id_dist_mat(embed):
-  n_threads = min(24, mp.cpu_count())
-  with mp.get_context('spawn').Pool(n_threads) as pool:
-    split_set = split_parallel(embed[:,:,None], n_threads, is_numpy=True)
-    processed_dist = pool.starmap(embed_dist, [(split_set[n], embed[:,None]) for n in range(n_threads)])
-    processed_dist = merge_parallel(processed_dist)
-    processed_dist =np.array(processed_dist)
-  # embed_dist is symmetric in exact arithmetic (mean of all cross-sample pairwise distances),
-  # but float32 rounding across the parallel row-blocks leaves a ~1e-6 asymmetry, which
-  # ssd.squareform (exact symmetry check, used by the no_motion/group_tracklets path) rejects.
-  processed_dist = (processed_dist + processed_dist.T) / 2.0
-  return processed_dist
+  dist_mat[i,j] is the mean over all sample pairs (a,b) of
+  ||embed[i,a] - embed[j,b]||.
+
+  Squared distances come from |x|^2 + |y|^2 - 2 x.y, so the pairwise term is one
+  GEMM that BLAS threads for us, and only the upper triangle is computed and
+  then mirrored. The previous version broadcast an (n_trk, n_ex, n_ex, dim)
+  array per row -- hundreds of MB of temporaries per row -- and split the rows
+  over a 24-process spawn pool, each worker re-importing this module.
+
+  Being exactly symmetric by construction, the result no longer needs averaging
+  with its own transpose before ssd.squareform (which checks symmetry exactly);
+  the old row-splitting left a ~1e-6 asymmetry that did.
+
+  dtype: the reduction is memory-bandwidth bound, so float32 roughly halves the
+         time. It costs ~1e-4 absolute on distances of order 1; pass np.float64
+         for ~1e-7 at twice the cost.
+  memory_budget: cap in bytes on the largest temporary, which sets the row block
+         size."""
+  n_trk, n_ex, dim = embed.shape
+  flat = np.ascontiguousarray(embed.reshape(n_trk * n_ex, dim), dtype=dtype)
+  sq = np.einsum('ij,ij->i', flat, flat)
+
+  # The widest temporary is the first block: (block*n_ex) x (n_trk*n_ex).
+  bytes_per_row = n_ex * n_trk * n_ex * np.dtype(dtype).itemsize
+  block = max(1, int(memory_budget // max(bytes_per_row, 1)))
+
+  dist_mat = np.zeros((n_trk, n_trk))
+  for start in range(0, n_trk, block):
+    stop = min(start + block, n_trk)
+    rows = flat[start * n_ex:stop * n_ex]
+    cols = flat[start * n_ex:]  # upper triangle only; the rest is mirrored
+    d2 = sq[start * n_ex:stop * n_ex, None] + sq[None, start * n_ex:]
+    d2 -= 2 * (rows @ cols.T)
+    np.maximum(d2, 0, out=d2)  # tiny negatives from rounding
+    np.sqrt(d2, out=d2)
+    means = d2.reshape(stop - start, n_ex, n_trk - start, n_ex).mean(axis=(1, 3))
+    # Within the diagonal block BLAS may accumulate dot(i,j) and dot(j,i) in
+    # different orders, leaving them a rounding step apart. Mirror the upper
+    # triangle onto the lower so the block, and hence dist_mat, is exactly
+    # symmetric -- ssd.squareform checks that exactly.
+    diag_block = means[:, :stop - start]
+    lower = np.tril_indices(diag_block.shape[0], -1)
+    diag_block[lower] = diag_block.T[lower]
+    dist_mat[start:stop, start:] = means
+    dist_mat[start:, start:stop] = means.T
+  return dist_mat
 
 def get_id_dist_mat_diag(embed):
   """Compute only the diagonal of the embedding distance matrix (intra-tracklet distances).
@@ -4040,76 +4072,98 @@ def k_way_graph_cut(unary_costs, pairwise_similarity, n_labels,init_labels=None,
     return labels
 
 
-# Module-level state shared with worker processes via Pool initializer.
-_overlap_trk = None
+def _tracklet_bboxes(trk):
+  """Per-frame bounding boxes for every tracklet, walking each tracklet's own
+  contiguous data rather than reassembling whole frames.
+  Returns (frames, targets, boxes): parallel arrays with one row per
+  (frame, target) the target is actually present in, boxes as
+  [x_min, x_max, y_min, y_max] padded by 10% of the extent on each side."""
+  ss, ee = trk.get_startendframes()
+  first_frame, last_frame = int(np.min(ss)), int(np.max(ee))
 
-def _init_overlap_worker(trk):
-  global _overlap_trk
-  _overlap_trk = trk
+  frame_cols, tgt_cols, box_cols = [], [], []
+  with warnings.catch_warnings():
+    warnings.simplefilter('ignore', RuntimeWarning)  # all-NaN slices are expected
+    for itgt in range(trk.ntargets):
+      data = trk.pTrk.data[itgt]
+      if data is None:
+        continue
+      x_min = np.nanmin(data[:, 0, :], axis=0)
+      x_max = np.nanmax(data[:, 0, :], axis=0)
+      y_min = np.nanmin(data[:, 1, :], axis=0)
+      y_max = np.nanmax(data[:, 1, :], axis=0)
 
-def _frame_overlaps(fr):
-  """Compute per-target max pairwise bbox overlap for one frame.
-  Returns (valid_indices, max_overlap_per_valid_target).
-  Designed to run in a Pool worker; uses _overlap_trk set by _init_overlap_worker."""
-  trk = _overlap_trk
-  curg = trk.getframe(fr)
-  valid = np.where(~np.all(np.isnan(curg[:, 0, 0, :]), axis=0))[0]
-  if len(valid) == 0:
-    return valid, np.zeros(0)
+      # A frame counts as present iff some landmark has a non-NaN x coordinate.
+      present = np.nonzero(~np.isnan(x_min))[0]
+      frames = int(ss[itgt]) + present
+      keep = (frames >= first_frame) & (frames < last_frame)
+      present, frames = present[keep], frames[keep]
+      if present.size == 0:
+        continue
 
-  curg = curg[:, :, 0, valid]
-  x_min, y_min = np.nanmin(curg, axis=0)
-  x_max, y_max = np.nanmax(curg, axis=0)
-  x_len = x_max - x_min
-  y_len = y_max - y_min
-  x_min = x_min - x_len * 0.1
-  x_max = x_max + x_len * 0.1
-  y_min = y_min - y_len * 0.1
-  y_max = y_max + y_len * 0.1
-  bboxes = np.array([x_min, x_max, y_min, y_max]).T  # (n_valid, 4)
+      x_len = x_max[present] - x_min[present]
+      y_len = y_max[present] - y_min[present]
+      frame_cols.append(frames)
+      tgt_cols.append(np.full(frames.size, itgt))
+      box_cols.append(np.stack([x_min[present] - x_len * 0.1,
+                                x_max[present] + x_len * 0.1,
+                                y_min[present] - y_len * 0.1,
+                                y_max[present] + y_len * 0.1], axis=1))
 
-  # Vectorized pairwise IoU using broadcasting — replaces the O(n^2) Python loop.
-  int_x_min = np.maximum(bboxes[:, 0:1], bboxes[:, 0])  # (n, n)
-  int_x_max = np.minimum(bboxes[:, 1:2], bboxes[:, 1])
-  int_y_min = np.maximum(bboxes[:, 2:3], bboxes[:, 2])
-  int_y_max = np.minimum(bboxes[:, 3:4], bboxes[:, 3])
+  if not frame_cols:
+    return np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros((0, 4))
+  return (np.concatenate(frame_cols), np.concatenate(tgt_cols),
+          np.concatenate(box_cols, axis=0))
+
+
+def _max_pairwise_overlap(boxes):
+  """Largest overlap of each box with any other box in the same frame,
+  as a fraction of the smaller of the two areas."""
+  int_x_min = np.maximum(boxes[:, 0:1], boxes[:, 0])  # (n, n)
+  int_x_max = np.minimum(boxes[:, 1:2], boxes[:, 1])
+  int_y_min = np.maximum(boxes[:, 2:3], boxes[:, 2])
+  int_y_max = np.minimum(boxes[:, 3:4], boxes[:, 3])
   int_area = np.maximum(0, int_x_max - int_x_min) * np.maximum(0, int_y_max - int_y_min)
 
-  areas = (bboxes[:, 1] - bboxes[:, 0]) * (bboxes[:, 3] - bboxes[:, 2])
+  areas = (boxes[:, 1] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 2])
   min_area = np.minimum(areas[:, np.newaxis], areas[np.newaxis, :])  # (n, n)
 
-  overlaps_ = np.where(min_area > 0, int_area / min_area, 0.0)
-  np.fill_diagonal(overlaps_, 0.0)  # exclude self-overlap
+  overlaps = np.where(min_area > 0, int_area / min_area, 0.0)
+  np.fill_diagonal(overlaps, 0.0)  # exclude self-overlap
+  return overlaps.max(axis=1)
 
-  return valid, overlaps_.max(axis=1)
 
-
-def get_overlap_value(trk, n_workers=None):
+def get_overlap_value(trk):
   """Compute mean per-target pairwise bbox overlap across all frames.
-  n_workers: number of parallel processes (default: mp.cpu_count()).
-             Pass 1 to disable multiprocessing."""
-  if n_workers is None:
-    n_workers = mp.cpu_count()
 
-  ss, ee = trk.get_startendframes()
-  n_trk = trk.ntargets
-  frames = range(min(ss), max(ee))
+  Works tracklet-first: each tracklet's bboxes come from one pass over its own
+  contiguous data, and the boxes are then grouped by frame. The obvious
+  frame-first version instead calls trk.getframe() per frame, which rebuilds an
+  (nlandmarks, d, 1, ntargets) array and loops over every tracklet in Python to
+  recover the handful actually present. On a ratcity trk (19k tracklets, 72k
+  frames, ~12 targets present per frame) that is 75x slower for identical
+  output, and it was the reason this step could run for hours."""
+  frames, targets, boxes = _tracklet_bboxes(trk)
 
-  overlaps = [[] for _ in range(n_trk)]
+  overlaps = [[] for _ in range(trk.ntargets)]
+  if frames.size == 0:
+    return np.array([np.nan] * trk.ntargets)
 
-  if n_workers == 1:
-    # Single-process path — avoids Pool overhead for small inputs.
-    global _overlap_trk
-    _overlap_trk = trk
-    for fr in frames:
-      valid, max_ov = _frame_overlaps(fr)
-      for i, tgt in enumerate(valid):
-        overlaps[tgt].append(max_ov[i])
-  else:
-    with mp.Pool(n_workers, initializer=_init_overlap_worker, initargs=(trk,)) as pool:
-      for valid, max_ov in pool.imap_unordered(_frame_overlaps, frames, chunksize=50):
-        for i, tgt in enumerate(valid):
-          overlaps[tgt].append(max_ov[i])
+  order = np.argsort(frames, kind='stable')
+  frames, targets, boxes = frames[order], targets[order], boxes[order]
+
+  group_ends = np.searchsorted(frames, np.unique(frames), side='right')
+  group_start = 0
+  for group_end in group_ends:
+    frame_targets = targets[group_start:group_end]
+    if frame_targets.size == 1:
+      # Nothing to overlap with; matches zeroing the diagonal of a 1x1 matrix.
+      overlaps[frame_targets[0]].append(0.0)
+    else:
+      max_overlap = _max_pairwise_overlap(boxes[group_start:group_end])
+      for i, tgt in enumerate(frame_targets):
+        overlaps[tgt].append(max_overlap[i])
+    group_start = group_end
 
   return np.array([np.mean(o) if o else np.nan for o in overlaps])
 
@@ -4121,7 +4175,8 @@ def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ
   occ_sel = np.zeros(len(pred_map))
 
   len_mov = []
-  for ndx, trk in enumerate(linked_trks):
+  for ndx, trk in tqdm(enumerate(linked_trks), total=len(linked_trks),
+                       desc='Computing tracklet overlap and occlusion'):
     ss, ee = trk.get_startendframes()
     overlaps = get_overlap_value(trk)
     len_mov.append(max(ee) - min(ss))

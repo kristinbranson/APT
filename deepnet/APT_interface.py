@@ -1277,6 +1277,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     conf.sel_sz = min(conf.imsz)
     conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
     conf.trx_align_theta = dt_params['MultiAnimal']['TargetCrop']['AlignUsingTrxTheta']
+    conf.multi_scale_by_bbox = dt_params['MultiAnimal']['TargetCrop']['multi_scale_by_bbox']
 
     def set_all(conf, cur_set, flatten=False):
         for k in cur_set:
