@@ -8,8 +8,8 @@ classdef LabelerController < handle
 
   properties  % subcontrollers
     labelTLInfo_  % an InfoTimelineController object
-    trackingMonitorVisualizer_  % a subcontroller
-    trainingMonitorVisualizer_  % a subcontroller
+    trackMonitorController_  % a subcontroller
+    trainMonitorController_  % a subcontroller
     movieManagerController_
     backendTestController_
     lblCoreController_  % scalar LabelCoreController, or []. The controller for the label core model.
@@ -19,6 +19,11 @@ classdef LabelerController < handle
       % but might not be a controller in the strictest sense.
     uncertainFramesController_  % UncertainFramesController, or []
     compareTrackersController_  % CompareTrackersController, or []
+    parameterSetupModalController_  % ParameterSetupModalController, or []
+    trackBatchGUIController_  % TrackBatchGUIController, or []
+    specifyMovieToTrackController_  % SpecifyMovieToTrackController, or []
+    trainDoJustGenerateDB_  % stashed 'do_just_generate_db' training option, read by trainAfterParametersChosen_
+    trainDoCallAPTInterfaceDotPy_  % stashed 'do_call_apt_interface_dot_py' training option, read by trainAfterParametersChosen_
   end
 
   properties  % "uncontrolled" satellite figures---satellite figures that aren't managed by controllers (at present)
@@ -28,15 +33,17 @@ classdef LabelerController < handle
     suspiciousFramesFigure_ = gobjects(1,0)
     waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
     splashScreenFigure_  % GH to the splash screen figure, or empty
-    labelOutlierFigure_ = gobjects(1,0)
+    labelOutlierController_ = []  % a LabelOutlierController, or empty
     aboutFigure_ = gobjects(1,0)
-    trkInfoFigure_ = gobjects(1,0)
+    trkInfoController_ = []  % a TrkInfoController, or empty
     landmarkSpecsFigure_ = gobjects(1,0)
+    keypointAppearanceFigure_ = gobjects(1,0)  % the Landmark Cosmetics dialog figure
     trackingErrorMontageFigures_ = gobjects(1,0)
-    gtManagerFigure_  % the ground truth manager *figure*
+    gtManagerController_ = []  % a GTManagerController, or empty
     plotAllLabelsFigure_ = gobjects(1,0)
     labelingActionsFigure_ = gobjects(1,0)
     nonmodalMessageBoxFigure_ = gobjects(1,0)
+    autoParamsDifferDialogFigure_ = gobjects(1,0)  % the modal "auto-tune params differ" heads-up dialog, or empty
   end
 
   properties  % private/protected by convention
@@ -410,13 +417,13 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'update_text_trackerinfo',@(source,event)(obj.update_text_trackerinfo()));
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'refreshTrackMonitorViz',@(source,event)(obj.refreshTrackMonitorViz()));      
+        addlistener(labeler,'refreshTrackMonitorController',@(source,event)(obj.refreshTrackMonitorController()));      
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'updateTrackMonitorViz',@(source,event)(obj.updateTrackMonitorViz()));      
+        addlistener(labeler,'updateTrackMonitorController',@(source,event)(obj.updateTrackMonitorController()));      
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'refreshTrainMonitorViz',@(source,event)(obj.refreshTrainMonitorViz()));      
+        addlistener(labeler,'refreshTrainMonitorController',@(source,event)(obj.refreshTrainMonitorController()));      
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'updateTrainMonitorViz',@(source,event)(obj.updateTrainMonitorViz()));      
+        addlistener(labeler,'updateTrainMonitorController',@(source,event)(obj.updateTrainMonitorController()));      
       % obj.listeners_(end+1) = ...
       %   addlistener(labeler,'raiseTrainingStoppedDialog',@(source,event)(obj.raiseTrainingEndedDialog_()));      
       obj.listeners_(end+1) = ...
@@ -647,8 +654,8 @@ classdef LabelerController < handle
     end  % function
 
     function deleteExistingUncontrolledSatellites_(obj)
-      % Delete all satellite figures and subcontrollers, resetting their
-      % properties to empty.
+      % Delete all satellite figures that are not managed by subcontrollers,
+      % resetting their properties to empty.
       deleteValidGraphicsHandles(obj.gtTrackingDialogFigure_) ;
       obj.gtTrackingDialogFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.gtResultFigures_) ;
@@ -659,20 +666,28 @@ classdef LabelerController < handle
       obj.suspiciousFramesFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.auxiliaryViewFigures_) ;
       obj.auxiliaryViewFigures_ = gobjects(1,0) ;
-      deleteValidGraphicsHandles(obj.gtManagerFigure_) ;
-      obj.gtManagerFigure_ = [] ;
+      if ~isempty(obj.gtManagerController_) && isvalid(obj.gtManagerController_)
+        delete(obj.gtManagerController_) ;
+      end
+      obj.gtManagerController_ = [] ;
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       obj.waitbarFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.splashScreenFigure_) ;
       obj.splashScreenFigure_ = [] ;
-      deleteValidGraphicsHandles(obj.labelOutlierFigure_) ;
-      obj.labelOutlierFigure_ = gobjects(1,0) ;
+      if ~isempty(obj.labelOutlierController_) && isvalid(obj.labelOutlierController_)
+        delete(obj.labelOutlierController_) ;
+      end
+      obj.labelOutlierController_ = [] ;
       deleteValidGraphicsHandles(obj.aboutFigure_) ;
       obj.aboutFigure_ = gobjects(1,0) ;
-      deleteValidGraphicsHandles(obj.trkInfoFigure_) ;
-      obj.trkInfoFigure_ = gobjects(1,0) ;
+      if ~isempty(obj.trkInfoController_) && isvalid(obj.trkInfoController_)
+        delete(obj.trkInfoController_) ;
+      end
+      obj.trkInfoController_ = [] ;
       deleteValidGraphicsHandles(obj.landmarkSpecsFigure_) ;
       obj.landmarkSpecsFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.keypointAppearanceFigure_) ;
+      obj.keypointAppearanceFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.trackingErrorMontageFigures_) ;
       obj.trackingErrorMontageFigures_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.plotAllLabelsFigure_) ;
@@ -681,20 +696,23 @@ classdef LabelerController < handle
       obj.labelingActionsFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.nonmodalMessageBoxFigure_) ;
       obj.nonmodalMessageBoxFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.autoParamsDifferDialogFigure_) ;
+      obj.autoParamsDifferDialogFigure_ = gobjects(1,0) ;
     end
 
     function deleteExistingSubcontrollers_(obj)    
-      if ~isempty(obj.trackingMonitorVisualizer_)
-        if isvalid(obj.trackingMonitorVisualizer_) ,
-          delete(obj.trackingMonitorVisualizer_) ;
+      % Delete all existing subcontrollers.
+      if ~isempty(obj.trackMonitorController_)
+        if isvalid(obj.trackMonitorController_) ,
+          delete(obj.trackMonitorController_) ;
         end
-        obj.trackingMonitorVisualizer_ = [] ;
+        obj.trackMonitorController_ = [] ;
       end
-      if ~isempty(obj.trainingMonitorVisualizer_)
-        if isvalid(obj.trainingMonitorVisualizer_) ,
-          delete(obj.trainingMonitorVisualizer_) ;
+      if ~isempty(obj.trainMonitorController_)
+        if isvalid(obj.trainMonitorController_) ,
+          delete(obj.trainMonitorController_) ;
         end
-        obj.trainingMonitorVisualizer_ = [] ;
+        obj.trainMonitorController_ = [] ;
       end
       if ~isempty(obj.backendTestController_)
         delete(obj.backendTestController_) ;
@@ -716,6 +734,45 @@ classdef LabelerController < handle
         end
         obj.compareTrackersController_ = [] ;
       end
+      obj.deleteParameterSetupModalController() ;
+      obj.deleteTrackBatchGUIController() ;
+      obj.deleteSpecifyMovieToTrackController() ;
+    end  % function
+
+    function deleteParameterSetupModalController(obj)
+      % Delete the parameter-setup dialog controller, if it exists.
+      if ~isempty(obj.parameterSetupModalController_)
+        if isvalid(obj.parameterSetupModalController_)
+          delete(obj.parameterSetupModalController_) ;
+        end
+        obj.parameterSetupModalController_ = [] ;
+      end
+    end  % function
+
+    function deleteTrackBatchGUIController(obj)
+      % Delete the batch-tracking dialog controller, if it exists.
+      if ~isempty(obj.trackBatchGUIController_)
+        if isvalid(obj.trackBatchGUIController_)
+          delete(obj.trackBatchGUIController_) ;
+        end
+        obj.trackBatchGUIController_ = [] ;
+      end
+    end  % function
+
+    function deleteSpecifyMovieToTrackController(obj)
+      % Delete the movie-details dialog controller, if it exists.
+      if ~isempty(obj.specifyMovieToTrackController_)
+        if isvalid(obj.specifyMovieToTrackController_)
+          delete(obj.specifyMovieToTrackController_) ;
+        end
+        obj.specifyMovieToTrackController_ = [] ;
+      end
+    end  % function
+
+    function specifyMovieToTrackControllerDone(obj, movdata)
+      % Delegate callback fired when the user clicks Done in the
+      % movie-details dialog.  Track the single movie the user specified.
+      obj.labeler_.trackBatch(movdata) ;
     end  % function
 
     function delete(obj)
@@ -758,11 +815,11 @@ classdef LabelerController < handle
       end
       statusColor = fif(is_busy, obj.busystatuscolor, obj.idlestatuscolor) ;
       set(obj.txStatus,'ForegroundColor',statusColor);      
-      if ~isempty(obj.trainingMonitorVisualizer_) && isvalid(obj.trainingMonitorVisualizer_)
-        obj.trainingMonitorVisualizer_.updatePointer() ;
+      if ~isempty(obj.trainMonitorController_) && isvalid(obj.trainMonitorController_)
+        obj.trainMonitorController_.updatePointer() ;
       end
-      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
-        obj.trackingMonitorVisualizer_.updatePointer() ;
+      if ~isempty(obj.trackMonitorController_) && isvalid(obj.trackMonitorController_)
+        obj.trackMonitorController_.updatePointer() ;
       end
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid()
         obj.movieManagerController_.updatePointer() ;
@@ -1074,6 +1131,10 @@ classdef LabelerController < handle
         obj.lblCoreController_.updateLabelCoords() ;
         obj.lblCoreController_.updateLabelVisibility() ;
         obj.lblCoreController_.updateState() ;
+        % Draw the per-frame overlay (for MA: other targets' labels and the
+        % target ROI/pch).  The model's updateMultiTargetLabelOverlay event fired during
+        % labelingInit_ before this controller existed, so re-sync it now.
+        obj.lblCoreController_.updateMultiTargetLabelOverlay() ;
         % Also sync ROI graphics and ROI button visibility to the current
         % labeler.showMaRoi / labeler.showMaRoiAux.
         obj.updateViewMenu() ;
@@ -1122,21 +1183,26 @@ classdef LabelerController < handle
 %       mftset = mfts(idx);      
 %     end
 
-    function menu_debug_generate_db_actuated_(obj, source, event)
-      obj.train_core_(source, event, 'do_just_generate_db', true) ;
+    function menu_debug_generate_db_actuated_(obj, source, event)  %#ok<INUSD>
+      obj.prepForTrainingThenTrain_('do_just_generate_db', true) ;
     end
 
-    function pbTrain_actuated_(obj, source, event)      
-      obj.train_core_(source, event) ;
+    function pbTrain_actuated_(obj, source, event)  %#ok<INUSD>
+      obj.prepForTrainingThenTrain_() ;
     end
 
-    function menu_start_training_but_dont_call_python_actuated_(obj, source, event)
-      obj.train_core_(source, event, 'do_call_apt_interface_dot_py', false) ;
+    function menu_start_training_but_dont_call_python_actuated_(obj, source, event)  %#ok<INUSD>
+      obj.prepForTrainingThenTrain_('do_call_apt_interface_dot_py', false) ;
     end
 
-    function train_core_(obj, source, event, varargin)
-      % This is like pbTrain_Callback() in LabelerGUI.m, but set up to stop just
-      % after DB creation.
+    function prepForTrainingThenTrain_(obj, varargin)
+      % This method does the pre-dialog prep for training, then daisy-chains the
+      % training, either directly or indirectly.  If auto-set is on and the
+      % auto-computed parameters differ from the current ones by more than 10%,
+      % it raises the (non-blocking) Training Parameters window and returns;
+      % Apply then calls trainAfterParametersChosen_() to continue, while
+      % Cancel/close aborts.  Otherwise it calls trainAfterParametersChosen_()
+      % directly to launch training.
 
       % Process keyword args
       [do_just_generate_db, ...
@@ -1144,8 +1210,15 @@ classdef LabelerController < handle
         myparse(varargin, ...
                 'do_just_generate_db', false, ...
                 'do_call_apt_interface_dot_py', true) ;
-      
-      % Switch to watch cursor
+
+      % Stash the training options so the continuation (which may run now, or
+      % later from the Training Parameters window's Apply) can read them.
+      obj.trainDoJustGenerateDB_ = do_just_generate_db ;
+      obj.trainDoCallAPTInterfaceDotPy_ = do_call_apt_interface_dot_py ;
+
+      % Switch to watch cursor.  This status is popped when this method
+      % returns, which is correct: if we raise the Training Parameters window,
+      % we do not want a busy cursor while the user reviews parameters.
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Spawning training job...') ;  % Want to do this here, b/c the stuff in this method can take a while
       oc = onCleanup(@()(labeler.popBusyStatus()));
@@ -1160,8 +1233,8 @@ classdef LabelerController < handle
         if strcmp(res,'Cancel')
           return
         elseif strcmp(res,'Save As')
-          obj.menu_file_saveas_actuated_(source, event) ;
-        end    
+          obj.menu_file_saveas_actuated_([], []) ;
+        end
       end
 
       % See if the tracker is in a fit state to be trained
@@ -1169,13 +1242,134 @@ classdef LabelerController < handle
       if ~tfCanTrain,
         error('Tracker not fit to be trained: %s', reason) ;
       end
-      
-      % See if the automatically-determined parameters differ from the currently set
-      % ones.  If so, offer user the option to change to the auto-determined params.
-      [~, ~, was_canceled] = obj.setAutoParams();
-      if was_canceled 
+
+      % If auto-set is off, or the project is multiview (which
+      % compute_auto_params does not handle), train now with the current
+      % parameters.
+      if ~labeler.trackAutoSetParams || labeler.isMultiView
+        obj.trainAfterParametersChosen_() ;
         return
       end
+
+      % Auto-set is on.  Head-tail two-stage trackers need head and tail
+      % landmarks defined before auto-params can be computed.
+      if labeler.trackerIsTwoStage && ~labeler.trackerIsObjDet && isempty(labeler.skelHead)
+        uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks', [], 'modal')) ;
+        LandmarkSpecs('parent', obj, 'lObj', labeler, 'waiton_ui', true) ;
+        if isempty(labeler.skelHead)
+          uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters', ...
+                         [], ...
+                         'modal')) ;
+          obj.trainAfterParametersChosen_() ;
+          return
+        end
+      end
+
+      % See if the automatically-determined parameters differ from the
+      % currently-set ones by more than 10%.  If not, train now.
+      [doTheyDifferMuch, autoparams, vizdata, autodescr] = doAutoParamsDifferFromCurrent(labeler) ;
+      if doTheyDifferMuch
+        % They differ significantly: give the user a heads-up, then (on
+        % Continue) open the Training Parameters window so they can review and
+        % optionally accept the suggestions; Cancel/close aborts training.  The
+        % heads-up and the window are both modal but non-blocking.  Thread the
+        % already-computed suggestions through to the window so it opens without
+        % recomputing them.
+        obj.raiseAutoParamsDifferDialog_(...
+          @()(obj.openTrainingParametersDuringTraining_(autoparams, vizdata, autodescr))) ;
+      else
+        % They don't differ by much, so proceed directly to training proper.
+        obj.trainAfterParametersChosen_() ;
+      end
+    end  % method
+
+    function raiseAutoParamsDifferDialog_(obj, continueCallback)
+      % Raise a modal-but-non-blocking heads-up dialog telling the user that
+      % some auto-tunable training parameters differ substantially from their
+      % auto-computed values, and that the Training Parameters window will open
+      % so they can review and optionally accept the suggestions.  On Continue,
+      % run continueCallback (which opens that window); on Cancel or close,
+      % abort training (do nothing more).
+      deleteValidGraphicsHandles(obj.autoParamsDifferDialogFigure_) ;
+      fig = uifigure('Name', 'Auto-Tune Parameters Differ', ...
+                     'Units', 'pixels', ...
+                     'Position', [100,100,480,210], ...
+                     'Resize', 'off', ...
+                     'WindowStyle', 'modal', ...
+                     'CloseRequestFcn', @(s,e)(obj.cbkAutoParamsDifferCancel_()), ...
+                     'Tag', 'figure_autoParamsDiffer') ;
+      obj.autoParamsDifferDialogFigure_ = fig ;
+      gl = uigridlayout(fig, [2,1], 'RowHeight', {'1x','fit'}) ;
+      message = ['Some auto-tunable training parameters differ from their ', ...
+                 'auto-computed values by more than 10%.  Aligning them with ', ...
+                 'the values suggested by your labels will lead to better ', ...
+                 'performance.  The Training Parameters window will now open ', ...
+                 'so you can review the suggested values and optionally accept ', ...
+                 'them.  Click Continue to review the parameters, or Cancel to ', ...
+                 'abort training.'] ;
+      uilabel(gl, 'Text', message, 'WordWrap', 'on', ...
+              'FontSize', 14, 'VerticalAlignment', 'top') ;
+      glButtons = uigridlayout(gl, [1,3], 'ColumnWidth', {'1x',100,100}, 'Padding', [0,0,0,0]) ;
+      pbContinue = uibutton(glButtons, 'Text', 'Continue', 'Tag', 'pb_continue', ...
+                            'ButtonPushedFcn', @(s,e)(obj.cbkAutoParamsDifferContinue_(continueCallback))) ;
+      pbContinue.Layout.Column = 2 ;
+      pbCancel = uibutton(glButtons, 'Text', 'Cancel', 'Tag', 'pb_cancel', ...
+                          'ButtonPushedFcn', @(s,e)(obj.cbkAutoParamsDifferCancel_())) ;
+      pbCancel.Layout.Column = 3 ;
+      mainFigurePosition = obj.mainFigurePixelPosition() ;
+      centerOnOtherFigureGivenPositionBang(fig, mainFigurePosition) ;
+      waitForFigureToSync(fig) ;  % block until the figure is actually visible
+    end  % method
+
+    function cbkAutoParamsDifferContinue_(obj, continueCallback)
+      % Continue from the auto-params-differ heads-up: dismiss it, then run the
+      % continuation (which opens the Training Parameters window).
+      deleteValidGraphicsHandles(obj.autoParamsDifferDialogFigure_) ;
+      obj.autoParamsDifferDialogFigure_ = gobjects(1,0) ;
+      continueCallback() ;
+    end  % method
+
+    function cbkAutoParamsDifferCancel_(obj)
+      % Cancel or close the auto-params-differ heads-up: dismiss it and abort
+      % training (the continuation is never called).
+      deleteValidGraphicsHandles(obj.autoParamsDifferDialogFigure_) ;
+      obj.autoParamsDifferDialogFigure_ = gobjects(1,0) ;
+    end  % method
+
+    function openTrainingParametersDuringTraining_(obj, autoparams, vizdata, autodescr)
+      % Open the Training Parameters window during training start.  The window
+      % is modal but non-blocking; on Apply it continues to training via
+      % trainAfterParametersChosen_(), on Cancel/close it aborts.  The
+      % already-computed suggestions are threaded in so it opens without
+      % recomputing them.
+      obj.deleteParameterSetupModalController() ;
+      obj.parameterSetupModalController_ = ...
+        ParameterSetupModalController(obj, obj.labeler_, ...
+                                      'istrain', true, ...
+                                      'isDuringTraining', true, ...
+                                      'autoparams', autoparams, ...
+                                      'vizdata', vizdata, ...
+                                      'autodescr', autodescr) ;
+    end  % method
+
+    function trainAfterParametersChosen_(obj)
+      % Continuation of prepForTrainingThenTrain_ after the user has chosen
+      % training parameters (either directly, or via the Training Parameters
+      % window that prepForTrainingThenTrain_ raised when the auto-computed
+      % parameters differed).  Reads and clears the stashed training options,
+      % does the GPU-memory check, then asks the labeler to train.
+      labeler = obj.labeler_ ;
+
+      % Read and clear the stashed training options.
+      do_just_generate_db = obj.trainDoJustGenerateDB_ ;
+      do_call_apt_interface_dot_py = obj.trainDoCallAPTInterfaceDotPy_ ;
+      obj.trainDoJustGenerateDB_ = [] ;
+      obj.trainDoCallAPTInterfaceDotPy_ = [] ;
+
+      % Re-push the busy status, since prepForTrainingThenTrain_'s was popped
+      % when it returned (e.g. while the Training Parameters window was up).
+      labeler.pushBusyStatus('Spawning training job...') ;
+      oc = onCleanup(@()(labeler.popBusyStatus()));
 
       % Make sure we have enough GPU memory
       if ~obj.trackCheckGPUMem_()
@@ -1420,7 +1614,7 @@ classdef LabelerController < handle
           end
         end
         rowNames = arrayfun(@(vi)sprintf('View %d',vi),1:nviewCoco,'uni',0);
-        fig_coco = figure('Name','Groundtruth COCO keypoint mAP');
+        fig_coco = uifigure('Name','Groundtruth COCO keypoint mAP');
         obj.gtResultFigures_(end+1) = fig_coco ;
         uitable('Parent',fig_coco,'Data',cocoData,'ColumnName',statNames,'RowName',rowNames,...
           'Units','normalized','Position',[0.02,0.05,0.96,0.9],'ColumnSortable',true);
@@ -1994,45 +2188,45 @@ classdef LabelerController < handle
       obj.suspCbkTblNaved_(row);
     end  % function
     
-    function refreshTrackMonitorViz(obj)
-      % Create a TrackMonitorViz (very similar to a controller) if one doesn't
-      % exist.  If one *does* exist, delete that one first.
+    function refreshTrackMonitorController(obj)
+      % Create a TrackMonitorController if one doesn't exist.  If one *does*
+      % exist, delete that one first.
       labeler = obj.labeler_ ;
-      if ~isempty(obj.trackingMonitorVisualizer_) 
-        if isvalid(obj.trackingMonitorVisualizer_) ,
-          delete(obj.trackingMonitorVisualizer_) ;
+      if ~isempty(obj.trackMonitorController_) 
+        if isvalid(obj.trackMonitorController_) ,
+          delete(obj.trackMonitorController_) ;
         end
-        obj.trackingMonitorVisualizer_ = [] ;
+        obj.trackMonitorController_ = [] ;
       end
-      obj.trackingMonitorVisualizer_ = TrackMonitorViz(obj, labeler) ;
+      obj.trackMonitorController_ = TrackMonitorController(obj, labeler) ;
     end  % function
 
-    function updateTrackMonitorViz(obj)
-      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
+    function updateTrackMonitorController(obj)
+      if ~isempty(obj.trackMonitorController_) && isvalid(obj.trackMonitorController_)
         labeler = obj.labeler_ ;
         pollingResult = labeler.tracker.bgTrkMonitor.pollingResult ;
-        obj.trackingMonitorVisualizer_.resultsReceived(pollingResult) ;
+        obj.trackMonitorController_.resultsReceived(pollingResult) ;
       end
     end  % function
 
-    function refreshTrainMonitorViz(obj)
-      % Create a TrainMonitorViz (very similar to a controller) if one doesn't
-      % exist.  If one *does* exist, delete that one first.
+    function refreshTrainMonitorController(obj)
+      % Create a TrainMonitorController if one doesn't exist.  If one *does*
+      % exist, delete that one first.
       labeler = obj.labeler_ ;
-      if ~isempty(obj.trainingMonitorVisualizer_) 
-        if isvalid(obj.trainingMonitorVisualizer_) ,
-          delete(obj.trainingMonitorVisualizer_) ;
+      if ~isempty(obj.trainMonitorController_) 
+        if isvalid(obj.trainMonitorController_) ,
+          delete(obj.trainMonitorController_) ;
         end
-        obj.trainingMonitorVisualizer_ = [] ;
+        obj.trainMonitorController_ = [] ;
       end
-      obj.trainingMonitorVisualizer_ = TrainMonitorViz(obj, labeler) ;
+      obj.trainMonitorController_ = TrainMonitorController(obj, labeler) ;
     end  % function
 
-    function updateTrainMonitorViz(obj)
-      if ~isempty(obj.trainingMonitorVisualizer_) && isvalid(obj.trainingMonitorVisualizer_) 
+    function updateTrainMonitorController(obj)
+      if ~isempty(obj.trainMonitorController_) && isvalid(obj.trainMonitorController_) 
         labeler = obj.labeler_ ;
         pollingResult = labeler.tracker.bgTrnMonitor.pollingResult ;
-        obj.trainingMonitorVisualizer_.resultsReceived(pollingResult) ;
+        obj.trainMonitorController_.resultsReceived(pollingResult) ;
       end
     end  % function
 
@@ -2055,17 +2249,22 @@ classdef LabelerController < handle
         elseif labeler.lastTrainEndCause == EndCause.abort
           question_string = sprintf('Training was aborted after %s iterations.  Save project now?',...
                                     n_out_of_d_string) ;
+        elseif labeler.lastTrainEndCause == EndCause.load,
+          question_string = '';
+          % nothing to do
         else
           error('Internal error.  Please save your work if possible, restart APT, and report to the APT developers.') ;
         end        
-        res = questdlg(question_string,'Save?','Save','Save as...','No','Save') ;  % modal
-        if strcmpi(res,'Save'),
-          obj.save();
-        elseif strcmpi(res,'Save as...'),
-          obj.saveAs();
-        else
-          % do nothing
-        end  % if      
+        if ~isempty(question_string),
+          res = questdlg(question_string,'Save?','Save','Save as...','No','Save') ;  % modal
+          if strcmpi(res,'Save'),
+            obj.save();
+          elseif strcmpi(res,'Save as...'),
+            obj.saveAs();
+          else
+            % do nothing
+          end  % if
+        end
       else
         % all(isnan(iterCurr)) == true
         % This means there was an error or abort early in training.
@@ -2990,7 +3189,7 @@ classdef LabelerController < handle
     end  % function
     
     function updateTrainingMonitor(obj)
-      obj.trainingMonitorVisualizer_.update() ;
+      obj.trainMonitorController_.update() ;
     end  % function
 
     function cbkTrackerTrainEnd(obj)
@@ -3002,7 +3201,7 @@ classdef LabelerController < handle
     end  % function
 
     function updateTrackingMonitor(obj)
-      obj.trackingMonitorVisualizer_.update() ;
+      obj.trackMonitorController_.update() ;
     end  % function
 
     function cbkTrackerEnd(obj)
@@ -3780,7 +3979,7 @@ classdef LabelerController < handle
       % Make the "Uncertain Frames" figure visible
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Showing "Uncertain Frames" window...') ;
-      oc = onCleanup(@()(labeler.popBusyStatus())) ;  %#ok<NASGU>
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
       model = labeler.uncertainFramesModel_ ;
       model.isVisible = true ;
     end  % function
@@ -3839,7 +4038,7 @@ classdef LabelerController < handle
       % Make the "Compare Trackers" figure visible.
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Showing "Compare Trackers" window...') ;
-      oc = onCleanup(@()(labeler.popBusyStatus())) ;  %#ok<NASGU>
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
       model = labeler.compareTrackersModel_ ;
       model.isVisible = true ;
     end  % function
@@ -5657,9 +5856,8 @@ classdef LabelerController < handle
           if labeler.maIsMA
             prms = labeler.trackParams;
             if ~isempty(prms)
-              if isfield(prms.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox')
-                tfScale = prms.ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox;
-              else
+              tfScale = APTParameters.getMultiScaleByBBox(prms);
+              if isempty(tfScale),
                 tfScale = false;
               end
             end
@@ -5685,7 +5883,7 @@ classdef LabelerController < handle
 
     function menu_label_outliers_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      obj.labelOutlierFigure_ = label_outlier_gui(labeler) ;
+      obj.labelOutlierController_ = LabelOutlierController.fromLabeler(labeler) ;
     end
 
     function menu_label_streamlined_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6012,40 +6210,25 @@ classdef LabelerController < handle
       oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
       drawnow;
 
-      % Compute the automatic parameters, give user chance to accept/reject them.
-      % did_update will be true iff they accepted them.
-      % tPrm will we be the current parameter tree, whether or not it incorporates
-      % the automatically-generated suggestions.
-      [tPrm, did_update, was_canceled] = obj.setAutoParams();
-      if was_canceled ,
-        return
-      end
-
-      % Show the GUI window that allows users to set parameters.  sPrmNew will be
-      % empty if user mode no changes, otherwise will be parameter structure holding
-      % the new parameters (which have not yet been 'written' to the model).
-      sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler,'name','Training parameters');  % modal
-
-      % Write the parameters to the labeler, if called for.  Set doesNeedSave in the
-      % labeler, as needed.     
-      if isempty(sPrmNew)
-        if did_update
-          labeler.setDoesNeedSave(true,'Parameters changed') ;
-        end
-      else
-        labeler.trackSetTrainingParams(sPrmNew);
-        labeler.setDoesNeedSave(true,'Parameters changed') ;
-      end
+      % Show the modal dialog that allows users to set parameters.  The call
+      % returns once the dialog is up; when the user clicks Apply, the dialog
+      % writes the new parameters to the labeler itself.
+      obj.deleteParameterSetupModalController() ;
+      obj.parameterSetupModalController_ = ...
+        ParameterSetupModalController(obj, labeler, 'istrain', true) ;
     end  % function
 
 
 
     function menu_track_settrackparams_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Show the modal dialog that allows users to set tracking parameters.
+      % The call returns once the dialog is up; when the user clicks Apply,
+      % the dialog writes the new parameters to the labeler itself.
       labeler = obj.labeler_ ;
-      tPrm = labeler.trackGetTrackParams();
-      sPrmTrack = ParameterSetup(obj.mainFigure_, tPrm, 'labelerObj', labeler,'name','Tracking parameters');  % modal
-      labeler.setTrackingParameters(sPrmTrack) ;
-    end
+      obj.deleteParameterSetupModalController() ;
+      obj.parameterSetupModalController_ = ...
+        ParameterSetupModalController(obj, labeler, 'istrain', false) ;
+    end  % function
 
 
 
@@ -6088,7 +6271,12 @@ classdef LabelerController < handle
     function menu_go_targets_summary_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if labeler.maIsMA
-        obj.trkInfoFigure_ = TrkInfoUI(obj, labeler) ;
+        controller = obj.trkInfoController_ ;
+        if ~isempty(controller) && isvalid(controller) && ~isempty(controller.hFig) && isgraphics(controller.hFig)
+          controller.raiseAndSyncToCurrentMovie_() ;
+        else
+          obj.trkInfoController_ = TrkInfoController(obj, labeler) ;
+        end
       else
         obj.raiseTargetsTableFigure_();
       end
@@ -6122,9 +6310,12 @@ classdef LabelerController < handle
 
 
     function menu_track_batch_track_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Show the modal batch-tracking dialog.  The call returns once the
+      % dialog is up; when the user clicks Track, the dialog calls
+      % trackBatch() on the labeler itself.
       labeler = obj.labeler_ ;
-      tbobj = TrackBatchGUI(labeler, obj.mainFigure_);
-      tbobj.run();
+      obj.deleteTrackBatchGUIController() ;
+      obj.trackBatchGUIController_ = TrackBatchGUIController(obj, labeler) ;
     end
 
 
@@ -6137,29 +6328,26 @@ classdef LabelerController < handle
         % User cancelled when asked about preexisting trkfiles
         return
       end
-      tbobj = TrackBatchGUI(labeler, obj.mainFigure_, 'toTrack', toTrackIn);
-      % [toTrackOut] = tbobj.run();
-      tbobj.run();
-      % todo: import predictions
+      obj.deleteTrackBatchGUIController() ;
+      obj.trackBatchGUIController_ = TrackBatchGUIController(obj, labeler, 'toTrack', toTrackIn) ;
     end
 
 
 
     function menu_track_current_movie_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Show the modal movie-details dialog for the current movie.  The call
+      % returns once the dialog is up; when the user clicks Done, the dialog
+      % calls specifyMovieToTrackControllerDone() on this controller, which tracks
+      % the movie.
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
       mIdx = labeler.currMovIdx;
       [toTrackIn, tfok] = labeler.mIdx2TrackList(mIdx);
       if ~tfok ,
         % User cancelled when asked about preexisting trkfiles
         return
       end
-      mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
-      [toTrackOut,dostore] = mdobj.run();
-      if ~dostore,
-        return;
-      end
-      labeler.trackBatch(toTrackOut);
+      obj.deleteSpecifyMovieToTrackController() ;
+      obj.specifyMovieToTrackController_ = SpecifyMovieToTrackController(labeler, obj, toTrackIn) ;
     end
 
 
@@ -6437,8 +6625,8 @@ classdef LabelerController < handle
 
     function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      cbkApply = @(varargin)(labeler.hlpApplyCosmetics(varargin{:})) ;
-      LandmarkColors_App(obj, labeler, cbkApply);
+      keypointAppearanceController = LandmarkColorsController(obj, labeler) ;
+      obj.keypointAppearanceFigure_ = keypointAppearanceController.hFig ;
     end
 
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6595,10 +6783,10 @@ classdef LabelerController < handle
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
         obj.movieManagerController_.update() ;
       end
-      sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
-      sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;
-      sendMaybe(obj.trainingMonitorVisualizer_, 'syncStatusLineToPollingResult') ;
-      sendMaybe(obj.trackingMonitorVisualizer_, 'syncStatusLineToPollingResult') ;
+      sendMaybe(obj.trainMonitorController_, 'updateStopButton') ;
+      sendMaybe(obj.trackMonitorController_, 'updateStopButton') ;
+      sendMaybe(obj.trainMonitorController_, 'syncStatusLineToPollingResult') ;
+      sendMaybe(obj.trackMonitorController_, 'syncStatusLineToPollingResult') ;
       sendMaybe(obj.uncertainFramesController_, 'update') ;
       sendMaybe(obj.compareTrackersController_, 'update') ;
     end
@@ -6651,21 +6839,21 @@ classdef LabelerController < handle
     end  % function
     
     function tf = doesGTManagerFigureExist(obj)
-      hGTMgr = obj.gtManagerFigure_ ;
-      tf = ~isempty(hGTMgr) && ishandle(hGTMgr);
+      controller = obj.gtManagerController_ ;
+      tf = ~isempty(controller) && isvalid(controller) && ~isempty(controller.hFig) && ishandle(controller.hFig) ;
     end
 
     function gtShowGTManager(obj)
       if obj.doesGTManagerFigureExist()
-        figure(obj.gtManagerFigure_);
+        figure(obj.gtManagerController_.hFig);
       else
-        obj.gtManagerFigure_ = GTManager(obj, obj.labeler_);
+        obj.gtManagerController_ = GTManagerController(obj, obj.labeler_);
       end
     end
 
     function gtCloseGTManager(obj)
       if obj.doesGTManagerFigureExist(),
-        close(obj.gtManagerFigure_);
+        close(obj.gtManagerController_.hFig);
       end
     end
 
@@ -6823,17 +7011,14 @@ classdef LabelerController < handle
     %   obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
     % end
 
-    function trainMonitorVizCloseRequested(obj)
+    function trainMonitorControllerCloseRequested(obj)
       doReallyClose = false ;
       tfbatch = batchStartupOptionUsed() ; % ci
-      trainMonitorViz = obj.trainingMonitorVisualizer_ ;
+      trainMonitorController = obj.trainMonitorController_ ;
       if tfbatch ,
         doReallyClose = true ;
-      else        
-        trainMonitorFig = trainMonitorViz.hfig ;
-        handles = guidata(trainMonitorFig) ;
-  
-        mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
+      else
+        mode = get(trainMonitorController.pushbutton_startstop_,'UserData');  % this is not a good way to store application state.
   
         if strcmpi(mode,'stop') ,
           res = questdlg({'Training currently in progress. Please stop training before'
@@ -6856,23 +7041,20 @@ classdef LabelerController < handle
       end
 
       if doReallyClose ,
-        delete(trainMonitorViz);
-        obj.trainingMonitorVisualizer_ = [] ;
+        delete(trainMonitorController);
+        obj.trainMonitorController_ = [] ;
       end        
     end  % function
 
-    function trackMonitorVizCloseRequested(obj)
+    function trackMonitorControllerCloseRequested(obj)
       doReallyClose = false ;
       tfbatch = batchStartupOptionUsed() ; % ci
-      trackMonitorViz = obj.trackingMonitorVisualizer_ ;
+      trackMonitorController = obj.trackMonitorController_ ;
       if tfbatch ,
         doReallyClose = true ;
-      else        
-        trackMonitorFig = trackMonitorViz.hfig ;
-        handles = guidata(trackMonitorFig) ;
-  
-        mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
-  
+      else
+        mode = get(trackMonitorController.pushbutton_startstop_,'UserData');  % this is not a good way to store application state.
+
         if strcmpi(mode,'stop') ,
           res = questdlg({'Tracking currently in progress. Please stop tracking before'
                           'closing this monitor. If you have already clicked Stop tracking,'
@@ -6894,72 +7076,11 @@ classdef LabelerController < handle
       end
 
       if doReallyClose ,
-        delete(trackMonitorViz);
-        obj.trackingMonitorVisualizer_ = [] ;
+        delete(trackMonitorController);
+        obj.trackMonitorController_ = [] ;
       end        
     end  % function
 
-    function [tPrm, did_update, was_canceled] = setAutoParams(obj)
-      % Compute auto parameters and update them based on user feedback.
-      %
-      % AL: note this sets the project-level params based on the current
-      % tracker; if a user uses multiple tracker types (eg: MA-BU and 
-      % MA-TD) and switches between them, the behavior may be odd (eg the
-      % user may get prompted constantly about "changed suggestions" etc)
-
-      % On exit, returns the current parameter tree in the labeler in tPrm (whether
-      % modified or not).  do_update is a logical scalar that is true iff the
-      % suggested automatically-determined paramters were applied to the labeler.
-
-      labeler = obj.labeler_ ;
-        
-      sPrmCurrent = labeler.trackGetTrainingParams();
-      % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
-      % eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
-      % over.
-      
-      % Start with default "new" parameter tree/specification
-      tPrm = APTParameters.defaultParamsTree() ;
-      % Overlay our starting point
-      tPrm.structapply(sPrmCurrent) ;
-      
-      if labeler.isMultiView        
-        warningNoTrace('Multiview project: not auto-setting params.');
-        did_update = false;
-        was_canceled = false ;
-        return
-      end      
-      
-      if labeler.trackerIsTwoStage && ~labeler.trackerIsObjDet && isempty(labeler.skelHead)
-        uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks', [], 'modal')) ;
-        LandmarkSpecs('parent', obj, 'lObj', labeler, 'waiton_ui', true) ;
-        if isempty(labeler.skelHead)
-          uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters', ...
-                         [], ...
-                         'modal'));
-          did_update = false;
-          was_canceled = false ;        
-          return
-        end
-      end
-      
-      mainFigurePosition = obj.mainFigurePixelPosition() ;
-      [tPrm, was_canceled, do_update] = APTParameters.autosetparamsGUI(tPrm, labeler, mainFigurePosition) ;
-      if was_canceled
-        did_update = false ;
-        return
-      end
-
-      % Finally, apply the update, if called for.
-      if do_update
-        sPrmNew = tPrm.structize() ;
-        labeler.trackSetTrainingParams(sPrmNew);
-        did_update = true ;
-      else
-        did_update = false ;
-      end
-    end  % function
-        
     function [docontinue, stg1ctorargs, stg2ctorargs] = raiseDialogsToChooseStageAlgosForCustomTopDownTracker(obj, stg1mode, stg2mode)
       % What it says on the tin.
       dlnets = enumeration('DLNetType') ;
@@ -7130,14 +7251,17 @@ classdef LabelerController < handle
       lObj = obj.labeler_;
       silent = myparse(varargin,'silent',false) || lObj.isInBatchMode;
       dotrain = true;
-      sPrm = lObj.trackGetTrainingParams();
-      [is_ma,is2stage,is_ma_net] = ParameterVisualizationMemory.getStage(lObj,'');
-      imsz = ParameterVisualizationMemory.getProjImsz(...
-        lObj,sPrm,is_ma,is2stage,1);
-      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
-        lObj,sPrm,is_ma,is2stage,1);
-      imsz = imsz/ds;
-      mem_need = get_network_size(nettype,imsz,bsz,is_ma_net);
+      isMA = lObj.maIsMA;
+      [imsz,downsample,batchsize] = lObj.trackGetTrainImageSize();
+      imsz = max(1,round(imsz./downsample));
+      nettype = lObj.trackGetNetType();
+      mem_need = 0;
+      for stage = 1:numel(downsample),
+        mem_need_curr = get_network_size(nettype{stage},imsz(:,stage),batchsize(stage),isMA);
+        if ~isempty(mem_need_curr),
+          mem_need = max(mem_need_curr,mem_need);
+        end
+      end
       try
         [~, freemem] = lObj.trackDLBackEnd.getFreeGPUs(1);
       catch
@@ -7168,36 +7292,6 @@ classdef LabelerController < handle
                      'to prevent training from crashing. Do you still want to train?'], ...
                     freemem, ...
                     round(mem_need));
-          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
-          if ~strcmpi(res,'Yes')
-            dotrain = false;
-          end
-        end
-      end
-
-      if ~is2stage || ~dotrain,
-        return
-      end
-
-      % check for 2nd stage
-      imsz = ParameterVisualizationMemory.getProjImsz(...
-        lObj,sPrm,is_ma,is2stage,2);
-      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
-        lObj,sPrm,is_ma,is2stage,2);
-      imsz = imsz/ds;
-      mem_need = get_network_size(nettype,imsz,bsz,false);
-      if ~silent,
-        if isempty(freemem),
-          % If we get here, we must have already told the user above that there are
-          % not GPUs available, and they must have said to proceed.  So no need to
-          % ask again.
-        elseif (mem_need>0.9*freemem),
-          qstr = ...
-            sprintf(['The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB).  ' ...
-                     'It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling ' ...
-                     'to prevent training from crashing. Do you still want to train?'], ...
-            freemem, ...
-            round(mem_need));
           res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
           if ~strcmpi(res,'Yes')
             dotrain = false;

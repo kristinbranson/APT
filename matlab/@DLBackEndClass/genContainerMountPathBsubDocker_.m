@@ -63,7 +63,7 @@ function result = genContainerMountPathBsubDocker_(obj, tracker, cmdtype, jobinf
     % docker writes to ~/.cache. So we need home directory. MK
     % 20220922
     % add in home directory and their ancestors
-    homedir = getuserdir() ;  % native path
+    homedir = get_home_dir_name() ;  % native path
     homeancestors = [{homedir},getpathancestors(homedir)];
     if isunix()
       homeancestors = setdiff(homeancestors,{'/'});

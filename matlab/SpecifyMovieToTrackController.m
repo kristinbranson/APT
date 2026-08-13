@@ -1,0 +1,1341 @@
+classdef SpecifyMovieToTrackController < handle
+  
+  properties 
+    defaultdir = '';
+    lObj = [];
+    parent_ = [];  % the controller that owns this dialog; receives specifyMovieToTrackControllerDone()
+    movdata = [];
+    nview = 1;
+    hastrx = false;
+    iscrop = false;
+    isma = false;
+    docalibrate = false;
+    nfields = nan;
+    fig = [];  % the main dialog figure
+    button_control = [];  % array of control-button (Done/Cancel) handles
+    pum_path = [];  % path-display (starts/ends) popupmenu
+    linktext = [];  % "Linking Method" label (MA projects only)
+    pum_linking = [];  % linking-method popupmenu (MA projects only)
+    chk_known_num_animals = [];  % "known number of animals" checkbox (identity linking only)
+    edit_num_animals = [];  % number-of-animals edit field (identity linking only)
+    movie = [];  % struct of movie-row widget handles (rowtext, rowedit, rowpb)
+    trk = [];  % struct of trk-row widget handles
+    trx = [];  % struct of trx-row widget handles
+    cal = [];  % struct of calibration-row widget handles
+    crop = [];  % struct of crop-row widget handles, plus the crop-dialog fig and rect
+    targets = [];  % struct of targets-row widget handles
+    f0s = [];  % struct of start-frame-row widget handles
+    f1s = [];  % struct of end-frame-row widget handles
+    posinfo = struct;
+    colorinfo = struct;
+    rowinfo = struct;
+    isgood = struct;
+    cropwh = [];
+    movieReader = {};
+    defaulttrkpat = [];
+    defaulttrxpat = [];
+    detailed_options = true;
+    link_type = 'motion';
+    showPathEnds = true;  % Path display mode: true = show path ends, false = show path starts
+  end
+
+  methods
+    function obj = SpecifyMovieToTrackController(lObj, parent, movdata, varargin)
+      % Construct and show the modal movie-details dialog.  The dialog is modal
+      % but the constructor returns as soon as it is up (no uiwait). When the
+      % user clicks Done, the dialog calls specifyMovieToTrackControllerDone() on
+      % the parent; in all cases it asks the parent to delete and unregister it
+      % via deleteSpecifyMovieToTrackController().
+
+      [defaulttrkpat,defaulttrxpat,detailed_options] = myparse(varargin,...
+        'defaulttrkpat',[], ... % eg '$movdir/$movfile_$projfile_$trackertype'
+        'defaulttrxpat',[], ...
+        'detailed_options', true ...
+        );
+
+      obj.lObj = lObj;
+      if isempty(lObj)
+        obj.isma = true ;
+      else
+        obj.isma = lObj.maIsMA;
+      end
+      obj.parent_ = parent;
+      obj.detailed_options = detailed_options;
+
+      obj.nview = lObj.nview;
+      obj.hastrx = lObj.hasTrx;
+      obj.iscrop = ~obj.hastrx;
+      %obj.iscrop = lObj.cropProjHasCrops; % to do: allow cropping when trained without cropping?
+      if obj.nview > 1 
+        prms = lObj.trackParams ;
+        docalibrate = ~strcmpi(APTParameters.getPostProcessReconcile3dType(prms), 'none') ;
+      else
+        docalibrate = false ;
+      end
+      obj.docalibrate = docalibrate ;
+      if obj.iscrop,
+        if lObj.cropProjHasCrops,
+          obj.cropwh = lObj.cropGetCurrentCropWidthHeightOrDefault();
+        else
+          [minnc,minnr] = lObj.getMinMovieWidthHeight();
+          obj.cropwh = [minnc(:)-1,minnr(:)-1];
+        end
+      end
+
+      if nargin < 3 || isempty(movdata),
+        movdata = struct;
+      end
+
+      obj.defaulttrkpat = defaulttrkpat;
+      obj.defaulttrxpat = defaulttrxpat;
+      obj.initMovData(movdata);
+
+      obj.createGUI();
+
+      % Center the dialog on the parent controller's figure.
+      if isa(obj.parent_, 'TrackBatchGUIController')
+        parentFigurePosition = obj.parent_.figurePixelPosition() ;
+      elseif isa(obj.parent_, 'LabelerController')
+        parentFigurePosition = obj.parent_.mainFigurePixelPosition() ;
+      else
+        error('APT:invalidParent', ...
+              'The parent must be a TrackBatchGUIController or a LabelerController') ;
+      end
+      centerOnOtherFigureGivenPositionBang(obj.fig, parentFigurePosition) ;
+
+      % Wait until the figure is actually on screen with its final geometry,
+      % then refresh the displayed paths so the initial truncation reflects
+      % the realized edit-field widths.  Doing this at the end of createGUI
+      % is too early: the WM hasn't mapped/sized the window yet, so
+      % getpixelposition returns stale widths and the truncation no-ops.
+      waitForFigureToSync(obj.fig) ;
+      obj.updatePathDisplay() ;
+    end
+
+    function delete(obj)
+      % Clean up figures if they still exist.
+      if isfield(obj.crop, 'fig')
+        deleteValidGraphicsHandles(obj.crop.fig) ;
+      end
+      deleteValidGraphicsHandles(obj.fig) ;
+    end  % function
+
+    function initMovData(obj,movdata)
+      
+      obj.movdata = movdata;
+
+      if ~isfield(obj.movdata,'movfiles'),
+        obj.movdata.movfiles = repmat({''},[1,obj.nview]);
+      end
+      if ~isfield(obj.movdata,'trkfiles'),
+        obj.movdata.trkfiles = repmat({''},[1,obj.nview]);
+      end
+      if ~isempty(obj.defaulttrkpat)
+        for ivw=1:obj.nview
+          movI = obj.movdata.movfiles{ivw};
+          if ~isempty(movI) && isempty(obj.movdata.trkfiles{ivw})
+            obj.movdata.trkfiles{ivw} = obj.genTrkfile(movI,obj.defaulttrkpat);
+          end
+        end
+      end
+      if obj.hastrx && ~isfield(obj.movdata,'trxfiles'),
+        obj.movdata.trxfiles = repmat({''},[1,obj.nview]);
+      end
+      if obj.hastrx && ~isempty(obj.defaulttrxpat)
+        for ivw=1:obj.nview
+          movI = obj.movdata.movfiles{ivw};
+          if ~isempty(movI) && isempty(obj.movdata.trxfiles{ivw})
+            obj.movdata.trxfiles{ivw} = obj.genTrkfile(movI,...
+              obj.defaulttrxpat,'enforceExt',false);
+          end
+        end
+      end      
+      if obj.iscrop && ~isfield(obj.movdata,'cropRois'),
+        obj.movdata.cropRois = repmat({nan(1,4)},[1,obj.nview]);
+      end
+      if ~isfield(obj.movdata,'calibrationfiles')
+        obj.movdata.calibrationfiles = [];
+      elseif iscell(obj.movdata.calibrationfiles)
+        obj.movdata.calibrationfiles = cell2mat(obj.movdata.calibrationfiles);
+      end
+      if ~isfield(obj.movdata,'targets'),
+        obj.movdata.targets = [];
+      end
+      if iscell(obj.movdata.targets),
+        obj.movdata.targets = cell2mat(obj.movdata.targets);
+      end
+      if ~isfield(obj.movdata,'f0s'),
+        obj.movdata.f0s = [];
+      end
+      if iscell(obj.movdata.f0s),
+        obj.movdata.f0s = obj.movdata.f0s{1};
+      end
+      if ~isfield(obj.movdata,'f1s'),
+        obj.movdata.f1s = [];
+      end
+      if iscell(obj.movdata.f1s),
+        obj.movdata.f1s = obj.movdata.f1s{1};
+      end
+      if ~isfield(obj.movdata,'link_type'),
+        obj.movdata.link_type = 'motion';
+      end
+      if ~isfield(obj.movdata,'id_known_num_animals'),
+        obj.movdata.id_known_num_animals = false;
+      end
+      if ~isfield(obj.movdata,'id_num_animals'),
+        obj.movdata.id_num_animals = [];
+      end
+
+      obj.rowinfo = struct;
+      obj.rowinfo.movie = struct;
+      obj.rowinfo.movie.prompt = 'Movie';
+      obj.rowinfo.movie.movdatafield = 'movfiles';
+      obj.rowinfo.movie.ext = {'*.avi;*.mp4;*.mjpg;*.ufmf','All video files (*.avi, *.mp4, *.mjpg, *.ufmf)'};
+      obj.rowinfo.movie.type = 'inputfile';
+      obj.rowinfo.movie.isvalperview = true;
+      
+      obj.rowinfo.trk = struct;
+      obj.rowinfo.trk.prompt = 'Output trk file';
+      obj.rowinfo.trk.movdatafield = 'trkfiles';
+      obj.rowinfo.trk.ext = '*.trk';
+      obj.rowinfo.trk.type = 'outputfile';
+      obj.rowinfo.trk.isvalperview = true;
+      
+      % obj.rowinfo.detect = struct;
+      % obj.rowinfo.detect.prompt = 'Output detection file';
+      % obj.rowinfo.detect.movdatafield = 'detectfiles';
+      % obj.rowinfo.detect.ext = '*.trk';
+      % obj.rowinfo.detect.type = 'outputfile';
+      % obj.rowinfo.detect.isvalperview = true;
+      
+      obj.rowinfo.trx = struct;
+      obj.rowinfo.trx.prompt = 'Multitarget trx file';
+      obj.rowinfo.trx.movdatafield = 'trxfiles';
+      obj.rowinfo.trx.ext = '*.mat';
+      obj.rowinfo.trx.type = 'inputfile';
+      obj.rowinfo.trx.isvalperview = true;
+      
+      obj.rowinfo.cal = struct;
+      obj.rowinfo.cal.prompt = 'Calibration file';
+      obj.rowinfo.cal.movdatafield = 'calibrationfiles';
+      obj.rowinfo.cal.ext = '*.*';
+      obj.rowinfo.cal.type = 'inputfile';
+      obj.rowinfo.cal.isvalperview = false;
+      obj.rowinfo.cal.isoptional = ~obj.docalibrate;
+      
+      obj.rowinfo.crop = struct;
+      obj.rowinfo.crop.prompt = 'Crop ROI (x1,x2,y1,y2)';
+      obj.rowinfo.crop.movdatafield = 'cropRois';
+      obj.rowinfo.crop.type = 'array';
+      obj.rowinfo.crop.arraysize = [1,4];      
+      obj.rowinfo.crop.isvalperview = true;
+      % AL20201213. In some sense the crop is always optional, as one can
+      % imagine the movie-to-be-trked to have arbitrary dims. That said,
+      % in 99% of cases presumably the movie-to-be-trked will have the same
+      % dims as the training movs. So we require crops if the proj has
+      % crops. 
+      obj.rowinfo.crop.isoptional = ~obj.lObj.cropProjHasCrops;
+      
+      obj.rowinfo.targets = struct;
+      obj.rowinfo.targets.prompt = 'Targets (optional)';
+      obj.rowinfo.targets.movdatafield = 'targets';
+      obj.rowinfo.targets.type = 'array';
+      obj.rowinfo.targets.isvalperview = false;
+      obj.rowinfo.targets.isoptional = true;
+      obj.rowinfo.targets.hasdetails = false;
+      
+      obj.rowinfo.f0s = struct;
+      obj.rowinfo.f0s.prompt = 'Start frame (optional)';
+      obj.rowinfo.f0s.movdatafield = 'f0s';
+      obj.rowinfo.f0s.type = 'number';
+      obj.rowinfo.f0s.isvalperview = false;
+      obj.rowinfo.f0s.isoptional = true;
+      obj.rowinfo.f0s.hasdetails = false;
+      
+      obj.rowinfo.f1s = struct;
+      obj.rowinfo.f1s.prompt = 'End frame (optional)';
+      obj.rowinfo.f1s.movdatafield = 'f1s';
+      obj.rowinfo.f1s.type = 'number';
+      obj.rowinfo.f1s.isvalperview = false;
+      obj.rowinfo.f1s.isoptional = true;
+      obj.rowinfo.f1s.hasdetails = false;
+      
+    end
+    
+    function createGUI(obj) 
+      
+      % movies, trks, trx, crop, calibration.  For MA projects there is a
+      % linking-method row and a known-number-of-animals row.
+      obj.nfields = 2*obj.nview + double(obj.hastrx)*(obj.nview+1) + ...
+        double(obj.iscrop)*obj.nview + double(obj.nview>1) + ...
+        double(obj.isma)*obj.nview + double(obj.isma) + 2;
+      
+      obj.colorinfo.backgroundcolor = [0,0,0];
+      obj.colorinfo.editfilecolor = [.2,.2,.2];
+      obj.colorinfo.goodcolor = [1,1,1];
+      obj.colorinfo.badcolor = [1,0,0];
+
+      % Compute the figure size, placing it at the screen center for now; the
+      % constructor recenters it on the parent controller's figure once the
+      % dialog is built.
+      screenSize = get(groot(), 'ScreenSize') ;  % [left, bottom, width, height], pixels
+      figWidth = 0.5*screenSize(3) ;  % pixels
+      figHeight = 20*(obj.nfields+2)+30 ;  % pixels
+      figLeft = screenSize(1) + (screenSize(3)-figWidth)/2 ;
+      figBottom = screenSize(2) + (screenSize(4)-figHeight)/2 ;
+      obj.posinfo.figpos = [figLeft, figBottom, figWidth, figHeight] ;
+
+      obj.fig = figure(...
+        'Menubar','none',...
+        'Toolbar','none',...
+        'Name','Specify Movie to Track',...
+        'NumberTitle','off',...
+        'IntegerHandle','off',...
+        'Tag','figure_SpecifyMovieToTrack',...
+        'Color',obj.colorinfo.backgroundcolor,...
+        'Units','pixels',...
+        'Position',obj.posinfo.figpos,...
+        'WindowStyle','modal',...
+        'CloseRequestFcn',@(src,evt) obj.parent_.deleteSpecifyMovieToTrackController());
+        
+      figW = figWidth ;
+      figH = figHeight ;
+      minLayoutW = 858 ;
+      layoutW = max(figW, minLayoutW) ;
+
+      % Fixed-width column constants (pixels, independent of figure width)
+      borderW = 32 ;
+      labelW = 120 ;
+      ellipsisW = 64 ;
+      rowBorder = 4 ;
+      colBorder = 6 ;
+      controlButtonW = 192 ;
+      pathPopupW = 128 ;
+      editNumAnimalsW = 60 ;
+      chkKnownAnimalsW = 270 ;
+
+      borderHeight = 4 ;
+
+      % Store everything needed by figureResizeCallback in posinfo
+      obj.posinfo.figW = figW ;
+      obj.posinfo.figH = figH ;
+      obj.posinfo.borderW = borderW ;
+      obj.posinfo.border_h = borderHeight ;
+      obj.posinfo.rowborder = rowBorder ;
+      obj.posinfo.colborder = colBorder ;
+      obj.posinfo.ellipsisW = ellipsisW ;
+      obj.posinfo.editNumAnimalsW = editNumAnimalsW ;
+      obj.posinfo.pathPopupW = pathPopupW ;
+      obj.posinfo.minLayoutW = minLayoutW ;
+
+      % Horizontal layout: borderW | label | borderW | edit | colBorder | ellipsis | borderW
+      obj.posinfo.textx = borderW ;
+      obj.posinfo.textw = labelW + borderW - 3 ;
+      obj.posinfo.detailsbuttonw = ellipsisW ;
+      obj.posinfo.editx = borderW + labelW + borderW ;
+      obj.posinfo.editw = layoutW - obj.posinfo.editx - colBorder - ellipsisW - borderW ;
+      obj.posinfo.detailsbuttonx = layoutW - borderW - ellipsisW ;
+
+      % Vertical layout
+      obj.posinfo.controly = borderHeight ;
+      maxallrowh = figH - 3*borderHeight - obj.posinfo.controly ...
+        - (obj.nfields-1)*obj.posinfo.rowborder ;
+      obj.posinfo.rowh = floor(maxallrowh/(obj.nfields+1)) ;
+      obj.posinfo.rowys = ...
+        figH - borderHeight + obj.posinfo.rowborder - (obj.posinfo.rowborder + obj.posinfo.rowh)*(1:obj.nfields) ;
+            
+      % 1 - controly - 3*border - (n-1)*rowborder= (n+1)*rowh
+      % border
+      % rowh
+      % rowborder
+      % rowh
+      % rowborder
+      % rowh
+      % border
+      % rowh
+      % border
+      
+      controlbuttonstrs = {'Done','Cancel'};
+      controlbuttontags = {'done','cancel'};
+      controlbuttoncolors = ...
+        [0,0,.8
+        0,.7,.7];
+      ncontrolbuttons = numel(controlbuttonstrs);
+      controlbuttonw = controlButtonW ;
+      controlbuttonxs = obj.posinfo.editx + (controlbuttonw+obj.posinfo.colborder)*(0:ncontrolbuttons-1);
+      controlbuttony = obj.posinfo.controly ;
+
+
+      for i = 1:ncontrolbuttons,
+        obj.button_control(i) = uicontrol('Style','pushbutton','String',controlbuttonstrs{i},...
+          'ForegroundColor','w','BackgroundColor',controlbuttoncolors(i,:),'FontWeight','bold',...
+          'Units','pixels','Enable','on','Position',[controlbuttonxs(i),controlbuttony,controlbuttonw,obj.posinfo.rowh],...
+          'Tag',sprintf('controlbutton_%s',controlbuttontags{i}),...
+          'Callback',@(h,e) obj.pb_control_Callback(h,e,controlbuttontags{i}));
+      end
+
+      % Add path-display popupmenu, right-aligned with the edit fields above
+      pathPopupX1 = obj.posinfo.editx + obj.posinfo.editw - pathPopupW ;
+      if obj.showPathEnds
+        pathPopupValue = 2;
+      else
+        pathPopupValue = 1;
+      end
+      obj.pum_path = uicontrol(obj.fig,...
+        'Style','popupmenu',...
+        'Units','pixels',...
+        'Position',[pathPopupX1 controlbuttony pathPopupW obj.posinfo.rowh],...
+        'String',{'Show Path Starts','Show Path Ends'},...
+        'Value',pathPopupValue,...
+        'ForegroundColor','w',...
+        'BackgroundColor',obj.colorinfo.editfilecolor,...
+        'TooltipString','Choose whether long paths are truncated to show their start or their end',...
+        'Tag','popupmenu_path',...
+        'Callback',@(src,evt) obj.pathPopupChanged(src,evt));
+      
+      rowi = 1;
+      for i = 1:obj.nview,
+        tag = 'movie';
+        if obj.nview > 1,
+          str = sprintf('Movie view %d:',i);
+        else
+          str = 'Movie:';
+        end
+        obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.movfiles{i});
+        rowi = rowi + 1;
+      end
+            
+      for i = 1:obj.nview,
+        tag = 'trk';
+        if obj.nview > 1,
+          str = sprintf('Output trk view %d:',i);
+        else
+          str = 'Output trk:';
+        end
+        obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.trkfiles{i});
+        rowi = rowi + 1;
+      end
+      
+      if obj.nview > 1,
+        tag = 'cal';
+        i = [];
+        if obj.docalibrate,
+          str = 'Calibration file:';
+        else
+          str = 'Calibration file (optional):';
+        end
+        obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.calibrationfiles);
+        rowi = rowi + 1;
+      end
+      
+      if obj.hastrx,
+        key = 'trx';
+        for i = 1:obj.nview,
+          if obj.nview > 1,
+            str = sprintf('Input trx view %d:',i);
+          else
+            str = 'Input trx file:';
+          end
+          obj.addRow(obj.posinfo.rowys(rowi),key,i,str,obj.movdata.trxfiles{i});
+          rowi = rowi + 1;
+        end
+      end
+      
+      if obj.iscrop,
+        key = 'crop';
+        for i = 1:obj.nview,
+          if obj.nview > 1,
+            str = sprintf('%s view %d:',obj.rowinfo.crop.prompt,i);
+          else
+            str = sprintf('%s:',obj.rowinfo.crop.prompt);
+          end
+          if isempty(obj.movdata.cropRois),
+            croproi = [];
+          else
+            croproi = obj.movdata.cropRois{i};
+          end
+          obj.addRow(obj.posinfo.rowys(rowi),key,i,str,croproi);
+          rowi = rowi + 1;
+        end
+      end
+      
+      if obj.hastrx,
+        key = 'targets';
+        i = [];
+        str = [obj.rowinfo.targets.prompt,':'];
+        obj.addRow(obj.posinfo.rowys(rowi),key,i,str,obj.movdata.targets,...
+          'List of target ids, e.g. 1 3 7',obj.rowinfo.targets.hasdetails);
+        rowi = rowi + 1;
+      end
+      
+      key = 'f0s';
+      i = [];
+      if ~isfield(obj.movdata,'f0s'),
+        val = [];
+      else
+        val = obj.movdata.f0s;
+      end
+      str = [obj.rowinfo.f0s.prompt,':'];
+      obj.addRow(obj.posinfo.rowys(rowi),key,i,str,val,...
+        'Start of frame interval to track',obj.rowinfo.targets.hasdetails);
+      rowi = rowi + 1;
+      
+      key = 'f1s';
+      i = [];
+      if ~isfield(obj.movdata,'f1s'),
+        val = [];
+      else
+        val = obj.movdata.f1s;
+      end
+      str = [obj.rowinfo.f1s.prompt,':'];
+      obj.addRow(obj.posinfo.rowys(rowi),key,i,str,val,...
+        'End of frame interval to track',obj.rowinfo.targets.hasdetails);
+      rowi = rowi + 1; 
+
+      if obj.isma && obj.detailed_options
+
+        obj.linktext = ...
+          uicontrol('Style','text', ...
+                    'String','Linking Method:',...
+                    'ForegroundColor','w', ...
+                    'BackgroundColor',obj.colorinfo.backgroundcolor, ...
+                    'FontWeight','normal',...
+                    'Units','pixels', ...
+                    'Position',[obj.posinfo.textx,obj.posinfo.rowys(rowi)-2,obj.posinfo.textw,obj.posinfo.rowh],...
+                    'Tag','text_link',...
+                    'HorizontalAlignment','right',...
+                    'Parent',obj.fig);
+
+        % Linking-method popupmenu (replaces broken uiradiobuttons; see
+        % path-display popupmenu above for rationale)
+        if strcmp(obj.link_type,'identity')
+          linkingPopupValue = 2 ;
+        else
+          linkingPopupValue = 1 ;
+        end
+        obj.pum_linking = uicontrol(obj.fig,...
+          'Style','popupmenu',...
+          'Units','pixels',...
+          'Position',[obj.posinfo.editx obj.posinfo.rowys(rowi) obj.posinfo.editw obj.posinfo.rowh],...
+          'String',{'Motion Linking','Identity Linking'},...
+          'Value',linkingPopupValue,...
+          'ForegroundColor','w',...
+          'BackgroundColor',obj.colorinfo.editfilecolor,...
+          'TooltipString','Method used to link detections across frames',...
+          'Tag','popupmenu_linking',...
+          'Callback',@(src,evt) obj.linkingTypeChanged(src,evt));
+
+        rowi = rowi + 1;
+
+        % Known-number-of-animals controls, only meaningful for identity
+        % linking.  The checkbox is enabled when identity linking is
+        % selected; the edit field is enabled when the checkbox is also
+        % checked.
+        isIdentity = strcmp(obj.link_type,'identity') ;
+        if isempty(obj.movdata.id_num_animals)
+          numAnimalsStr = '10' ;  % Otherwise just looks like a random white box
+        else
+          numAnimalsStr = num2str(obj.movdata.id_num_animals) ;
+        end
+        obj.chk_known_num_animals = uicontrol(obj.fig,...
+          'Style','checkbox',...
+          'String','Known number of animals in videos:',...
+          'Value',obj.movdata.id_known_num_animals,...
+          'Units','pixels',...
+          'Position',[obj.posinfo.editx obj.posinfo.rowys(rowi) chkKnownAnimalsW obj.posinfo.rowh],...
+          'ForegroundColor','w',...
+          'BackgroundColor',obj.colorinfo.backgroundcolor,...
+          'Enable',onIff(isIdentity),...
+          'TooltipString','Check if the number of animals in each video is known',...
+          'Tag','checkbox_known_num_animals',...
+          'Callback',@(src,evt) obj.knownNumAnimalsChanged(src,evt));
+        obj.edit_num_animals = uicontrol(obj.fig,...
+          'Style','edit',...
+          'String',numAnimalsStr,...
+          'HorizontalAlignment','left',...
+          'Units','pixels',...
+          'Position',[obj.posinfo.editx+chkKnownAnimalsW+obj.posinfo.colborder obj.posinfo.rowys(rowi) obj.posinfo.editNumAnimalsW obj.posinfo.rowh],...
+          'ForegroundColor','w',...
+          'BackgroundColor',obj.colorinfo.editfilecolor,...
+          'Enable',onIff(isIdentity && obj.movdata.id_known_num_animals),...
+          'TooltipString','Number of animals in each video',...
+          'Tag','edit_num_animals',...
+          'Callback',@(src,evt) obj.numAnimalsChanged(src,evt));
+
+        % for i = 1:obj.nview,
+      %     tag = 'detect';
+      %     if obj.nview > 1,
+      %       str = sprintf('Output detect view %d:',i);
+      %     else
+      %       str = 'Output detect:';
+      %     end
+      %     obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.detectfiles{i});
+        % end
+
+      end  % if obj.isma etc
+
+      % Set ResizeFcn now that layout is fully initialized, so the callback
+      % cannot fire before posinfo is ready.
+      set(obj.fig, 'ResizeFcn', @(src,evt) obj.figureResizeCallback(src,evt)) ;
+
+      % Initial updatePathDisplay() is deferred to run(), since the
+      % WM-realized geometry isn't available until the figure has actually
+      % been mapped on screen.
+      obj.updatePathDisplay() ;
+    end
+    
+    function isgood = checkRowValue(obj,key,iview)
+      
+      isgood = false;
+      ri = obj.rowinfo.(key);
+      if isfield(ri,'isoptional'),
+        isoptional = ri.isoptional;
+      else
+        isoptional = false;
+      end
+      val = obj.movdata.(ri.movdatafield);
+      if ~isempty(iview),
+        val = val{iview};
+      end
+      if strcmpi(ri.type,'inputfile'),
+        if isoptional && isempty(val),
+          isgood = true;
+        else
+          isgood = ~isempty(val) && exist(val,'file')>0;
+        end
+      elseif strcmpi(ri.type,'outputfile'),
+        if ~isempty(val),
+          p = fileparts(val);
+          isgood = isempty(p) || (exist(p,'dir')>0);
+        end
+      elseif strcmpi(key,'crop'),
+        if isempty(val),
+          isgood = ~obj.lObj.cropProjHasCrops;
+        else
+          isgood = numel(val) == 4;
+          if obj.lObj.cropProjHasCrops && isgood,
+            isgood = ~any(isnan(val));
+          end
+        end
+      elseif strcmpi(key,'targets'),
+        isgood = all(val>0);
+      elseif ismember(key,{'f0s','f1s'}),
+        isgood = isempty(val) || ((numel(val) == 1) && (isnan(val) || (val > 0)));
+      else
+        warning('Unhandled type %s, setting isgood = true',key);
+      end
+      if isempty(iview),
+        i = 1;
+      else
+        i = iview;
+      end
+      if isgood,
+        color = obj.colorinfo.goodcolor;
+      else
+        color = obj.colorinfo.badcolor;
+      end
+      set(obj.(key).rowedit(i),'ForegroundColor',color);
+      set(obj.(key).rowtext(i),'ForegroundColor',color);
+      if isfield(obj.(key),'rowpb'),
+        set(obj.(key).rowpb(i),'ForegroundColor',color);
+      end
+    end
+    
+    function addRow(obj,rowy,key,iview,textstr,editval,edittt,hasdetails)
+      
+      if ~exist('edittt','var'),
+        edittt = '';
+      end
+      if ~exist('hasdetails','var'),
+        hasdetails = true;
+      end
+      if isempty(iview),
+        tag = key;
+      else
+        tag = sprintf('%s%d',key,iview);
+      end
+      i = iview;
+      if isempty(i),
+        i = 1;
+      end
+      obj.(key).rowtext(i) = ...
+        uicontrol('Style','text','String',textstr,...
+        'ForegroundColor','w','BackgroundColor',obj.colorinfo.backgroundcolor,'FontWeight','normal',...
+        'Units','pixels','Position',[obj.posinfo.textx,rowy-1,obj.posinfo.textw,obj.posinfo.rowh],...
+        'Tag',['text_',tag],...
+        'HorizontalAlignment','right',...
+        'Parent',obj.fig);
+      if strcmpi(key,'crop') && all(isnan(editval)),
+        editval = '';
+      end
+      if ismember(key,{'f0s','f1s'}) && all(isnan(editval)),
+        editval = '';
+      end
+      if ischar(editval),
+        editvalstr = editval;
+      elseif strcmpi(key,'crop'),
+        editvalstr = sprintf('%d  ',editval);
+      else
+        editvalstr = num2str(editval(:)');
+      end
+      cbk = @(hObject,eventdata)obj.rowedit_Callback(hObject,eventdata,key,iview);
+      obj.(key).rowedit(i) = ...
+        uicontrol('Style','edit','String',editvalstr,...
+        'ForegroundColor','w','BackgroundColor',obj.colorinfo.editfilecolor,'FontWeight','normal',...
+        'Units','pixels','Position',[obj.posinfo.editx,rowy,obj.posinfo.editw,obj.posinfo.rowh],...
+        'Tag',['edit_',tag],...
+        'ToolTip',edittt,...
+        'HorizontalAlignment','left',...
+        'Parent',obj.fig,...
+        'Callback',cbk);
+      if hasdetails,
+        cbk = @(hObject,eventdata)obj.details_pb_Callback(hObject,eventdata,key,iview);
+        obj.(key).rowpb(i) = ...
+          uicontrol('Style','pushbutton','String','...',...
+          'ForegroundColor','w','BackgroundColor',obj.colorinfo.editfilecolor,'FontWeight','normal',...
+          'Units','pixels','Position',[obj.posinfo.detailsbuttonx,rowy,obj.posinfo.detailsbuttonw,obj.posinfo.rowh],...
+          'Tag',['pb_',tag],...
+          'HorizontalAlignment','center',...
+          'Parent',obj.fig,...
+          'Callback',cbk);
+      end
+      obj.isgood.(key)(i) = obj.checkRowValue(key,iview);
+      
+    end
+    
+    function rowedit_Callback(obj,hObject,~,key,iview)
+      
+      ri = obj.rowinfo.(key);
+      val = get(hObject,'String');
+      if ismember(obj.rowinfo.(key).type,{'array'}),
+        val = str2num(val); %#ok<ST2NM>
+        if isempty(val),
+          set(hObject,'String','');
+          return;
+        end
+      elseif ismember(obj.rowinfo.(key).type,{'number'}),
+        val = str2double(val);
+        if isnan(val),
+          set(hObject,'String','');
+        end
+      elseif ismember(obj.rowinfo.(key).type,{'inputfile','outputfile'}),
+        if ~apt.Path(val).tfIsAbsolute()
+          val = fullfile(pwd(), val) ;
+          set(hObject,'String',val);
+        end
+      else
+        error('Callback for %s not implemented',key);
+      end
+      
+      if isempty(iview),
+        obj.movdata.(ri.movdatafield) = val;
+        i = 1;
+      else
+        obj.movdata.(ri.movdatafield){iview} = val;
+        i = iview;
+      end
+      obj.isgood.(key)(i) = obj.checkRowValue(key,iview);
+      
+      if strcmp(ri.movdatafield,'movfiles')
+        if ~isempty(obj.defaulttrkpat)
+          movI = obj.movdata.movfiles{i};
+          trkI = obj.genTrkfile(movI,obj.defaulttrkpat);
+          obj.movdata.trkfiles{i} = trkI;
+          obj.isgood.trk(i) = obj.checkRowValue('trk',i);
+          set(obj.trk.rowedit(i),'String',trkI);
+        end
+        if obj.hastrx && ~isempty(obj.defaulttrxpat)
+          movI = obj.movdata.movfiles{i};
+          trxI = obj.genTrkfile(movI,obj.defaulttrxpat,'enforceExt',false);
+          obj.movdata.trxfiles{i} = trxI;
+          obj.isgood.trx(i) = obj.checkRowValue('trx',i);
+          set(obj.trx.rowedit(i),'String',trxI);
+        end
+      end
+      
+    end
+
+    
+    function details_pb_Callback(obj,hObject,eventdata,key,iview)
+      if ismember(obj.rowinfo.(key).type,{'inputfile','outputfile'}),
+        obj.details_pb_file_Callback(hObject,eventdata,key,iview);
+      elseif strcmpi(key,'crop'),
+        obj.details_pb_crop_Callback(hObject,eventdata,key,iview);
+      else
+        error('callback for %s not implemented',key);
+      end
+    end
+
+    function details_pb_file_Callback(obj,hObject,eventdata,key,iview) %#ok<INUSL>
+      persistent lastpath;
+      if isempty(lastpath),
+        lastpath = '';
+      end
+      
+      %fprintf('Callback: %s\n',key);
+      
+      if isempty(iview),
+        i = 1;
+      else
+        i = iview;
+      end
+
+      ri = obj.rowinfo.(key);
+      strti = ri.prompt;
+      if obj.nview > 1 && ~isempty(iview),
+        strti = sprintf('%s view %d',strti,iview);
+      end
+      defaultval = obj.movdata.(ri.movdatafield);
+      if ~isempty(iview),
+        defaultval = defaultval{iview};
+      end
+      if isempty(defaultval),
+        defaultval = lastpath;
+      end
+      filterspec = ri.ext;
+      isinput = strcmpi(ri.type,'inputfile');
+      if isinput,
+        [filename,pathname] = uigetfile(filterspec,strti,defaultval);
+      else
+        [filename,pathname] = uiputfile(filterspec,strti,defaultval);
+      end
+      if ~ischar(filename),
+        return;
+      end
+      file = fullfile(pathname,filename);
+      ex = exist(file,'file');
+      if isinput && ~ex,
+        errdlg(sprintf('File %s does not exist',file));
+        return;
+      end
+      if isempty(iview),
+        obj.movdata.(ri.movdatafield) = file;
+      else
+        obj.movdata.(ri.movdatafield){iview} = file;
+      end
+      
+      set(obj.(key).rowedit(i),'String',file);
+      lastpath = pathname;
+      obj.isgood.(key)(i) = obj.checkRowValue(key,iview);      
+      
+      if strcmp(ri.movdatafield,'movfiles') && ~isempty(obj.defaulttrkpat)
+        movI = obj.movdata.movfiles{i};
+        trkI = obj.genTrkfile(movI,obj.defaulttrkpat);
+        obj.movdata.trkfiles{i} = trkI;
+        obj.isgood.trk(i) = obj.checkRowValue('trk',i);
+        set(obj.trk.rowedit(i),'String',trkI);
+      end
+      if strcmp(ri.movdatafield,'movfiles') && obj.hastrx && ~isempty(obj.defaulttrxpat)
+        movI = obj.movdata.movfiles{i};
+        trxI = obj.genTrkfile(movI,obj.defaulttrxpat,'enforceExt',false);
+        obj.movdata.trxfiles{i} = trxI;
+        obj.isgood.trx(i) = obj.checkRowValue('trx',i);
+        set(obj.trx.rowedit(i),'String',trxI);
+      end
+      
+    end
+    
+    function details_pb_crop_Callback(obj,hObject,eventdata,key,iview) %#ok<INUSL>      
+      %fprintf('Callback: %s\n',key);
+      
+      if ~obj.isgood.movie(iview),
+        if obj.nview > 1,
+          s = sprintf('for view %d ',iview);
+        else
+          s = '';
+        end
+        uiwait(msgbox(sprintf('Movie %smust be specified to use GUI to set crop region.',s)));
+        return;
+      end
+      
+      % movie reader
+      if isempty(obj.movieReader) || numel(obj.movieReader) < iview || ...
+          isempty(obj.movieReader{iview}),
+        obj.movieReader{iview} = MovieReader;
+        obj.movieReader{iview}.forceGrayscale = obj.lObj.movieForceGrayscale;
+        obj.movieReader{iview}.open(obj.movdata.movfiles{iview});
+      end
+      
+      cropRoi = obj.movdata.cropRois{iview};
+      if isempty(cropRoi) || all(isnan(cropRoi)),
+        if isempty(obj.cropwh),
+          cropRoi = [ceil(obj.movieReader{iview}.nc/4),ceil(3*obj.movieReader{iview}.nc/4),...
+            ceil(obj.movieReader{iview}.nr/4),ceil(3*obj.movieReader{iview}.nr/4)];
+        else
+          x1 = max(1,round(obj.movieReader{iview}.nc/2-obj.cropwh(iview,1)/2));
+          y1 = max(1,round(obj.movieReader{iview}.nr/2-obj.cropwh(iview,2)/2));
+          x2 = x1 + obj.cropwh(iview,1) - 1;
+          y2 = y1 + obj.cropwh(iview,2) - 1;
+          cropRoi = [x1,x2,y1,y2];
+        end
+      end
+      
+      fr = ceil(obj.movieReader{iview}.nframes/2);
+      im = obj.movieReader{iview}.readframe(fr);      
+      obj.crop.fig = figure(...
+        'name','Specify crop region by dragging box',...
+        'NumberTitle','off',...
+        'IntegerHandle','off',...
+        'Tag','figure_SpecifyMovieToTrackCrop',...
+        'color',obj.colorinfo.backgroundcolor,...
+        'WindowStyle','modal',...
+        'units','normalized');
+      hax = axes('Position',[.05,.15,.9,.8],'Parent',obj.crop.fig);
+      imagesc(im);
+      axis(hax,'image');
+      colormap(hax,'gray');
+      set(hax,'XColor','w','YColor','w');
+      
+      controlbuttonstrs = {'Done','Cancel'};
+      dosave = [true,false];
+      controlbuttoncolors = ...
+        [0,0,.8
+        0,.7,.7];
+      ncontrolbuttons = numel(controlbuttonstrs);
+      controlbuttonw = .15;
+      allcontrolbuttonw = ncontrolbuttons*controlbuttonw + (ncontrolbuttons-1)*obj.posinfo.colborder;
+      controlbuttonx1 = .5-allcontrolbuttonw/2;
+      controlbuttonxs = controlbuttonx1 + (controlbuttonw+obj.posinfo.colborder)*(0:ncontrolbuttons-1);
+      controlbuttony = .05;
+      controlbuttonh = .05;
+
+      for i = 1:ncontrolbuttons,
+        uicontrol('style','pushbutton','parent',obj.crop.fig,...
+          'String',controlbuttonstrs{i},'Units','normalized',...
+          'Position',[controlbuttonxs(i),controlbuttony,controlbuttonw,controlbuttonh],...
+          'backgroundcolor',controlbuttoncolors(i,:),'foregroundcolor','w',...
+          'fontweight','bold','Callback',@(h,e) obj.pb_crop_Callback(h,e,iview,dosave(i)));
+      end
+      
+      if isempty(obj.cropwh),
+        interactionsallowed = 'all';
+      else
+        interactionsallowed = 'translate';
+      end
+      pos = [cropRoi(1),cropRoi(3),cropRoi(2)-cropRoi(1)+1,cropRoi(4)-cropRoi(3)+1];
+      obj.crop.rect = images.roi.Rectangle(hax,'Position',pos,...
+        'InteractionsAllowed',interactionsallowed,...
+        'Deletable',false);
+
+      uiwait(obj.crop.fig);
+      
+    end
+    
+    function pb_control_Callback(obj,~,~,tag)
+
+      if ismember(lower(tag),{'done','apply'}),
+
+        fns = fieldnames(obj.isgood);
+        isgood = true;
+        for i = 1:numel(fns)
+          isgood = isgood && all(obj.isgood.(fns{i}));
+        end
+
+        if ~isgood,
+          uiwait(errordlg('Fields marked in red have missing or incorrect values. Correct them or press the Cancel button.', [], 'modal')) ;
+          return
+        end
+
+        % Check for existing detect files and prompt user
+        userChoice = obj.checkAndPromptForDetectFiles();
+        switch userChoice
+          case 'cancel'
+            return  % User cancelled, don't close dialog
+          case 'use_detect'
+            obj.movdata.docontinue = true;
+          case 'new_tracking'
+            obj.movdata.docontinue = false;
+          case 'no_detect_files'
+            obj.movdata.docontinue = false;
+        end
+
+        % Check for existing output trk files and ask user if they want to overwrite
+        overwriteChoice = obj.checkAndPromptForOutputFiles();
+        if strcmp(overwriteChoice, 'cancel')
+          return  % User cancelled, don't close dialog
+        end
+
+        % User confirmed; hand the edited movie data to the parent.
+        obj.parent_.specifyMovieToTrackControllerDone(obj.movdata) ;
+      end
+      if ismember(lower(tag),{'done','cancel'}),
+        % Whether confirmed or cancelled, ask the parent to tear us down.
+        obj.parent_.deleteSpecifyMovieToTrackController() ;
+      end
+    end  % function
+    
+    function pb_crop_Callback(obj,h,~,iview,dosave)
+      if ~isfield(obj.crop,'fig'),
+        return;
+      end
+      if isfield(obj.crop,'rect'),
+        if dosave,
+          pos = obj.crop.rect.Position;
+          x1 = round(pos(1));
+          y1 = round(pos(2));
+          if isempty(obj.cropwh),
+            x2 = round(x1 + pos(3) - 1);
+            y2 = round(y1 + pos(4) - 1);
+          else
+            x2 = x1 + obj.cropwh(1)-1;
+            y2 = y1 + obj.cropwh(2)-1;
+          end
+          
+          obj.setCropRoi(iview,[x1,x2,y1,y2],h);
+        end
+        delete(obj.crop.rect);
+        obj.crop.rect = [];
+      end
+      if isfield(obj.crop,'fig'),
+        hfig = obj.crop.fig;
+        obj.crop.fig = [];
+        delete(hfig);
+      end
+    end
+    
+    function setCropRoi(obj,iview,pos,h)
+      if ~exist('h','var'),
+        h = nan;
+      end
+      obj.movdata.cropRois{iview} = pos;
+      if h ~= obj.crop.rowedit(iview),
+        obj.crop.rowedit(iview).String = sprintf('%d  ',pos);
+        obj.checkRowValue('crop',iview);
+      end
+    end
+
+    function linkingTypeChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the linking-method popupmenu
+      if get(obj.pum_linking, 'Value') == 2
+        obj.link_type = 'identity' ;
+      else
+        obj.link_type = 'motion' ;
+      end
+      obj.movdata.link_type = obj.link_type ;
+      obj.updateKnownNumAnimalsControls() ;
+    end
+
+    function updateKnownNumAnimalsControls(obj)
+      % Enable/disable the known-number-of-animals controls to match the
+      % current linking method and checkbox state.
+      if isempty(obj.chk_known_num_animals) || ~isvalid(obj.chk_known_num_animals)
+        return
+      end
+      isIdentity = strcmp(obj.link_type, 'identity') ;
+      obj.chk_known_num_animals.Enable = onIff(isIdentity) ;
+      isNumAnimalsEnabled = isIdentity && obj.movdata.id_known_num_animals ;
+      obj.edit_num_animals.Enable = onIff(isNumAnimalsEnabled) ;
+    end
+
+    function knownNumAnimalsChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the known-number-of-animals checkbox
+      obj.movdata.id_known_num_animals = logical(get(obj.chk_known_num_animals, 'Value')) ;
+      obj.updateKnownNumAnimalsControls() ;
+    end
+
+    function numAnimalsChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the number-of-animals edit field
+      val = str2double(get(obj.edit_num_animals, 'String')) ;
+      if ~isnan(val) && val > 0
+        obj.movdata.id_num_animals = round(val) ;
+      end
+    end
+
+    function trk = genTrkfile(obj,movie,defaulttrk,varargin)
+      if isempty(movie)
+        trk = '';
+      else
+        trk = Labeler.genTrkFileName(defaulttrk,...
+          obj.lObj.baseTrkFileMacros(),movie,varargin{:});
+      end
+    end
+    
+    function figureResizeCallback(obj, src, evt)  %#ok<INUSD>
+      % Keep controls anchored to upper-left; expand edit column on width change.
+      newFigPos = get(obj.fig, 'Position') ;
+      newFigW = newFigPos(3) ;
+      newFigH = newFigPos(4) ;
+      deltaH = newFigH - obj.posinfo.figH ;
+      deltaW = newFigW - obj.posinfo.figW ;
+      if deltaH ~= 0
+        % Shift all controls vertically to stay anchored to the top.
+        controls = findobj(obj.fig, 'Type', 'uicontrol') ;
+        for k = 1:numel(controls)
+          pos = get(controls(k), 'Position') ;
+          pos(2) = pos(2) + deltaH ;
+          set(controls(k), 'Position', pos) ;
+        end
+        obj.posinfo.figH = newFigH ;
+      end
+      if deltaW ~= 0
+        % Recompute edit column width and ellipsis x from new figure width.
+        newLayoutW = max(newFigW, obj.posinfo.minLayoutW) ;
+        newEditW = newLayoutW - obj.posinfo.editx ...
+          - obj.posinfo.colborder - obj.posinfo.ellipsisW - obj.posinfo.borderW ;
+        newDetailsBtnX = newLayoutW - obj.posinfo.borderW - obj.posinfo.ellipsisW ;
+        % Widen all row-edit fields (full edit column width).
+        editControls = findobj(obj.fig, '-regexp', 'Tag', '^edit_') ;
+        for k = 1:numel(editControls)
+          if ~strcmp(get(editControls(k), 'Tag'), 'edit_num_animals')
+            pos = get(editControls(k), 'Position') ;
+            pos(3) = newEditW ;
+            set(editControls(k), 'Position', pos) ;
+          end
+        end
+        % Move ellipsis buttons to new right edge.
+        pbControls = findobj(obj.fig, '-regexp', 'Tag', '^pb_') ;
+        for k = 1:numel(pbControls)
+          pos = get(pbControls(k), 'Position') ;
+          pos(1) = newDetailsBtnX ;
+          set(pbControls(k), 'Position', pos) ;
+        end
+        % Widen linking popupmenu (MA only).
+        if ~isempty(obj.pum_linking) && isvalid(obj.pum_linking)
+          pos = get(obj.pum_linking, 'Position') ;
+          pos(3) = newEditW ;
+          set(obj.pum_linking, 'Position', pos) ;
+        end
+        % Slide path-display PUM to stay flush-right in edit column.
+        if ~isempty(obj.pum_path) && isvalid(obj.pum_path)
+          pos = get(obj.pum_path, 'Position') ;
+          pos(1) = obj.posinfo.editx + newEditW - obj.posinfo.pathPopupW ;
+          set(obj.pum_path, 'Position', pos) ;
+        end
+        obj.posinfo.editw = newEditW ;
+        obj.posinfo.figW = newFigW ;
+      end
+      obj.updatePathDisplay() ;
+    end
+
+    function pathPopupChanged(obj, src, evt)  %#ok<INUSD>
+      % Callback for the Path Starts / Path Ends popupmenu
+      obj.showPathEnds = ( get(obj.pum_path, 'Value') == 2 ) ;
+      obj.updatePathDisplay() ;
+    end
+
+    function updatePathDisplay(obj)
+      % Update the display of file paths based on current mode (starts vs ends).
+
+      % Update movie file paths
+      if isfield(obj.movie, 'rowedit')
+        for i = 1:obj.nview
+          if i <= length(obj.movie.rowedit) && isvalid(obj.movie.rowedit(i))
+            originalPath = obj.movdata.movfiles{i};
+            if ~isempty(originalPath)
+              displayPath = obj.getDisplayPath(originalPath, obj.movie.rowedit(i));
+              set(obj.movie.rowedit(i), 'String', displayPath);
+            end
+          end
+        end
+      end
+
+      % Update trk file paths
+      if isfield(obj.trk, 'rowedit')
+        for i = 1:obj.nview
+          if i <= length(obj.trk.rowedit) && isvalid(obj.trk.rowedit(i))
+            originalPath = obj.movdata.trkfiles{i};
+            if ~isempty(originalPath)
+              displayPath = obj.getDisplayPath(originalPath, obj.trk.rowedit(i));
+              set(obj.trk.rowedit(i), 'String', displayPath);
+            end
+          end
+        end
+      end
+
+      % Update trx file paths (if project has trx)
+      if obj.hastrx && isfield(obj.trx, 'rowedit')
+        for i = 1:obj.nview
+          if i <= length(obj.trx.rowedit) && isvalid(obj.trx.rowedit(i))
+            originalPath = obj.movdata.trxfiles{i};
+            if ~isempty(originalPath)
+              displayPath = obj.getDisplayPath(originalPath, obj.trx.rowedit(i));
+              set(obj.trx.rowedit(i), 'String', displayPath);
+            end
+          end
+        end
+      end
+
+      % Update calibration file path (if single path for all views)
+      if isfield(obj.cal, 'rowedit') && ...
+         length(obj.cal.rowedit) >= 1 && isvalid(obj.cal.rowedit(1))
+        originalPath = obj.movdata.calibrationfiles;
+        if ~isempty(originalPath)
+          displayPath = obj.getDisplayPath(originalPath, obj.cal.rowedit(1));
+          set(obj.cal.rowedit(1), 'String', displayPath);
+        end
+      end
+    end  % function
+
+    function displayPath = getDisplayPath(obj, originalPath, editComponent)
+      % Get the appropriate display path based on current toggle setting
+      if isempty(originalPath)
+        displayPath = '';
+        return;
+      end
+
+      if obj.showPathEnds
+        % Show truncated path ends
+        displayPath = PathTruncationUtils.truncateFilePath(...
+          originalPath, 'component', editComponent, 'startFraction', 0);
+      else
+        % Show whole path when showing path starts
+        displayPath = originalPath;
+      end
+    end
+
+    function userChoice = checkAndPromptForDetectFiles(obj)
+      % Check for existing _detect files and prompt user if they want to continue with them
+      % Returns user choice: 'cancel', 'use_detect', 'new_tracking', or 'no_detect_files'
+
+      % Get all trk files from the current movie data
+      trkfiles = {};
+      if isfield(obj.movdata, 'trkfiles') && ~isempty(obj.movdata.trkfiles)
+        trkfiles = obj.movdata.trkfiles;
+      elseif isfield(obj.movdata, 'trkfile') && ~isempty(obj.movdata.trkfile)
+        trkfiles = {obj.movdata.trkfile};
+      end
+
+      if isempty(trkfiles)
+        userChoice = 'no_detect_files';
+        return;
+      end
+
+      existingDetectFiles = {};
+      detectTimestamps = {};
+      predictionStatus = {};
+
+      for i = 1:numel(trkfiles)
+        if isempty(trkfiles{i})
+          continue;
+        end
+
+        % Generate corresponding _detect filename and part filename
+        [pathpart, namepart, ext] = fileparts(trkfiles{i});
+        detectFile = fullfile(pathpart, [namepart '_detect' ext]);
+        detectPartFile = fullfile(pathpart, [namepart '_detect' ext '.part']);
+
+        % Check if _detect file or _detect.part file exists
+        detectExists = exist(detectFile, 'file');
+        detectPartExists = exist(detectPartFile, 'file');
+
+        if detectExists || detectPartExists
+          % Use detect file if it exists, otherwise use part file
+          if detectExists
+            fileToUse = detectFile;
+            status = 'Full';
+            fileInfo = dir(detectFile);
+          else
+            fileToUse = detectPartFile;
+            status = 'Partial';
+            fileInfo = dir(detectPartFile);
+          end
+
+          existingDetectFiles{end+1} = fileToUse; %#ok<AGROW>
+          predictionStatus{end+1} = status; %#ok<AGROW>
+
+          % Get file timestamp
+          if ~isempty(fileInfo)
+            detectTimestamps{end+1} = datestr(fileInfo.datenum, 'yyyy-mm-dd HH:MM:SS'); %#ok<AGROW>
+          else
+            detectTimestamps{end+1} = 'Unknown'; %#ok<AGROW>
+          end
+        end
+      end
+
+      if isempty(existingDetectFiles)
+        userChoice = 'no_detect_files';
+        return;
+      end
+
+      % Create prompt message
+      promptMsg = sprintf('Found %d existing detection file(s):\n\n', numel(existingDetectFiles));
+      for i = 1:numel(existingDetectFiles)
+        [~, fname, fext] = fileparts(existingDetectFiles{i});
+        promptMsg = sprintf('%s%s%s (%s) - %s\n', promptMsg, fname, fext, predictionStatus{i}, detectTimestamps{i});
+      end
+      promptMsg = sprintf('%s\nDo you want to use these existing detection files or start new tracking?', promptMsg);
+
+      % Show dialog
+      choice = questdlg(promptMsg, 'Existing Detection Files Found', ...
+        'Use Existing', 'New Tracking', 'Cancel', 'Use Existing');
+
+      switch choice
+        case 'Use Existing'
+          userChoice = 'use_detect';
+        case 'New Tracking'
+          userChoice = 'new_tracking';
+        case 'Cancel'
+          userChoice = 'cancel';
+        otherwise
+          userChoice = 'cancel';
+      end
+    end
+
+    function userChoice = checkAndPromptForOutputFiles(obj)
+      % Check for existing output trk files and prompt user if they want to overwrite them
+      % Returns user choice: 'cancel', 'overwrite', or 'no_output_files'
+
+      % Get all trk files that will be created as output
+      trkfiles = {};
+      if isfield(obj.movdata, 'trkfiles') && ~isempty(obj.movdata.trkfiles)
+        trkfiles = obj.movdata.trkfiles;
+      elseif isfield(obj.movdata, 'trkfile') && ~isempty(obj.movdata.trkfile)
+        trkfiles = {obj.movdata.trkfile};
+      end
+
+      if isempty(trkfiles)
+        userChoice = 'no_output_files';
+        return;
+      end
+
+      existingOutputFiles = {};
+      outputTimestamps = {};
+
+      for i = 1:numel(trkfiles)
+        if isempty(trkfiles{i})
+          continue;
+        end
+
+        % Check if output trk file already exists
+        if exist(trkfiles{i}, 'file')
+          existingOutputFiles{end+1} = trkfiles{i}; %#ok<AGROW>
+
+          % Get file timestamp
+          fileInfo = dir(trkfiles{i});
+          if ~isempty(fileInfo)
+            outputTimestamps{end+1} = datestr(fileInfo.datenum, 'yyyy-mm-dd HH:MM:SS'); %#ok<AGROW>
+          else
+            outputTimestamps{end+1} = 'Unknown'; %#ok<AGROW>
+          end
+        end
+      end
+
+      if isempty(existingOutputFiles)
+        userChoice = 'no_output_files';
+        return;
+      end
+
+      % Create prompt message
+      promptMsg = sprintf('Found %d existing output tracking file(s):\n\n', numel(existingOutputFiles));
+      for i = 1:numel(existingOutputFiles)
+        [~, fname, fext] = fileparts(existingOutputFiles{i});
+        promptMsg = sprintf('%s%s%s - %s\n', promptMsg, fname, fext, outputTimestamps{i});
+      end
+      promptMsg = sprintf('%s\nDo you want to overwrite these existing tracking files?', promptMsg);
+
+      % Show dialog
+      choice = questdlg(promptMsg, 'Existing Output Files Found', ...
+        'Overwrite', 'Cancel', 'Overwrite');
+
+      switch choice
+        case 'Overwrite'
+          userChoice = 'overwrite';
+        case 'Cancel'
+          userChoice = 'cancel';
+        otherwise
+          userChoice = 'cancel';
+      end
+    end
+
+  end
+end

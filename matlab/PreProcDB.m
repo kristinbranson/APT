@@ -10,7 +10,7 @@ classdef PreProcDB < handle
   % ideal API. Eventually CPR will utilize the/a PreProcDB.
   
   properties 
-    dat % CPRData scalar
+    dat % PreProcData scalar
     tsLastEdit % last edit timestamp
   end
   
@@ -22,7 +22,7 @@ classdef PreProcDB < handle
     function init(obj)
       I = cell(0,1);
       tblP = MFTable.emptyTable(MFTable.FLDSCORE);
-      obj.dat = CPRData(I,tblP);
+      obj.dat = PreProcData(I,tblP);
       obj.tsLastEdit = now;
     end
     
@@ -78,7 +78,7 @@ classdef PreProcDB < handle
       % tblNewReadFailed: table of failed-to-read rows. Currently subset of
       %   tblNew. If non-empty, then .dat was not updated with these rows 
       %   as requested.
-      % dataNew: CPRData of new data created/added
+      % dataNew: PreProcData of new data created/added
       
       [wbObj,prmsTgtCrop,computeOnly] = myparse(varargin,...
         'wbObj',[],...
@@ -92,7 +92,7 @@ classdef PreProcDB < handle
         if isempty(prms)
           error('Please specify parameters.');
         end
-        prmsTgtCrop = prms.ROOT.MultiAnimal.TargetCrop;
+        prmsTgtCrop = APTParameters.getMATargetCropParams(prms);
       end      
 %       assert(isstruct(prmpp),'Expected parameters to be struct/value class.');
 
@@ -115,30 +115,18 @@ classdef PreProcDB < handle
       tblNewReadFailed = tblNew([],:);
       dataNew = [];
       
-      PRMPP_DUMMY = struct;
-      PRMPP_DUMMY.histeq = false;
-      PRMPP_DUMMY.BackSub.Use = false;
-      PRMPP_DUMMY.NeighborMask.Use = false;
-                        
       tblNewConc = lObj.mftTableConcretizeMov(tblNew);
       nNew = height(tblNew);
       if nNew>0
         fprintf(1,'Adding %d new rows to data...\n',nNew);
         
-        [I,nNborMask,didread,tformA] = CPRData.getFrames(tblNewConc,...
+        [I,nNborMask,didread,tformA] = PreProcData.getFrames(tblNewConc,...
           'wbObj',wbObj,...
           'forceGrayscale',lObj.movieForceGrayscale,...
           'preload',lObj.movieReadPreLoadMovies,...
           'roiPadVal',prmsTgtCrop.PadBkgd,...
           'rotateImsUp',prmsTgtCrop.AlignUsingTrxTheta&~isempty(lObj.trxCache),...
           'isDLpipeline',true,...
-          'doBGsub',PRMPP_DUMMY.BackSub.Use,...
-          'bgReadFcn',[],...
-          'bgType',[],...
-          'maskNeighbors',PRMPP_DUMMY.NeighborMask.Use,...
-          'maskNeighborsMeth',[],...
-          'maskNeighborsEmpPDF',[],...
-          'fgThresh',[],...
           'trxCache',lObj.trxCache,...
           'labeler',lObj,...
           'usePreProcData',false);
@@ -146,7 +134,7 @@ classdef PreProcDB < handle
           % obj unchanged
           return;
         end
-        % Include only FLDSALLOWED in metadata to keep CPRData md
+        % Include only FLDSALLOWED in metadata to keep PreProcData md
         % consistent (so can be appended)
         
         didreadallviews = all(didread,2);
@@ -198,7 +186,7 @@ classdef PreProcDB < handle
         tformA = tformA(:,:,1:2,:); % [n 3 2 nView]
         tblNewMD.tformA = reshape(tformA,n,[]);
         
-        dataNew = CPRData(I,tblNewMD);
+        dataNew = PreProcData(I,tblNewMD);
         
         if ~computeOnly
           obj.dat.append(dataNew);

@@ -164,7 +164,7 @@ classdef (Abstract) LabelTracker < handle
       % tblP: MFTable
       % ppPrms: scalar struct, preproc params only.
       % 
-      % ppdata: CPRData
+      % ppdata: PreProcData
       
       assert(false,'Overload required.');
     end

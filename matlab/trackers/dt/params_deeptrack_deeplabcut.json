@@ -1,0 +1,120 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "DeepLabCut": {
+    "Description": "DeepLabCut (DLC) settings.",
+    "DispName": "",
+    "dlc_intermediate_supervision": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Do intermediate supervision while training the network ",
+      "DispName": "Intermediate supervision",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "deeplabcut",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "dlc_intermediate_supervision_layer": {
+      "AffectsTraining": true,
+      "DefaultValue": 12,
+      "Description": "Layer for intermediate supervision while training the network ",
+      "DispName": "Layer for intermediate supervision",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "deeplabcut",
+        "isDeepTrack"
+      ],
+      "Type": "unsigned",
+      "isEditable": true
+    },
+    "dlc_location_refinement": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Do DeepLabCut location refinement",
+      "DispName": "Location refinement",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "deeplabcut",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "dlc_locref_huber_loss": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Use huber loss for location refinement",
+      "DispName": "Huber loss for location refinement",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "deeplabcut",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "dlc_locref_loss_weight": {
+      "AffectsTraining": true,
+      "DefaultValue": 0.05,
+      "Description": "Weight for location refinement loss",
+      "DispName": "Weight for location refinement loss",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "deeplabcut",
+        "isDeepTrack"
+      ],
+      "Type": "float",
+      "isEditable": true
+    },
+    "dlc_locref_stdev": {
+      "AffectsTraining": true,
+      "DefaultValue": 7.2801,
+      "Description": "Standard deviation for location refinement. Check DeepLabCut and DeeperCut documentation",
+      "DispName": "Std for location refinement",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "deeplabcut",
+        "isDeepTrack"
+      ],
+      "Type": "float",
+      "isEditable": true
+    },
+    "dlc_use_apt_preprocess": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Use APT's image augmentation instead of DeepLabCuts native augmentaton",
+      "DispName": "Use APT's image augmentation.",
+      "Level": "Advanced",
+      "ParamViz": "",
+      "Requirements": [
+        "deeplabcut",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "dlc_override_dlsteps": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Override DeepLabCut's default number of training iterations. DLC is usually trained for a fixed number of iterations because it uses batch size of 1. You can override this and train for the number of iterations set in these parameters. DLC ignores the batch size parameter, and trains however will use a batch size of 1.",
+      "DispName": "Override DLC's training iterations",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "deeplabcut",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    }
+  }
+}

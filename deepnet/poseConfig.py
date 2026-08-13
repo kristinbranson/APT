@@ -81,7 +81,7 @@ class config(object):
         self.holdoutratio = 0.8
         self.flipud = False
         self.json_trn_file = None
-        self.db_format = 'tfrecord' # other option is coco
+        self.db_format = 'coco' # other option is tfrecord
         #self.db_format = 'coco' # other option is coco
 
         if self.db_format == 'tfrecord':
@@ -89,9 +89,14 @@ class config(object):
             self.fulltrainfilename = 'fullTrain_TF'
             self.valfilename = 'val_TF'
         else:
-            self.trainfilename = 'traindata'
-            self.fulltrainfilename = 'fulltraindata'
-            self.valfilename = 'valdata'
+            # Named to avoid colliding with the training-stats files
+            # ('traindata.json', 'valdata') that live in the same cache
+            # directory: with the database also named traindata.json, the
+            # training monitor read the coco database as training stats,
+            # concluded training had errored, and killed the job.
+            self.trainfilename = 'train_db'
+            self.fulltrainfilename = 'fullTrain_db'
+            self.valfilename = 'val_db'
 
         # ----- UNet params
         self.unet_rescale = 1

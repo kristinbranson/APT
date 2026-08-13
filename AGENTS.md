@@ -46,6 +46,9 @@ interface is `APT_interface.py`.
 - **Local backend tests**: `matlab/test/single-tests/` (conda, docker)
 - **Remote backend tests**: `matlab/test/single-tests/remote/` (aws, bsub)
 - Each test is a Matlab function that errors on failure, exits normally on success
+- Test functions should not print a message announcing that they
+  passed.  Reporting pass/fail is `test_apt()`'s job, so a per-test
+  "PASSED" print is redundant.
 
 ### Running Tests
 ```matlab
@@ -309,6 +312,11 @@ end  % function
 Validation should almost always happen in the model, never in the
 controller.
 
+You do not need to add the `%#ok<NASGU>` pragma to lines with an
+`onCleanup()` call.  The cleanup object is deliberately unused (it exists
+only to run its cleanup action when it goes out of scope), and this is a
+common enough idiom that the pragma just adds noise.
+
 
 
 ## Git conventions
@@ -323,10 +331,12 @@ Don't add "Co-Authored-By: Claude" line to commit messages.
 
 
 ## Miscellaneous Notes
-When running Matlab batch commands, do it like this:
-`matlab -batch "modpath(); <command>"`.  There's no need to also use the
-`-nodisplay` and `-nosplash` options.  The `modpath()` bit sets up
-the path properly.
+When running Matlab batch commands, do it like this: `xvfb-run -a
+matlab -batch "modpath(); <command>"`.  There's no need to also use
+the `-nodisplay` and `-nosplash` options.  The `modpath()` bit sets up
+the path properly.  The `xvfb-run -a` makes it run in an X server that
+uses a hidden framebuffer, so that you don't have windows constantly
+popping up while the test runs, possibly stealing keyboard focus.
 
 Running commands that span multiple lines using `matlab -batch`
 doesn't seem to work.  Write such commands to a .m file and run that

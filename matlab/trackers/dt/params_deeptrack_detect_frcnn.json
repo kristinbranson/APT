@@ -1,0 +1,36 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "MMDetect_FRCNN": {
+    "Description": "Parameters related to Faster-RCNN object detection",
+    "DispName": "",
+    "db_format": {
+      "AffectsTraining": true,
+      "DefaultValue": "coco",
+      "Description": "Format for training database",
+      "DispName": "Database format",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "detect_frcnn",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": true
+    },
+    "mmdetect_net": {
+      "AffectsTraining": true,
+      "DefaultValue": "frcnn",
+      "Description": "Name of network within mmdetect code",
+      "DispName": "MMDetect network",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "detect_frcnn",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": false
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "Unet": {
+    "Description": "U-Network settings.",
+    "DispName": "",
+    "unet_base_lr": {
+      "AffectsTraining": true,
+      "DefaultValue": 0.0001,
+      "Description": "Base learning rate for training UNet networks. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 0.0001",
+      "DispName": "Base Learning Rate",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "unet",
+        "isDeepTrack"
+      ],
+      "Type": "float",
+      "isEditable": true
+    }
+  }
+}

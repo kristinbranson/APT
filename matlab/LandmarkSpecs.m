@@ -3,10 +3,12 @@ classdef LandmarkSpecs < handle
   % Properties that correspond to app components
   properties (Access = public)
     hFig
+    gl  % uigridlayout container when embedded in a parent container
+    isStandAlone_ = true  % false when embedded via 'hParent'
     axSkel
     axHT
     axSwap
-    
+
 %     GridLayout         matlab.ui.container.GridLayout
     LeftPanel          %matlab.ui.container.Panel
     TabGroup           %matlab.ui.container.TabGroup
@@ -72,15 +74,32 @@ classdef LandmarkSpecs < handle
   methods (Access = public)
     
     function obj = LandmarkSpecs(varargin)
-      obj.createComponents();
-      obj.startupFcn(varargin{:});
-%       if nargout == 0
-%         clear app
-%       end
+      % Standalone by default; pass 'hParent' (and optionally 'isVert')
+      % to embed the UI in an existing container instead of a new figure.
+      [hParent, isVert, argsrest] = myparse_nocheck(varargin, ...
+                                                    'hParent', [], ...
+                                                    'isVert', false) ;
+      obj.createComponents(hParent, isVert) ;
+      obj.startupFcn(argsrest{:}) ;
     end
-    
+
     function delete(obj)
-      delete(obj.hFig);
+      if obj.isStandAlone_
+        delete(obj.hFig) ;
+      else
+        delete(obj.gl) ;
+      end
+    end
+
+    function state = getState(obj)
+      % Return the working keypoint specifications, in the same form as
+      % Labeler.getKeypointParams().
+      state = struct() ;
+      state.sklEdges = obj.sklEdges ;
+      state.spEdges = obj.spEdges ;
+      state.htHead = obj.htHead ;
+      state.htTail = obj.htTail ;
+      state.ptNames = obj.ptNames ;
     end
   end
   
@@ -403,7 +422,8 @@ classdef LandmarkSpecs < handle
         txtOffset,selMarkerSize,unselMarkerSize,...
         selMarker,unselMarker,...
         unselColor,selColor,...
-        unselLineWidth,selLineWidth,waiton_ui] = myparse(varargin,...
+        unselLineWidth,selLineWidth,waiton_ui,...
+        state,startTabTitle] = myparse(varargin,...
         'lObj',[],...
         'parent',[],...
         'edges',[], ...
@@ -415,14 +435,18 @@ classdef LandmarkSpecs < handle
         'selectedMarker','o','unselectedMarker','+',...
         'unselectedColor',[.5,.5,.5],'selectedColor',[.8,0,.8],...
         'unselectedLineWidth',2,'selectedLineWidth',4, ...
-        'waiton_ui',false ...
+        'waiton_ui',false, ...
+        'state',[], ...
+        'startTabTitle','' ...
         );
 
-      if ~isempty(parent)
-        mainFigurePosition = parent.mainFigurePixelPosition() ;
-        centerOnOtherFigureGivenPositionBang(obj.hFig, mainFigurePosition) ;
-      else
-        centerfig(obj.hFig);
+      if obj.isStandAlone_
+        if ~isempty(parent)
+          mainFigurePosition = parent.mainFigurePixelPosition() ;
+          centerOnOtherFigureGivenPositionBang(obj.hFig, mainFigurePosition) ;
+        else
+          centerfig(obj.hFig);
+        end
       end
 
       obj.lObj = lblObj;
@@ -452,14 +476,42 @@ classdef LandmarkSpecs < handle
       obj.axSwap.Position = obj.axSkel.Position;
       
       obj.sklEdges = slbl.skelEdges;
-      obj.initTabSkel(slbl,textArgs,plotptsArgs);
       obj.htHead = slbl.head;
       obj.htTail = slbl.tail;
-      obj.initTabHeadTail(slbl,textArgs,plotptsArgs);
       obj.spEdges = slbl.swaps;
+
+      % Overwrite the working specifications from an optional input state
+      % (in the form Labeler.getKeypointParams() returns), e.g. edits made
+      % earlier in the parameters dialog but not yet written to the model.
+      if ~isempty(state)
+        stateFieldNames = fieldnames(state) ;
+        for i = 1 : numel(stateFieldNames)
+          obj.(stateFieldNames{i}) = state.(stateFieldNames{i}) ;
+        end
+        slbl.skelEdges = obj.sklEdges ;
+        slbl.head = obj.htHead ;
+        slbl.tail = obj.htTail ;
+        slbl.swaps = obj.spEdges ;
+        slbl.skelNames = obj.ptNames ;
+      end
+
+      obj.initTabSkel(slbl,textArgs,plotptsArgs);
+      obj.initTabHeadTail(slbl,textArgs,plotptsArgs);
       obj.initTabSwap(slbl,textArgs,plotptsArgs);
-      
+
       obj.updateTableSkel();
+
+      if ~isempty(startTabTitle)
+        tabTitles = {obj.TabGroup.Children.Title} ;
+        startTabIndex = find(strcmpi(tabTitles, startTabTitle), 1) ;
+        if isempty(startTabIndex)
+          warningNoTrace('No tab with title %s', startTabTitle) ;
+        else
+          obj.TabGroup.SelectedTab = obj.TabGroup.Children(startTabIndex) ;
+          obj.cbkTabGroupSelChanged(struct('NewValue', obj.TabGroup.SelectedTab)) ;
+        end
+      end
+
       if waiton_ui
         uiwait(obj.hFig);
       end
@@ -807,33 +859,42 @@ classdef LandmarkSpecs < handle
   methods (Access = private)
     
     % Create UIFigure and components
-    function createComponents(obj)
-      
+    function createComponents(obj, hParent, isVert)
+      % With no hParent, build the UI in its own figure.  With an
+      % hParent, embed the UI in that container: the two panels go into a
+      % uigridlayout, stacked vertically if isVert (for narrow parents,
+      % e.g. the visualization pane of the parameters dialog).
+      if ~exist('hParent', 'var')
+        hParent = [] ;
+      end
+      if ~exist('isVert', 'var')
+        isVert = false ;
+      end
+
       FSIZE = 12;
-      % Create hFig and hide until all components are created
-      obj.hFig = figure('Visible', 'off');
-      obj.hFig.AutoResizeChildren = 'off';
-      obj.hFig.Position = [100 100 686 392];
-      obj.hFig.Name = 'Landmark Specifications';
-      obj.hFig.MenuBar = 'none';
-      obj.hFig.CloseRequestFcn = @(src,evt)obj.closereq(src,evt);
-      obj.hFig.SizeChangedFcn = @(src,evt)obj.resize(src,evt);
-%       app.hFig.SizeChangedFcn = createCallbackFcn(app, @updateAppLayout, true);
-      
-%       % Create GridLayout
-%       app.GridLayout = uigridlayout(app.hFig);
-%       app.GridLayout.ColumnWidth = {448, '1x'};
-%       app.GridLayout.RowHeight = {'1x'};
-%       app.GridLayout.ColumnSpacing = 0;
-%       app.GridLayout.RowSpacing = 0;
-%       app.GridLayout.Padding = [0 0 0 0];
-%       app.GridLayout.Scrollable = 'on';
-      
-      lpw = .6;
-      obj.LeftPanel = uipanel('Parent',obj.hFig,'units','normalized',...
-        'Position',[0 0 lpw 1]);
-%       obj.LeftPanel.Layout.Row = 1;
-%       obj.LeftPanel.Layout.Column = 1;
+      obj.isStandAlone_ = isempty(hParent) ;
+      if obj.isStandAlone_
+        % Create hFig and hide until all components are created
+        obj.hFig = figure('Visible', 'off');
+        obj.hFig.AutoResizeChildren = 'off';
+        obj.hFig.Position = [100 100 686 392];
+        obj.hFig.Name = 'Landmark Specifications';
+        obj.hFig.MenuBar = 'none';
+        obj.hFig.CloseRequestFcn = @(src,evt)obj.closereq(src,evt);
+        obj.hFig.SizeChangedFcn = @(src,evt)obj.resize(src,evt);
+
+        lpw = .6;
+        obj.LeftPanel = uipanel('Parent',obj.hFig,'units','normalized',...
+          'Position',[0 0 lpw 1]);
+      else
+        obj.hFig = ancestor(hParent, 'figure') ;
+        if isVert
+          obj.gl = uigridlayout(hParent, [2,1], 'RowHeight', {'2x','1x'}) ;
+        else
+          obj.gl = uigridlayout(hParent, [1,2], 'ColumnWidth', {'2x','1x'}) ;
+        end
+        obj.LeftPanel = uipanel('Parent', obj.gl) ;
+      end
 
       obj.TabGroup = uitabgroup(obj.LeftPanel);
 %       obj.TabGroup.Position = [6 6 436 376];
@@ -943,11 +1004,13 @@ classdef LandmarkSpecs < handle
       obj.RemovePairButton.FontSize = FSIZE;
       
       % Create RightPanel
-      obj.RightPanel = uipanel('Parent',obj.hFig,'units','normalized',...
-        'Position',[lpw 0 1-lpw 1]);
-%       obj.RightPanel.Layout.Row = 1;
-%       obj.RightPanel.Layout.Column = 2;
-      
+      if obj.isStandAlone_
+        obj.RightPanel = uipanel('Parent',obj.hFig,'units','normalized',...
+          'Position',[lpw 0 1-lpw 1]);
+      else
+        obj.RightPanel = uipanel('Parent', obj.gl) ;
+      end
+
       % Create UITable
       obj.UITable = uitable(obj.RightPanel);
       obj.UITable.RowName = 'numbered';

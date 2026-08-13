@@ -1,0 +1,94 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "MultiAnimalGRONe": {
+    "Description": "Parameters related to multi-animal GRONe",
+    "DispName": "",
+    "db_format": {
+      "AffectsTraining": false,
+      "DefaultValue": "coco",
+      "Description": "Format for the training database",
+      "DispName": "Database format",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_mdn_joint_torch",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": true
+    },
+    "mdn_joint_layer_num": {
+      "AffectsTraining": true,
+      "DefaultValue": 3,
+      "Description": "Layer number for joint pose prediction in the feature pyramid network neck. Each layer increasingly downsamples the image by a factor of 2, with the 0th layer predicting at 1/4th the scale and the 3rd layer predicting at scale 1/(4*2^3) = 1/32. ",
+      "DispName": "Layer for joint prediction",
+      "Level": "Advanced",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_mdn_joint_torch",
+        "isDeepTrack"
+      ],
+      "Type": "unsigned",
+      "isEditable": true
+    },
+    "predict_occluded": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Should we train the pose network to also predict whether keypoints are labeled as 'occluded' or not? Recall that you can label a point as 'occluded' or not. It may be helpful in your downstream task to know whether a keypoint is occluded, and this predicted category could be used for that. ",
+      "DispName": "Train 'occluded' classifier",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_mdn_joint_torch",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "pretrain_freeze_bnorm": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Freeze batch norm weights of the backbone to the pretrained weights",
+      "DispName": "Freeze batch norm",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "mdn_backbone": {
+      "AffectsTraining": true,
+      "DefaultValue": "resnet50",
+      "Description": "Backbone network to use for GRONe. Available options are resnet50, hrnet, vit, convnext, swin, hrformer, davit",
+      "DispName": "Backbone",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "string",
+      "isEditable": true
+    },
+    "mdn_pred_dist": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Predict confidence for MDN predictions.",
+      "DispName": "Predict confidence",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "mdn_base_lr": {
+      "AffectsTraining": true,
+      "DefaultValue": 0.0001,
+      "Description": "Base learning rate for training. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 0.0001",
+      "DispName": "Base Learning Rate",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "float",
+      "isEditable": true
+    }
+  }
+}

@@ -75,8 +75,8 @@ classdef BgClient < handle
       obj.qPoller2Me = fromPollingLoopDataQueue;
       
       p = gcp() ;
-      if obj.parpoolIdleTimeout > p.IdleTimeout 
-        warningNoTrace('Increasing current parpool IdleTimeout to %d minutes.',obj.parpoolIdleTimeout);
+      if obj.parpoolIdleTimeout > p.IdleTimeout
+        fprintf('Increasing current parpool IdleTimeout to %d minutes.\n',obj.parpoolIdleTimeout);
         p.IdleTimeout = obj.parpoolIdleTimeout;
       end
       

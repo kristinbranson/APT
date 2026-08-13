@@ -78,9 +78,11 @@ fprintf(1,'Done training at %s\n',nowstr);
 
 % Prune
 assert(~strcmp(sPrm.Prune.method,'smoothed trajectory'));
-% Take MD table nec only for smoothed traj pruning method
-tblFake = table(nan(nTrk,1),nan(nTrk,1),nan(nTrk,1),'VariableNames',MFTable.FLDSID);
-[pTstTRed,pruneMD] = CPRLabelTracker.applyPruning(pTstT(:,:,:,end),tblFake,sPrm.Prune);
+% Reduce the RT replicates to a single prediction per sample.  This
+% replaces the removed CPRLabelTracker.applyPruning call (CPR is gone).
+% Best-effort reconstruction: for the non-smoothed case, pruning was a
+% median over the replicate dimension.
+pTstTRed = reshape(median(pTstT(:,:,:,end),2),[nTrk trkD]);
 szassert(pTstTRed,[nTrk trkD]);
 fprintf(1,'Done pruning.\n');
 

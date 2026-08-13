@@ -1,4 +1,7 @@
 classdef ParameterVisualizationTgtCropRadiusID < ParameterVisualization
+  % Visualizes the crop used for identity linking: a labeled animal,
+  % aligned head-up when head/tail landmarks are specified, with the
+  % link_id_cropsz_height/width rectangle overlaid.
 
   properties
     % If true, a prop for this pvObj is currently selected, and we are
@@ -7,19 +10,13 @@ classdef ParameterVisualizationTgtCropRadiusID < ParameterVisualization
 
     hRect % scalar line handle. set/created during init
 
-    isMA % scalar logical
-
-    % used for non-MA
-    xTrx % xTrx/yTrx: (x,y) for trx center. set/created during init
-    yTrx
-
-    % used for MA
-    xyLbl % [npts x 2]
+    xyLbl % [npts x 2] labels of the animal being displayed
 
     % head-tail alignment
     hasHT       % scalar logical, true if skelHead/skelTail are defined
-    rotAngleDeg % rotation applied to the displayed image (degrees CCW, per imrotate)
-    bodyCtrRot  % [1 x 2] body center (x,y) in rotated image coordinates
+    imFull      % full movie frame the displayed crop is cut from
+    bodyCtr     % [1 x 2] body center (x,y) in full-frame coordinates
+    htAngle     % head->tail angle used for the aligned crop, radians
 
     hRectArgs = {'Color','r','LineWidth',2};
   end
@@ -30,181 +27,129 @@ classdef ParameterVisualizationTgtCropRadiusID < ParameterVisualization
       isOk = ~isempty(obj.hRect) && ishandle(obj.hRect);
     end
 
-    function propSelected(obj,hAx,lObj,propFullName,sPrm)
-      obj.init(hAx,lObj,propFullName,sPrm);
-    end
-
-    function init(obj,hAx,lObj,propFullName,sPrm)
-
+    function init(obj,hTile,lObj,propFullName,prm,varargin)
+      % Read one labeled frame, align it head-up if possible, and draw
+      % the ID-linking crop rectangle.
+      if nargin > 1,
+        init@ParameterVisualization(obj,hTile,lObj,propFullName,prm);
+      end
+      if isempty(obj.hAx),
+        obj.hAx = nexttile(obj.hTile);
+      end
       obj.initSuccessful = false;
-      set(hAx,'Units','normalized','Position',obj.axPos);
 
-      if ~lObj.hasMovie
-        ParameterVisualization.grayOutAxes(hAx,'No movie available.');
+      if ~obj.lObj.hasMovie
+        obj.grayOutAxes('No movie available.');
+        return;
+      end
+      if ~obj.lObj.maIsMA
+        obj.grayOutAxes('Project is single-animal.');
         return;
       end
 
-      % Set .xTrx, .yTrx; get im
-      if lObj.maIsMA
-        [tffound,mIdx,frm,~,xyLbl] = lObj.labelFindOneLabeledFrame(); %#ok<PROPLC>
-        if ~tffound
-          ParameterVisualization.grayOutAxes(hAx,...
-            'Visualization unavailable until at least one animal is labeled.');
-          return;
-        end
-        mr = MovieReader();
-        assert(~lObj.isMultiView);
-        IVIEW = 1;
-        mr.openForLabeler(lObj,mIdx,IVIEW);
-        im = mr.readframe(frm);
-
-        obj.xyLbl = xyLbl; %#ok<PROPLC>
-        obj.xTrx = [];
-        obj.yTrx = [];
-        tstr = 'Aligned crop region used during ID tracking';
-      else
-        ParameterVisualization.grayOutAxes(hAx,'Project is single-animal.');
+      [tffound,mIdx,frm,~,xyLbl] = obj.lObj.labelFindOneLabeledFrame(); %#ok<PROPLC>
+      if ~tffound
+        obj.grayOutAxes('Visualization unavailable until at least one animal is labeled.');
         return;
       end
+      mr = MovieReader();
+      assert(~obj.lObj.isMultiView);
+      IVIEW = 1;
+      mr.openForLabeler(obj.lObj,mIdx,IVIEW);
+      obj.imFull = mr.readframe(frm);
+      obj.xyLbl = xyLbl; %#ok<PROPLC>
 
       % Align image using head-tail landmarks if available.
       % The head is mapped to the +y direction (downward in image coords).
-      obj.hasHT = ~isempty(lObj.skelHead) && ~isempty(lObj.skelTail);
-      obj.isMA = lObj.maIsMA;
-      obj.rotAngleDeg = 0;
-      obj.bodyCtrRot = [];
-
-      hh = sPrm.ROOT.MultiAnimal.TrackletStitch.link_id_cropsz_height;
-      ww = sPrm.ROOT.MultiAnimal.TrackletStitch.link_id_cropsz_width;
-
-      sPrm_MultiTgt_TargetCrop = [ww,hh];
-      % sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz;
-      rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
-
-
-      if obj.hasHT && ~isempty(obj.xyLbl)
-        hd = obj.xyLbl(lObj.skelHead,:);   % [1 x 2] (x,y)
-        tl = obj.xyLbl(lObj.skelTail,:);   % [1 x 2] (x,y)
-        body_ctr = (hd + tl) / 2;          % [1 x 2] (x,y)
-
-        % ht_angle: angle of the head->tail vector in image coords.
-        % Rotating by -(pi/2 + ht_angle) maps the head to +y (downward).
-        ht_angle = atan2(tl(2)-hd(2), hd(1)-tl(1));
-        obj.rotAngleDeg = (pi/2 - ht_angle) * 180/pi;
-
-        % Record original image center before rotation
-        [nr_orig, nc_orig] = size(im, 1, 2);
-        im_ctr_orig = [(nc_orig+1)/2, (nr_orig+1)/2];  % (x,y)
-
-        % Rotate image; 'loose' preserves the full rotated extent
-        % im = imrotate(im, obj.rotAngleDeg, 'bilinear', 'loose');
-        crop_sz = max(hh,ww)*2;
-        im = CropImAroundTrx(im,body_ctr(1),body_ctr(2),-ht_angle,crop_sz,crop_sz);
-
-        obj.bodyCtrRot = size(im,1,2)/2;
-        rectPos(:,1) = rectPos(:,1) - body_ctr(1) + obj.bodyCtrRot(1);
-        rectPos(:,2) = rectPos(:,2) - body_ctr(2) + obj.bodyCtrRot(2);
-      elseif obj.isMA
-        hd = max(obj.xyLbl,[],1);   % [1 x 2] (x,y)
-        tl = min(obj.xyLbl,[],1);   % [1 x 2] (x,y)
-        body_ctr = (hd + tl) / 2;          % [1 x 2] (x,y)
-
-        obj.rotAngleDeg = 0;
-
-        % Record original image center before rotation
-        [nr_orig, nc_orig] = size(im, 1, 2);
-        im_ctr_orig = [(nc_orig+1)/2, (nr_orig+1)/2];  % (x,y)
-
-        % Rotate image; 'loose' preserves the full rotated extent
-        % im = imrotate(im, obj.rotAngleDeg, 'bilinear', 'loose');
-        crop_sz = max(hh,ww)*2;
-        im = CropImAroundTrx(im,body_ctr(1),body_ctr(2),0,crop_sz,crop_sz);
-
-        obj.bodyCtrRot = size(im,1,2)/2;
-
-        rectPos(:,1) = rectPos(:,1) - body_ctr(1) + obj.bodyCtrRot(1);
-        rectPos(:,2) = rectPos(:,2) - body_ctr(2) + obj.bodyCtrRot(2);
-
+      obj.hasHT = ~isempty(obj.lObj.skelHead) && ~isempty(obj.lObj.skelTail);
+      if obj.hasHT
+        hd = obj.xyLbl(obj.lObj.skelHead,:);   % [1 x 2] (x,y)
+        tl = obj.xyLbl(obj.lObj.skelTail,:);   % [1 x 2] (x,y)
+        obj.bodyCtr = (hd + tl) / 2;           % [1 x 2] (x,y)
+        obj.htAngle = atan2(tl(2)-hd(2), hd(1)-tl(1));
+      else
+        obj.bodyCtr = [];
+        obj.htAngle = 0;
       end
 
-      cla(hAx);
-      hold(hAx,'off');
-      imshow(im,'Parent',hAx);
-      hold(hAx,'on');
-      axis(hAx,'image');
-      colormap(hAx,'gray');
-      caxis(hAx,'auto');
-      title(hAx,tstr,'interpreter','none','fontweight','normal',...
-        'fontsize',10);
-      deleteValidGraphicsHandles(obj.hRect);
-      obj.hRect = plot(rectPos(:,1),rectPos(:,2),obj.hRectArgs{:});
-
+      obj.redraw_();
       obj.initSuccessful = true;
     end
 
-    function propUnselected(obj)
-      deleteValidGraphicsHandles(obj.hRect);
+    function clear(obj)
+      clear@ParameterVisualization(obj);
       obj.hRect = [];
       obj.initSuccessful = false;
     end
 
-    function propUpdated(obj,hAx,lObj,propFullName,sPrm)
+    function update(obj)
       if obj.initSuccessful && obj.plotOk(),
-        sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
-        rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
-        set(obj.hRect,'XData',rectPos(:,1),'YData',rectPos(:,2));
+        obj.redraw_();
       else
-        obj.init(hAx,lObj,propFullName,sPrm);
+        obj.init();
       end
     end
 
-    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val)
-      if obj.initSuccessful && obj.plotOk()
-        sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.IDCropSize;
-        assert(startsWith(propFullName,'MultiAnimal.IDCropSize.'));
-        toks = strsplit(propFullName,'.');
-        propShort = toks{end};
-        sPrm_MultiTgt_TargetCrop.(propShort) = val;
-        rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
-        set(obj.hRect,'XData',rectPos(:,1),'YData',rectPos(:,2));
-      else
-        obj.init(hAx,lObj,propFullName,sPrm);
-      end
-    end
+    function redraw_(obj)
+      % Redraw the (possibly aligned) crop image and the crop rectangle
+      % from the current parameter values.
+      [hh,ww] = obj.getCropSize_();
 
-    function rectPos = getRectPos(obj,lObj,sPrm)
-      % rectPos: [5 x 2] col1 is x, col2 is y (closed rectangle for plotting).
-
-      if obj.hasHT && ~isempty(obj.bodyCtrRot)
-        % Use the aligned body center and IDCropSize = [x_size, y_size].
-        xc = obj.bodyCtrRot(1);
-        yc = obj.bodyCtrRot(2);
-        id_crop_sz = sPrm;
-        half_w = id_crop_sz(1)/2;
-        half_h = id_crop_sz(2)/2;
+      if obj.hasHT
+        cropSize = max(hh,ww)*2;
+        im = CropImAroundTrx(obj.imFull,obj.bodyCtr(1),obj.bodyCtr(2),...
+                             -obj.htAngle,cropSize,cropSize);
+        imCtr = size(im,1,2)/2;
+        xc = imCtr(1);
+        yc = imCtr(2);
+        halfWidth = ww/2;
+        halfHeight = hh/2;
+        tstr = 'Aligned crop region used during ID tracking';
       else
-        % No head-tail: fall back to label mean / trx center and square crop.
-        if obj.isMA
-          xyc = nanmean(obj.xyLbl,1);
-          xc = xyc(1);
-          yc = xyc(2);
-        else
-          xc = obj.xTrx;
-          yc = obj.yTrx;
-        end
-        rad = sPrm; %maGetTgtCropRad(sPrm);
-        half_w = rad(1)/2;
-        half_h = rad(1)/2;
+        % No head-tail: fall back to the label centroid and a square crop
+        im = obj.imFull;
+        xyc = mean(obj.xyLbl,1,'omitmissing');
+        xc = xyc(1);
+        yc = xyc(2);
+        rad = APTParameters.getMATargetCropRadiusManual(obj.prm);
+        halfWidth = rad;
+        halfHeight = rad;
+        tstr = 'Crop region used during ID tracking';
       end
 
-      x0 = xc-half_w;
-      x1 = xc+half_w;
-      y0 = yc-half_h;
-      y1 = yc+half_h;
+      x0 = xc-halfWidth;
+      x1 = xc+halfWidth;
+      y0 = yc-halfHeight;
+      y1 = yc+halfHeight;
       rectPos = [x0 x0 x1 x1;y0 y1 y1 y0].';
+      rectPos(5,:) = rectPos(1,:);  % close the rectangle for plotting
 
-      % for plotting (close the rectangle)
-      rectPos(5,:) = rectPos(1,:);
+      cla(obj.hAx);
+      hold(obj.hAx,'off');
+      imshow(im,'Parent',obj.hAx);
+      hold(obj.hAx,'on');
+      axis(obj.hAx,'image');
+      colormap(obj.hAx,'gray');
+      clim(obj.hAx,'auto');
+      title(obj.hAx,tstr,'interpreter','none','fontweight','normal',...
+        'fontsize',10);
+      deleteValidGraphicsHandles(obj.hRect);
+      obj.hRect = plot(obj.hAx,rectPos(:,1),rectPos(:,2),obj.hRectArgs{:});
+    end
+
+    function [hh,ww] = getCropSize_(obj)
+      % Read the ID-linking crop height/width from the parameter tree.
+      hh = APTParameters.getParam(obj.prm,...
+        'ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_height');
+      ww = APTParameters.getParam(obj.prm,...
+        'ROOT.MultiAnimal.Track.TrackletStitch.link_id_cropsz_width');
+      if hh <= 0 || ww <= 0
+        % Negative means "use the automatically computed crop size"; fall
+        % back to the manual target-crop radius for display.
+        rad = APTParameters.getMATargetCropRadiusManual(obj.prm);
+        if hh <= 0, hh = 2*rad; end
+        if ww <= 0, ww = 2*rad; end
+      end
     end
 
   end

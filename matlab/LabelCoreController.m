@@ -190,6 +190,12 @@ classdef LabelCoreController < handle
       % State changed. Override in subclasses for state-dependent UI.
     end  % function
 
+    function updateMultiTargetLabelOverlay(obj) %#ok<MANU>
+      % Redraw the multi-target label overlay for the current frame.  No-op
+      % here; overridden by LabelCoreSeqMAController for multi-animal projects
+      % (single-animal label cores have no such overlay).
+    end  % function
+
     function updateOccluded(obj)
       % Occluded flags changed. Refresh occluded point display.
       obj.refreshOccludedPts() ;

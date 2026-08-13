@@ -1221,6 +1221,16 @@ def get_timestamps(conf, info):
 
     return ts
 
+def dbformat_to_extension(db_format):
+    # both spellings occur in the wild: poseConfig and saved project
+    # parameters use 'tfrecord', some newer code uses 'tfrecords'
+    if db_format in ('tfrecord', 'tfrecords'):
+        return '.tfrecords'
+    elif db_format == 'coco':
+        return '.json'
+    else:
+        raise ValueError('Unknown db_format {}'.format(db_format))
+
 def tfrecord_to_coco(db_file, n_classes, img_dir, out_file, scale=1,skeleton=None,out_size=None):
     # alice example category
     data = multiResData.read_and_decode_without_session(db_file,n_classes,())
