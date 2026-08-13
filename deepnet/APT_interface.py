@@ -1288,7 +1288,10 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     conf.sel_sz = min(conf.imsz)
     conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['ManualRadius'] * 2
     conf.trx_align_theta = dt_params['MultiAnimal']['TargetCrop']['AlignUsingTrxTheta']
-    conf.multi_scale_by_bbox = dt_params['MultiAnimal']['TargetCrop']['multi_scale_by_bbox']
+    # Projects saved before multi_scale_by_bbox was added do not carry it, so default it
+    # rather than failing to load them at all.  Off, so that an old project keeps
+    # behaving the way it did when it was saved.
+    conf.multi_scale_by_bbox = dt_params['MultiAnimal']['TargetCrop'].get('multi_scale_by_bbox', False)
 
     def set_all(conf, cur_set, flatten=False):
         for k in cur_set:
