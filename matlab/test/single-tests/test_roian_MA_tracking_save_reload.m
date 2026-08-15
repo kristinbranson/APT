@@ -66,10 +66,20 @@ function test_roian_MA_tracking_save_reload()
     error('APT cache dir %s was not deleted within %g seconds of closing APT', cacheDirPath, maximumWaitTime) ;
   end
 
-  % Relaunch APT and load the saved project
-  commandWindowText = ...
-    evalc(['[labeler2, controller2] = ', ...
-           'StartAPT(''projfile'', temporaryProjectFilePath, ''replace_path'', replace_path, ''isInDebugMode'', true, ''isInYodaMode'', true) ;']) ;
+  % Relaunch APT and load the saved project, recording the command-window
+  % output to a diary file so we can check it for warnings afterwards.  A
+  % diary rather than evalc(), because evalc() takes the code it runs as a
+  % char array, which cannot be translated mechanically to Python.
+  diaryFilePath = tempname() ;
+  oc3 = onCleanup(@()(stopDiaryAndDeleteFile(diaryFilePath))) ;
+  diary(diaryFilePath) ;
+  [labeler2, controller2] = ...
+    StartAPT('projfile', temporaryProjectFilePath, ...
+             'replace_path', replace_path, ...
+             'isInDebugMode', true, ...
+             'isInYodaMode', true) ;
+  diary('off') ;
+  commandWindowText = fileread(diaryFilePath) ;
   cleaner = onCleanup(@()(delete(controller2))) ;  % this will delete labeler2 too
   cleaner2 = onCleanup(@()(delete(labeler2))) ;  % but just to be sure
 
@@ -85,5 +95,13 @@ function test_roian_MA_tracking_save_reload()
   end
   if isempty(labeler2.tracker.trkP)
     error('labeler2.tracker.trkP is empty after reload---the tracking results should survive a save+close+reload cycle') ;
+  end
+end  % function
+
+function stopDiaryAndDeleteFile(diaryFilePath)
+  % Turn the diary off and delete its file, whether or not the relaunch threw.
+  diary('off') ;
+  if exist(diaryFilePath, 'file')
+    delete(diaryFilePath) ;
   end
 end  % function
