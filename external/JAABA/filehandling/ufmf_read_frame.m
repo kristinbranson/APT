@@ -104,7 +104,8 @@ end
 if header.is_fixed_size,
   % sparse image
   if header.max_height == 1 && header.max_width == 1,
-    tmp = false(header.nr,header.nc);
+    % im is still sideways here: [color,x,y]
+    tmp = false(header.nc,header.nr);
     tmp(sub2ind(size(tmp),bb(:,2),bb(:,1))) = true;
     im(:,tmp) = data;
   else

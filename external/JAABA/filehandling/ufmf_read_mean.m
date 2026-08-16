@@ -9,7 +9,8 @@ if isempty(meani),
   [im,header] = ufmf_read_mean_helper(fp,header);
 else
   if length(meani) > 1,
-    im = zeros([header.ncolors,header.nr,header.nc,length(meani)],header.meandataclass);
+    % images are stored sideways: [color,x,y], so columns before rows
+    im = zeros([header.ncolors,header.nc,header.nr,length(meani)],header.meandataclass);
   end
   if isfield(header,'cachedmeans_idx'),
     [idx,cachei] = ismember(meani,header.cachedmeans_idx);
@@ -26,7 +27,9 @@ else
   end
 end
 if dopermute,
-  im = permute(im,[2,3,1,4]);
+  % [color,x,y,mean] -> [y,x,color,mean], the same orientation
+  % ufmf_read_frame() returns its frames in
+  im = permute(im,[3,2,1,4]);
 end
 
 function [im,header,timestamp] = ufmf_read_mean_helper(fp,header)

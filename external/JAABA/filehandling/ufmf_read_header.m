@@ -90,7 +90,8 @@ header.meandataclass = class(mean1);
 % cache some means
 % allocate cache
 nmeanscached = min(MAXNMEANSCACHED,header.nmeans);
-header.cachedmeans = zeros([header.ncolors,header.nr,header.nc,nmeanscached],header.dataclass);
+% the cache holds unpermuted means, i.e. sideways: [color,x,y,mean]
+header.cachedmeans = zeros([header.ncolors,header.nc,header.nr,nmeanscached],header.dataclass);
 header.cachedmeans_idx = zeros(1,nmeanscached);
 header.cachedmeans_accesstime = -inf(1,nmeanscached);
 % read in the means; this automatically stores them in the cache
