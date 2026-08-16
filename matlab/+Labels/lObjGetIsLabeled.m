@@ -17,10 +17,10 @@ function [tf] = lObjGetIsLabeled(lObj,labelsfld,tbl,gt,fullylabeled)
     end
     cc = Labels.CLS_MD();
     if lObj.maIsMA,
-      frs = eval(sprintf('%s([tbl.frm(idx)])',cc));
+      frs = feval(cc, [tbl.frm(idx)]) ;
       [ism,j] = ismember(frs,[lObj.(labelsfld){i}.frm],'rows');
     else
-      frs = eval(sprintf('%s([tbl.frm(idx),tbl.iTgt(idx)])',cc));
+      frs = feval(cc, [tbl.frm(idx),tbl.iTgt(idx)]) ;
       [ism,j] = ismember(frs,[lObj.(labelsfld){i}.frm,lObj.(labelsfld){i}.tgt],'rows');
     end
     idx = find(idx);

@@ -92,7 +92,7 @@ end
     
     for i = 1:numFields - 1
       currentField = namesOfFields{i};
-      currentElementValue = eval(sprintf('data.%s',currentField));
+      currentElementValue = data.(currentField) ;
       writeSingleElement(writefun, currentField,currentElementValue,tabs);
       writefun(',\n%s',tabs);
     end
@@ -103,7 +103,7 @@ end
     end
         
     currentField = namesOfFields{i};
-    currentElementValue = eval(sprintf('data.%s',currentField));
+    currentElementValue = data.(currentField) ;
     writeSingleElement(writefun, currentField,currentElementValue,tabs);
     writefun('\n%s}',tabs);
   end
