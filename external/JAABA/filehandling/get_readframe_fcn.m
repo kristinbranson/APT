@@ -354,7 +354,20 @@ else
         headerinfo.type = 'avi';
         headerinfo.nr = headerinfo.Height;
         headerinfo.nc = headerinfo.Width;
-        
+
+        % For ISO base-media movies (.mp4/.mov/.m4v), read a seek index from the
+        % container metadata.  It gives the exact frame count cheaply and enables
+        % fast, frame-accurate random access (see the readframe selection below).
+        % Falls back silently for other formats or if parsing fails.
+        mp4Index = [];
+        if any(strcmpi(ext,{'.mp4','.mov','.m4v'})),
+          try
+            mp4Index = mp4_read_index(filename);
+          catch
+            mp4Index = [];
+          end
+        end
+
         if preload,
           
           
@@ -378,21 +391,12 @@ else
           
         else
           if neednframes && useRead,
-            % First try to read the exact frame count straight from the
-            % container metadata, which is fast even for large files.  Fall
-            % back to VideoReader's NumberOfFrames (which decodes the whole
-            % stream to count frames) if that fails or the format isn't ISO
-            % base-media (.mp4/.mov/.m4v).
-            if any(strcmpi(ext,{'.mp4','.mov','.m4v'})),
-              try
-                nframes = mp4_read_nframes(filename);
-              catch
-                nframes = [];
-              end
+            % Prefer the exact frame count from the container metadata (fast even
+            % for large files).  Fall back to VideoReader's NumberOfFrames, which
+            % for some formats decodes the whole stream just to count frames.
+            if ~isempty(mp4Index),
+              nframes = mp4Index.nframes;
             else
-              nframes = [];
-            end
-            if isempty(nframes),
               nframes = get(readerobj,'NumberOfFrames');
             end
           end
@@ -414,7 +418,16 @@ else
         else
         
           if useRead,
-            readframe = @(f) avi_read_frame(readerobj,headerinfo,f);
+            % For seekable ISO base-media movies, use fast keyframe-based random
+            % access.  read(readerobj,f) decodes from the start of the file, so
+            % its cost grows linearly with f (minutes for a frame deep into a
+            % large movie); mp4_seek_read_frame jumps to the nearest keyframe and
+            % reads forward only a few frames.
+            if ~isempty(mp4Index) && mp4Index.isFastSeekable,
+              readframe = @(f) mp4_seek_read_frame(readerobj,mp4Index,f);
+            else
+              readframe = @(f) avi_read_frame(readerobj,headerinfo,f);
+            end
           else
             readframe = @(f) avi_read_frame_useReadFrame(readerobj,headerinfo,f);
           end
