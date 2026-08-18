@@ -13,6 +13,13 @@ function [im, timestamp] = mp4_seek_read_frame(readerobj, index, f)
 % frame-boundary rounding in readFrame.  If anything unexpected happens, it
 % falls back to the slow-but-exact read(readerobj, f).
 %
+% When the reader is already positioned within the keyframe-to-target range --
+% in particular when f is the frame right after the one just read, as during
+% sequential playback -- it reads forward from the current position instead of
+% re-seeking to the keyframe, so sequential access costs one readFrame per
+% frame.  This uses no persistent state: the reader's own CurrentTime is the
+% source of truth for where it is positioned.
+%
 % index must be from mp4_read_index for this movie, with isFastSeekable true.
 
   targetSample = f - 1 ;  % 0-based
@@ -23,17 +30,28 @@ function [im, timestamp] = mp4_seek_read_frame(readerobj, index, f)
   end
 
   keyframeSample = keyframeAtOrBefore_(index, targetSample) ;
-  readerobj.CurrentTime = index.sampleStartTicks(keyframeSample + 1) / index.timescale ;
 
-  maxStepCount = (targetSample - keyframeSample) + 16 ;  % a little slack
+  % Read forward from the current position when the reader is already sitting at
+  % a frame between the keyframe and the target; otherwise seek to the keyframe.
+  currentSample = currentSampleOrEmpty_(readerobj, index) ;
+  if isempty(currentSample) || currentSample < keyframeSample || currentSample > targetSample ,
+    readerobj.CurrentTime = index.sampleStartTicks(keyframeSample + 1) / index.timescale ;
+    startSample = keyframeSample ;
+  else
+    startSample = currentSample ;
+  end
+
+  maxStepCount = (targetSample - startSample) + 16 ;  % a little slack
   for stepIndex = 1 : maxStepCount ,
-    currentTick = round(readerobj.CurrentTime * index.timescale) ;
-    currentSample = tickToSample_(index, currentTick) ;
-    if currentSample > targetSample ,
+    if ~hasFrame(readerobj) ,
+      break  % at end of stream; fall back below
+    end
+    thisSample = tickToSample_(index, round(readerobj.CurrentTime * index.timescale)) ;
+    if thisSample > targetSample ,
       break  % overshot; fall back below
     end
     im = readFrame(readerobj) ;
-    if currentSample == targetSample ,
+    if thisSample == targetSample ,
       timestamp = index.sampleStartTicks(targetSample + 1) / index.timescale ;
       return
     end
@@ -56,6 +74,17 @@ function keyframeSample = keyframeAtOrBefore_(index, targetSample)
   else
     keyframeSample = index.syncSamples(position) ;
   end
+end  % function
+
+function sample = currentSampleOrEmpty_(readerobj, index)
+% Return the 0-based sample the reader is positioned to read next, from its
+% CurrentTime, or [] if that cannot be determined.
+  currentTime = readerobj.CurrentTime ;
+  if isempty(currentTime) || ~isfinite(currentTime) || currentTime < 0 ,
+    sample = [] ;
+    return
+  end
+  sample = tickToSample_(index, round(currentTime * index.timescale)) ;
 end  % function
 
 function sample = tickToSample_(index, tick)

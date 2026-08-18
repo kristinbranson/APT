@@ -31,9 +31,13 @@ function test_mp4_seek_read_frame()
   % Frames to check (1-based): first/last, around keyframe boundaries (keyframes
   % are at 1-based frames 1, 31, 61, ...), interior frames, and a deep frame.
   % The order is deliberately non-monotonic -- with backward jumps and repeats --
-  % to exercise seeking in both directions the way a user scrubbing would.
+  % to exercise seeking in both directions the way a user scrubbing would.  The
+  % contiguous ascending runs (25:35 crosses a keyframe, 295:305 does not)
+  % exercise the sequential fast path, where each frame is the one right after
+  % the previous read.
   framesToCheck = [1, 2, 15, 30, 31, 32, 60, 61, 300, 599, 600, 601, 900, 1199, 1200, ...
-                   600, 31, 1200, 1, 1199, 2, 900, 300] ;
+                   600, 31, 1200, 1, 1199, 2, 900, 300, ...
+                   25:35, 295:305] ;
 
   reader = VideoReader(moviePath) ;
   for checkIndex = 1 : numel(framesToCheck) ,
