@@ -335,8 +335,22 @@ else
       
       try
         readerobj = VideoReader(filename);
-        headerinfo = get(readerobj);
-        
+        % Read only the cheap metadata properties into headerinfo.  Do NOT use
+        % get(readerobj) with no property name: that enumerates every property,
+        % including NumFrames, and for some container formats (e.g. MP4/H.264)
+        % reading NumFrames makes VideoReader decode the entire stream just to
+        % count frames, which is very slow for large movies.  The frame count is
+        % obtained separately, below.
+        headerinfo = struct();
+        headerinfo.Name = readerobj.Name;
+        headerinfo.Path = readerobj.Path;
+        headerinfo.Duration = readerobj.Duration;
+        headerinfo.FrameRate = readerobj.FrameRate;
+        headerinfo.Height = readerobj.Height;
+        headerinfo.Width = readerobj.Width;
+        headerinfo.BitsPerPixel = readerobj.BitsPerPixel;
+        headerinfo.VideoFormat = readerobj.VideoFormat;
+
         headerinfo.type = 'avi';
         headerinfo.nr = headerinfo.Height;
         headerinfo.nc = headerinfo.Width;
@@ -364,7 +378,23 @@ else
           
         else
           if neednframes && useRead,
-            nframes = get(readerobj,'NumberOfFrames');
+            % First try to read the exact frame count straight from the
+            % container metadata, which is fast even for large files.  Fall
+            % back to VideoReader's NumberOfFrames (which decodes the whole
+            % stream to count frames) if that fails or the format isn't ISO
+            % base-media (.mp4/.mov/.m4v).
+            if any(strcmpi(ext,{'.mp4','.mov','.m4v'})),
+              try
+                nframes = mp4_read_nframes(filename);
+              catch
+                nframes = [];
+              end
+            else
+              nframes = [];
+            end
+            if isempty(nframes),
+              nframes = get(readerobj,'NumberOfFrames');
+            end
           end
           if ~neednframes || ~useRead || isempty(nframes),
             % approximate nframes from duration
