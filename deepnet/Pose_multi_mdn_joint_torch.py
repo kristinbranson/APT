@@ -252,10 +252,19 @@ def my_hrformer_backbone(pretrained=True):
     # HRFormer-Base: same repeated multi-resolution fusion structure as HRNet
     # (my_hrnet_fpn_backbone above), but with local-window self-attention
     # blocks (HRFORMERBLOCK) in stages 2-4 instead of conv bottleneck blocks.
-    # Config and checkpoint match mmpose's bundled
+    # Config matches mmpose's bundled
     # configs/body_2d_keypoint/topdown_heatmap/coco/td-hm_hrformer-base_8xb32-210e_coco-256x192.py
-    # pretrained=False skips the COCO-pose checkpoint (random init), for
-    # comparing against backbones that have no pretrained weights available.
+    # Checkpoint is the actual end-to-end COCO-keypoint-trained model
+    # (backbone+head; prefix='backbone.' pulls just the backbone weights,
+    # dropping the COCO-specific 17-keypoint head, which wouldn't match
+    # ChimpACT's schema anyway). Previously this loaded mmpose's
+    # pretrain_models/hrformer_base-32815020_20220226.pth checkpoint instead
+    # -- that one is only ImageNet-pretrained (it's the checkpoint mmpose's
+    # own config uses to INIT the backbone before COCO training even starts,
+    # not a finished task checkpoint), a strictly weaker starting point for
+    # a pose task than the real COCO-trained backbone below.
+    # pretrained=False skips the checkpoint (random init), for comparing
+    # against backbones that have no pretrained weights available.
     from mmpose.models import HRFormer
     extra = dict(
         drop_path_rate=0.2,
@@ -301,7 +310,8 @@ def my_hrformer_backbone(pretrained=True):
             init_cfg=dict(
                 type='Pretrained',
                 checkpoint='https://download.openmmlab.com/mmpose/'
-                'pretrain_models/hrformer_base-32815020_20220226.pth'))
+                'top_down/hrformer/hrformer_base_coco_256x192-6f5f1169_20220316.pth',
+                prefix='backbone.'))
     else:
         backbone = HRFormer(extra, in_channels=3)
     backbone.init_weights()
@@ -557,6 +567,666 @@ class DaViTBlock(nn.Module):
         return self._forward_impl(x)
 
 
+class TwinsGSA(nn.Module):
+    # Global Sub-Sampled Attention (Twins-SVT, Chu et al. 2021). Q stays at
+    # full spatial resolution; K/V are computed from a spatially-REDUCED
+    # (pooled) version of the same feature map. Critically, unlike channel
+    # attention, the attention matrix here is (N x N_reduced) -- every one of
+    # the N real query positions gets its OWN row of attention weights over
+    # the reduced landmarks, so different spatial positions can genuinely
+    # attend differently to what's elsewhere in the image (position-specific
+    # relational information), not just a single global per-image reweighting.
+    #
+    # Reduction: real Twins uses a fixed-stride Conv2d(kernel=stride=sr_ratio),
+    # which can produce a 0-sized output if sr_ratio exceeds H or W -- a real
+    # risk at HRNet's smallest branches (we hit exactly this edge case testing
+    # DaViTBlock earlier). Using F.adaptive_avg_pool2d to a size derived from
+    # the ACTUAL H,W at each forward call instead guarantees a valid ndge>=1
+    # output regardless of branch size, then a learned 1x1 conv (channel
+    # mixing) + LayerNorm stands in for Twins' conv doing both in one op.
+    def __init__(self, dim, num_heads, sr_ratio=4):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim ** -0.5
+        self.sr_ratio = sr_ratio
+        self.q = nn.Linear(dim, dim, bias=True)
+        self.kv = nn.Linear(dim, dim * 2, bias=True)
+        self.proj = nn.Linear(dim, dim)
+        if sr_ratio > 1:
+            self.sr_proj = nn.Conv2d(dim, dim, kernel_size=1)
+            self.sr_norm = nn.LayerNorm(dim, eps=1e-6)
+
+    def forward(self, x, H, W):
+        B, N, C = x.shape
+        q = self.q(x).reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+
+        if self.sr_ratio > 1:
+            feat = x.transpose(1, 2).reshape(B, C, H, W)
+            th = max(1, H // self.sr_ratio)
+            tw = max(1, W // self.sr_ratio)
+            feat = torch.nn.functional.adaptive_avg_pool2d(feat, (th, tw))
+            feat = self.sr_proj(feat).flatten(2).transpose(1, 2)  # (B, th*tw, C)
+            kv_in = self.sr_norm(feat)
+        else:
+            kv_in = x
+
+        Nk = kv_in.shape[1]
+        kv = self.kv(kv_in).reshape(B, Nk, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        k, v = kv[0], kv[1]
+
+        attn = (q * self.scale) @ k.transpose(-2, -1)   # (B, heads, N, Nk) -- one row per real query position
+        attn = attn.softmax(dim=-1)
+        out = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        return self.proj(out)
+
+
+class TwinsLocalPyramid(nn.Module):
+    # Multi-scale attention on pooled landmarks, fourth attempt -- three
+    # prior versions each got one thing wrong. Attempt 1 (concatenated-
+    # landmark GSA) paired every query against every landmark across ALL
+    # scales in one shared attention op; including a too-fine ratio (sr=2)
+    # blew Nk up to ~14.7k at HRNet's largest branch and OOM'd at the real
+    # 736x1280 training resolution. Attempt 2 (windowed) fixed the OOM by
+    # windowing instead of pooling globally, but ALSO pooled the QUERY (not
+    # just K/V), so it broadcast one shared, duplicated output to every
+    # full-res position in a pooled cell via nearest-neighbor upsampling --
+    # no per-query specificity. Attempt 3 (TwinsGSAPyramid, two independent
+    # TwinsGSA instances at coarse ratios) fixed both of those, but ended up
+    # structurally identical to plain TwinsGSA repeated twice -- genuinely
+    # GLOBAL reach (every query attends to ALL Nk landmarks) at two ratios,
+    # not a real "pyramid" of BOUNDED scales. Genuinely global reach also
+    # means Nk scales with H*W, so a model trained at one image size and run
+    # at a much larger one at inference sees a landmark count and attention
+    # distribution it never encountered in training.
+    #
+    # This version: Q stays at full resolution (never pooled, same fix as
+    # attempt 3), but each query attends to only a SMALL, FIXED-SIZE
+    # neighborhood of nearby pooled cells (neigh_size x neigh_size, default
+    # 7x7 -- matching local_attn's own window_size=7) -- gathered via
+    # unfold, not the whole pooled grid. pool_ratio and
+    # neigh_size are both fixed numbers independent of H/W, so the amount of
+    # real-world content a query's neighborhood covers stays constant
+    # regardless of image size -- train small, infer large, and a query
+    # still sees "about the same physical neighborhood," the same property
+    # window_size=7 already gives local_attn, just at a coarser pooled
+    # scale. Every resize operation here is EXACT integer arithmetic, not
+    # interpolation: avg_pool2d (not adaptive_avg_pool2d, which does
+    # irregular bin averaging when H isn't an exact multiple of pool_ratio)
+    # on an explicitly-padded input, and repeat_interleave (not
+    # F.interpolate) to broadcast each pooled cell's neighborhood back to
+    # the r x r full-res positions that map to it -- pure discrete
+    # duplication, no resampling math, so behavior is identical in kind at
+    # any image size, not just similar.
+    # A FIFTH version of this class's internals shipped only briefly (never
+    # merged into a stable run): mathematically correct (same shapes, same
+    # locality/size-generalization properties, verified) but ~11-16x slower
+    # than twins_hrformer, traced via direct profiling to kv_fc (the K/V
+    # Linear projection) running AFTER broadcasting to full resolution --
+    # i.e. recomputing the IDENTICAL projection separately for every one of
+    # the ratio^2 full-res positions sharing one pooled landmark, instead of
+    # computing it once per landmark and sharing it (a ~440x redundancy at
+    # the largest branch). The version below computes kv_fc ONCE per pooled
+    # landmark (exactly matching TwinsGSA's own approach) and never
+    # materializes a full-resolution (H, W, k^2, C) tensor at all: Q is
+    # reshaped to align with the pooled grid (splitting each spatial axis
+    # into pooled-cell-index x offset-within-cell) so ordinary matmul
+    # broadcasting handles the "each pooled cell's ratio^2 queries share one
+    # small K/V set" relationship, rather than explicitly duplicating K/V
+    # out to every query via repeat_interleave. Verified numerically
+    # IDENTICAL (max abs diff ~1e-7) against a deliberately naive,
+    # unambiguous per-query reference implementation on an awkward
+    # non-square, non-divisible test case before this was adopted.
+    def __init__(self, dim, num_heads, pool_ratios=(3, 9), neigh_size=7):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim ** -0.5
+        self.pool_ratios = pool_ratios
+        self.neigh_size = neigh_size
+        self.q = nn.Linear(dim, dim, bias=True)
+        self.kv_projs = nn.ModuleList([nn.Conv2d(dim, dim, kernel_size=1) for _ in pool_ratios])
+        self.kv_norms = nn.ModuleList([nn.LayerNorm(dim, eps=1e-6) for _ in pool_ratios])
+        self.kvs = nn.ModuleList([nn.Linear(dim, dim * 2, bias=True) for _ in pool_ratios])
+        self.proj = nn.Linear(dim, dim)
+
+    def _level_out(self, x, q_padded, H, W, Hp, Wp, ratio, kv_proj, kv_norm, kv_fc):
+        B, N, C = x.shape
+        th, tw = Hp // ratio, Wp // ratio
+        k = self.neigh_size
+
+        # Q: split each spatial axis into (pooled-cell-index, offset-within-
+        # cell) -- a view (cheap) -- then ONE necessary copy at the
+        # conv-layout -> token-layout boundary (same as everywhere else in
+        # this file), landing on a (B, th*tw, heads, ratio^2, head_dim)
+        # layout where th*tw joins B/heads as a batch dim for matmul.
+        q_view = q_padded.view(B, self.num_heads, self.head_dim, th, ratio, tw, ratio)
+        q_r = q_view.permute(0, 3, 5, 1, 4, 6, 2).contiguous().reshape(
+            B, th * tw, self.num_heads, ratio * ratio, self.head_dim)
+
+        # K/V: pool + project ONCE per landmark (cheap, th*tw scale --
+        # exactly matching TwinsGSA), THEN gather neighborhoods. Never
+        # broadcast to full resolution -- th*tw stays small throughout.
+        feat = x.transpose(1, 2).reshape(B, C, H, W)
+        feat_p = F.pad(feat, (0, Wp - W, 0, Hp - H), mode='replicate')
+        pooled = F.avg_pool2d(feat_p, kernel_size=ratio, stride=ratio)   # (B, C, th, tw), EXACT
+        pooled = kv_proj(pooled)
+
+        pooled_tok = pooled.flatten(2).transpose(1, 2)   # (B, th*tw, C) -- cheap view
+        pooled_tok = kv_norm(pooled_tok)
+        kv_tok = kv_fc(pooled_tok)   # (B, th*tw, 2C) -- Linear ONCE per landmark, not per query
+        kv_bchw = kv_tok.transpose(1, 2).reshape(B, 2 * C, th, tw)
+
+        pad = k // 2
+        kv_padded = F.pad(kv_bchw, (pad, pad, pad, pad), mode='replicate')
+        unfolded = F.unfold(kv_padded, kernel_size=k)          # (B, 2C*k*k, th*tw), EXACT -- SMALL (th*tw)
+        unfolded = unfolded.view(B, 2, self.num_heads, self.head_dim, k * k, th, tw)
+        kv_r = unfolded.permute(0, 5, 6, 2, 1, 3, 4).contiguous().reshape(
+            B, th * tw, self.num_heads, 2, self.head_dim, k * k)
+        kk = kv_r[:, :, :, 0]                      # (B, th*tw, heads, head_dim, k*k)
+        vv = kv_r[:, :, :, 1].transpose(-2, -1)     # (B, th*tw, heads, k*k, head_dim)
+
+        attn = (q_r * self.scale) @ kk   # (B, th*tw, heads, ratio^2, k*k) -- ONE fused matmul, no broadcast copy
+        attn = attn.softmax(dim=-1)
+        out = attn @ vv   # (B, th*tw, heads, ratio^2, head_dim)
+
+        out = out.reshape(B, th, tw, self.num_heads, ratio, ratio, self.head_dim)
+        out = out.permute(0, 1, 4, 2, 5, 3, 6).contiguous().reshape(B, Hp, Wp, self.num_heads, self.head_dim)
+        return out[:, :H, :W]   # (B, H, W, heads, head_dim)
+
+    def forward(self, x, H, W):
+        B, N, C = x.shape
+        q_tok = self.q(x)
+        q_bchw = q_tok.transpose(1, 2).reshape(B, C, H, W)
+
+        out = 0
+        for ratio, kv_proj, kv_norm, kv_fc in zip(self.pool_ratios, self.kv_projs, self.kv_norms, self.kvs):
+            Hp = -(-H // ratio) * ratio
+            Wp = -(-W // ratio) * ratio
+            q_padded = F.pad(q_bchw, (0, Wp - W, 0, Hp - H), mode='replicate')
+            level_out = self._level_out(x, q_padded, H, W, Hp, Wp, ratio, kv_proj, kv_norm, kv_fc)
+            out = out + level_out.reshape(B, N, C)
+
+        return self.proj(out)
+
+
+class TwinsPyramidBlock(nn.Module):
+    # Same local+global two-sub-block unit as TwinsBlock, but the "global"
+    # half is TwinsLocalPyramid -- attention over a SMALL, FIXED-SIZE
+    # (7x7, matching local_attn's own window_size) neighborhood of pooled
+    # landmarks at ratios (3, 9 by default), Q always at full resolution,
+    # summed across scales -- in place of
+    # TwinsGSA's single-scale, genuinely-global-reach pooled attention.
+    # Bounded (not whole-image) reach at every scale means the amount of
+    # real-world content a query sees doesn't depend on image size, unlike
+    # plain GSA (see TwinsLocalPyramid's own docstring for the three earlier
+    # attempts that got some part of this wrong). Tests whether that
+    # size-independent multi-scale design helps beyond twins_hrformer's
+    # already-strong single-scale GSA, with everything else held identical
+    # to TwinsBlock.
+    expansion = 1
+
+    def __init__(self, in_features, out_features, num_heads, window_size=7,
+                 mlp_ratio=4.0, drop_path=0.0, norm_cfg=None,
+                 transformer_norm_cfg=None, init_cfg=None, with_rpe=True,
+                 with_pad_mask=False, pool_ratios=(3, 9), **kwargs):
+        super().__init__()
+        assert in_features == out_features, 'TwinsPyramidBlock is channel-preserving'
+        dim = in_features
+        hidden = int(dim * mlp_ratio)
+
+        # local (LSA) half
+        self.cpe1a = DaViTConvPosEnc(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
+        self.local_attn = DaViTWindowAttention(dim, num_heads, window_size, with_rpe=with_rpe)
+        self.cpe1b = DaViTConvPosEnc(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
+        self.mlp1 = DaViTCrossFFN(dim, hidden)
+
+        # global (local pyramid) half
+        self.cpe2a = DaViTConvPosEnc(dim)
+        self.norm3 = nn.LayerNorm(dim, eps=1e-6)
+        self.global_attn = TwinsLocalPyramid(dim, num_heads, pool_ratios=pool_ratios)
+        self.cpe2b = DaViTConvPosEnc(dim)
+        self.norm4 = nn.LayerNorm(dim, eps=1e-6)
+        self.mlp2 = DaViTCrossFFN(dim, hidden)
+
+        self.drop_path = DaViTDropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def _forward_impl(self, x):
+        B, C, H, W = x.shape
+        x = x.view(B, C, -1).permute(0, 2, 1)
+
+        x = self.cpe1a(x, H, W)
+        x = x + self.drop_path(self.local_attn(self.norm1(x), H, W))
+        x = self.cpe1b(x, H, W)
+        x = x + self.drop_path(self.mlp1(self.norm2(x), H, W))
+
+        x = self.cpe2a(x, H, W)
+        x = x + self.drop_path(self.global_attn(self.norm3(x), H, W))
+        x = self.cpe2b(x, H, W)
+        x = x + self.drop_path(self.mlp2(self.norm4(x), H, W))
+
+        return x.permute(0, 2, 1).view(B, C, H, W)
+
+    def forward(self, x):
+        # same gradient-checkpointing rationale as TwinsBlock.forward.
+        if self.training and torch.is_grad_enabled() and x.requires_grad:
+            return torch.utils.checkpoint.checkpoint(
+                self._forward_impl, x, use_reentrant=False)
+        return self._forward_impl(x)
+
+
+class TwinsBlock(nn.Module):
+    # One Twins-SVT "local + global" unit: Locally-Grouped (window) attention
+    # followed by Global Sub-Sampled Attention, matching how Twins alternates
+    # the two -- structurally the same "two independently-residualed
+    # sub-blocks per unit" shape as DaViTBlock, so it drops into HRFormer's
+    # block slot the same way (see my_davit_hrformer_backbone's num_blocks
+    # halving comment -- the same halving applies here and is done below).
+    # Reuses DaViTWindowAttention (RPE-capable), DaViTConvPosEnc, and
+    # DaViTCrossFFN as-is for the local half and the position/FFN machinery,
+    # since those are unrelated to the DaViT-vs-Twins distinction (that
+    # distinction is specifically local+CHANNEL vs local+SPATIALLY-POOLED
+    # global attention).
+    expansion = 1
+
+    def __init__(self, in_features, out_features, num_heads, window_size=7,
+                 mlp_ratio=4.0, drop_path=0.0, norm_cfg=None,
+                 transformer_norm_cfg=None, init_cfg=None, with_rpe=True,
+                 with_pad_mask=False, sr_ratio=4, **kwargs):
+        super().__init__()
+        assert in_features == out_features, 'TwinsBlock is channel-preserving'
+        dim = in_features
+        hidden = int(dim * mlp_ratio)
+
+        # local (LSA) half
+        self.cpe1a = DaViTConvPosEnc(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
+        self.local_attn = DaViTWindowAttention(dim, num_heads, window_size, with_rpe=with_rpe)
+        self.cpe1b = DaViTConvPosEnc(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
+        self.mlp1 = DaViTCrossFFN(dim, hidden)
+
+        # global (GSA) half
+        self.cpe2a = DaViTConvPosEnc(dim)
+        self.norm3 = nn.LayerNorm(dim, eps=1e-6)
+        self.global_attn = TwinsGSA(dim, num_heads, sr_ratio=sr_ratio)
+        self.cpe2b = DaViTConvPosEnc(dim)
+        self.norm4 = nn.LayerNorm(dim, eps=1e-6)
+        self.mlp2 = DaViTCrossFFN(dim, hidden)
+
+        self.drop_path = DaViTDropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def _forward_impl(self, x):
+        B, C, H, W = x.shape
+        x = x.view(B, C, -1).permute(0, 2, 1)
+
+        x = self.cpe1a(x, H, W)
+        x = x + self.drop_path(self.local_attn(self.norm1(x), H, W))
+        x = self.cpe1b(x, H, W)
+        x = x + self.drop_path(self.mlp1(self.norm2(x), H, W))
+
+        x = self.cpe2a(x, H, W)
+        x = x + self.drop_path(self.global_attn(self.norm3(x), H, W))
+        x = self.cpe2b(x, H, W)
+        x = x + self.drop_path(self.mlp2(self.norm4(x), H, W))
+
+        return x.permute(0, 2, 1).view(B, C, H, W)
+
+    def forward(self, x):
+        # same gradient-checkpointing rationale as DaViTBlock.forward: two
+        # attention+FFN sub-blocks per unit roughly doubles activation memory.
+        #
+        # APT_DISABLE_GRAD_CHECKPOINT is an opt-in escape hatch for A/B
+        # timing tests ONLY -- unset (the default) reproduces the exact
+        # behavior every currently-running job was launched with, so this
+        # doesn't change anything for jobs already training against this
+        # file. Set to '1' to skip checkpointing and measure its real
+        # wall-clock cost on GPU (CPU timing can't isolate this -- the whole
+        # point of checkpointing is trading GPU memory for GPU compute).
+        if os.environ.get('APT_DISABLE_GRAD_CHECKPOINT', '0') == '1':
+            return self._forward_impl(x)
+        if self.training and torch.is_grad_enabled() and x.requires_grad:
+            return torch.utils.checkpoint.checkpoint(
+                self._forward_impl, x, use_reentrant=False)
+        return self._forward_impl(x)
+
+
+class FocalNetLayerNorm2d(nn.Module):
+    # Channels-first LayerNorm (normalizes over C while keeping (B,C,H,W)
+    # layout), matching timm's LayerNorm2d convention. FocalNet operates
+    # natively in image format throughout, unlike our token-format
+    # DaViT/Twins blocks -- no (B,N,C) conversion needed anywhere here.
+    def __init__(self, dim, eps=1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(dim))
+        self.bias = nn.Parameter(torch.zeros(dim))
+        self.eps = eps
+
+    def forward(self, x):
+        u = x.mean(1, keepdim=True)
+        s = (x - u).pow(2).mean(1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.eps)
+        return self.weight[None, :, None, None] * x + self.bias[None, :, None, None]
+
+
+class FocalModulationHRFormer(nn.Module):
+    # Focal Modulation (Yang et al. 2022, "Focal Modulation Networks",
+    # NeurIPS 2022), mechanically matching timm's FocalModulation. NO
+    # attention/QKV at all -- a learned, PER-PIXEL gated sum over
+    # `focal_level` local depthwise-conv context maps at GROWING kernel sizes
+    # (applied sequentially, so each level's receptive field compounds on top
+    # of the previous one), plus one final fully-global average-pooled level.
+    # This is the "pyramid of scales, not just local-vs-global" mechanism:
+    # focal_level+1 distinct context scales, each position independently
+    # choosing (via its own learned gate) how much of each to draw from.
+    # Position is never discarded (unlike channel attention) -- gates and
+    # context maps are both computed per-pixel throughout.
+    def __init__(self, dim, focal_window=3, focal_level=2, focal_factor=2):
+        super().__init__()
+        self.focal_level = focal_level
+        self.input_split = [dim, dim, focal_level + 1]
+        self.f = nn.Conv2d(dim, 2 * dim + (focal_level + 1), kernel_size=1)
+        self.h = nn.Conv2d(dim, dim, kernel_size=1)
+        self.act = nn.GELU()
+        self.proj = nn.Conv2d(dim, dim, kernel_size=1)
+        self.focal_layers = nn.ModuleList()
+        for k in range(focal_level):
+            ks = focal_factor * k + focal_window   # always odd -> 'same' padding works at any H,W>=1,
+            self.focal_layers.append(nn.Sequential(  # no small-branch edge case to guard (unlike windowing/pooling)
+                nn.Conv2d(dim, dim, kernel_size=ks, groups=dim, padding=ks // 2, bias=False),
+                nn.GELU()))
+
+    def forward(self, x):
+        # x: (B, C, H, W)
+        x = self.f(x)
+        q, ctx, gates = torch.split(x, self.input_split, 1)
+        ctx_all = 0
+        for level, focal_layer in enumerate(self.focal_layers):
+            ctx = focal_layer(ctx)
+            ctx_all = ctx_all + ctx * gates[:, level:level + 1]
+        ctx_global = self.act(ctx.mean((2, 3), keepdim=True))
+        ctx_all = ctx_all + ctx_global * gates[:, self.focal_level:]
+        x_out = q * self.h(ctx_all)
+        return self.proj(x_out)
+
+
+class FocalNetHRBlock(nn.Module):
+    # One FocalNet unit: focal modulation + residual, then a conv-MLP +
+    # residual -- structurally ONE HRFormerBlock-equivalent sub-block (unlike
+    # DaViTBlock/TwinsBlock, which each pack TWO attention+FFN pairs into one
+    # unit), since focal modulation already blends multiple scales
+    # internally in a single operation. So num_blocks does NOT get halved for
+    # this backbone -- see my_focalnet_hrformer_backbone below, which keeps
+    # the same num_blocks as my_hrformer_backbone.
+    #
+    # window_size/with_rpe/with_pad_mask are accepted (HRFormer's scaffolding
+    # always passes them to whatever block class is registered) but unused --
+    # focal modulation has no window or attention/RPE concept.
+    expansion = 1
+
+    def __init__(self, in_features, out_features, num_heads, window_size=7,
+                 mlp_ratio=4.0, drop_path=0.0, norm_cfg=None,
+                 transformer_norm_cfg=None, init_cfg=None, with_rpe=True,
+                 with_pad_mask=False, focal_level=2, focal_window=3, **kwargs):
+        super().__init__()
+        assert in_features == out_features, 'FocalNetHRBlock is channel-preserving'
+        dim = in_features
+        hidden = int(dim * mlp_ratio)
+
+        self.norm1 = FocalNetLayerNorm2d(dim)
+        self.modulation = FocalModulationHRFormer(dim, focal_window=focal_window, focal_level=focal_level)
+        self.ls1 = nn.Parameter(1e-4 * torch.ones(dim))  # layerscale, matches FocalNet's own init
+
+        self.norm2 = FocalNetLayerNorm2d(dim)
+        self.mlp = nn.Sequential(
+            nn.Conv2d(dim, hidden, kernel_size=1), nn.GELU(),
+            nn.Conv2d(hidden, dim, kernel_size=1))
+        self.ls2 = nn.Parameter(1e-4 * torch.ones(dim))
+
+        self.drop_path = DaViTDropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def _forward_impl(self, x):
+        x = x + self.drop_path(self.ls1[None, :, None, None] * self.modulation(self.norm1(x)))
+        x = x + self.drop_path(self.ls2[None, :, None, None] * self.mlp(self.norm2(x)))
+        return x
+
+    def forward(self, x):
+        if self.training and torch.is_grad_enabled() and x.requires_grad:
+            return torch.utils.checkpoint.checkpoint(
+                self._forward_impl, x, use_reentrant=False)
+        return self._forward_impl(x)
+
+
+def my_focalnet_hrformer_backbone():
+    # HRFormer's multi-resolution parallel-branch topology with FocalNet
+    # blocks in stages 2-4 instead of HRFORMERBLOCK. num_blocks is NOT
+    # halved here (unlike DaViT/Twins) -- see FocalNetHRBlock's docstring.
+    # No pretrained checkpoint exists for this hybrid -- compare against
+    # hrformer_scratch and the davit/twins hybrids, all trained from scratch.
+    from mmpose.models import HRFormer
+    HRFormer.blocks_dict['FOCALBLOCK'] = FocalNetHRBlock
+    extra = dict(
+        drop_path_rate=0.2,
+        with_rpe=True,
+        stage1=dict(
+            num_modules=1,
+            num_branches=1,
+            block='BOTTLENECK',
+            num_blocks=(2, ),
+            num_channels=(64, ),
+            num_heads=[2],
+            mlp_ratios=[4]),
+        stage2=dict(
+            num_modules=1,
+            num_branches=2,
+            block='FOCALBLOCK',
+            num_blocks=(2, 2),
+            num_channels=(78, 156),
+            num_heads=[2, 4],
+            mlp_ratios=[4, 4],
+            window_sizes=[7, 7]),
+        stage3=dict(
+            num_modules=4,
+            num_branches=3,
+            block='FOCALBLOCK',
+            num_blocks=(2, 2, 2),
+            num_channels=(78, 156, 312),
+            num_heads=[2, 4, 8],
+            mlp_ratios=[4, 4, 4],
+            window_sizes=[7, 7, 7]),
+        stage4=dict(
+            num_modules=2,
+            num_branches=4,
+            block='FOCALBLOCK',
+            num_blocks=(2, 2, 2, 2),
+            num_channels=(78, 156, 312, 624),
+            num_heads=[2, 4, 8, 16],
+            mlp_ratios=[4, 4, 4, 4],
+            window_sizes=[7, 7, 7, 7]))
+
+    backbone = HRFormer(extra, in_channels=3)
+    backbone.init_weights()
+    return hrnet_fpn(backbone)
+
+
+def transfer_pretrained_hrformer_local_half(target_backbone):
+    # Partial ImageNet+COCO transfer for TwinsBlock/TwinsPyramidBlock hybrids:
+    # no one has ever pretrained these HRFormer-shaped hybrids (a full
+    # ImageNet campaign -- hundreds of epochs over 1.28M images -- is
+    # impractical here), but stage1/transitions/fuse_layers are
+    # architecturally IDENTICAL to vanilla HRFormer, and each block's LOCAL
+    # half (local_attn + mlp1 + norm1/norm2) mechanically matches
+    # HRFormerBlock's own (attn + ffn + norm1/norm2) exactly -- same shapes,
+    # same math, just different attribute names. So we copy every matching
+    # tensor directly from the real COCO-keypoint-pretrained HRFormer
+    # checkpoint (see my_hrformer_backbone(pretrained=True)) and leave
+    # everything with no HRFormer counterpart (CPE convs, norm3/norm4, and
+    # the whole "global" half -- GSA / window-pyramid / channel attention)
+    # at its own random init. Verified (see conversation) this transfers
+    # ~50-55% of params exactly, confirmed via key-by-key equality checks,
+    # and leaves the rest untouched.
+    #
+    # Mutates target_backbone's own HRFormer submodule in place; returns the
+    # list of parameter names left at random init, for logging.
+    source = my_hrformer_backbone(pretrained=True)
+    src_sd = source.backbone.state_dict()
+    tgt_sd = target_backbone.backbone.state_dict()
+
+    new_sd = {}
+    n_transferred = numel_transferred = n_random = numel_random = 0
+    missed = []
+    for k, v in tgt_sd.items():
+        src_k = None
+        if k in src_sd:
+            src_k = k   # exact-name match: stem, stage1, transitions, fuse_layers, norm1/norm2
+        elif 'local_attn.' in k:
+            cand = k.replace('local_attn.', 'attn.attn.')
+            if cand in src_sd:
+                src_k = cand
+        elif 'mlp1.' in k:
+            cand = k.replace('mlp1.', 'ffn.')
+            if cand in src_sd:
+                src_k = cand
+
+        if src_k is not None and src_sd[src_k].shape == v.shape:
+            new_sd[k] = src_sd[src_k].clone()
+            n_transferred += 1
+            numel_transferred += v.numel()
+        else:
+            new_sd[k] = v
+            n_random += 1
+            numel_random += v.numel()
+            missed.append(k)
+
+    target_backbone.backbone.load_state_dict(new_sd, strict=True)
+    total, total_numel = n_transferred + n_random, numel_transferred + numel_random
+    logging.info('transfer_pretrained_hrformer_local_half: transferred %d/%d tensors (%.1f%%), '
+                  '%.1fM/%.1fM params (%.1f%%) from COCO-pretrained HRFormer',
+                  n_transferred, total, 100 * n_transferred / total,
+                  numel_transferred / 1e6, total_numel / 1e6, 100 * numel_transferred / total_numel)
+    return missed
+
+
+def my_twins_hrformer_backbone(pretrained=False):
+    # HRFormer's multi-resolution parallel-branch topology with Twins-SVT
+    # local+GSA blocks in stages 2-4 instead of HRFORMERBLOCK. Same
+    # num_blocks-halving rationale as my_davit_hrformer_backbone (each
+    # TwinsBlock is two independently-residualed sub-blocks). No pretrained
+    # checkpoint exists for this hybrid as a whole; pretrained=True instead
+    # does a partial transfer of the local half from the real COCO-pretrained
+    # HRFormer checkpoint (see transfer_pretrained_hrformer_local_half) --
+    # the global (GSA) half has no HRFormer counterpart and stays randomly
+    # initialized either way.
+    from mmpose.models import HRFormer
+    HRFormer.blocks_dict['TWINSBLOCK'] = TwinsBlock
+    extra = dict(
+        drop_path_rate=0.2,
+        with_rpe=True,
+        stage1=dict(
+            num_modules=1,
+            num_branches=1,
+            block='BOTTLENECK',
+            num_blocks=(2, ),
+            num_channels=(64, ),
+            num_heads=[2],
+            mlp_ratios=[4]),
+        stage2=dict(
+            num_modules=1,
+            num_branches=2,
+            block='TWINSBLOCK',
+            num_blocks=(1, 1),
+            num_channels=(78, 156),
+            num_heads=[2, 4],
+            mlp_ratios=[4, 4],
+            window_sizes=[7, 7]),
+        stage3=dict(
+            num_modules=4,
+            num_branches=3,
+            block='TWINSBLOCK',
+            num_blocks=(1, 1, 1),
+            num_channels=(78, 156, 312),
+            num_heads=[2, 4, 8],
+            mlp_ratios=[4, 4, 4],
+            window_sizes=[7, 7, 7]),
+        stage4=dict(
+            num_modules=2,
+            num_branches=4,
+            block='TWINSBLOCK',
+            num_blocks=(1, 1, 1, 1),
+            num_channels=(78, 156, 312, 624),
+            num_heads=[2, 4, 8, 16],
+            mlp_ratios=[4, 4, 4, 4],
+            window_sizes=[7, 7, 7, 7]))
+
+    backbone = HRFormer(extra, in_channels=3)
+    backbone.init_weights()
+    backbone = hrnet_fpn(backbone)
+    if pretrained:
+        transfer_pretrained_hrformer_local_half(backbone)
+    return backbone
+
+
+def my_twins_pyramid_hrformer_backbone(pretrained=False):
+    # Same as my_twins_hrformer_backbone, except the global half of each
+    # block is TwinsLocalPyramid -- attention over a small, fixed-size (7x7)
+    # neighborhood of pooled landmarks at ratios (3,9), Q always at
+    # full resolution, summed -- instead of TwinsGSA's single-scale,
+    # whole-image-reach pooled attention. Same num_blocks halving
+    # (TwinsPyramidBlock is still two independently-residualed sub-blocks
+    # per unit) and same channel/head schedule as my_twins_hrformer_backbone,
+    # so params/depth are directly comparable -- only the global-attention
+    # mechanism itself differs.
+    from mmpose.models import HRFormer
+    HRFormer.blocks_dict['TWINSPYRAMIDBLOCK'] = TwinsPyramidBlock
+    extra = dict(
+        drop_path_rate=0.2,
+        with_rpe=True,
+        stage1=dict(
+            num_modules=1,
+            num_branches=1,
+            block='BOTTLENECK',
+            num_blocks=(2, ),
+            num_channels=(64, ),
+            num_heads=[2],
+            mlp_ratios=[4]),
+        stage2=dict(
+            num_modules=1,
+            num_branches=2,
+            block='TWINSPYRAMIDBLOCK',
+            num_blocks=(1, 1),
+            num_channels=(78, 156),
+            num_heads=[2, 4],
+            mlp_ratios=[4, 4],
+            window_sizes=[7, 7]),
+        stage3=dict(
+            num_modules=4,
+            num_branches=3,
+            block='TWINSPYRAMIDBLOCK',
+            num_blocks=(1, 1, 1),
+            num_channels=(78, 156, 312),
+            num_heads=[2, 4, 8],
+            mlp_ratios=[4, 4, 4],
+            window_sizes=[7, 7, 7]),
+        stage4=dict(
+            num_modules=2,
+            num_branches=4,
+            block='TWINSPYRAMIDBLOCK',
+            num_blocks=(1, 1, 1, 1),
+            num_channels=(78, 156, 312, 624),
+            num_heads=[2, 4, 8, 16],
+            mlp_ratios=[4, 4, 4, 4],
+            window_sizes=[7, 7, 7, 7]))
+
+    backbone = HRFormer(extra, in_channels=3)
+    backbone.init_weights()
+    backbone = hrnet_fpn(backbone)
+    if pretrained:
+        transfer_pretrained_hrformer_local_half(backbone)
+    return backbone
+
+
 def my_davit_hrformer_backbone():
     # HRFormer's multi-resolution parallel-branch topology (identical stage
     # config to my_hrformer_backbone, EXCEPT num_blocks is halved -- see
@@ -739,6 +1409,21 @@ class mdn_joint(nn.Module):
                 n_ftrs = 78
             elif backbone_type == 'davit_hrformer':
                 backbone = my_davit_hrformer_backbone()
+                n_ftrs = 78
+            elif backbone_type == 'twins_hrformer':
+                backbone = my_twins_hrformer_backbone()
+                n_ftrs = 78
+            elif backbone_type == 'twins_hrformer_pretrained':
+                backbone = my_twins_hrformer_backbone(pretrained=True)
+                n_ftrs = 78
+            elif backbone_type == 'twins_pyramid_hrformer':
+                backbone = my_twins_pyramid_hrformer_backbone()
+                n_ftrs = 78
+            elif backbone_type == 'twins_pyramid_hrformer_pretrained':
+                backbone = my_twins_pyramid_hrformer_backbone(pretrained=True)
+                n_ftrs = 78
+            elif backbone_type == 'focalnet_hrformer':
+                backbone = my_focalnet_hrformer_backbone()
                 n_ftrs = 78
             elif backbone_type == 'davit':
                 backbone = my_davit()
