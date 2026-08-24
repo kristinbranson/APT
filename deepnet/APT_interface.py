@@ -1313,6 +1313,16 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
             set_all(conf, dt_params['MultiAnimal']['Track']['TrackletStitch'])            
     if 'Detect' in dt_params['MultiAnimal']:
         set_all(conf, dt_params['MultiAnimalDetect'])
+
+    if second_stage:
+        # The second stage of a two-stage tracker is top-down: it sees a single animal
+        # per crop, so it is single-animal even though the project is multi-animal.
+        # is_multi is itself a parameter, so this has to come after set_all() rather
+        # than where conf.stage is decided.  Leaving it set sends the mmpose nets down
+        # their multi-animal branch, which never assigns the head's out_channels, so the
+        # head keeps the pretrained model's keypoint count instead of the project's.
+        conf.is_multi = False
+
     conf.rescale = float(conf.scale)
     delattr(conf,'scale')
     conf.ht_pts = to_py(dt_params['MultiAnimalDetect']['ht_pts'])
