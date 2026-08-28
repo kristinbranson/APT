@@ -422,8 +422,8 @@
         "link_id_cluster_occ_thresh": {
           "AffectsTraining": false,
           "DefaultValue": 0.2,
-          "Description": "Maximum occlusion fraction allowed for a tracklet to be used when computing identity cluster centers. Increase this if too few tracklets qualify and identity assignment fails.",
-          "DispName": "ID cluster occlusion threshold",
+          "Description": "Maximum occlusion fraction allowed for a tracklet to be used when detecting identities. Increase this if too few tracklets qualify and identity assignment fails.",
+          "DispName": "Identity detection occlusion threshold",
           "Level": "Beginner",
           "ParamViz": "",
           "Requirements": [

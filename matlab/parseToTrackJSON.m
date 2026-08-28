@@ -124,6 +124,12 @@ for i = 1:nmovies,
   if isfield(jsonData, 'id_num_animals')
     toTrackOut.id_num_animals = jsonData.id_num_animals;
   end
+  if isfield(jsonData, 'id_detected_identities_file')
+    toTrackOut.id_detected_identities_file = jsonData.id_detected_identities_file;
+  end
+  if isfield(jsonData, 'id_model_file')
+    toTrackOut.id_model_file = jsonData.id_model_file;
+  end
 
 end
 

@@ -152,6 +152,9 @@ switch trackType
     if totrackinfo(1).id_known_num_animals && ~isempty(totrackinfo(1).id_num_animals)
       command12 = command12.append('-id_num_animals', num2str(totrackinfo(1).id_num_animals)) ;
     end
+    if ~isempty(totrackinfo(1).id_detected_identities_file)
+      command12 = command12.append('-id_detected_identities_file', totrackinfo(1).id_detected_identities_file) ;
+    end
   case apt.TrackType.track
     if strcmp(totrackinfo(1).link_type, 'simple')
       command12 = command11.append('-track_type', 'only_predict');

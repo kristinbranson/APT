@@ -35,7 +35,8 @@ classdef Labeler < handle
       'skeletonEdges' 'showSkeleton' 'showMaRoi' 'showMaRoiAux' 'flipLandmarkMatches' 'skelHead' 'skelTail' 'skelNames' ...
       'isTwoClickAlign'...
       'trkResIDs' 'trkRes' 'trkResGT' 'saveVersionInfo' ...
-      'nLabelPointsAdd' 'track_id'};
+      'nLabelPointsAdd' 'track_id' ...
+      'idModelFile' 'idDetectedIdentitiesFile'};
     
      % props to update when replace path is given during initialization
      % MK 20220418
@@ -806,6 +807,10 @@ classdef Labeler < handle
     trkRes  % [nMov x nview x nTR] cell. cell array of TrkFile objs
     trkResGT  % [nMovGT x nview x nTR] cell. etc
     track_id = false
+    idModelFile = ''  % char, ID model file last used for identity tracking.  Persisted with the project
+      % and used to prefill the identity-tracking dialog.
+    idDetectedIdentitiesFile = ''  % char, detected-identities file last used for identity tracking.
+      % Persisted with the project and used to prefill the identity-tracking dialog.
   end
 
   properties (Dependent)
@@ -3975,6 +3980,14 @@ classdef Labeler < handle
       
       if ~isfield(s,'trxInfoAll'),
         s.trxInfoAll = {};
+      end
+
+      % Identity-tracking file locations, added 2026
+      if ~isfield(s,'idModelFile'),
+        s.idModelFile = '';
+      end
+      if ~isfield(s,'idDetectedIdentitiesFile'),
+        s.idDetectedIdentitiesFile = '';
       end
       
       % 20210706 Some projs managed to get a non-float value here which
@@ -13964,6 +13977,24 @@ classdef Labeler < handle
       obj.trxFilesAllGT = trxFilesAllGTNew ;      
     end  % function
 
+    function rememberIdentityTrackingFiles(obj, idModelFile, idDetectedIdentitiesFile)
+      % Record the ID model and detected-identities files used for an identity-tracking
+      % job, so that they are saved with the project and can prefill the tracking dialog
+      % next time.  Empty arguments leave the corresponding remembered file unchanged.
+      didChange = false ;
+      if ~isempty(idModelFile) && ~strcmp(idModelFile, obj.idModelFile) ,
+        obj.idModelFile = idModelFile ;
+        didChange = true ;
+      end
+      if ~isempty(idDetectedIdentitiesFile) && ~strcmp(idDetectedIdentitiesFile, obj.idDetectedIdentitiesFile) ,
+        obj.idDetectedIdentitiesFile = idDetectedIdentitiesFile ;
+        didChange = true ;
+      end
+      if didChange ,
+        obj.setDoesNeedSave(true, 'Identity tracking file locations changed') ;
+      end
+    end  % function
+
     function trackBatch(obj, toTrackRaw, varargin)
       % Batch Tracking: Track the movies specifies by toTrackRaw.
       % toTrackRaw seems to be essentially a struct that contains sufficient
@@ -14001,6 +14032,17 @@ classdef Labeler < handle
       if isfield(toTrack, 'id_num_animals') ,
         idNumAnimals = toTrack.id_num_animals ;
       end
+      idDetectedIdentitiesFile = '' ;
+      if isfield(toTrack, 'id_detected_identities_file') ,
+        idDetectedIdentitiesFile = toTrack.id_detected_identities_file ;
+      end
+      idModelFile = '' ;
+      if isfield(toTrack, 'id_model_file') ,
+        idModelFile = toTrack.id_model_file ;
+      end
+      % Remember the identity-tracking file locations, so that they persist with the
+      % project and can prefill the dialog the next time an ID tracking job is launched.
+      obj.rememberIdentityTrackingFiles(idModelFile, idDetectedIdentitiesFile) ;
       doContinue = false ;
       if isfield(toTrack, 'docontinue') ,
         doContinue = toTrack.docontinue ;
@@ -14020,6 +14062,8 @@ classdef Labeler < handle
                     'id_maintain_identity',idMaintainIdentity,...
                     'id_known_num_animals',idKnownNumAnimals,...
                     'id_num_animals',idNumAnimals,...
+                    'id_detected_identities_file',idDetectedIdentitiesFile,...
+                    'id_model_file_requested',idModelFile,...
                     'docontinue',doContinue);
       
       % Call obj.tracker.track to do the real tracking

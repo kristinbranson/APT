@@ -1223,7 +1223,7 @@ def link_pure(trk, conf, do_delete_short=False, do_motion_link=True):
 
   # return l_trk
 
-def link_trklets(trk_files, conf, movs, out_files, id_wts=None, num_animals=None):
+def link_trklets(trk_files, conf, movs, out_files, id_wts=None, num_animals=None, detected_identities_file=None):
   """
   Links pure tracklets using id liking or motion based on conf.link_id
   :param trk_files: trk files with pure linked trajectories
@@ -1236,6 +1236,8 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None, num_animals=None
   :type out_files: list of str
   :param num_animals: known number of animals in the videos. If given, used to pick the number of ID clusters during graph-cut linking instead of the fixed distance threshold.
   :type num_animals: int or None
+  :param detected_identities_file: file with the detected identities (ID cluster centers) used for graph-cut linking. If the file exists, the identities are read from it, otherwise the identities found during linking are saved to it.
+  :type detected_identities_file: str or None
   :return: linked trk files
   :rtype: list
   """
@@ -1291,7 +1293,8 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None, num_animals=None
     #   link_method = 'motion'
     # else:
     #   link_method = 'no_motion'
-    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link, id_wts=id_wts, link_method=link_method, num_animals=num_animals)
+    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link, id_wts=id_wts, link_method=link_method, num_animals=num_animals,
+                          detected_identities_file=detected_identities_file)
 
     out_trks= []
     count = 0
@@ -1400,7 +1403,7 @@ def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
   return trk
 
 
-def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method='motion',save_debug_data=False,num_animals=None):
+def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method='motion',save_debug_data=False,num_animals=None,detected_identities_file=None):
   '''
   Link traj. based on identity
   :param trks:
@@ -1450,7 +1453,8 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
   def_params = get_default_params(conf)
 
   data_out_file = wt_out_file.replace('.p','_data.p')
-  trk_out, debug_data, n_ids = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale,out_file=data_out_file,num_animals=num_animals)
+  trk_out, debug_data, n_ids = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale,out_file=data_out_file,num_animals=num_animals,
+                                              detected_identities_file=detected_identities_file,id_model_file=wt_out_file,trk_files=trk_files)
 
   if save_debug_data:
     debug_out_file = out_files[0].replace('.trk','_link_data.pkl')
@@ -3131,7 +3135,8 @@ def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_
   return grs, new_pred_map, debug_data
 
 
-def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False,link_method='motion',out_file=None,num_animals=None):
+def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False,link_method='motion',out_file=None,num_animals=None,
+                   detected_identities_file=None,id_model_file=None,trk_files=None):
   '''
   Links the pure tracklets using identity
 
@@ -3143,8 +3148,15 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   :param rescale:
   :param min_len_select:
   :param debug:
+  :param detected_identities_file: for graph_cut linking, file with the saved detected identities. If it exists, the identities are read from it, otherwise the identities found here are saved to it.
+  :param id_model_file: path of the ID model used to compute the embeddings. Saved to the detected identities file for provenance.
+  :param trk_files: detection trk files being linked. Saved to the detected identities file for provenance.
   :return: list of id linked tracklets
   '''
+
+  if detected_identities_file is not None and link_method != 'graph_cut':
+    logging.warning(f'A detected identities file ({detected_identities_file}) was specified, but the linking method is '
+                    f'{link_method}. Detected identities are used only by graph_cut linking, so the file will be ignored.')
 
   preds, pred_map, all_data  = get_id_embeddings(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
 
@@ -3192,7 +3204,8 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
   pred_map_orig = pred_map.copy()
   if link_method == 'graph_cut':
-    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr,conf=conf,num_animals=num_animals)
+    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr,conf=conf,num_animals=num_animals,
+                                                                    detected_identities_file=detected_identities_file,id_model_file=id_model_file,mov_files=mov_files,trk_files=trk_files)
     debug_data = []
   elif link_method=='motion':
     groups,pred_map,debug_data = group_tracklets_motion_all(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select)
@@ -4441,10 +4454,15 @@ def get_graph_cut_group(trk, cluster_centers, pred_map, preds, mov_ndx,maxcosts)
   return labels
 
 
-def _best_group_link_cost(trk_idx, group_set, link_costs_mov):
+def _best_group_link_cost(trk_idx, group_set, link_costs_mov,tlen,tlen_mov):
   """Return the minimum linking cost from trk_idx to/from any other tracklet in group_set.
   Returns np.inf if no connections to group peers exist in link_costs."""
   best = np.inf
+
+  if tlen[trk_idx]/tlen_mov > 0.8:
+    best = 0.0  # if the tracklet is long enough, then we don't need to worry about linking it to other tracklets in the group
+    return best
+
   for matches in link_costs_mov[trk_idx]:  # [start_matches, end_matches]
     if len(matches) > 0:
       for entry in matches:
@@ -4453,10 +4471,83 @@ def _best_group_link_cost(trk_idx, group_set, link_costs_mov):
           best = min(best, entry[1])  # entry[1] is the spatial cost
   return best
 
-def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all,link_costs_arr,conf=None,num_animals=None):
+
+def save_detected_identities(detected_identities_file, cluster_centers, id_model_file=None, mov_files=None, trk_files=None):
+  """Save the detected identities (the graph-cut ID cluster centers), along with the ID model,
+  movies and detection trk files used to compute them."""
+  out_dict = {'detected_identities': np.array(cluster_centers),
+              'id_model_file': _normalize_path(id_model_file),
+              'mov_files': _normalize_path_list(mov_files),
+              'trk_files': _normalize_path_list(trk_files),
+              'created': time.strftime('%Y-%m-%d %H:%M:%S')}
+  out_dir = os.path.dirname(os.path.abspath(detected_identities_file))
+  if out_dir and not os.path.exists(out_dir):
+    os.makedirs(out_dir, exist_ok=True)
+  with open(detected_identities_file, 'wb') as f:
+    pickle.dump(out_dict, f)
+  logging.info(f'Saved {len(out_dict["detected_identities"])} detected identities to {detected_identities_file}')
+
+
+def load_detected_identities(detected_identities_file, id_model_file=None, mov_files=None, trk_files=None):
+  """Load the detected identities saved by save_detected_identities.
+
+  Warns if the ID model (or the movies/detection trk files) used to compute the saved identities
+  differ from the ones being used now. Returns (cluster_centers, saved_dict)."""
+  with open(detected_identities_file, 'rb') as f:
+    in_dict = pickle.load(f)
+
+  if 'detected_identities' not in in_dict:
+    raise ValueError(f'{detected_identities_file} does not look like a detected identities file '
+                     f'(no detected_identities entry)')
+  cluster_centers = np.array(in_dict['detected_identities'])
+
+  saved_model = in_dict.get('id_model_file', None)
+  cur_model = _normalize_path(id_model_file)
+  if cur_model is not None and saved_model is not None and saved_model != cur_model:
+    logging.warning(f'The ID model being used ({cur_model}) does not match the ID model used to compute the '
+                    f'identities in {detected_identities_file} ({saved_model}). The saved identities are '
+                    f'embeddings from the earlier model and are unlikely to be meaningful for the current model.')
+
+  for name, cur_files in (('movie', mov_files), ('detection trk', trk_files)):
+    saved_files = in_dict.get('mov_files' if name == 'movie' else 'trk_files', None)
+    cur_files = _normalize_path_list(cur_files)
+    if cur_files is not None and saved_files is not None and set(saved_files) != set(cur_files):
+      logging.info(f'The {name} files used to compute the identities in {detected_identities_file} '
+                   f'({saved_files}) differ from the current {name} files ({cur_files}).')
+
+  return cluster_centers, in_dict
+
+
+def _normalize_path(path):
+  """Return an absolute, normalized version of path for storage/comparison. None passes through."""
+  return None if path is None else os.path.normpath(os.path.abspath(path))
+
+
+def _normalize_path_list(paths):
+  """Return the normalized version of a list of paths. None passes through."""
+  return None if paths is None else [_normalize_path(p) for p in paths]
+
+
+def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all,link_costs_arr,conf=None,num_animals=None,
+                    detected_identities_file=None,id_model_file=None,mov_files=None,trk_files=None):
 
     occ_thresh = conf.link_id_cluster_occ_thresh if conf is not None else 0.2
-    cluster_centers = get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ_thresh=occ_thresh,num_animals=num_animals)
+    cluster_centers = None
+    if detected_identities_file is not None and os.path.exists(detected_identities_file):
+      cluster_centers, _ = load_detected_identities(detected_identities_file, id_model_file=id_model_file, mov_files=mov_files, trk_files=trk_files)
+      if cluster_centers.ndim != 2 or cluster_centers.shape[1] != preds.shape[2]:
+        raise ValueError(f'The identities in {detected_identities_file} have shape {cluster_centers.shape}, which is '
+                         f'incompatible with the ID embeddings of size {preds.shape[2]}')
+      logging.info(f'Using {cluster_centers.shape[0]} identities loaded from {detected_identities_file}')
+      if num_animals is not None and num_animals > 0 and cluster_centers.shape[0] != num_animals:
+        logging.warning(f'{detected_identities_file} has {cluster_centers.shape[0]} identities, but the number of '
+                        f'animals was specified as {num_animals}. Using the saved identities.')
+
+    if cluster_centers is None:
+      cluster_centers = get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ_thresh=occ_thresh,num_animals=num_animals)
+      if detected_identities_file is not None:
+        save_detected_identities(detected_identities_file, cluster_centers, id_model_file=id_model_file, mov_files=mov_files, trk_files=trk_files)
+
     nclusters = cluster_centers.shape[0]
 
     all_labels = []
@@ -4488,6 +4579,7 @@ def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_
         f.tight_layout()
 
       tlen = ee - ss + 1
+      tlen_mov = max(ee)-min(ss)+1
       no_group = np.where(labels == 0)[0]
       for i in range(1, nclusters + 1):
         hh = np.where(labels == i)[0]
@@ -4495,18 +4587,20 @@ def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_
         for h in hh:
           occ1[ss[h]:ee[h] + 1] += 1
 
-        # Sort best-connected tracklets first so they fill frames first; poorly-connected
-        # ones arrive later and find their frames already occupied, getting dropped preferentially.
-        # Tiebreaker: longer tracklets come first among equal link scores.
+        # Sort worst-connected tracklets first so they are dropped first; well-connected
+        # ones arrive later and find their frames empty
+        # Tiebreaker: longer tracklets come later among equal link scores.
         hh_set = set(hh.tolist())
-        link_scores = np.array([_best_group_link_cost(h, hh_set, link_costs_arr[mov_ndx]) for h in hh])
-        hh = hh[np.lexsort((-tlen[hh], link_scores))]
+        link_scores = np.array([_best_group_link_cost(h, hh_set, link_costs_arr[mov_ndx],tlen,tlen_mov) for h in hh])
+        hh = hh[np.lexsort((tlen[hh],-link_scores))]
         keep = np.ones(len(hh), dtype=bool)
 
         ndxh = 0
+        did_break = False
         for ndxh, curh in enumerate(hh):
           # select only one for overlapping tracklets
           if np.all(occ1 <= 1):
+            did_break = True
             break
           m = curh
           n = np.where(occ1[ss[m]:ee[m] + 1] > 1)[0]
@@ -4518,9 +4612,10 @@ def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_
             pred_map_out.append([mov_ndx, curh])
             groups[i-1].append(len(pred_map_out)-1)
 
-        for ndxh2 in range(ndxh, len(hh)):
-          pred_map_out.append([mov_ndx, hh[ndxh2]])
-          groups[i - 1].append(len(pred_map_out) - 1)
+        if did_break:
+          for ndxh2 in range(ndxh, len(hh)):
+            pred_map_out.append([mov_ndx, hh[ndxh2]])
+            groups[i - 1].append(len(pred_map_out) - 1)
 
         cur_no_group = [curh for curh, kk in zip(hh, keep) if not kk]
         no_group = np.concatenate((no_group, cur_no_group))
