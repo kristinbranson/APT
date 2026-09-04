@@ -503,14 +503,16 @@ function [all_labels_horzflipped,all_labels_vertflipped] = flip_labels(all_label
   for templateidx = [templateidx1,templateidx_rest'],
     [all_labels_horzflipped_curr,d_horz] = flip_labels_helper(1,kptmatches,templateidx,centroid,all_labels_centered);
     [all_labels_vertflipped_curr,d_vert] = flip_labels_helper(2,kptmatches,templateidx,centroid,all_labels_centered);
-    d_horz = median(d_horz);
-    d_vert = median(d_vert);
+    d_horz = median(d_horz,'omitmissing');
+    d_vert = median(d_vert,'omitmissing');
     if d_horz < bestd_horz,
       all_labels_horzflipped = all_labels_horzflipped_curr;
+      bestd_horz = d_horz;
     end
     if d_vert < bestd_vert,
       all_labels_vertflipped = all_labels_vertflipped_curr;
-    end    
+      bestd_vert = d_vert;
+    end
   end
 
 end

@@ -431,6 +431,19 @@
           ],
           "Type": "float",
           "isEditable": true
+        },
+        "link_id_keep_all_preds": {
+          "AffectsTraining": false,
+          "DefaultValue": false,
+          "Description": "Keep every pure tracklet as its own identity in the output, including tracklets that were not assigned to any identity cluster and short tracklets that would normally be discarded. Also skips filling in gaps between tracklets. Useful for debugging identity linking; leave off for normal tracking.",
+          "DispName": "Keep all tracklets during ID linking",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "ma"
+          ],
+          "Type": "boolean",
+          "isEditable": true
         }
       }
     }

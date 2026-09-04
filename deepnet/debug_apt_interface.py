@@ -4,6 +4,25 @@ os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION']='python'
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 import nest_asyncio
 nest_asyncio.apply()
+import sys
+
+cmd = 'tt /groups/branson/bransonlab/mayank/data/ChimpAct/gt_id/gt_id_run__banka0all_20260826T033052.log \
+    --remap=/mnt/groups=/groups \
+    --remap=/tmp/tmp_jf1pwd1=/groups/branson/bransonlab/mayank/data/ChimpAct/lbl_config_hrformer_20260731 \
+    --set-arg=-id_num_animals=24 \
+    --out-strip=_banka0all --out-suffix=_dbg'
+
+from script_resume_id_link import main
+sys.argv = cmd.split()
+main()
+
+##
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION']='python'
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+import nest_asyncio
+nest_asyncio.apply()
 
 
 cmd = '/groups/branson/home/kabram/.apt/tpde14e3db_0570_4fc6_abf0_5253344e4388/chimpAct/20260724T041101_20260724T041345.json -name 20260724T041101 -type multi_mdn_joint_torch -model_files /groups/branson/home/kabram/.apt/tpde14e3db_0570_4fc6_abf0_5253344e4388/chimpAct/multi_mdn_joint_torch/view_0/20260724T041101/deepnet-345000 -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tpde14e3db_0570_4fc6_abf0_5253344e4388 track -config_file /groups/branson/home/kabram/.apt/tpde14e3db_0570_4fc6_abf0_5253344e4388/chimpAct/multi_mdn_joint_torch/view_0/20260724T041101/trk/trkconfig_Azibo_ObsNatascha_2018_06_29_a_clip_16000_17000_725903_trn20260724T041101_view0_iter345000_20260729T044916.json -track_type only_predict -list_file /groups/branson/home/kabram/.apt/tpde14e3db_0570_4fc6_abf0_5253344e4388/TrackList_20260724T041345_20260729T044916_gt.json -out /groups/branson/home/kabram/.apt/tpde14e3db_0570_4fc6_abf0_5253344e4388/preds_20260724T041345_20260729T044916_gt_view1.mat'

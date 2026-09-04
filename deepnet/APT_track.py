@@ -40,6 +40,7 @@ def parse_args(argv):
     parser.add_argument('-predict_trk_files', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, nargs='+')
     parser.add_argument('-id_wts_file', dest='id_wts_file', help='File path for ID tracking model weights. If file exists, weights are loaded. If file does not exist, trained weights are saved to this location.', default=None)
     parser.add_argument('-id_num_animals', dest='id_num_animals', help='Known number of animals present in the videos being tracked. If specified, used to determine the number of ID clusters during identity linking instead of a fixed distance threshold.', type=int, default=None)
+    parser.add_argument('-id_detected_identities_file', dest='id_detected_identities_file', help='File path for the identities detected by graph-cut identity linking (the ID cluster centers). If the file exists, the identities are read from it, so that identities are consistent across tracking runs. If it does not exist, the identities detected during linking are saved to it.', default=None)
     parser.add_argument('-config_file', dest='config_file', help='JSON file with parameters related to tracking', default=None)
     parser.add_argument('-continue', dest='continue_tracking', action='store_true',
                         help='Continue tracking from existing .part file. Checks for out_file.part and resumes from the last tracked frame.')
