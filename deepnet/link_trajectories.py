@@ -1448,7 +1448,10 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
   # link using id model
   def_params = get_default_params(conf)
 
-  data_out_file = wt_out_file.replace('.p','_data.p')
+  # Not wt_out_file.replace('.p','_data.p'): str.replace hits every '.p' in the
+  # path, not just the extension, so a cache dir with one in it (e.g. a state
+  # dir named '.pyapt') came out as '_data.pyapt' and the write failed.
+  data_out_file = os.path.splitext(wt_out_file)[0] + '_data.p'
   trk_out, debug_data, n_ids = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale,out_file=data_out_file,num_animals=num_animals)
 
   if save_debug_data:
