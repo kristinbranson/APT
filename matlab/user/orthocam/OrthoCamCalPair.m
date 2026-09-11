@@ -289,7 +289,7 @@ classdef OrthoCamCalPair < CalRig
             R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
           else
             % For Matlab >= 2022b
-            R2 = rotvec2mat3d(obj.r2vec1);
+            R2 = rotvec2mat3d(obj.r2vec2);
           end            
           t2 = obj.t2vec2;
       end
