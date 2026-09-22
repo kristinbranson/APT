@@ -45,8 +45,8 @@ hs.fixedtable = uitable(gl,...
     'SelectionType','row');
 
 fixed_ctrl_shortcuts = {};
-if ~isempty(lObj.lblCore),
-  fixed_shortcuts = lObj.lblCore.LabelShortcuts();
+if ~isempty(obj.lblCoreController_),
+  fixed_shortcuts = obj.lblCoreController_.LabelShortcuts();
   for i = 1:size(fixed_shortcuts,1),
     sc = fixed_shortcuts(i,:);
     mods = sc{3};
