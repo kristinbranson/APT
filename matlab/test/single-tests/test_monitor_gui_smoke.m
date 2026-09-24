@@ -40,6 +40,17 @@ function test_one_monitor_(vizConstructor, figureTag, expectedTags)
     h = findobj(viz.hfig, 'Tag', tag) ;
     assert(~isempty(h), 'Expected control with Tag "%s" not found in %s', tag, figureTag) ;
   end
+  % Font sizes are given in points (or pixels), never as a fraction of the
+  % control height: the Python port sizes fonts in pixels and renders a
+  % normalized FontSize as a 1 px font, which left the monitor's buttons and
+  % popup menu unreadable there.
+  controls = findall(viz.hfig, 'Type', 'uicontrol') ;
+  for i = 1:numel(controls)
+    control = controls(i) ;
+    assert(~strcmpi(control.FontUnits, 'normalized'), ...
+           'Control "%s" in %s uses normalized FontUnits; give its FontSize in points', ...
+           control.Tag, figureTag) ;
+  end
 end  % function
 
 function labeler = makeMockLabeler_()
