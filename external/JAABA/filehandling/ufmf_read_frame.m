@@ -110,7 +110,7 @@ if header.is_fixed_size,
     im(:,tmp) = data;
   else
     for i = 1:npts,
-      im(:,bb(i,2):bb(i,2)+max_height-1,bb(i,1):bb(i,1)+max_width-1) = data(:,i,:,:);
+      im(:,bb(i,2):bb(i,2)+header.max_height-1,bb(i,1):bb(i,1)+header.max_width-1) = data(:,i,:,:);
       if interruptible && mod(i,50) == 0,
         drawnow;
       end

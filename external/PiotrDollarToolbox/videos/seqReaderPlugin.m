@@ -40,7 +40,7 @@ nIn=nargin-2; in=varargin; o2=[]; cmd=lower(cmd);
 
 % open seq file
 if(strcmp(cmd,'open'))
-  chk(nIn,1,2); h=length(hs)+1; hs(h)=h1; varargout={h1}; h1=h1+1;
+  chk(cmd,nIn,1,2); h=length(hs)+1; hs(h)=h1; varargout={h1}; h1=h1+1;
   [pth,name]=fileparts(in{1}); if(isempty(pth)), pth='.'; end
   if(nIn==1), info=[]; else info=in{2}; end
   fName=[pth filesep name]; cs(h)=-1;
@@ -53,29 +53,29 @@ c=cs(h); fid=fids(h); info=infos{h}; tNm=tNms{h};
 
 % close seq file
 if(strcmp(cmd,'close'))
-  chk(nIn,0); varargout={-1}; fclose(fid); kp=[1:h-1 h+1:length(hs)];
+  chk(cmd,nIn,0); varargout={-1}; fclose(fid); kp=[1:h-1 h+1:length(hs)];
   hs=hs(kp); cs=cs(kp); fids=fids(kp); infos=infos(kp);
   tNms=tNms(kp); if(exist(tNm,'file')), delete(tNm); end; return;
 end
 
 % perform appropriate operation
 switch( cmd )
-  case 'getframe',  chk(nIn,0); [o1,o2]=getFrame(c,fid,info,tNm,1);
-  case 'getframeb', chk(nIn,0); [o1,o2]=getFrame(c,fid,info,tNm,0);
-  case 'getts',     chk(nIn,0); o1=getTs(0:info.numFrames-1,fid,info);
-  case 'getinfo',   chk(nIn,0); o1=info; o1.curFrame=c;
-  case 'getnext',   chk(nIn,0); c=c+1; [o1,o2]=getFrame(c,fid,info,tNm,1);
-  case 'next',      chk(nIn,0); [c,o1]=valid(c+1,info);
-  case 'seek',      chk(nIn,1); [c,o1]=valid(in{1},info);
-  case 'step',      chk(nIn,1); [c,o1]=valid(c+in{1},info);
+  case 'getframe',  chk(cmd,nIn,0); [o1,o2]=getFrame(c,fid,info,tNm,1);
+  case 'getframeb', chk(cmd,nIn,0); [o1,o2]=getFrame(c,fid,info,tNm,0);
+  case 'getts',     chk(cmd,nIn,0); o1=getTs(0:info.numFrames-1,fid,info);
+  case 'getinfo',   chk(cmd,nIn,0); o1=info; o1.curFrame=c;
+  case 'getnext',   chk(cmd,nIn,0); c=c+1; [o1,o2]=getFrame(c,fid,info,tNm,1);
+  case 'next',      chk(cmd,nIn,0); [c,o1]=valid(c+1,info);
+  case 'seek',      chk(cmd,nIn,1); [c,o1]=valid(in{1},info);
+  case 'step',      chk(cmd,nIn,1); [c,o1]=valid(c+in{1},info);
   otherwise,        error(['Unrecognized command: "' cmd '"']);
 end
 cs(h)=c; varargout={o1,o2};
 
 end
 
-function chk(nIn,nMin,nMax)
-if(nargin<3), nMax=nMin; end
+function chk(cmd,nIn,nMin,nMax)
+if(nargin<4), nMax=nMin; end
 if(nIn>0 && nMin==0 && nMax==0), error(['"' cmd '" takes no args.']); end
 if(nIn<nMin||nIn>nMax), error(['Incorrect num args for "' cmd '".']); end
 end

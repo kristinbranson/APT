@@ -18,7 +18,7 @@ function ufmf_write_struct(fid, s)
     elseif isnumeric(value) ,
       ufmf_write_numeric(fid, value) ;
     else
-      error('Unable to write entity of class %s to .ufmf index', classname(value)) ;
+      error('Unable to write entity of class %s to .ufmf index', class(value)) ;
     end
   end
 end

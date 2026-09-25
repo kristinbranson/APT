@@ -48,7 +48,7 @@ nIn=nargin-2; in=varargin; o1=[]; cmd=lower(cmd);
 
 % open seq file
 if(strcmp(cmd,'open'))
-  chk(nIn,2); h=length(hs)+1; hs(h)=h1; varargout={h1}; h1=h1+1;
+  chk(cmd,nIn,2); h=length(hs)+1; hs(h)=h1; varargout={h1}; h1=h1+1;
   [pth,name]=fileparts(in{1}); if(isempty(pth)), pth='.'; end
   fName=[pth filesep name];
   [infos{h},fids(h),tNms{h}]=open(fName,in{2}); return;
@@ -61,24 +61,24 @@ fid=fids(h); info=infos{h}; tNm=tNms{h};
 % close seq file
 if(strcmp(cmd,'close'))
   writeHeader(fid,info);
-  chk(nIn,0); varargout={-1}; fclose(fid); kp=[1:h-1 h+1:length(hs)];
+  chk(cmd,nIn,0); varargout={-1}; fclose(fid); kp=[1:h-1 h+1:length(hs)];
   hs=hs(kp); fids=fids(kp); infos=infos(kp);
   tNms=tNms(kp); if(exist(tNm,'file')), delete(tNm); end; return;
 end
 
 % perform appropriate operation
 switch( cmd )
-  case 'addframe',  chk(nIn,1,2); info=addFrame(fid,info,tNm,1,in{:});
-  case 'addframeb', chk(nIn,1,2); info=addFrame(fid,info,tNm,0,in{:});
-  case 'getinfo',   chk(nIn,0); o1=info;
+  case 'addframe',  chk(cmd,nIn,1,2); info=addFrame(fid,info,tNm,1,in{:});
+  case 'addframeb', chk(cmd,nIn,1,2); info=addFrame(fid,info,tNm,0,in{:});
+  case 'getinfo',   chk(cmd,nIn,0); o1=info;
   otherwise,        error(['Unrecognized command: "' cmd '"']);
 end
 infos{h}=info; varargout={o1};
 
 end
 
-function chk(nIn,nMin,nMax)
-if(nargin<3), nMax=nMin; end
+function chk(cmd,nIn,nMin,nMax)
+if(nargin<4), nMax=nMin; end
 if(nIn>0 && nMin==0 && nMax==0), error(['"' cmd '" takes no args.']); end
 if(nIn<nMin||nIn>nMax), error(['Incorrect num args for "' cmd '".']); end
 end
