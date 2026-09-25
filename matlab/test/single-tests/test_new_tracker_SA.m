@@ -26,7 +26,7 @@ function test_new_tracker_SA()
     pause(0.1);
     netType = labeler.tracker.trnNetType ;
     if ~( netType == desiredNetType )
-      error('Failed to create new tracker of type %s', char(desiredSNetType)) ;
+      error('Failed to create new tracker of type %s', char(desiredNetType)) ;
     end
   end
 

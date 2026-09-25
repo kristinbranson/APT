@@ -962,8 +962,6 @@ classdef PreProcData < handle
   methods (Static)
     function [sgsthresh,slsspan] = calibIppJan2(sgscnts,slscnts,sgsedge,slsedge)
       
-      assert(obj.nView==1);
-
       ntmp1 = cellfun(@sum,sgscnts);
       ntmp2 = cellfun(@sum,slscnts);
       n = unique([ntmp1(:);ntmp2(:)]);

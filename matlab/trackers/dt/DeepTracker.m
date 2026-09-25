@@ -1401,8 +1401,8 @@ classdef DeepTracker < LabelTracker
       nview = obj.nview; %#ok<PROPLC>
       assert(nview==1,'ID Linking works only for single view projects')
       if backend.isGpuLocal(),
-        % how many gpus do we have available?
-        gpuids = backend.getFreeGPUs(nmodel);
+        % how many gpus do we have available?  A single job needs one.
+        gpuids = backend.getFreeGPUs(1);
         if numel(gpuids)<1,
           error('No GPUs with sufficient unused RAM available locally');
         else

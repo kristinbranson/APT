@@ -440,10 +440,10 @@ classdef PostProcess < handle
       obj.sampledata.tmp_independent2joint = struct;
       if obj.isframes,
         
-        obj.sampledata.tmp_independent2joint.p_re = nan([nsamples_total,obj.N]);
-        obj.sampledata.tmp_independent2join.p_re(:,obj.dilated_frames) = p_re;
-        obj.sampledata.tmp_independent2joint.pgau = nan([nsamples_total,obj.N]);
-        obj.sampledata.tmp_independent2join.pgau(:,obj.dilated_frames) = pgau;
+        obj.sampledata.tmp_independent2joint.p_re = nan([nsamples_total,obj.N,size(p_re,3)]);
+        obj.sampledata.tmp_independent2joint.p_re(:,obj.dilated_frames,:) = p_re;
+        obj.sampledata.tmp_independent2joint.p_gau = nan([nsamples_total,obj.N,w_npts]);
+        obj.sampledata.tmp_independent2joint.p_gau(:,obj.dilated_frames,:) = wrep;
         
       else
         obj.sampledata.tmp_independent2joint.p_re = p_re;
@@ -1821,9 +1821,9 @@ classdef PostProcess < handle
         % prior is nviews x nsamples x N x npts
 
         if obj.isframes,
-          obj.sampledata.x_in = nan([obj.N,nsamples,obj.npts,obj.nviews,d_in]);
+          obj.sampledata.x_in = nan([obj.N,nsamples_perview,obj.npts,obj.nviews,d_in]);
           obj.sampledata.x_in(obj.dilated_frames,:,:,:,:) = permute(mu,[4,3,5,2,1]);
-          obj.sampledata.w_in = nan([obj.N,nsamples,obj.npts,obj.nviews]);
+          obj.sampledata.w_in = nan([obj.N,nsamples_perview,obj.npts,obj.nviews]);
           obj.sampledata.w_in(obj.dilated_frames,:,:,:) = permute(prior,[3,2,4,1]);
           obj.sampledata.z_in = nan([obj.npts,obj.nviews]);
           obj.sampledata.z_in(obj.dilated_frames,:,:) = totalweight;
@@ -2980,7 +2980,7 @@ classdef PostProcess < handle
           x_re = nan(2,nviews,maxnsamples_prev);
           p_re = nan(nviews,maxnsamples_prev);
           w = nan(nviews,maxnsamples_prev);
-          Kperview_prevcurr = Kpreview_prev + Kperview_curr;
+          Kperview_prevcurr = Kperview_prev + Kperview;
           i = 0;
           for ii = 1:prod(Kperview+Kperview_prev),
             sub = ind2subv(Kperview_prevcurr,ii);
@@ -3048,7 +3048,7 @@ classdef PostProcess < handle
           x_re = nan(2,nviews,maxnsamples_next);
           p_re = nan(nviews,maxnsamples_next);
           w = nan(nviews,maxnsamples_next);
-          Kperview_nextcurr = Kpreview_next + Kperview_curr;
+          Kperview_nextcurr = Kperview_next + Kperview;
           i = 0;
           for ii = 1:prod(Kperview+Kperview_next),
             sub = ind2subv(Kperview_nextcurr,ii);
@@ -3317,6 +3317,9 @@ classdef PostProcess < handle
           if ~isempty(rois),
             szassert(rois,[nvw 4]);
           end
+          assert(nvw==2,'Experimental 3D postprocessing requires exactly two views.');
+          trk1 = trks{1};
+          trk2 = trks{2};
           
           [X,ptrkrp,tMD,isspecial,prefview] = viewpref3drecon(...
             trk1,trk2,crig,'roisEPline',rois,'dxyz',DXYZ,...
@@ -3332,6 +3335,7 @@ classdef PostProcess < handle
           trk2new = struct(...
             'pTrkSingleView',{trk2.pTrk},...
             'pTrk',{{ptrkrp(:,:,:,:,2)}});
+          trksnew = {trk1new; trk2new};
           
           %save(trkfiles{1},'-append','-struct','trk1save');
 %           fprintf(1,'New variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d''.\n');

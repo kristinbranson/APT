@@ -2662,7 +2662,7 @@ classdef Labeler < handle
         elseif isa(backend_thang, 'DLBackEndClass') ,
           backend = backend_thang ;
         else
-          error('Don''t know how to decode something of class %s', class(baackend_thang)) ;
+          error('Don''t know how to decode something of class %s', class(backend_thang)) ;
         end
         s.trackDLBackEnd = backend ;
       end
@@ -3313,7 +3313,7 @@ classdef Labeler < handle
             allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
           catch ME
             warningNoTrace('Nettype ''%s'': obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
-                           tracker.trnNetType,ndx,ME.getReport());
+                           tracker.trnNetType,ME.getReport());
           end
         else
           error('Not implemented') ;
@@ -9523,9 +9523,8 @@ classdef Labeler < handle
     end
 
     function fname = getDefaultFilenameExportGTResults(obj)
-      gtstr = 'gtresults';
-      rawname = getDefaultFilenameExport(obj,gtstr,'.mat');
-      fname = FSPath.macroReplace(rawname,sMacro);
+      % getDefaultFilenameExport() already expands the macros.
+      fname = getDefaultFilenameExport(obj,'gtresults','.mat');
     end
 
     function tbl = gtLabeledFrameSummary(obj)

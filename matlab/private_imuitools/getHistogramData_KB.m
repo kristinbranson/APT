@@ -186,7 +186,7 @@ counts(counts > saturationValue) = saturationValue;
 
 %return idx of bins that contain Image Data
 if isempty(idx)
-    idxOfImage = 1 : nbins;
+    idxOfImage = 1 : numel(counts);
 else
     idxOfImage = (idx(1) : idx(end))';
 end

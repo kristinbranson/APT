@@ -805,7 +805,7 @@ classdef SpecifyMovieToTrackController < handle
       file = fullfile(pathname,filename);
       ex = exist(file,'file');
       if isinput && ~ex,
-        errdlg(sprintf('File %s does not exist',file));
+        errordlg(sprintf('File %s does not exist',file));
         return;
       end
       if isempty(iview),

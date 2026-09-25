@@ -514,11 +514,11 @@ classdef TrackMonitorController < handle
 
       ticId = tic() ;
       for imov=1:nmov,
-        isdone = pollingResult.tfComplete(ijob);
+        isdone = pollingResult.tfComplete(imov);
         if isfield(pollingResult,'parttrkfileTimestamp'),
-          partFileExists = ~isnan(pollingResult.parttrkfileTimestamp(ijob));
+          partFileExists = ~isnan(pollingResult.parttrkfileTimestamp(imov));
           % isupdate = ...
-          %   (partFileExists && (forceupdate || (pollingResult.parttrkfileTimestamp(ijob)>obj.parttrkfileTimestamps(ijob)))) || ...
+          %   (partFileExists && (forceupdate || (pollingResult.parttrkfileTimestamp(imov)>obj.parttrkfileTimestamps(imov)))) || ...
           %   isdone ;
           isupdate = ( forceupdate || partFileExists || isdone ) ;
         else
@@ -529,8 +529,8 @@ classdef TrackMonitorController < handle
           % just update indicator based on isdone; dont try to get
           % nframes tracked, etc
           if isdone
-            set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED);
-            obj.bulkMovTracked(ijob) = true;
+            set(obj.hline(imov),'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED);
+            obj.bulkMovTracked(imov) = true;
           else
             % none
           end

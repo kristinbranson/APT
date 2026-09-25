@@ -1079,7 +1079,7 @@ classdef APTParameters
     end
 
     function v = getFlipLandmarkMatchStr(prm,varargin)
-      v = APTParameter.getParam(prm,[APTParameters.deepSharedPath,'.DataAugmentation.flipLandmarkMatches']);
+      v = APTParameters.getParam(prm,[APTParameters.deepSharedPath,'.DataAugmentation.flipLandmarkMatches']);
     end
 
     function prm = setFlipLandmarkMatchStr(prm,matchstr)

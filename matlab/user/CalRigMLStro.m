@@ -354,7 +354,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       X2base = nan(3,npts*npat);
       if tfWB
         wbObj.startPeriod('stereo triangulation','shownumden',true,...
-          'denominator',ntot);
+          'denominator',npts*npat);
       end
       for i=1:npts*npat
         if tfWB

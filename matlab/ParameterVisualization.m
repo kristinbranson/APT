@@ -92,7 +92,7 @@ classdef ParameterVisualization < handle
           paramVizClsname = toks{1};
           paramVizID = toks{2};
         otherwise
-          error('Invalid ParameterVisualization specification: %s',pgp.ParamViz);
+          error('Invalid ParameterVisualization specification: %s',pvSpec);
       end
     end
 
