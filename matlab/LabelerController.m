@@ -38,6 +38,7 @@ classdef LabelerController < handle
     trkInfoController_ = []  % a TrkInfoController, or empty
     landmarkSpecsFigure_ = gobjects(1,0)
     keypointAppearanceFigure_ = gobjects(1,0)  % the Landmark Cosmetics dialog figure
+    navPrefsFigure_ = gobjects(1,0)  % the Navigation Preferences dialog figure
     trackingErrorMontageFigures_ = gobjects(1,0)
     gtManagerController_ = []  % a GTManagerController, or empty
     plotAllLabelsFigure_ = gobjects(1,0)
@@ -688,6 +689,8 @@ classdef LabelerController < handle
       obj.landmarkSpecsFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.keypointAppearanceFigure_) ;
       obj.keypointAppearanceFigure_ = gobjects(1,0) ;
+      deleteValidGraphicsHandles(obj.navPrefsFigure_) ;
+      obj.navPrefsFigure_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.trackingErrorMontageFigures_) ;
       obj.trackingErrorMontageFigures_ = gobjects(1,0) ;
       deleteValidGraphicsHandles(obj.plotAllLabelsFigure_) ;
@@ -6056,8 +6059,9 @@ classdef LabelerController < handle
 
     function navPrefsUI(obj)
       % Open the navigation preferences dialog.
-      NavPrefsNew(obj.labeler_, obj.mainFigure_) ;
-    end
+      navPrefsController = NavPrefsController(obj, obj.labeler_) ;
+      obj.navPrefsFigure_ = navPrefsController.hFig ;
+    end  % function
 
     function menu_view_fps_actuated_(obj,src,evt)  %#ok<INUSD>
       % redundant with Go > Navigation preferences, but hard to find
