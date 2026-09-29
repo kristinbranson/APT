@@ -4257,3 +4257,96 @@ ax[1].set_ylabel('Count')
 if False:
     plt.savefig('/groups/branson/home/kabram/temp/close_interaction_log_log.svg')
     plt.savefig('/groups/branson/home/kabram/temp/close_interaction_log_log.png')
+
+
+## CHIMPACT!! Active learning with model confidence (see the unmarked mice
+## confidence section above for the original design this mirrors)
+##
+## Pool: ChimpACT_train_coco.json (movies/labels APT trains on).
+## ChimpACT_val_coco.json is the round-quality check, ChimpACT_test_coco.json
+## is held out for the final comparison. Frames are extracted once to jpgs by
+## script_chimpact_extract_frames.py (multiResData's coco loader reads real
+## files off disk, it doesn't decode video at train time).
+##
+## Config: reuse the hrformer backbone/architecture APT already trained
+## (dl_steps=400000, batch_size=4, imsz=(736,1280)) from the durable copy of
+## the project snapshot pulled out of chimpAct_noTestlabels_hrformer_fullsize.lbl,
+## see /groups/branson/bransonlab/mayank/data/ChimpAct/lbl_config_hrformer_20260731/.
+
+from reuse import *
+import json as _json
+
+DATA_DIR = '/groups/branson/bransonlab/mayank/data/ChimpAct'
+BDIR = '/groups/branson/bransonlab/mayank/apt_cache_2/chimpact_inc'
+PROJECT_JSON = os.path.join(DATA_DIR, 'lbl_config_hrformer_20260731/chimpAct/20260731T110421_20260731T111351.json')
+TRAIN_JSON = os.path.join(DATA_DIR, 'ChimpACT_train_coco.json')
+VAL_JSON = os.path.join(DATA_DIR, 'ChimpACT_val_coco.json')
+TEST_JSON = os.path.join(DATA_DIR, 'ChimpACT_test_coco.json')
+COCO_IM_DIR = os.path.join(BDIR, 'frames')
+
+os.makedirs(BDIR, exist_ok=True)
+
+
+## Step 1: calibration run -- before committing to a per-round step count for
+## the real active-learning loop (a full 400k-step hrformer run takes 3-4
+## days), train on a small (1/10) random subset of the pool, checkpointing
+## every 20000 steps, then track how each pool example's predicted confidence
+## changes across checkpoints (see Step 2) to pick the fewest steps needed for
+## the confidence ranking to be representative.
+
+np.random.seed(1234)
+calib_frac = 0.1
+calib_dl_steps = 140000   # raise this if confidence hasn't stabilized by then
+calib_save_step = 20000
+calib_name = 'calib_10pct'
+
+J = _json.load(open(TRAIN_JSON))
+n_img = len(J['images'])
+sel = np.random.choice(n_img, int(n_img * calib_frac), replace=False)
+sel_ids = set(J['images'][i]['id'] for i in sel)
+J_calib = copy.deepcopy(J)
+J_calib['images'] = [im for im in J['images'] if im['id'] in sel_ids]
+J_calib['annotations'] = [a for a in J['annotations'] if a['image_id'] in sel_ids]
+
+calib_dir = os.path.join(BDIR, 'calib')
+os.makedirs(calib_dir, exist_ok=True)
+calib_json = os.path.join(calib_dir, 'train_TF_10pct.json')
+with open(calib_json, 'w') as f:
+    _json.dump(J_calib, f)
+
+print(f'calibration subset: {len(J_calib["images"])} images / {len(J_calib["annotations"])} annotations '
+      f'(full train pool: {len(J["images"])} / {len(J["annotations"])})')
+
+## Dry-run the config locally (CPU only, no GPU/training) to make sure the
+## overrides land where expected before handing off the actual run.
+import APT_interface as apt
+conf = apt.create_conf(PROJECT_JSON, 0, calib_name, cache_dir=calib_dir, net_type='multi_mdn_joint_torch',
+                        conf_params=['dl_steps', str(calib_dl_steps),
+                                     'save_step', str(calib_save_step),
+                                     'maxckpt', '20',
+                                     'coco_im_dir', repr(COCO_IM_DIR)])
+conf.json_trn_file = calib_json
+assert conf.mdn_backbone == 'hrformer'
+assert conf.dl_steps == calib_dl_steps
+assert conf.save_step == calib_save_step
+assert conf.coco_im_dir == COCO_IM_DIR
+print('conf OK:', conf.mdn_backbone, conf.dl_steps, conf.save_step, conf.maxckpt, conf.batch_size, conf.imsz)
+
+## This machine can't submit to LSF -- run this bsub command yourself.
+train_cmd = (
+    f"TORCH_HOME=/groups/branson/home/kabram/.apt/torch python /groups/branson/bransonlab/mayank/APT_develop/deepnet/APT_interface.py "
+    f"{PROJECT_JSON} -name {calib_name} "
+    f"-err_file {calib_dir}/train_{calib_name}.err -log_file {calib_dir}/train_{calib_name}.log "
+    f"-json_trn_file {calib_json} -type multi_mdn_joint_torch -ignore_local 1 -cache {calib_dir} "
+    f"-conf_params dl_steps {calib_dl_steps} save_step {calib_save_step} maxckpt 20 coco_im_dir \"'{COCO_IM_DIR}'\" "
+    f"train -use_cache"
+)
+sif = '/groups/branson/bransonlab/mayank/APT_develop/deepnet/scripts/apt-20260730-tf215-pytorch21-hopper/apt-20260730-tf215-pytorch21-hopper.sif'
+bsub_cmd = (
+    f"bsub -n 4 -gpu num=1:aff=yes -W 3000 -q gpu_h100 "
+    f"-o {calib_dir}/train_{calib_name}.log -R 'affinity[core(1)]' -J train_{calib_name} "
+    f"\"singularity exec --nv -B /groups -B /nrs {sif} bash -c '{train_cmd}'\""
+)
+print(bsub_cmd)
+with open(os.path.join(calib_dir, 'submit.sh'), 'w') as f:
+    f.write('#!/bin/bash\n' + bsub_cmd + '\n')

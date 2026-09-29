@@ -30,6 +30,42 @@ cmd = '/groups/branson/home/kabram/.apt/tpde14e3db_0570_4fc6_abf0_5253344e4388/c
 from reuse import *
 apt.main(cmd.split())
 
+
+## cohort 7 debug
+
+from link_trajectories import *
+import TrkFile
+from reuse import *
+data_file= '/groups/branson/home/kabram/scratch/ratcity/cohort7_round13_pre_removal_joint_data.p'
+in_trk_files = ['/groups/branson/home/kabram/scratch/ratcity/trks/raw/cohort7/cohort7_20251209_1659_round13_raw.trk', '/groups/branson/home/kabram/scratch/ratcity/trks/raw/cohort7/cohort7_20251211_1129_round13_raw.trk', '/groups/branson/home/kabram/scratch/ratcity/trks/raw/cohort7/cohort7_20251213_1129_round13_raw.trk', '/groups/branson/home/kabram/scratch/ratcity/trks/raw/cohort7/cohort7_20251213_1429_round13_raw.trk', '/groups/branson/home/kabram/scratch/ratcity/trks/raw/cohort7/cohort7_20251214_1129_round13_raw.trk',]
+id_wts_file = '/groups/branson/home/kabram/scratch/ratcity/cohort7_round13_pre_removal_joint.p'
+detected_ids = None #'/mnt/groups/branson/home/kabram/scratch/ratcity/cohort7_round13_pre_removal_detected_identities.p'
+
+
+linked_trks = [TrkFile.Trk(aa) for aa in in_trk_files]
+
+A = pt.pickle_load(data_file)
+for k in A.keys():
+    exec(f'{k}=A["{k}"]')
+
+maxcosts_all = []
+params = get_default_params(conf)
+link_costs_arr = []
+for tndx in range(len(linked_trks)):
+    maxcost_missed = estimate_maxcost_missed(linked_trks[tndx], params)
+    maxcost = estimate_maxcost(linked_trks[tndx], params)
+    maxcosts_all.append(np.array([maxcost, ] + maxcost_missed.tolist()))
+    # FInd the linkinking costs between the tracklets
+    st, en = linked_trks[tndx].get_startendframes()
+    link_costs = get_link_costs(linked_trks[tndx], st, en, params)
+    link_costs_arr.append(link_costs)
+
+##
+groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr,conf=conf,num_animals=None,detected_identities_file=detected_ids)
+
+
+
+
 ##
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] ='0'
@@ -90,6 +126,8 @@ for tndx in range(len(linked_trks)):
 num_animals = 27
 conf.link_id_cluster_occ_thresh = 0.6
 groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr,conf=conf,num_animals=num_animals)
+
+
 
 
 ##
