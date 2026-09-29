@@ -62,6 +62,10 @@ classdef ShiftArrowMovieNavMode
         otherwise
           assert(false);
       end
+      % A frame index read off a Labels struct is a uint32; the Labeler
+      % must get a double, else its slider and timeline arithmetic rounds
+      % and saturates.
+      f = double(f) ;
     end
   end
   
