@@ -1452,7 +1452,19 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
   # link using id model
   def_params = get_default_params(conf)
 
-  data_out_file = wt_out_file.replace('.p','_data.p')
+  # Named after out_files[0] (this run's own output), not wt_out_file (the id
+  # weights, which are a shared/reusable resource): the embedding/distance
+  # data saved here is specific to this particular linking run, so tying its
+  # name to the shared weights file meant separate runs sharing the same
+  # id_wts_file (e.g. independent per-movie link_id calls all pointing at the
+  # same trained model) would collide and clobber each other's data file.
+  # The timestamp additionally guards against two runs sharing the same
+  # out_files[0] too (e.g. a rerun) from colliding with each other.
+  data_out_file = out_files[0].replace('.trk', f'_data_{time.strftime("%Y%m%dT%H%M%S")}.p')
+  # Logged (rather than just re-derivable from id_wts_file, as before) so
+  # script_resume_id_link.py can recover the exact path from the job's log
+  # instead of guessing it from id_wts_file, which no longer determines it.
+  logging.info(f'link_id data_out_file: {data_out_file}')
   trk_out, debug_data, n_ids = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale,out_file=data_out_file,num_animals=num_animals,
                                               detected_identities_file=detected_identities_file,id_model_file=wt_out_file,trk_files=trk_files)
 
@@ -3158,6 +3170,12 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
     logging.warning(f'A detected identities file ({detected_identities_file}) was specified, but the linking method is '
                     f'{link_method}. Detected identities are used only by graph_cut linking, so the file will be ignored.')
 
+  # True exactly when group_graph_cut() will load (not compute) the cluster
+  # centers -- i.e. the final identity labels have externally-meaningful
+  # values (indices into the saved cluster centers) that should be preserved
+  # by Tracklet.unique() rather than remapped in raw-tracklet encounter order.
+  keep_id = link_method == 'graph_cut' and detected_identities_file is not None and os.path.exists(detected_identities_file)
+
   preds, pred_map, all_data  = get_id_embeddings(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
 
   # dist_mat, pred_map, all_data,preds  = get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
@@ -3310,7 +3328,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
       ids_short = []
       cur_id, ids_short = delete_short(cur_id, isdummy, params)
       if len(linked_trks)<2:
-        _, cur_id = cur_id.unique()
+        _, cur_id = cur_id.unique(keep_id=keep_id)
     else:
         ids_short = []
         ids_remove = []
@@ -4252,9 +4270,32 @@ def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ
     for cc in cur_sel:
       cur_m, cur_t = pred_map[cc, :]
       frac_occ = np.mean(linked_trks[cur_m].pTrkTag.data[cur_t])
-      curm += preds[cc].mean(axis=0) * tlen_sel[cc] * frac_occ
-      tot_len += tlen_sel[cc] * frac_occ
-    curm /= tot_len
+      # pTrkTag is occlusion, so frac_occ is the fraction of landmark observations
+      # occluded and HIGHER IS WORSE -- see this function's docstring ("low overlap
+      # and low occlusion") and the t_sel filter above, which admits a tracklet only
+      # when occ_sel < occ_thresh.  The weight must therefore be (1 - frac_occ):
+      # this used to weight by frac_occ itself, inverting the preference.  Because
+      # t_sel has already capped frac_occ at occ_thresh (0.2), the old multiplier
+      # sat in [0, 0.2) -- so a perfectly clean tracklet got ~zero weight while a
+      # borderline one just under the threshold dominated its cluster's centre.
+      weight = tlen_sel[cc] * (1 - frac_occ)
+      curm += preds[cc].mean(axis=0) * weight
+      tot_len += weight
+    # The two non-normal branches below are defensive only: t_sel admits a tracklet
+    # only when occ_sel < occ_thresh and tlen_sel > 50, so every weight here is
+    # >= 50*(1-occ_thresh) > 0, and a cluster index i in 1..max(F) always has at
+    # least one member.  They guard against a future caller raising occ_thresh to
+    # 1.0, where fully-occluded members would contribute zero weight and divide by
+    # zero, yielding a NaN centre that then propagates silently through the graph cut.
+    if tot_len > 0:
+      curm /= tot_len
+    elif len(cur_sel) > 0:
+      logging.warning(f'cluster {i} has no usable weight (total {tot_len}); '
+                      f'falling back to an unweighted centre')
+      curm = np.mean([preds[cc].mean(axis=0) for cc in cur_sel], axis=0)
+    else:
+      logging.warning(f'cluster {i} is empty; skipping it')
+      continue
     cluster_centers.append(curm)
     sel_clus.append([i, np.where(F == i)[0]])
 

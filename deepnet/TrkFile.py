@@ -1069,9 +1069,57 @@ class Tracklet:
     tidx = [np.array(lst, dtype=int) for lst in tidx_lists]
     return tidx, fidx
   
-  def unique(self):
+  def unique(self,keep_id=False):
     # Finds the unique values in this tracklet, and returns a new tracklet with the same data but with targets corresponding to unique values. This is only implemented for single-dim tracklets.
+    #
+    # keep_id: if False (default), the new target index for a given value is
+    # assigned in order of first encounter while sweeping raw tracklets/frames
+    # in itgt/frame order -- i.e. it depends on which raw tracklet happens to
+    # be lowest-numbered, not on the value itself. If True, the new target
+    # index is instead the value's rank among all distinct surviving values,
+    # sorted by value, so e.g. value 3 always maps to a lower new index than
+    # value 7 regardless of raw tracklet order. This matters when the values
+    # are themselves meaningful identity labels (e.g. indices into a fixed,
+    # externally-saved set of ID cluster centers): keep_id=True keeps that
+    # numbering deterministic and stable across separate calls (different
+    # movies, single- vs multi-movie runs, etc.), whereas the encounter-order
+    # default can arbitrarily permute labels between calls that happen to
+    # process raw tracklets in a different relationship to their assigned
+    # identity.
     axis_rest = self.axis_rest()
+    if keep_id:
+      distinctvals = np.zeros(self.size_rest+(0,),dtype=self.dtype)
+      for itgt in range(self.ntargets):
+        for i in range(self.nframes[itgt]):
+          v = self.data[itgt][...,i]
+          if np.all(equals_nan(v,self.defaultval)):
+            continue
+          if distinctvals.size > 0:
+            idxcurr = np.all(equals_nan(v,distinctvals),axis=axis_rest)
+            if np.any(idxcurr):
+              continue
+          distinctvals = np.append(distinctvals,v.reshape(self.size_rest+(1,)),axis=len(self.size_rest))
+
+      # Sort the distinct values (flattening size_rest, which is expected to
+      # be a single scalar-ish value per frame for this use case) so target
+      # rank depends only on the value, not on discovery order.
+      flat = distinctvals.reshape(-1,distinctvals.shape[-1])[0] if distinctvals.size > 0 else distinctvals
+      sort_idx = np.argsort(flat)
+      uniquevals = distinctvals[...,sort_idx]
+
+      newtrk = Tracklet(defaultval=-1,ntargets=self.ntargets)
+      newtrk.allocate((1,),self.startframes,self.endframes)
+      for itgt in range(self.ntargets):
+        for i in range(self.nframes[itgt]):
+          t = i + self.startframes[itgt]
+          v = self.data[itgt][...,i]
+          if np.all(equals_nan(v,self.defaultval)):
+            continue
+          idxcurr = np.all(equals_nan(v,uniquevals),axis=axis_rest)
+          idxcurr = np.where(idxcurr)[0][0]
+          newtrk.settargetframe(idxcurr,itgt,t)
+      return uniquevals,newtrk
+
     uniquevals = np.zeros(self.size_rest+(0,),dtype=self.dtype)
     count = 0
     newtrk = Tracklet(defaultval=-1,ntargets=self.ntargets)
