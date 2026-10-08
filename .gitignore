@@ -25,3 +25,7 @@ deepnet/pre-run-variables.pkl
 compiled/
 .claude/
 *.sif
+apt_compile_top
+linux_compiled_*.zip
+deepnet/mmdetection/
+deepnet/mmpose/
