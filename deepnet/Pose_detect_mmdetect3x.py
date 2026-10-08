@@ -1163,6 +1163,45 @@ def set_rtmdet_pipeline_size(cfg, im_sz):
             cfg[loader_name].dataset.pipeline = cfg.test_pipeline
 
 
+def select_detections(boxes, scores, max_count, min_count, nms_threshold=0.7, score_threshold=0.2):
+    """Returns the indices of the detections APT keeps, in score order.
+
+    boxes are [n x 4] xyxy, sorted by decreasing score as mmdetection returns them.
+    A box is dropped if it overlaps an already-kept box by more than nms_threshold
+    (standard greedy NMS: a box that was itself dropped cannot suppress another), or
+    if its score is below score_threshold once min_count boxes are kept. At most
+    max_count boxes are kept.
+    """
+    boxes = np.asarray(boxes, dtype=np.float64)
+    if len(boxes) == 0:
+        return np.zeros(0, dtype=int)
+    overlaps = bbox_overlaps(torch.tensor(boxes), torch.tensor(boxes)).numpy()
+    np.fill_diagonal(overlaps, 0.)
+    keep = []
+    for ix in range(len(boxes)):
+        if len(keep) >= max_count:
+            break
+        if keep and np.any(overlaps[ix, keep] > nms_threshold):
+            continue
+        if scores[ix] < score_threshold and len(keep) >= min_count:
+            continue
+        keep.append(ix)
+    return np.array(keep, dtype=int)
+
+
+def kept_detections(mmdetect_net, boxes, scores, max_count, min_count, nms_threshold=0.7, score_threshold=0.2):
+    """Returns the indices of the detections passed on to tracking, in score order.
+
+    Faster R-CNN and RTMDet already apply NMS and a score threshold inside mmdetection
+    (model.test_cfg), so their output is only capped at max_count. DETR is NMS-free and
+    returns every query, so APT's own selection (select_detections) is applied to it.
+    """
+    scores = np.asarray(scores)
+    if mmdetect_net == 'detr':
+        return select_detections(boxes, scores, max_count, min_count, nms_threshold, score_threshold)
+    return np.argsort(-scores, kind='stable')[:max_count]
+
+
 def convert_epoch_hooks_to_iter(cfg, conf, original_max_epochs):
     """Rewrites epoch-keyed custom hooks so they fire under APT's IterBasedTrainLoop.
 
@@ -1523,7 +1562,8 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
 
         model_file = self.get_latest_model_file() if model_file is None else model_file
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        init_args = {'weights':model_file,'device':device}
+        # show_progress=False: rich's progress bar writes one line per batch to a non-tty stdout, flooding the bsub log.
+        init_args = {'weights':model_file,'device':device,'show_progress':False}
         inferencer = DetInferencer(**init_args)
         max_n = conf.max_n_animals
         min_n = conf.min_n_animals
@@ -1560,25 +1600,11 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
                 labels = res['labels']
                 if len(bbs) == 0:
                     continue
-                # if conf.mmdetect_net == 'detr':
                 cur_max = max_n
                 cur_res = np.ones([max_n, 5]) * np.nan
-                overlaps = bbox_overlaps(torch.tensor(bbs[:,:4]),torch.tensor(bbs[:,:4]))
-                overlaps = overlaps.numpy()
-                overlaps[np.diag_indices(overlaps.shape[0])] = 0.
-                done_count = 0
-                cur_ix = -1
-                while done_count<max_n:
-                    cur_ix = cur_ix + 1
-                    if cur_ix>=overlaps.shape[0]: break
-                    if (cur_ix> 0) and (any(overlaps[cur_ix,:cur_ix]>detr_nms)): continue
-                    if (scores[cur_ix]<detr_thr) and done_count>=min_n: continue
-                    cur_res[done_count,:4] = bbs[cur_ix]
-                    cur_res[done_count,4] = scores[cur_ix]
-                    done_count += 1
-                # else:
-                #     cur_res = bbs.copy()
-                #     cur_max = len(bbs)
+                keep = kept_detections(conf.get('mmdetect_net', 'detr'), bbs[:,:4], scores, max_n, min_n, detr_nms, detr_thr)
+                cur_res[:len(keep),:4] = bbs[keep,:4]
+                cur_res[:len(keep),4] = np.asarray(scores)[keep]
                 pose_results[ndx,:cur_max,:,:] = cur_res[:,:4].copy().reshape([-1,2,2])
                 conf_res[ndx,:cur_max,:] = cur_res[:cur_max,4:].copy()
             return pose_results, conf_res
@@ -1588,19 +1614,8 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
                 if conf.mmdetect_net == 'detr':
                     cur_max = max_n
                     cur_res = np.ones([max_n, 5]) * np.nan
-                    bbs = torch.tensor(res[0][:,:4])
-                    overlaps = bbox_overlaps(bbs,bbs)
-                    overlaps = overlaps.numpy()
-                    overlaps[np.diag_indices(overlaps.shape[0])] = 0.
-                    done_count = 0
-                    cur_ix = -1
-                    while done_count<max_n:
-                        cur_ix = cur_ix + 1
-                        if cur_ix>=overlaps.shape[0]: break
-                        if (cur_ix> 0) and (any(overlaps[cur_ix,:cur_ix]>detr_nms)): continue
-                        if (res[0][cur_ix,4]<detr_thr) and done_count>=min_n: continue
-                        cur_res[done_count,:] = res[0][cur_ix]
-                        done_count += 1
+                    keep = select_detections(res[0][:,:4], res[0][:,4], max_n, min_n, detr_nms, detr_thr)
+                    cur_res[:len(keep),:] = res[0][keep]
 
                 else:
                     cur_res = res[0]
