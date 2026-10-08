@@ -1360,21 +1360,28 @@ class coco_loader(torch.utils.data.Dataset):
         # Get the original image dimensions
         original_height, original_width = image.shape[:2]
 
-        # Calculate the aspect ratios
-        aspect_ratio = original_width / original_height
-        target_aspect_ratio = width / height
-
-        # Determine the scaling factor
-        # with imresize exapnd, we resize the image so that the smallest dimension fits the target size
-        if (aspect_ratio > target_aspect_ratio) != self.conf.imresize_expand:
-            scale_factor = width / original_width
-        else:
-            scale_factor = height / original_height
-
-        # Resize the image
+        # Resize the image. When pad_images is set, the image is only padded
+        # to conf.imsz, never resized -- scale_factor must stay 1.0 in that
+        # case (the caller applies it to GT locs, and locs are already in
+        # the right coordinate space for an unscaled image). Previously
+        # scale_factor was computed unconditionally before this check and
+        # returned regardless of whether a resize actually happened, which
+        # scaled GT locs incorrectly for any pad_images=True project.
         if self.conf.pad_images:
             resized_image = image
+            scale_factor = 1.
         else:
+            # Calculate the aspect ratios
+            aspect_ratio = original_width / original_height
+            target_aspect_ratio = width / height
+
+            # Determine the scaling factor
+            # with imresize exapnd, we resize the image so that the smallest dimension fits the target size
+            if (aspect_ratio > target_aspect_ratio) != self.conf.imresize_expand:
+                scale_factor = width / original_width
+            else:
+                scale_factor = height / original_height
+
             resized_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor)
 
 
@@ -1416,10 +1423,10 @@ class coco_loader(torch.utils.data.Dataset):
         if 'movid' not in self.ann['images'][item] or type(self.ann['images'][item]['movid']) == list:
             info = [item,item,item]
         else:
-            if 'patch' in self.ann['images'][item].keys():
-                tgt_id = self.ann['images'][item]['patch']
-            else:
+            if 'tgt' in self.ann['images'][item].keys():
                 tgt_id = self.ann['images'][item]['tgt']
+            else:
+                tgt_id = self.ann['images'][item].get('patch',0)
             info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],tgt_id]
         info = np.array(info)
 
