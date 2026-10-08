@@ -1202,6 +1202,45 @@ def kept_detections(mmdetect_net, boxes, scores, max_count, min_count, nms_thres
     return np.argsort(-scores, kind='stable')[:max_count]
 
 
+MOT_AUG_SIZE = (1088, 1088)
+MOT_AUG_RATIO_RANGE = (0.8, 1.2)
+
+
+def set_frcnn_mot_pipelines(cfg, im_sz=MOT_AUG_SIZE):
+    """Replaces the Faster R-CNN train/test pipelines with mmtracking's MOT detection recipe.
+
+    mmdetection's COCO pipeline for Faster R-CNN augments with a horizontal flip only.
+    mmtracking trains its MOT17 detectors (and ChimpACT copied this verbatim for its
+    chimp detector) with random rescaling to 1088 +-20%, photometric distortion and a
+    random 1088 crop, and tests at 1088. On ChimpACT the flip-only pipeline overfits the
+    labelled frames and generalises worse to unseen recording sessions. Boxes are not
+    clipped at the image border, so an animal cut by the crop keeps its true extent.
+    PhotoMetricDistortion needs a float32 image, hence to_float32 on the training load.
+
+    im_sz (width, height) replaces 1088 when a project overrides the default detector
+    size. Resize scales are (w, h) but RandomCrop's crop_size is (h, w).
+    """
+    im_sz = tuple(im_sz)
+    crop_sz = (im_sz[1], im_sz[0])
+    cfg.train_pipeline = [
+        dict(type='LoadImageFromFile', to_float32=True, backend_args=None),
+        dict(type='LoadAnnotations', with_bbox=True),
+        dict(type='RandomResize', scale=im_sz, ratio_range=MOT_AUG_RATIO_RANGE,
+             keep_ratio=True, clip_object_border=False),
+        dict(type='PhotoMetricDistortion'),
+        dict(type='RandomCrop', crop_size=crop_sz, bbox_clip_border=False),
+        dict(type='RandomFlip', prob=0.5),
+        dict(type='PackDetInputs'),
+    ]
+    for step in cfg.test_pipeline:
+        if step.type == 'Resize':
+            step.scale = im_sz
+    cfg.train_dataloader.dataset.pipeline = cfg.train_pipeline
+    for loader_name in ['val_dataloader', 'test_dataloader']:
+        if cfg.get(loader_name, None) is not None:
+            cfg[loader_name].dataset.pipeline = cfg.test_pipeline
+
+
 def convert_epoch_hooks_to_iter(cfg, conf, original_max_epochs):
     """Rewrites epoch-keyed custom hooks so they fire under APT's IterBasedTrainLoop.
 
@@ -1300,17 +1339,10 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
 
     if conf.mmdetect_net == 'frcnn': # TODO!!
 
-        for ttype in ['train', 'val', 'test']:
-            name = ttype if ttype != 'val' else 'test'
-            if not conf.get('mmdetect_use_default_sz', True):
-                pname = name + '_pipeline'
-                for k in cfg[pname]:
-                    if k.type == 'Resize':
-                        k.scale = im_sz
-
-                dname = ttype + '_dataloader'
-                if cfg[dname] is not None:
-                    cfg[dname].dataset.pipeline = cfg[pname]
+        if conf.get('mmdetect_use_default_sz', True):
+            set_frcnn_mot_pipelines(cfg)
+        else:
+            set_frcnn_mot_pipelines(cfg, im_sz)
 
         cfg.model.roi_head.bbox_head.num_classes = 1
         if conf.get('mmdetection_oversample',False):
