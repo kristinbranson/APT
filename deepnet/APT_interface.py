@@ -1756,6 +1756,17 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 def setup_ma(conf):
     # setups the crop size. Based on the largets cluster.
 
+    conf.multi_frame_sz = conf.imsz
+    fr_sz = conf.multi_frame_sz
+
+    if not conf.multi_crop_ims:
+        # conf.imsz = (fr_sz[0], fr_sz[1]) # no need to set the image size here.
+        logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
+        return
+
+    # T['locdata'] is only needed below -- loading it earlier crashed any
+    # COCO-format training json (no top-level 'locdata' key) even when this
+    # function returns before ever using it.
     T = PoseTools.json_load(conf.json_trn_file)
     cur_t = T['locdata'][0]
     pack_dir = os.path.split(conf.json_trn_file)[0]
@@ -1764,13 +1775,6 @@ def setup_ma(conf):
     #     cur_frame = cv2.cvtColor(cur_frame,cv2.COLOR_BGR2RGB)
     # fr_sz = cur_frame.shape[:2]
     # conf.multi_frame_sz = fr_sz
-    conf.multi_frame_sz = conf.imsz
-    fr_sz = conf.multi_frame_sz
-
-    if not conf.multi_crop_ims:
-        # conf.imsz = (fr_sz[0], fr_sz[1]) # no need to set the image size here.
-        logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
-        return
 
     max_sz = 0
     for selndx, cur_t in enumerate(T['locdata']):
