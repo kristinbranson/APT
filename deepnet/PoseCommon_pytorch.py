@@ -116,7 +116,7 @@ class coco_loader(torch.utils.data.Dataset):
             else:               
                 backup_image_folder_path = conf.coco_im_dir
                 logging.warning('No file at %s, trying %s as the coco_loader image_folder_path' % (test_image_file_path, backup_image_folder_path))
-                test_image_file_path = os.path.join(image_folder_path, test_image_file_name)            
+                test_image_file_path = os.path.join(backup_image_folder_path, test_image_file_name)
                 if os.path.exists(test_image_file_path):
                     self.image_folder_path = backup_image_folder_path
                 else:
@@ -188,7 +188,8 @@ class coco_loader(torch.utils.data.Dataset):
         if 'movid' not in self.ann['images'][item] or type(self.ann['images'][item]['movid']) == list:
             info = [item,item,item]
         else:
-            info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
+            info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],
+                     self.ann['images'][item].get('patch', 0)]
 
         info = np.array(info)
         curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
