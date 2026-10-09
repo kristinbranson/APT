@@ -117,7 +117,7 @@ classdef TrxVisualizerMA < handle
       prefsTrx = lObj.projPrefs.Trx;
       ptcolor = prefsTrx.TrajColor;
       if ischar(ptcolor)
-        clrsT = eval(ptcolor,nTrx); %#ok<EV2IN>
+        clrsT = feval(ptcolor, nTrx) ;
       else
         assert(isnumeric(ptcolor));
         nptc = size(ptcolor,1);
