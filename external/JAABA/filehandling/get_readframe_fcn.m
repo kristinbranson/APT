@@ -1,11 +1,10 @@
 % [readframe,nframes,fid,headerinfo] = get_readframe_fcn(filename)
 % get_readframe_fcn inputs the name of a video, opens this video, and creates a
 % function that can be used for random access to frames in the video. it can
-% input files of type fmf, sbfmf, and avi. if videoio is installed on your
-% machine, then get_readframe_fcn will use videoio to read all types of avi
-% supported by videoio. otherwise, it uses VideoReader to open any type of avi
-% supported by VideoReader. Run "help VideoReader" to determine what types of avi
-% files are readable through VideoReader on your OS. 
+% input files of type fmf, sbfmf, ufmf, mmf, mjpg, seq, tif/png/jpg image
+% sequences, h5, and any avi/mp4 that VideoReader can open.  Run "help
+% VideoReader" to determine what types of avi files are readable through
+% VideoReader on your OS.
 %
 % Input:
 % filename is the name of the video to read. The type of video is determined
@@ -31,10 +30,6 @@ else
   preload = false;
 end
 didpreload = false;
-
-% allow videoio library to be used if it is installed and on the path
-%CTRAX_ISVIDEOIO = exist('videoReader','file');
-CTRAX_ISVIDEOIO = false;
 
 if iscell(filename),
   
@@ -129,19 +124,6 @@ elseif strcmpi(ext,'.png') || strcmpi(ext,'.jpg'),
     fid = -1;
     isimseq = true;
   end
-elseif strcmpi(ext,'.klb'),
-  tfKLBLib = exist('readKLBslice','file')>0;
-  if ~tfKLBLib
-    error('get_readframe_fcn:klb','Cannot find readKLBslice function. Make sure KLB matlab library is installed.');
-  end
-  
-  dim = myparse(varargin,'dim',3);
-  headerinfo = readKLBheader(filename);
-  readframe = klb_get_readframe_fcn(filename,varargin{:});
-  nframes = headerinfo.xyzct(dim); % AL 201507: KLB doc a little unclear here but this seems right
-  fid = 0;
-elseif strcmpi(ext,'.bag'),
- [readframe,nframes,fid,headerinfo] = bag_get_readframe_fcn(filename,varargin{:});
 elseif strcmpi(ext,'.mat'),
   videofiletypeStruct = load(filename,'videofiletype');
   videofiletype = videofiletypeStruct.videofiletype;
@@ -318,83 +300,71 @@ else
     readframe = @(f) read_mjpg_frame(headerinfo,f);
   
   else
-  
-    
-    if CTRAX_ISVIDEOIO,
-      readerobj = videoReader(filename,'preciseFrames',30,'frameTimeoutMS',5000);
-      info = getinfo(readerobj);
-      nframes = info.numFrames;
-      seek(readerobj,0);
-      seek(readerobj,1);
-      readframe = @(f) videoioreadframe(readerobj,f);
-      headerinfo = info;
-      headerinfo.type = 'avi';
-    else
-      
-      % optional argument to not use the read function of VideoReader
-      [useRead,neednframes] = myparse(varargin,'useRead',true,'neednframes',true);
-      
-      try
-        readerobj = VideoReader(filename);
-        headerinfo = get(readerobj);
-        
-        headerinfo.type = 'avi';
-        headerinfo.nr = headerinfo.Height;
-        headerinfo.nc = headerinfo.Width;
-        
-        if preload,
-          
-          
-          nframes = 0;
-          preloaddata = struct;
-          preloaddata.ims = {};
-          preloaddata.ts = [];
-          
-          while true,
-          
-            if ~hasFrame(readerobj),
-              break;
-            end
-            preloaddata.ts(end+1) = get(readerobj,'CurrentTime');
-            preloaddata.ims{end+1} = readFrame(readerobj);
-            nframes = nframes+1;
-            
-          end
-            
-          assert(numel(preloaddata.ims) == nframes);
-          
-        else
-          if neednframes && useRead,
-            nframes = get(readerobj,'NumberOfFrames');
-          end
-          if ~neednframes || ~useRead || isempty(nframes),
-            % approximate nframes from duration
-            nframes = round(get(readerobj,'Duration')*get(readerobj,'FrameRate'));
-          end
-          headerinfo.readerobj = readerobj;
-          
-        end
 
-        headerinfo.nframes = nframes;
+    
+    % optional argument to not use the read function of VideoReader
+    [useRead,neednframes] = myparse(varargin,'useRead',true,'neednframes',true);
+    
+    try
+      readerobj = VideoReader(filename);
+      headerinfo = get(readerobj);
+      
+      headerinfo.type = 'avi';
+      headerinfo.nr = headerinfo.Height;
+      headerinfo.nc = headerinfo.Width;
+      
+      if preload,
         
-        if preload,
-          
-          readframe = @(f) preload_read_frame(preloaddata,f);
-          didpreload = true;
-          
-        else
         
-          if useRead,
-            readframe = @(f) avi_read_frame(readerobj,headerinfo,f);
-          else
-            readframe = @(f) avi_read_frame_useReadFrame(readerobj,headerinfo,f);
+        nframes = 0;
+        preloaddata = struct;
+        preloaddata.ims = {};
+        preloaddata.ts = [];
+        
+        while true,
+        
+          if ~hasFrame(readerobj),
+            break;
           end
+          preloaddata.ts(end+1) = get(readerobj,'CurrentTime');
+          preloaddata.ims{end+1} = readFrame(readerobj);
+          nframes = nframes+1;
           
         end
-      catch ME_videoreader
-        error('Could not open file %s with VideoReader: %s',...
-          filename,getReport(ME_videoreader));
+          
+        assert(numel(preloaddata.ims) == nframes);
+        
+      else
+        if neednframes && useRead,
+          nframes = get(readerobj,'NumberOfFrames');
+        end
+        if ~neednframes || ~useRead || isempty(nframes),
+          % approximate nframes from duration
+          nframes = round(get(readerobj,'Duration')*get(readerobj,'FrameRate'));
+        end
+        headerinfo.readerobj = readerobj;
+        
       end
+
+      headerinfo.nframes = nframes;
+      
+      if preload,
+        
+        readframe = @(f) preload_read_frame(preloaddata,f);
+        didpreload = true;
+        
+      else
+      
+        if useRead,
+          readframe = @(f) avi_read_frame(readerobj,headerinfo,f);
+        else
+          readframe = @(f) avi_read_frame_useReadFrame(readerobj,headerinfo,f);
+        end
+        
+      end
+    catch ME_videoreader
+      error('Could not open file %s with VideoReader: %s',...
+        filename,getReport(ME_videoreader));
     end
   end
 end
