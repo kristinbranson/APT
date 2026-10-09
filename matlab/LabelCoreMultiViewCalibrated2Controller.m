@@ -566,12 +566,9 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       elseif ~isempty(match)
         for i = 1:size(match, 1)
           tag = match{i, 1} ;
-          cb = obj.labelerController_.(tag).Callback ;
-          if ischar(cb)
-            eval(cb) ;
-          else
-            cb(obj.labelerController_.(tag), evt) ;
-          end
+          control = obj.labelerController_.(tag) ;
+          callback = control.Callback ;
+          callback(control, evt) ;
         end
       else
         tfKPused = false ;

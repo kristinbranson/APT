@@ -2681,9 +2681,10 @@ classdef LabelerController < handle
               elseif iscell(cb)
                 cb{1}(cb{2:end});
                 tfKPused = true;
-              elseif ischar(cb)
-                evalin('base',[cb,';']);
-                tfKPused = true;
+              else
+                error('LabelerController:unsupportedCallback', ...
+                      'Shortcut target %s has a %s callback; only function handles and cells are supported', ...
+                      obj.shortcutfns{i}, class(cb)) ;
               end
             end
           end
