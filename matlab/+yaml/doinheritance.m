@@ -52,7 +52,12 @@ result = child;
             error('MATLAB:MATYAML:inheritedtwice',['Cyclic inheritance: ', parent_chr{i}]);
         end;
         try
-            parentstruct = eval(['oaroot.',parent_chr{i}]);
+            % the parent is a dotted field path into the root struct
+            parentstruct = oaroot;
+            pathParts = strsplit(parent_chr{i}, '.');
+            for j = 1:numel(pathParts)
+                parentstruct = parentstruct.(pathParts{j});
+            end;
         catch ex
             switch ex.identifier
                 case {'MATLAB:nonExistentField', 'MATLAB:badsubscript'}
