@@ -105,7 +105,7 @@ classdef OrthoCam
       
       uvAll = nan(2,nCalPt,nCalIm);
       for iCalIm=1:nCalIm
-        R = vision.internal.calibration.rodriguesVectorToMatrix(r2vecs(:,iCalIm));
+        R = rodrigues(r2vecs(:,iCalIm));
         R2 = R(1:2,:);
         t2 = t2vecs(:,iCalIm);
         
@@ -269,7 +269,7 @@ classdef OrthoCam
       r2vecs = nan(3,nCalIm);
       t2vecs = nan(2,nCalIm);
       for iCalIm=1:nCalIm
-        r2vecs(:,iCalIm) = vision.internal.calibration.rodriguesMatrixToVector(Rmats(:,:,iCalIm));
+        r2vecs(:,iCalIm) = rodrigues(Rmats(:,:,iCalIm));
         t2vecs(:,iCalIm) = Ts(iCalIm,1:2)';
       end
       
@@ -408,7 +408,7 @@ classdef OrthoCam
           deleteValidGraphicsHandles(hPat);
         end
         
-        RPatI2World = vision.internal.calibration.rodriguesVectorToMatrix(r2vecCurr);
+        RPatI2World = rodrigues(r2vecCurr);
         tPatI2World = t2vecCurr;
         patPtsCornersWorld = RPatI2World*patPtsCorners + tPatI2World;
         hPat(1) = fill3(patPtsCornersWorld(1,:),patPtsCornersWorld(2,:),...
@@ -451,7 +451,7 @@ classdef OrthoCam
       ehat = ehat/norm(ehat);
       
       theta = acos(dot(nhat,khat));
-      Q2theta = vision.internal.calibration.rodriguesVectorToMatrix(2*theta*ehat);
+      Q2theta = rodrigues(2*theta*ehat);
       % Q2theta rotates pattern into dual pattern
       
       Rp = Q2theta*R;
@@ -478,7 +478,7 @@ classdef OrthoCam
       assert(numel(t2vec)==2);
       assert(numel(xyPatCtr)==2);
       
-      R = vision.internal.calibration.rodriguesVectorToMatrix(r2vec(:));
+      R = rodrigues(r2vec(:));
       t2vec = t2vec(:);
       t2vec(3) = 0;
       xyPatCtr = xyPatCtr(:);
@@ -486,7 +486,7 @@ classdef OrthoCam
       khat = [0;0;-1];
       
       [Rp,tp] = OrthoCam.computeDualPattern(R,t2vec,xyPatCtr,khat);
-      r2vecnew = vision.internal.calibration.rodriguesMatrixToVector(Rp);
+      r2vecnew = rodrigues(Rp);
       t2vecnew = tp(1:2);      
     end
     function [r2vecs,t2vecs] = flipPatternSet(r2vecs,t2vecs,tfflip,varargin)
@@ -606,9 +606,9 @@ classdef OrthoCam
         r2vec1,t2vec1,r2vec2,t2vec2,rvecs,tvecs] = OrthoCam.unpackParamsStro(p,nPat);
       
       % compute projected pts
-      R2WorldToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec1);
+      R2WorldToCam1 = rodrigues(r2vec1);
       t2WorldToCam1 = t2vec1;
-      R2WorldToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec2);
+      R2WorldToCam2 = rodrigues(r2vec2);
       t2WorldToCam2 = t2vec2;
       
       uvcam1 = nan(2,nPts,nPat);
@@ -617,7 +617,7 @@ classdef OrthoCam
         if iPat==1
           patPtsWorld = patPtsXYZ; % World 3D frame defined to be Pat1 3D frame
         else
-          RPatIToWorld = vision.internal.calibration.rodriguesVectorToMatrix(rvecs(iPat-1,:)');
+          RPatIToWorld = rodrigues(rvecs(iPat-1,:)');
           tPatIToWorld = tvecs(iPat-1,:)';
           patPtsWorld = RPatIToWorld*patPtsXYZ + tPatIToWorld;
         end
@@ -666,13 +666,13 @@ classdef OrthoCam
       nPatm1 = nPat-1;
       rvecs = nan(nPatm1,3);
       tvecs = nan(nPatm1,3);
-      RPat1ToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec1);
-      RPat1ToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec2);
+      RPat1ToCam1 = rodrigues(r2vec1);
+      RPat1ToCam2 = rodrigues(r2vec2);
       t2Pat1ToCam1 = t2vec1;
       t2Pat1ToCam2 = t2vec2;
       for iPat=2:nPat
-        RPatIToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(r2vecsCalIms1(iPat,:)');
-        RPatIToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(r2vecsCalIms2(iPat,:)');
+        RPatIToCam1 = rodrigues(r2vecsCalIms1(iPat,:)');
+        RPatIToCam2 = rodrigues(r2vecsCalIms2(iPat,:)');
         t2PatIToCam1 = t2vecsCalIms1(iPat,:)';
         t2PatIToCam2 = t2vecsCalIms2(iPat,:)';
         
@@ -683,7 +683,7 @@ classdef OrthoCam
         
         R = RPatIToPat1_fromcam1; % just take fromcam1 for now, don't try to average
         t = tPatIToPat1_fromcam1;
-        r = vision.internal.calibration.rodriguesMatrixToVector(R);
+        r = rodrigues(R);
         rvecs(iPat-1,:) = r(:)';
         tvecs(iPat-1,:) = t(:)';
       end
@@ -695,7 +695,7 @@ classdef OrthoCam
         n = camInfo.n;
         ijkCam = camInfo.ijkCamWorld;
       else
-        RWorldToCam = vision.internal.calibration.rodriguesVectorToMatrix(r2vec);
+        RWorldToCam = rodrigues(r2vec);
         t2WorldToCam = t2vec;
         [x0y0cam,n,~,~,ijkCam] = OrthoCam.opticalCenter(RWorldToCam,t2WorldToCam);
         optCtr = [x0y0cam(:);0];
@@ -740,7 +740,7 @@ classdef OrthoCam
         patZ0 patZ0 patZ0 patZ0; ];
       clrs = jet(nPat);
       for iPat=1:nPat
-        RPatI2World = vision.internal.calibration.rodriguesVectorToMatrix(rvecsFull(iPat,:)');
+        RPatI2World = rodrigues(rvecsFull(iPat,:)');
         tPatI2World = tvecsFull(iPat,:)';
         patPtsCornersWorld = RPatI2World*patPtsCorners + tPatI2World;
         fill3(patPtsCornersWorld(1,:),patPtsCornersWorld(2,:),...

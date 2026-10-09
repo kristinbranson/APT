@@ -98,9 +98,9 @@ classdef OrthoCamCalPair < CalRig
         obj.calImPoints = imPts;
         obj.calPatternFPNs = calPatFPNs;
         [obj.optCtr1,~,~,~,obj.ijkCamWorld1] = ...
-          OrthoCam.opticalCenter(vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1),obj.t2vec1);
+          OrthoCam.opticalCenter(rodrigues(obj.r2vec1),obj.t2vec1);
         [obj.optCtr2,~,~,~,obj.ijkCamWorld2] = ...
-          OrthoCam.opticalCenter(vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2),obj.t2vec2);
+          OrthoCam.opticalCenter(rodrigues(obj.r2vec2),obj.t2vec2);
         obj.optCtr1(end+1) = 0;
         obj.optCtr2(end+1) = 0;
         obj.calTS = now;
@@ -184,9 +184,9 @@ classdef OrthoCamCalPair < CalRig
             
       szassert(R,[3 3]);
       for iPat=1:obj.calNumPatterns
-        R0 = vision.internal.calibration.rodriguesVectorToMatrix(obj.rvecs(iPat,:)');
+        R0 = rodrigues(obj.rvecs(iPat,:)');
         R1 = R*R0;
-        obj.rvecs(iPat,:) = vision.internal.calibration.rodriguesMatrixToVector(R1);
+        obj.rvecs(iPat,:) = rodrigues(R1);
         
         t0 = obj.tvecs(iPat,:)';
         t1 = R*t0;
@@ -275,22 +275,10 @@ classdef OrthoCamCalPair < CalRig
       
       switch icam
         case 1
-          if verLessThan('matlab','9.13')  %#ok<VERLESSMATLAB>
-            % For Matlab < 2022b
-            R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1);
-          else
-            % For Matlab >= 2022b
-            R2 = rotvec2mat3d(obj.r2vec1);
-          end            
+          R2 = rodrigues(obj.r2vec1);
           t2 = obj.t2vec1;
         case 2
-          if verLessThan('matlab','9.13')  %#ok<VERLESSMATLAB>
-            % For Matlab < 2022b
-            R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
-          else
-            % For Matlab >= 2022b
-            R2 = rotvec2mat3d(obj.r2vec2);
-          end            
+          R2 = rodrigues(obj.r2vec2);
           t2 = obj.t2vec2;
       end
       int = obj.tblInt(icam,:);
@@ -449,14 +437,14 @@ classdef OrthoCamCalPair < CalRig
       szassert(patPtsXYZ,[3 nPts]);
       szassert(patImPts,[2 nPts nPat 2]);
       
-      R2WorldToCam1 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec1);
+      R2WorldToCam1 = rodrigues(r2vec1);
       t2WorldToCam1 = t2vec1;
-      R2WorldToCam2 = vision.internal.calibration.rodriguesVectorToMatrix(r2vec2);
+      R2WorldToCam2 = rodrigues(r2vec2);
       t2WorldToCam2 = t2vec2;
       
       uvcam = nan(2,nPts,nPat,2);
       for iPat=1:nPat
-        RPatIToWorld = vision.internal.calibration.rodriguesVectorToMatrix(rvecs(iPat,:)');
+        RPatIToWorld = rodrigues(rvecs(iPat,:)');
         tPatIToWorld = tvecs(iPat,:)';
         patPtsWorld = RPatIToWorld*patPtsXYZ + tPatIToWorld;
         uvcam(:,:,iPat,1) = OrthoCam.project(patPtsWorld,R2WorldToCam1,...
@@ -483,19 +471,19 @@ classdef OrthoCamCalPair < CalRig
       % right angles with a common y (down-in-image) axis
       
       % extrinsics
-      R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
+      R2 = rodrigues(obj.r2vec2);
       R2(1,:) = -R2(1,:); % x-, z-coord in camera frame flipped
       R2(3,:) = -R2(3,:);
-      obj.r2vec2 = vision.internal.calibration.rodriguesMatrixToVector(R2);      
+      obj.r2vec2 = rodrigues(R2);      
       obj.t2vec2(1) = -obj.t2vec2(1);
       c = [4*.1;2.5*.1;0];
       khat = -obj.ijkCamWorld1(:,3);
       for iPat=1:obj.calNumPatterns
         r = obj.rvecs(iPat,:);
         t = obj.tvecs(iPat,:);
-        R = vision.internal.calibration.rodriguesVectorToMatrix(r);
+        R = rodrigues(r);
         [Rp,tp] = OrthoCam.computeDualPattern(R,t(:),c(:),khat(:));
-        rp = vision.internal.calibration.rodriguesMatrixToVector(Rp);
+        rp = rodrigues(Rp);
 
         obj.rvecs(iPat,:) = rp;
         obj.tvecs(iPat,:) = tp;
@@ -611,7 +599,7 @@ classdef OrthoCamCalPair < CalRig
       zmin = inf;
       zmax = -inf;
       for iPat=1:nPat
-        RPatIToWorld = vision.internal.calibration.rodriguesVectorToMatrix(rvcs(iPat,:)');
+        RPatIToWorld = rodrigues(rvcs(iPat,:)');
         tPatIToWorld = tvcs(iPat,:)';
         patPtsWorld = RPatIToWorld*patPtsXYZ + tPatIToWorld;
         szassert(patPtsWorld,[3 nPts]);
@@ -709,7 +697,7 @@ classdef OrthoCamCalPair < CalRig
 end
 
 function r2vecnew = lclHelpR(r2vec,R)
-Rworld2cam = vision.internal.calibration.rodriguesVectorToMatrix(r2vec);
+Rworld2cam = rodrigues(r2vec);
 Rworld2camNew = Rworld2cam*R';
-r2vecnew = vision.internal.calibration.rodriguesMatrixToVector(Rworld2camNew);
+r2vecnew = rodrigues(Rworld2camNew);
 end
