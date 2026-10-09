@@ -69,9 +69,7 @@ for imov=1:nmov
   p = reshape(p,[2 nfrmslbl*nphyspts nvw]);
     
   % see iss #60,#245
-  if isa(cr,'CalRigMLStro')
-    [~,~,~,rperr1,rperr2] = cr.stereoTriangulate(p(:,:,1),p(:,:,2));  
-  elseif isa(cr,'OrthoCamCalPair')
+  if isa(cr,'OrthoCamCalPair')
     [~,~,~,~,rperr1,rperr2] = cr.stereoTriangulate(p(:,:,1),p(:,:,2));
   elseif isa(cr,'CalRig2CamCaltech')
     y1 = p([2 1],:,1)';

@@ -661,9 +661,8 @@ trx(1) =
 <h3><a id="Calibration files">Calibration files</a></h2>
 
 <p>Camera calibration information can be used to <a href="#Load calibration file">help during <b>manual labeling</b></a>. It is also used when <b>tracking to reconstruct the 3-d part positions</b> from corresponding 2-d predicted part positions in each view.</p>
-<p>We currently support 3 types of calibration files. They are all for pairs of cameras with correspondences defined using images of a checkerboard pattern. 
+<p>We currently support 2 types of calibration files. They are all for pairs of cameras with correspondences defined using images of a checkerboard pattern. 
   <ul>
-    <li><b><a href="https://www.mathworks.com/help/vision/ug/stereo-camera-calibrator-app.html">Matlab Stereo Camera Calibration App</a></b>: Using this app, select "<b>Export Camera Parameters - Export Parameters to Workspace</b>", and save the variable <b>"stereoParameters"</b> to a MAT file. This MAT file can then be loaded in to APT. </li>
     <li><b><a href="http://www.vision.caltech.edu/bouguetj/calib_doc/">Caltech Calibration Toolbox</a></b>: 
 	<ul>
 	  <li>Calibrate each camera individually using the <a href="http://www.vision.caltech.edu/bouguetj/calib_doc/htmls/example.html">calib_gui</a>.</li>
