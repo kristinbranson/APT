@@ -3,7 +3,7 @@ function raiseDialogOnException(exception)
     isWarning = (~isempty(indicesOfWarningPhrase) && indicesOfWarningPhrase(1)==1) ;
     if isWarning ,
         dialogContentString = exception.message ;
-        dialogTitleString = ws.fif(length(exception.cause)<=1, 'Warning', 'Warnings') ;
+        dialogTitleString = fif(length(exception.cause)<=1, 'Warning', 'Warnings') ;
     else
         if isempty(exception.cause)
             dialogContentString = exception.message ;

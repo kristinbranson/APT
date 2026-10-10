@@ -21,11 +21,11 @@ function result = encode_for_persistence(thing, do_wrap_in_container)
         result = maybe_wrap_in_encoding_container(encoding, thing, do_wrap_in_container) ;
     elseif isstruct(thing) ,
         fieldNames=fieldnames(thing);
-        encoding=ws.structWithDims(size(thing),fieldNames);
+        encoding=struct_with_dims(size(thing),fieldNames);
         for i=1:numel(thing) ,
             for j=1:length(fieldNames) ,
                 thisFieldName=fieldNames{j};
-                encoding(i).(thisFieldName) = ws.encodeAnythingForPersistence(thing(i).(thisFieldName)) ;
+                encoding(i).(thisFieldName) = encode_for_persistence(thing(i).(thisFieldName), do_wrap_in_container) ;
             end
         end
         result = maybe_wrap_in_encoding_container(encoding, thing, do_wrap_in_container) ;
