@@ -5,7 +5,6 @@
 %
 % Aggregate channel features object detector:
 %   acfDemoCal   - Demo for aggregate channel features object detector on Caltech dataset.
-%   acfDemoInria - Demo for aggregate channel features object detector on Inria dataset.
 %   acfDetect    - Run aggregate channel features object detector on given image(s).
 %   acfModify    - Modify aggregate channel features object detector.
 %   acfReadme    - Aggregate Channel Features Detector Overview.

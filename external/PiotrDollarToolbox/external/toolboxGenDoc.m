@@ -26,14 +26,12 @@ cd(fileparts(mfilename('fullpath'))); cd('../');
 addpath([pwd '/external/m2html']);
 
 % delete temporary files that should not be part of release
-fs={'pngreadc','pngwritec','rjpg8c','wjpg8c','png'};
-for i=1:length(fs), delete(['videos/private/' fs{i} '.*']); end
 delete('detector/models/*Dets.txt');
 
 % delete old doc and run m2html
 if(exist('doc/','dir')), rmdir('doc/','s'); end
 dirs={'channels','classify','detector',...
-  'images','filters','matlab','videos'};
+  'images','filters','matlab'};
 m2html('mfiles',dirs,'htmldir','doc','recursive','on','source','off',...
   'template','frame-piotr','index','menu','global','on');
 

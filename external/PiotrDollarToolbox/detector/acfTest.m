@@ -26,7 +26,7 @@ function [miss,roc,gt,dt] = acfTest( varargin )
 %
 % EXAMPLE
 %
-% See also acfTrain, acfDetect, acfModify, acfDemoInria, bbGt
+% See also acfTrain, acfDetect, acfModify, bbGt
 %
 % Piotr's Computer Vision Matlab Toolbox      Version 3.40
 % Copyright 2014 Piotr Dollar.  [pdollar-at-gmail.com]

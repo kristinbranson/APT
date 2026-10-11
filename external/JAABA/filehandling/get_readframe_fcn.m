@@ -1,7 +1,7 @@
 % [readframe,nframes,fid,headerinfo] = get_readframe_fcn(filename)
 % get_readframe_fcn inputs the name of a video, opens this video, and creates a
 % function that can be used for random access to frames in the video. it can
-% input files of type fmf, sbfmf, ufmf, mmf, mjpg, seq, tif/png/jpg image
+% input files of type fmf, sbfmf, ufmf, mmf, mjpg, tif/png/jpg image
 % sequences, h5, and any avi/mp4 that VideoReader can open.  Run "help
 % VideoReader" to determine what types of avi files are readable through
 % VideoReader on your OS.
@@ -49,7 +49,7 @@ end
 
 [~,ext] = splitext(filename);
 
-if ispc && ~exist(filename,'file') && ~strcmpi(ext,'.seq'),  
+if ispc && ~exist(filename,'file'),
   [actualfilename,didfind] = GetPCShortcutFileActualPath(filename);
   if didfind,
     filename = actualfilename;
@@ -141,86 +141,6 @@ elseif strcmpi(ext,'.mat'),
       error('Do not know how to parse mat file of type %s',videofiletype);
   end
 
-elseif strcmpi(ext,'.seq'),
-  [indexfilename,seqtype] = myparse(varargin,'indexfilename',0,'seqtype',0);
-  
-  if ischar(indexfilename),
-    seqtype = 'shay';
-  end
-  
-  % get file names
-  if ispc && ~exist(filename,'file'),
-      
-    [actualfilename,didfind] = GetPCShortcutFileActualPath(filename);
-    if ~didfind,
-      error('Could not find movie file %s',filename);
-    end
-    filename0 = filename;
-    % use actualfilename instead
-    filename = actualfilename;
-      
-    % try the index file using the original filename
-    if ~ischar(indexfilename),
-      indexfilename = regexprep(filename0,'seq$','mat');
-      [indexfilename,didfind] = GetPCShortcutFileActualPath(indexfilename);
-      if ~didfind && ~strcmp(filename0,filename),
-        % try to find the index file using the source filename
-        indexfilename = regexprep(filename,'seq$','mat');
-        [indexfilename,didfind] = GetPCShortcutFileActualPath(indexfilename);
-        % if didn't find index file, then maybe this is a piotr seq file
-        if ~didfind,
-          if ischar(seqtype) && strcmpi(seqtype,'shay'),
-            error('Could not find index file for %s',filename);
-          else
-            seqtype = 'piotr';
-          end
-        end
-      end
-    end
-    
-  else
-    
-    % set seqtype to piotr if indexfilename doesn't exist
-    if ~ischar(seqtype) && ~ischar(indexfilename),
-      indexfilename = regexprep(filename,'seq$','mat');
-      if ~exist(indexfilename,'file'),
-        seqtype = 'piotr';
-      end
-    end
-    
-  end
-    
-  % get actual filename for shortcuts
-  if strcmpi(seqtype,'piotr'),
-    warning('Closing file currently not implemented for Piotr''s seq files...');
-    headerinfo = seqIo(filename,'getinfo');
-    headerinfo.nr = headerinfo.height;
-    headerinfo.nc = headerinfo.width;
-    headerinfo.nframes = headerinfo.numFrames;
-    headerinfo.type = 'seq_piotr';
-    fid = 0;
-    nframes = headerinfo.numFrames;
-    sr = seqIo(filename,'r');
-    readframe = @(f) seq_read_frame_piotr(f,sr);
-  else
-    
-    if ischar(indexfilename),
-      headerinfo = r_readseqinfo(filename,indexfilename);
-    else
-      headerinfo = r_readseqinfo(filename);
-    end
-    if numel(headerinfo.m_aiSeekPos) < headerinfo.m_iNumFrames,
-      headerinfo.m_iNumFrames = numel(headerinfo.m_aiSeekPos);
-    end
-    headerinfo.nr = headerinfo.m_iHeight;
-    headerinfo.nc = headerinfo.m_iWidth;
-    headerinfo.nframes = headerinfo.m_iNumFrames;
-    headerinfo.type = 'seq';
-    fid = 0;
-    nframes = headerinfo.m_iNumFrames;
-    readframe = @(f) read_seq_frame(headerinfo,f);
-  end
-  
 elseif strcmpi(ext,'.h5'),
   
   [dims,datasetname,fixdims,fixidx] = myparse(varargin,'slicedims',3,'datasetname',[],'fixdims',[],'fixidx',[]);
@@ -395,17 +315,6 @@ varargout{1} = im;
 if nargout >= 2,
   varargout{2} = timestamp;
 end
-
-function [im,timestamp] = seq_read_frame_piotr(f,sr)
-im = [];
-timestamp = [];
-
-if ~sr.seek(f-1),
-  warning('Could not seek to frame %d',f);
-  return;
-end
-
-[im,timestamp] = sr.getframe();
 
 function [im,timestamp] = avi_read_frame_useReadFrame(readerobj,headerinfo,f)
 
