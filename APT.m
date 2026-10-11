@@ -540,15 +540,6 @@ classdef APT
       end
     end
     
-    function s = settingssnapshot(settingsdir)
-      assert(exist(settingsdir,'dir')>0,'Cannot find dir ''%s''.',settingsdir);
-      script = FlyBubbleBaR.SnapshotScript;
-      cmd = sprintf('%s -nocolor -brief %s',script,settingsdir);
-      [~,s] = system(cmd);
-      s = regexp(s,newline(),'split');
-      s = s(:);
-    end
-    
     function buildmv(src,dst)
       if exist(dst,'file')>0
         warning('APT:build','Overwriting existing file:  %s',dst);

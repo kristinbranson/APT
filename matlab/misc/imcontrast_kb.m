@@ -536,7 +536,6 @@ registerModularToolWithManager(hFig,imageHandle);
                 'Label', getString(message('images:imcontrastUIString:adjustContrastHelpMenubarLabel')), ...
                 'Tag', 'help menu item', ...
                 'Callback', invokeHelp);
-            iptstandardhelp(helpmenu);
         end
     end % createMenubar
 

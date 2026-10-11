@@ -49,13 +49,6 @@ end
 
 [~,ext] = splitext(filename);
 
-if ispc && ~exist(filename,'file'),
-  [actualfilename,didfind] = GetPCShortcutFileActualPath(filename);
-  if didfind,
-    filename = actualfilename;
-  end
-end
-
 if strcmpi(ext,'.fmf'),
   [header_size,version,nr,nc,bytes_per_chunk,nframes,data_format] = fmf_read_header(filename);
   fid = fopen(filename);
@@ -124,23 +117,6 @@ elseif strcmpi(ext,'.png') || strcmpi(ext,'.jpg'),
     fid = -1;
     isimseq = true;
   end
-elseif strcmpi(ext,'.mat'),
-  videofiletypeStruct = load(filename,'videofiletype');
-  videofiletype = videofiletypeStruct.videofiletype;
-  switch videofiletype,
-    
-    case 'SingleLarvaTracker',
-      videodata = load(filename);
-      readframe = @(f) ReadSingleLarvaTrackerFrame(f,videodata.firstframeim,videodata.imraw,videodata.finalbbox,videodata.fps,varargin{:});
-      nframes = numel(videodata.imraw);
-      fid = 0;
-      [nr,nc,~] = size(videodata.firstframeim);
-      headerinfo = struct('nr',nr,'nc',nc,'nframes',nframes,'bgcenter',videodata.firstframeim,...
-        'type','SingleLarvaTracker');
-    otherwise
-      error('Do not know how to parse mat file of type %s',videofiletype);
-  end
-
 elseif strcmpi(ext,'.h5'),
   
   [dims,datasetname,fixdims,fixidx] = myparse(varargin,'slicedims',3,'datasetname',[],'fixdims',[],'fixidx',[]);
@@ -173,12 +149,6 @@ else
       % see if this looks like an indexed mjpg file
       [p,n] = fileparts(filename);
       indexfilename = fullfile(p,[n,'.txt']);
-      if ~exist(indexfilename,'file') && ispc,
-        [actualindexfilename,didfind] = GetPCShortcutFileActualPath(indexfilename);
-        if didfind,
-          indexfilename = actualindexfilename;
-        end
-      end
       if exist(indexfilename,'file'),
         try
           ReadIndexedMJPGHeader(filename,indexfilename);
@@ -195,25 +165,6 @@ else
   end
   
   if isindexedmjpg,
-    % get file names
-    if ispc && ~exist(filename,'file'),
-      [actualfilename,didfind] = GetPCShortcutFileActualPath(filename);
-      if ~didfind,
-        error('Could not find movie file %s',filename);
-      end
-      filename0 = filename;
-      % use actualfilename instead
-      filename = actualfilename;
-
-      [actualindexfilename,didfind] = GetPCShortcutFileActualPath(indexfilename);
-      if ~didfind,
-        error('Could not find index file %s',indexfilename);
-      end
-      indexfilename0 = indexfilename;
-      % use actualfilename instead
-      indexfilename = actualindexfilename;
-    end
-
     headerinfo = ReadIndexedMJPGHeader(filename,indexfilename);
     headerinfo.fid = 0;
     nframes = headerinfo.nframes;
