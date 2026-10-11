@@ -11066,7 +11066,7 @@ classdef Labeler < handle
       if ~tfCanTrack,
         return
       end      
-      [tfCanTrack,reason] = PostProcess.canPostProcess(obj,tblMFT);
+      [tfCanTrack,reason] = canTriangulateTracks(obj,tblMFT);
     end  % function
     
     function tfCanTrack = trackAllCanTrack(obj)
