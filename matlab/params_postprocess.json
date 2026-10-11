@@ -17,8 +17,7 @@
       ],
       "Type": [
         "none",
-        "triangulate",
-        "experimental"
+        "triangulate"
       ],
       "isEditable": true
     }

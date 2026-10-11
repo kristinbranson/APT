@@ -928,6 +928,14 @@ classdef APTParameters
           rmfield(sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch,'link_id_cropsz');
       end
 
+      % The experimental 3D reconciliation (viewpref3drecon) is gone -- it
+      % needed the stereo-calibrator rig removed before it -- so a project
+      % that saved it gets the value the tree still offers.
+      if structisfield(sPrmAll,'ROOT.PostProcess.reconcile3dType') && ...
+          strcmp(sPrmAll.ROOT.PostProcess.reconcile3dType,'experimental'),
+        sPrmAll.ROOT.PostProcess.reconcile3dType = 'triangulate';
+      end
+
       sPrmDflt = APTParameters.defaultParamsStructAll();
       sPrmAll = structoverlay(sPrmDflt,sPrmAll,'allowedUnrecogFlds',allowedUnrecogFlds);%,...
         %'dontWarnUnrecog',true); % to allow removal of obsolete params

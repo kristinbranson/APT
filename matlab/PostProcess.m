@@ -3221,10 +3221,10 @@ classdef PostProcess < handle
       %   .pTrklocs_unet
       %   .pTrkconf
       %   .pTrkconf_unet
-      % rois: [nview x 4]. Currently only used for
-      %   pp3dtype=='experimental'. Can be all nans for other pp3dtype etc.
+      % rois: [nview x 4]. Unused (it served the removed 'experimental'
+      %   mode); may be all nans.
       % crig: scalar CalRig object
-      % pp3dtype: either 'triangulate' or 'experimental'
+      % pp3dtype: 'triangulate'
       %
       % trk1new/trk2new: trkfiles containing reconstructed results with
       % diagnostics
@@ -3311,39 +3311,6 @@ classdef PostProcess < handle
             );
           end
 
-        case 'experimental'
-          %rois = obj.lObj.getMovieRoiMovIdx(mIdx);
-          
-          if ~isempty(rois),
-            szassert(rois,[nvw 4]);
-          end
-          assert(nvw==2,'Experimental 3D postprocessing requires exactly two views.');
-          trk1 = trks{1};
-          trk2 = trks{2};
-          
-          [X,ptrkrp,tMD,isspecial,prefview] = viewpref3drecon(...
-            trk1,trk2,crig,'roisEPline',rois,'dxyz',DXYZ,...
-            'wbObj',wbObj);
-          X = permute(X,[3 2 1]); % npt x 3 x nfrm
-          ptrkrp = permute(ptrkrp,[4 2 1 5 3]); % npt x 2 x nfrm x 1 x nvw
-          
-          trk1new = struct(...
-            'pTrkSingleView',{trk1.pTrk},...
-            'pTrk',{{ptrkrp(:,:,:,:,1)}},...
-            'pTrk3d',{{X}},...
-            'recon3d_prefview',prefview');
-          trk2new = struct(...
-            'pTrkSingleView',{trk2.pTrk},...
-            'pTrk',{{ptrkrp(:,:,:,:,2)}});
-          trksnew = {trk1new; trk2new};
-          
-          %save(trkfiles{1},'-append','-struct','trk1save');
-%           fprintf(1,'New variables ''pTrkSingleView'', ''pTrk'', ''pTrk3d''.\n');
-          %trkfiles{1});
-          %save(trkfiles{2},'-append','-struct','trk2save');
-%           fprintf(1,'New variables ''pTrkSingleView'', ''pTrk''.\n');
-          %trkfiles{2});
-          
         otherwise
           assert(false);
           
