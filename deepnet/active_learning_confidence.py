@@ -649,14 +649,19 @@ def _pool_confidence(ds, conf, poolJson, model_file=None):
   """For every image in poolJson, run conf's checkpoint (latest, unless
   model_file names a specific one -- e.g. to compare checkpoints from the
   same run), Hungarian-match predictions to poolJson's own GT animals, and
-  return per GT animal slot: its matched confidence (nan if the model missed
-  it outright -- no Hungarian-assigned prediction close enough) and whether
-  it's missed. gtLocs only carries x/y, not the per-keypoint COCO visibility
-  code, so this does NOT weight by visibility -- the caller
-  (_build_round_confidence, via _visibility_weighted_priority) folds that in
-  separately, straight from the raw pool annotations, since many ChimpACT
-  animals are mostly occluded (v=0/v=1) and shouldn't drive selection just
-  because they're also low-confidence. Generalizes
+  return per GT animal slot: its matched confidence (nan if no finite
+  prediction existed anywhere in the frame -- a real padding/no-prediction
+  case) and its Hungarian-matched mean keypoint distance (nan if the
+  Hungarian assignment gave it nothing). Deciding "missed" from that
+  distance is left to the caller (_visibility_weighted_priority /
+  _write_animal_diagnostics): a fixed pixel threshold conflates a
+  near-perfect prediction on a large/close animal with a genuinely bad one
+  on a small/distant animal (checked directly: round 1's candidates ranged
+  from a 51px miss that was 7% of its animal's bbox diagonal to a 76px miss
+  that was 75% of a smaller animal's), so the caller normalizes by that
+  animal's own bbox size instead. gtLocs only carries x/y, not the
+  per-keypoint COCO visibility code, so this does NOT weight by visibility
+  either -- same reasoning, folded in by the caller. Generalizes
   script_inc_exp.py:3006-3042."""
   import APT_interface as apt
 
@@ -677,7 +682,7 @@ def _pool_confidence(ds, conf, poolJson, model_file=None):
 
   with np.errstate(invalid='ignore'):
     meanDistMatched = np.nanmean(ddMatched, axis=-1)   # [n_img, n_gt]; nan where Hungarian assigned nothing
-    missed = (np.isnan(meanDistMatched) | (meanDistMatched > ds.miss_dist_px)) & hasGt
+  meanDistMatched = np.where(hasGt, meanDistMatched, np.nan)
 
   matchedConf = np.full((predLocs.shape[0], gtLocs.shape[1]), np.nan)
   for i in range(predLocs.shape[0]):
@@ -690,7 +695,7 @@ def _pool_confidence(ds, conf, poolJson, model_file=None):
       best = int(np.nanargmin(distToPreds))
       matchedConf[i, a] = predConf[i, best].mean(axis=-1)
 
-  return matchedConf, missed, info
+  return matchedConf, meanDistMatched, info
 
 
 VIS_WEIGHTS = {0: 0.0, 1: 0.5, 2: 1.0}

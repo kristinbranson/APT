@@ -432,7 +432,14 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                 p.shift_factor = conf.trange / conf.imsz[0]
                 p.input_size = imsz
             if p.type == 'BottomupRandomAffine':
+                # New mmpose API (mmpose 1.x/2.x) name of BottomUpRandomAffine above. It used to get
+                # only the input size, so bottom-up nets (dekr, cid) silently trained with mmpose's
+                # default rotation/scale/shift instead of the project's augmentation parameters.
                 p.input_size = imsz
+                p.rotate_factor = conf.rrange / 2
+                sfactor = 1 / conf.scale_factor_range if (conf.scale_factor_range < 1) else conf.scale_factor_range
+                p.scale_factor = (1 / sfactor, sfactor)
+                p.shift_factor = conf.trange / conf.imsz[0]
             elif p.type == 'TopDownGetRandomScaleRotation':
                 p.rot_factor = conf.rrange / 2
                 # p.rot_prob = 1.
