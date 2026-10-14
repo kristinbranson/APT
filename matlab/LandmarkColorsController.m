@@ -614,9 +614,15 @@ classdef LandmarkColorsController < handle
       % to the new bottom.
       prefs = obj.labeler_.projPrefs.Trx ;
       hFig = obj.hFig ;
-      panH = 78 ;   % height added at the bottom for the trajectory panel
       btnH = 26 ;   % height of the Done button
       btnMargin = 8 ;
+      rowH = 20 ;   % height of the panel's single row of controls
+      rowY = 4 ;    % the row's inset from the panel's inner bottom edge
+      titleBand = 16 ;   % the title's text height, which the panel's inner area excludes
+      borderWidth = 2 ;  % the etched border, each side
+      pnlY = btnMargin + btnH + 6 ;  % the panel sits just above the Done button
+      pnlH = borderWidth + rowY + rowH + 6 + titleBand + borderWidth ;
+      panH = pnlY + pnlH + 4 ;   % height added at the bottom for the trajectory panel
 
       hFig.Units = 'pixels' ;
       origPos = hFig.Position ;
@@ -639,8 +645,6 @@ classdef LandmarkColorsController < handle
       obj.pbDone_.Position = [donePos(1) btnMargin donePos(3) donePos(4)] ;
 
       % Trajectory panel, just above the Done button.
-      pnlY = btnMargin + btnH + 6 ;
-      pnlH = panH - pnlY - 4 ;
       pnlW = origPos(3) - 10 ;
       obj.pnlTraj_ = uipanel(hFig, 'Title', 'Trajectory', 'Units', 'pixels', ...
         'Position', [5 pnlY pnlW pnlH], 'FontAngle', 'italic', 'Tag', 'pnlTraj') ;
@@ -652,8 +656,10 @@ classdef LandmarkColorsController < handle
       end
 
       % Single-row layout: Color | Line width slider + value | Font size
-      rowY = 4 ;
-      rowH = 20 ;
+      readoutW = 32 ;
+      fontLabelW = 58 ;
+      fontEditW = 40 ;
+      rightMargin = 5 ;
       x = 5 ;
 
       uicontrol(obj.pnlTraj_, 'Style', 'text', 'String', 'Color:', ...
@@ -668,7 +674,7 @@ classdef LandmarkColorsController < handle
       uicontrol(obj.pnlTraj_, 'Style', 'text', 'String', 'Line width:', ...
         'Units', 'pixels', 'Position', [x rowY 65 rowH], 'HorizontalAlignment', 'right') ;
       x = x + 68 ;
-      sldW = pnlW - x - 110 ;
+      sldW = pnlW - 2 * borderWidth - rightMargin - x - (3 + readoutW + 4 + fontLabelW + 3 + fontEditW) ;
       obj.sldTrajLineWidth_ = uicontrol(obj.pnlTraj_, 'Style', 'slider', ...
         'Min', log2(0.5), 'Max', log2(16), ...
         'Value', log2(max(prefs.TrajLineWidth, 0.5)), ...
@@ -677,15 +683,15 @@ classdef LandmarkColorsController < handle
       x = x + sldW + 3 ;
       obj.txTrajLineWidth_ = uicontrol(obj.pnlTraj_, 'Style', 'text', ...
         'String', sprintf('%.1f', prefs.TrajLineWidth), ...
-        'Units', 'pixels', 'Position', [x rowY 32 rowH], 'Tag', 'txTrajLineWidth') ;
-      x = x + 36 ;
+        'Units', 'pixels', 'Position', [x rowY readoutW rowH], 'Tag', 'txTrajLineWidth') ;
+      x = x + readoutW + 4 ;
 
       uicontrol(obj.pnlTraj_, 'Style', 'text', 'String', 'Font size:', ...
-        'Units', 'pixels', 'Position', [x rowY 58 rowH], 'HorizontalAlignment', 'right') ;
-      x = x + 61 ;
+        'Units', 'pixels', 'Position', [x rowY fontLabelW rowH], 'HorizontalAlignment', 'right') ;
+      x = x + fontLabelW + 3 ;
       obj.editTrajFontSize_ = uicontrol(obj.pnlTraj_, 'Style', 'edit', ...
         'String', num2str(prefs.TrxIDLblFontSize), ...
-        'Units', 'pixels', 'Position', [x rowY 40 rowH], 'Tag', 'editTrajFontSize', ...
+        'Units', 'pixels', 'Position', [x rowY fontEditW rowH], 'Tag', 'editTrajFontSize', ...
         'Callback', @(s,e)(obj.editTrajFontSizeActuated_())) ;
 
       obj.hTrajSldListener_ = ...
