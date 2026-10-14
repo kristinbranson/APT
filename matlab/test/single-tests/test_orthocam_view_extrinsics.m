@@ -42,9 +42,8 @@ function test_orthocam_view_extrinsics()
   checkPlaneIsXZ_(stereoAxes, patternCount) ;
   cameraMarkers = findobj(stereoAxes, 'Type', 'line', 'Marker', 'x') ;
   assert(numel(cameraMarkers) == 2, 'Expected two camera markers, got %d', numel(cameraMarkers)) ;
-  % The title ends in a newline, so its String is two rows.
-  titleText = strjoin(cellstr(stereoAxes.Title.String), ' ') ;
-  assert(contains(titleText, 'camAngle'), 'Expected the camera angle in the title, got "%s"', titleText) ;
+  assert(contains(stereoAxes.Title.String, 'camAngle'), ...
+         'Expected the camera angle in the title, got "%s"', stereoAxes.Title.String) ;
 end  % function
 
 

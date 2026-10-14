@@ -806,7 +806,7 @@ classdef OrthoCam
       
       angleInDeg = acos(dot(n1,n2))/pi*180;
       grid on;
-      tstr = sprintf('%d pats. camAngle=%.1f. cam1 (az,el)=(%.2f,%.2f). cam2 (%.2f,%.2f)\n',...
+      tstr = sprintf('%d pats. camAngle=%.1f. cam1 (az,el)=(%.2f,%.2f). cam2 (%.2f,%.2f)',...
         nPat,angleInDeg,az1/pi*180,el1/pi*180,az2/pi*180,el2/pi*180);
       title(ax,tstr,'fontweight','bold','interpreter','tex');
       xlabel(ax,'x (mm)','fontweight','bold');
