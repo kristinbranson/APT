@@ -425,12 +425,11 @@ classdef OrthoCam
           if isequal(in,-1)
             assert(t2vecCurr(3)==0);
             [r2vecs(:,iPat),t2vecs(1:2,iPat)] = OrthoCam.flipPattern(r2vecCurr,t2vecCurr(1:2));
-            % iPat unchanged
             tffliped(iPat) = ~tffliped(iPat);
-          else
-            iPat = iPat+1;
+            continue  % redraw this pattern flipped; iPat unchanged
           end
         end
+        iPat = iPat+1;
       end
       
       assert(all(ismembertol(t2vecs(3,:),0)));
