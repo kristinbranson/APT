@@ -250,7 +250,7 @@ classdef OrthoCamCalPair < CalRig
       n1 = -obj.ijkCamWorld1(:,3);
       n2 = -obj.ijkCamWorld2(:,3);
       for i=1:n
-        [P,Q,d(i)] = CalibratedRig.stereoTriangulateRays(OL(:,i),n1,OR(:,i),n2);
+        [P,Q,d(i)] = stereoTriangulateRays(OL(:,i),n1,OR(:,i),n2);
         X(:,i) = (P+Q)/2;
       end
       

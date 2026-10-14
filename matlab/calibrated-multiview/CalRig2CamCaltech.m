@@ -112,7 +112,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       else
         obj.calibFile = calibRes;
 
-        [nameL,nameR,ifo,int,ext] = CalibratedRig.loadStroCalibResults(calibRes,false);
+        [nameL,nameR,ifo,int,ext] = loadStroCalibResults(calibRes,false);
         %assert(strncmp(nameL,'cam0',4),'Unexpected left/right cam names for stereo calibration results.');
         %assert(strncmp(nameR,'cam1',4),'Unexpected left/right cam names for stereo calibration results.');
         fprintf('Loaded: %s\n',calibRes);
@@ -301,7 +301,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       xnCropped = xn(:,tf);
 
       intprm = obj.int.(cam);
-      xpCropped = CalibratedRig.normalized2projectedStc(xnCropped,...
+      xpCropped = normalized2projectedCoords(xnCropped,...
         intprm.alpha_c,intprm.cc,intprm.fc,intprm.kc);
       xp = nan(size(xn));
       xp(:,tf) = xpCropped;
@@ -492,7 +492,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       O2 = [0;0;0]; % camera2 origin in camera2 frame
       n2 = xn2; % pt2 normalized ray in camera2 frame
       
-      [P,Q,d] = CalibratedRig.stereoTriangulateRays(O1,n1,O2,n2);
+      [P,Q,d] = stereoTriangulateRays(O1,n1,O2,n2);
       
       X2 = (P+Q)/2;
       X1 = obj.camxform(X2,[cam2 cam1]);      

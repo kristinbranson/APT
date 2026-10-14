@@ -1,5 +1,20 @@
-classdef DLT 
-  
+classdef DLT
+  % Direct Linear Transformation (DLT) camera model and utilities.
+  %
+  % DLT is the classic camera-calibration method of Abdel-Aziz and Karara
+  % (1971).  A camera is an 11-element coefficient vector L that maps a
+  % world point X=[x;y;z] to image coordinates (u,v) via
+  %
+  %   u = (L1*x + L2*y + L3*z + L4) / (L9*x + L10*y + L11*z + 1)
+  %   v = (L5*x + L6*y + L7*z + L8) / (L9*x + L10*y + L11*z + 1)
+  %
+  % The static methods here convert between L and the camera's intrinsics
+  % (focal length, principal point, skew) plus extrinsics (rotation R and
+  % translation t) in both directions, triangulate 3D points from two
+  % cameras, and provide objective functions for fitting L to calibration
+  % data.  The companion functions dlt_3D_to_2D and dlt_2D_to_3D* carry out
+  % the projection and reconstruction steps directly from L.
+
   % Coord Sys Notes
   %
   % The world coord system assigns 3-tuples to points: X=[x;y;z]. The units

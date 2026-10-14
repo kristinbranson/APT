@@ -1,4 +1,4 @@
-classdef CalibratedRig < CalRig & matlab.mixin.Copyable
+classdef CalibratedRig2 < CalRig & matlab.mixin.Copyable
   % Romain calibrated rig
 
   % Coord system notes
@@ -63,14 +63,35 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
 
     int; % struct with <viewNames> as fields. intrinsic params: .fc, .cc, etc
     
-    
-
-    om; % 
-    T; % For om, T and R, eg X_bot = R.BL * X_left + T.BL
-    R; % 
-        
+    % core/root calibration params;
+    % X_B = R_BL*X_L + T_BL
+    % When XL=0, XB=TBL => TBL is position of left cam wrt bot
+    omBL;
+    omBR;
+    TBL;
+    TBR;
+            
     roi; % struct, eg roi.<viewName>.height, roi.<viewName>.offsetX, etc
     roiDir; % string
+  end
+  properties (Dependent,Hidden)
+    % extrinsic props all derived from .omBL, .omBR, .TBL, .TBR
+    RBL
+    RLB
+    RBR
+    RRB
+    RLR
+    RRL
+    TLB
+    TRB
+    TLR
+    TRL
+  end
+  properties (Dependent)
+    % for backwards compat
+    om
+    R
+    T    
   end
   
   methods
@@ -82,18 +103,70 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
         v(iView,:) = [vRoi.width vRoi.height];
       end
     end
+    
+    function R = get.RBL(obj)
+      R = rodrigues(obj.omBL);
+    end
+    function R = get.RLB(obj)
+      R = obj.RBL';
+    end
+    function R = get.RBR(obj)
+      R = rodrigues(obj.omBR);
+    end
+    function R = get.RRB(obj)
+      R = obj.RBR';
+    end
+    function R = get.RLR(obj)
+      R = obj.RLB*obj.RBR;
+    end
+    function R = get.RRL(obj)
+      R = obj.RRB*obj.RBL;
+    end
+    function T = get.TLB(obj)
+      T = -obj.RBL'*obj.TBL;
+    end
+    function T = get.TRB(obj)
+      T = -obj.RBR'*obj.TBR;
+    end
+    function T = get.TLR(obj)
+      T = obj.RLB*obj.TBR + obj.TLB;
+    end
+    function T = get.TRL(obj)
+      T = obj.RRB*obj.TBL + obj.TRB;
+    end
+    
+    function s = get.om(obj)
+      sR = obj.R;
+      flds = fieldnames(sR);
+      s = struct();
+      for f=flds(:)',f=f{1}; %#ok<FXSET>
+        s.(f) = rodrigues(sR.(f));
+      end
+    end      
+    function s = get.R(obj)
+      s = struct(...
+        'BR',obj.RBR,'RB',obj.RRB,...
+        'BL',obj.RBL,'LB',obj.RLB,...
+        'LR',obj.RLR,'RL',obj.RRL);
+    end
+    function s = get.T(obj)
+      s = struct(...
+        'BR',obj.TBR,'RB',obj.TRB,...
+        'BL',obj.TBL,'LB',obj.TLB,...
+        'LR',obj.TLR,'RL',obj.TRL);
+    end
   end
     
   methods
     
-    function obj = CalibratedRig(calibResLB,calibResBR)
+    function obj = CalibratedRig2(calibResLB,calibResBR)
       % reads intrinsic/extrinsic params from calibration files
       
       obj.calibFileLB = calibResLB;
       obj.calibFileBR = calibResBR;
       
-      [nameL_LB,nameR_LB,ifoLB,intLB,extLB] = CalibratedRig.loadStroCalibResults(calibResLB);
-      [nameL_BR,nameR_BR,ifoBR,intBR,extBR] = CalibratedRig.loadStroCalibResults(calibResBR);
+      [nameL_LB,nameR_LB,ifoLB,intLB,extLB] = loadStroCalibResults(calibResLB);
+      [nameL_BR,nameR_BR,ifoBR,intBR,extBR] = loadStroCalibResults(calibResBR);
       
       assert(isequal(ifoLB,ifoBR));
       obj.stroInfo = ifoLB;
@@ -136,41 +209,45 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       
       omm = struct();
       TT = struct();
-      RR = struct();
+%       RR = struct();
       
       % read off om, T, R values from stereo calib results
       rightWRTLeftLB = [CAL_LR2RIG_LB.r CAL_LR2RIG_LB.l]; % eg: 'BL'
       rightWRTLeftBR = [CAL_LR2RIG_BR.r CAL_LR2RIG_BR.l];
       omm.(rightWRTLeftLB) = extLB.om;
       TT.(rightWRTLeftLB) = extLB.T;
-      RR.(rightWRTLeftLB) = extLB.R;
+%       RR.(rightWRTLeftLB) = extLB.R;
       omm.(rightWRTLeftBR) = extBR.om;
       TT.(rightWRTLeftBR) = extBR.T;
-      RR.(rightWRTLeftBR) = extBR.R;
+%       RR.(rightWRTLeftBR) = extBR.R;
       
-      % invert to get reverse values
-      leftWRTRightLB = rightWRTLeftLB(end:-1:1);
-      leftWRTRightBR = rightWRTLeftBR(end:-1:1);
-      omm.(leftWRTRightLB) = -omm.(rightWRTLeftLB);
-      omm.(leftWRTRightBR) = -omm.(rightWRTLeftBR);
-      [RR.(leftWRTRightLB),TT.(leftWRTRightLB)] = ...
-        CalibratedRig.invertRT(RR.(rightWRTLeftLB),TT.(rightWRTLeftLB));
-      [RR.(leftWRTRightBR),TT.(leftWRTRightBR)] = ...
-        CalibratedRig.invertRT(RR.(rightWRTLeftBR),TT.(rightWRTLeftBR));
+%       % invert to get reverse values
+%       leftWRTRightLB = rightWRTLeftLB(end:-1:1);
+%       leftWRTRightBR = rightWRTLeftBR(end:-1:1);
+%       omm.(leftWRTRightLB) = -omm.(rightWRTLeftLB);
+%       omm.(leftWRTRightBR) = -omm.(rightWRTLeftBR);
+%       [RR.(leftWRTRightLB),TT.(leftWRTRightLB)] = ...
+%         invertRT(RR.(rightWRTLeftLB),TT.(rightWRTLeftLB));
+%       [RR.(leftWRTRightBR),TT.(leftWRTRightBR)] = ...
+%         invertRT(RR.(rightWRTLeftBR),TT.(rightWRTLeftBR));
       
-      % fill out T, R matrices for all xform pairs
-      [RR.LR,TT.LR] = CalibratedRig.composeRT(RR.BR,TT.BR,RR.LB,TT.LB);
-      [RR.RL,TT.RL] = CalibratedRig.composeRT(RR.BL,TT.BL,RR.RB,TT.RB);
-      % Sanity
-      [RR_RL2,TT_RL2] = CalibratedRig.invertRT(RR.LR,TT.LR);
-      dR = abs(RR.RL-RR_RL2);
-      dT = abs(TT.RL-TT_RL2);
-      fprintf(1,'Sanity check R_RL, T_RL: %.6g %.4g\n',...
-        sum(dR(:).^2),sum(dT(:).^2));      
+%       % fill out T, R matrices for all xform pairs
+%       [RR.LR,TT.LR] = composeRT(RR.BR,TT.BR,RR.LB,TT.LB);
+%       [RR.RL,TT.RL] = composeRT(RR.BL,TT.BL,RR.RB,TT.RB);
+%       % Sanity
+%       [RR_RL2,TT_RL2] = invertRT(RR.LR,TT.LR);
+%       dR = abs(RR.RL-RR_RL2);
+%       dT = abs(TT.RL-TT_RL2);
+%       fprintf(1,'Sanity check R_RL, T_RL: %.6g %.4g\n',...
+%         sum(dR(:).^2),sum(dT(:).^2));      
 
-      obj.om = omm;
-      obj.R = RR;
-      obj.T = TT;
+      obj.omBL = omm.BL;
+      obj.omBR = omm.BR;
+      obj.TBL = TT.BL;
+      obj.TBR = TT.BR;
+%       obj.om = omm;
+%       obj.R = RR;
+%       obj.T = TT;
     end
       
     function setROIs(obj,expdir)
@@ -189,60 +266,7 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
     
   end
   
-  methods 
-    
-    function verify(obj,varargin)
-      % check self-consistency of .om, .R, .T. 
-      % TODO: just have either om or R, not both
-      
-      silent = myparse(varargin,...
-        'silent',false);
-      
-      
-      fldsOm = fieldnames(obj.om);
-      fldsR = fieldnames(obj.R);
-      fldsT = fieldnames(obj.T);
-      fldsOmR = intersect(fldsOm,fldsR);
-      if ~silent
-        fprintf('Checking om/R fields: %s\n',...
-          String.cellstr2CommaSepList(fldsOmR));
-      end
-      for f = fldsOmR(:)',f=f{1}; %#ok<FXSET>
-        d = obj.om.(f) - rodrigues(obj.R.(f));
-        assert(max(abs(d(:))) <= eps(10));
-      end
-      fldsOmUnchecked = setdiff(fldsOm,fldsOmR);
-      fldsRUnchecked = setdiff(fldsR,fldsOmR);
-      if ~isempty(fldsOmUnchecked) && ~silent
-        fprintf('Not checking .om fields (om/R): %s\n',...
-          String.cellstr2CommaSepList(fldsOmUnchecked));
-      end
-      if ~isempty(fldsRUnchecked) && ~silent
-        fprintf('Not checking .R fields (om/R): %s\n',...
-          String.cellstr2CommaSepList(fldsRUnchecked));
-      end
-      
-      fldsRT = intersect(fldsR,fldsT);
-      fldsRUnchecked = setdiff(fldsR,fldsRT);
-      fldsTUnchecked = setdiff(fldsT,fldsRT);
-      if ~silent
-        fprintf('Checking R/T fields: %s\n',...
-          String.cellstr2CommaSepList(fldsRT));
-      end
-      for f = fldsRT(:)',f=f{1}; %#ok<FXSET>
-        fflip = f(end:-1:1);
-        d = obj.T.(f) - ( -obj.R.(fflip)'*obj.T.(fflip) );
-        assert(max(abs(d(:))) <= 1e-13);
-      end
-      if ~isempty(fldsRUnchecked) && ~silent
-        fprintf('Not checking .R fields (R/T): %s\n',...
-          String.cellstr2CommaSepList(fldsRUnchecked));
-      end
-      if ~isempty(fldsTUnchecked) && ~silent
-        fprintf('Not checking .T fields (R/T): %s\n',...
-          String.cellstr2CommaSepList(fldsTUnchecked));
-      end      
-    end
+  methods
     
     function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi)
       % See CalRig
@@ -376,11 +400,11 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
      
     function xp = normalized2projected(obj,xn,cam)
       intprm = obj.int.(cam);
-      xp = CalibratedRig.normalized2projectedStc(xn,...
+      xp = normalized2projectedCoords(xn,...
         intprm.alpha_c,intprm.cc,intprm.fc,intprm.kc);
     end
     
-    function [xn,fval] = projected2normalized(obj,xp,cam)
+    function [xn,fval] = projected2normalized(obj,xp,cam,varargin)
       % Find normalized coords corresponding to projected coords.
       % This uses search/optimization to invert normalized2projected; note
       % the toolbox also has normalize().
@@ -391,12 +415,20 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       % xn: [2x1]
       % fval: optimization stuff, eg final residual
 
+      tfUseFminSearch = myparse(varargin,'tfUseFminSearch',false);
+      
       assert(isequal(size(xp),[2 1]));
       
-      fcn = @(xnguess) sum( (xp-obj.normalized2projected(xnguess(:),cam)).^2 );
-      xn0 = [0;0];
-      opts = optimset('TolX',1e-6);
-      [xn,fval] = fminsearch(fcn,xn0,opts);
+      if tfUseFminSearch
+        fcn = @(xnguess) sum( (xp-obj.normalized2projected(xnguess(:),cam)).^2 );
+        xn0 = [0;0];
+        opts = optimset('TolX',1e-6);
+        [xn,fval] = fminsearch(fcn,xn0,opts);        
+      else
+        intCam = obj.int.(cam);
+        xn = normalize_pixel(xp,intCam.fc,intCam.cc,intCam.kc,intCam.alpha_c);
+        fval = [];
+      end
     end
     
     function xp = project(obj,X,cam)
@@ -404,11 +436,20 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       % cam: 'l','r','b'
       %
       % xp: [2xN] projected image coords for cam
-      
+        
       assert(size(X,1)==3);
       intPrm = obj.int.(cam); 
       xp = project_points2(X,[0;0;0],[0;0;0],...
         intPrm.fc,intPrm.cc,intPrm.kc,intPrm.alpha_c);
+    end
+    
+    function [r,c] = projectCPR(obj,X,iView)
+      cam = obj.viewNames{iView};
+      xp = obj.project(X,cam);
+      y = obj.x2y(xp,cam);
+      assert(size(y,2)==2);
+      r = y(:,1);
+      c = y(:,2);
     end
     
     function [XL,XB] = stereoTriangulateLB(obj,yL,yB)
@@ -469,7 +510,7 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       end      
     end
     
-    function [X1,X2,d,P,Q] = stereoTriangulate(obj,xp1,xp2,cam1,cam2)
+    function [X1,X2,d,P,Q] = stereoTriangulate(obj,xp1,xp2,cam1,cam2,varargin)
       % xp1: [2x1]. projected pixel coords, camera1
       % xp2: etc
       % cam1: 'l, 'r', or 'b'
@@ -482,9 +523,9 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       % frame of camera 2
       % Q: 3D point of closest approach on normalized ray of camera 2, in
       % frame of camera 2
-      
-      xn1 = obj.projected2normalized(xp1,cam1);
-      xn2 = obj.projected2normalized(xp2,cam2);
+            
+      xn1 = obj.projected2normalized(xp1,cam1,varargin{:});
+      xn2 = obj.projected2normalized(xp2,cam2,varargin{:});
       xn1 = [xn1;1];
       xn2 = [xn2;1];
       
@@ -496,10 +537,20 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       O2 = [0;0;0]; % camera2 origin in camera2 frame
       n2 = xn2; % pt2 normalized ray in camera2 frame
       
-      [P,Q,d] = CalibratedRig.stereoTriangulateRays(O1,n1,O2,n2);
+      [P,Q,d] = stereoTriangulateRays(O1,n1,O2,n2);
       
       X2 = (P+Q)/2;
       X1 = obj.camxform(X2,[cam2 cam1]);      
+    end
+    
+    function [X1,X2] = stereoTriangulateFast(obj,xp1,xp2,cam1,cam2)
+      int1 = obj.int.(cam1);
+      int2 = obj.int.(cam2);
+      cam21 = [cam2 cam1];
+      [X1,X2] = stereo_triangulation(xp1,xp2,...
+        obj.om.(cam21),obj.T.(cam21),...
+        int1.fc,int1.cc,int1.kc,int1.alpha_c,...
+        int2.fc,int2.cc,int2.kc,int2.alpha_c);
     end
         
     function Xc2 = camxform(obj,Xc,type)
@@ -516,12 +567,26 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       assert(d==3);
       
       type = upper(type);
-      assert(ismember(type,{'LR' 'RL' 'BL' 'LB' 'BR' 'RB'}));      
+      switch type
+        case {'LL' 'RR' 'BB'}
+          Xc2 = Xc;
+          return;
+        case {'LR' 'RL' 'BL' 'LB' 'BR' 'RB'}
+          % none
+        otherwise
+          error('CalibratedRig2:type','Unsupported type: ''%s''.',type);
+      end
       type = type([2 1]); % convention for specification of T/R
       
       RR = obj.R.(type);
       TT = obj.T.(type);
       Xc2 = RR*Xc + repmat(TT,1,N);
+    end
+    
+    function X2 = viewXformCPR(obj,X1,iView1,iView2)
+      vNames = obj.viewNames;
+      type = [vNames{iView1} vNames{iView2}];
+      X2 = obj.camxform(X1,type);     
     end
     
   end
@@ -578,20 +643,14 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
       xp = KK * [xd;ones(1,n)];
     end
     
-    function [nameL,nameR,info,intrinsic,extrinsic] = loadStroCalibResults(file,tfAssertRecompute)
-      if exist('tfAssertRecompute','var')==0
-        tfAssertRecompute = true;
-      end
-      
+    function [nameL,nameR,info,intrinsic,extrinsic] = loadStroCalibResults(file)
       cr = load(file);
       
       nameL = cr.calib_name_left;
       nameR = cr.calib_name_right;
       
-      if tfAssertRecompute
-        assert(cr.recompute_intrinsic_left==0);
-        assert(cr.recompute_intrinsic_right==0);
-      end
+      assert(cr.recompute_intrinsic_left==0);
+      assert(cr.recompute_intrinsic_right==0);      
       info = struct();
       info.dX = cr.dX;
       info.nx = cr.nx;
@@ -634,6 +693,68 @@ classdef CalibratedRig < CalRig & matlab.mixin.Copyable
     
   end
     
+  methods
+    function [yLre,yRre,yBre,errL,errR,errB,errLfull,errRfull,errBfull,...
+        XL,XR,XB,...
+        errL_reLR,errR_reLR,errB_reLR,...
+        XLlr,XRlr,XBlr] = calibRoundTripFull(obj,yL,yR,yB)
+      % Use each pair of views to recon the 3rd
+      %
+      % yL/yR/yB: [Nx2]  (row,col) in cropped coords
+      %
+      % yLre: [Nx2] reconstructed yL from yR, yB
+      % yRre: etc
+      % errL: nanmean(errLfull)
+      % errLfull: [Nx1] L2 err for each pt
+      % XL: [3xN]: 3d recon (best guess), in camL frame
+      % errL_reLR: like errL, but computed using stereo triangularion of L/R
+      % views
+      
+      [XLlb,XBlb] = obj.stereoTriangulateLB(yL,yB);
+      [XBbr,XRbr] = obj.stereoTriangulateBR(yB,yR);
+      
+      % best guess: average lb, br recons
+      XBbest = (XBlb+XBbr)/2;
+      XRbest = obj.camxform(XBbest,'br');
+      XLbest = obj.camxform(XBbest,'bl');
+      
+      xpR_re = obj.project(XRbest,'R');
+      xpL_re = obj.project(XLbest,'L');
+      xpB_re = obj.project(XBbest,'B');
+      yRre = obj.x2y(xpR_re,'R');
+      yLre = obj.x2y(xpL_re,'L');
+      yBre = obj.x2y(xpB_re,'B');
+      
+      errLfull = sqrt(sum((yL-yLre).^2,2));
+      errRfull = sqrt(sum((yR-yRre).^2,2));
+      errBfull = sqrt(sum((yB-yBre).^2,2));
+      errL = nanmean(errLfull); % mean L2 distance (in px) across all GT pts
+      errR = nanmean(errRfull);
+      errB = nanmean(errBfull);
+      
+      XL = XLbest;
+      XR = XRbest;
+      XB = XBbest;
+      
+      [XLlr,XRlr] = obj.stereoTriangulateCropped(yL,yR,'L','R');
+      XBlr = obj.camxform(XLlr,'lb');
+      xpR_reLR = obj.project(XRlr,'R');
+      xpL_reLR = obj.project(XLlr,'L');
+      xpB_reLR = obj.project(XBlr,'B');
+      yR_reLR = obj.x2y(xpR_reLR,'R');
+      yL_reLR = obj.x2y(xpL_reLR,'L');
+      yB_reLR = obj.x2y(xpB_reLR,'B');
+      
+      errLfull_reLR = sqrt(sum((yL-yL_reLR).^2,2));
+      errRfull_reLR = sqrt(sum((yR-yR_reLR).^2,2));
+      errBfull_reLR = sqrt(sum((yB-yB_reLR).^2,2));
+      errL_reLR = nanmean(errLfull_reLR); % mean L2 distance (in px) across all GT pts
+      errR_reLR = nanmean(errRfull_reLR);
+      errB_reLR = nanmean(errBfull_reLR);
+    end
+  end
+  
+  
 % [XL,XR] = stereo_triangulation(xL,xR,om,T,fc_left,cc_left,kc_left,alpha_c_left,fc_right,cc_right,kc_right,alpha_c_right);
 % [xL_re] = project_points2(XL,zeros(size(om)),zeros(size(T)),fc_left,cc_left,kc_left,alpha_c_left);
 % [xR_re] = project_points2(XR,zeros(size(om)),zeros(size(T)),fc_right,cc_right,kc_right,alpha_c_right);
