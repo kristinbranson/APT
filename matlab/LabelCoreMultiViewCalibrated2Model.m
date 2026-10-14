@@ -405,11 +405,6 @@ classdef LabelCoreMultiViewCalibrated2Model < LabelCoreModel
       % Set the calibration rig object.
       assert(isa(crig, 'CalRig')) ;
 
-      % 20160923 hack legacy CalRigSH objs and EPlines workaround
-      if isa(crig, 'CalRigSH')
-        crig.epLineNPts = 2 ;
-      end
-
       obj.pjtCalRig_ = crig ;
     end  % function
 

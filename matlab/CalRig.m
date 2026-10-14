@@ -161,11 +161,6 @@ classdef CalRig < handle
 %         tfSetViewRois = false;
       elseif all(ismember({'calibrations', 'nviews', 'raytracing', 'python_script_path', 'model_path', 'dividing_col', 'image_width'}, vars))
         obj = CalRigNPairwiseCalibratedRayTracing(s);
-      elseif all(ismember({'DLT_1' 'DLT_2'},vars))
-        % SH
-        obj = CalRigSH;
-        obj.setKineData(fname);
-%         tfSetViewRois = true;
       elseif all(ismember({'om' 'T' 'R' 'active_images_left' 'recompute_intrinsic_right'},vars))
         % Bouget Calib_Results_stereo.mat file
         % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes
