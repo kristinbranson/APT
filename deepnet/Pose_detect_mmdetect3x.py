@@ -1094,6 +1094,34 @@ def rescale_param_scheduler(cfg, conf):
         cfg.max_epochs = conf.dl_steps
 
 
+def scale_lr_for_batch_size(cfg, conf, default_samples_per_gpu):
+    """Scales the config's learning rate from the batch size it was tuned for to APT's.
+
+    The mmdetection configs specify a learning rate for default_samples_per_gpu images on
+    each of 8 GPUs, whereas APT trains on one GPU with conf.batch_size images, so the rate
+    is scaled linearly to match. This matters most for RTMDet, whose 8xb32 config assumes
+    an effective batch of 256 against APT's default of 8.
+
+    Present and working in Pose_detect_mmdetect2x, but lost in the port to mmdetection
+    3.x, where cfg.optimizer became cfg.optim_wrapper.optimizer and the line would have
+    raised rather than run.
+    """
+    designed_batch_size = default_samples_per_gpu * 8
+    scale = conf.learning_rate_multiplier * conf.batch_size / designed_batch_size
+    scaled_lr = cfg.optim_wrapper.optimizer.lr * scale
+    logging.info(f'Scaling learning rate from {cfg.optim_wrapper.optimizer.lr} to {scaled_lr} '
+                 f'for a batch size of {conf.batch_size} against the configured {designed_batch_size}')
+    cfg.optim_wrapper.optimizer.lr = scaled_lr
+
+    # Schedulers can carry absolute learning rates of their own, and those have to move
+    # with the base rate. RTMDet's cosine floor is defined as base_lr*0.05, so leaving it
+    # alone would put the floor above the rate being annealed from and the schedule would
+    # rise rather than decay. Relative terms, start_factor and gamma, need no change.
+    for scheduler in cfg.get('param_scheduler', []):
+        if 'eta_min' in scheduler:
+            scheduler.eta_min = scheduler.eta_min * scale
+
+
 def set_rtmdet_pipeline_size(cfg, im_sz):
     """Rescales every image-size field in the RTMDet pipelines to im_sz.
 
@@ -1129,6 +1157,84 @@ def set_rtmdet_pipeline_size(cfg, im_sz):
         if 'switch_pipeline' in hook:
             resize_pipeline(hook.switch_pipeline)
 
+    cfg.train_dataloader.dataset.pipeline = cfg.train_pipeline
+    for loader_name in ['val_dataloader', 'test_dataloader']:
+        if cfg.get(loader_name, None) is not None:
+            cfg[loader_name].dataset.pipeline = cfg.test_pipeline
+
+
+def select_detections(boxes, scores, max_count, min_count, nms_threshold=0.7, score_threshold=0.2):
+    """Returns the indices of the detections APT keeps, in score order.
+
+    boxes are [n x 4] xyxy, sorted by decreasing score as mmdetection returns them.
+    A box is dropped if it overlaps an already-kept box by more than nms_threshold
+    (standard greedy NMS: a box that was itself dropped cannot suppress another), or
+    if its score is below score_threshold once min_count boxes are kept. At most
+    max_count boxes are kept.
+    """
+    boxes = np.asarray(boxes, dtype=np.float64)
+    if len(boxes) == 0:
+        return np.zeros(0, dtype=int)
+    overlaps = bbox_overlaps(torch.tensor(boxes), torch.tensor(boxes)).numpy()
+    np.fill_diagonal(overlaps, 0.)
+    keep = []
+    for ix in range(len(boxes)):
+        if len(keep) >= max_count:
+            break
+        if keep and np.any(overlaps[ix, keep] > nms_threshold):
+            continue
+        if scores[ix] < score_threshold and len(keep) >= min_count:
+            continue
+        keep.append(ix)
+    return np.array(keep, dtype=int)
+
+
+def kept_detections(mmdetect_net, boxes, scores, max_count, min_count, nms_threshold=0.7, score_threshold=0.2):
+    """Returns the indices of the detections passed on to tracking, in score order.
+
+    Faster R-CNN and RTMDet already apply NMS and a score threshold inside mmdetection
+    (model.test_cfg), so their output is only capped at max_count. DETR is NMS-free and
+    returns every query, so APT's own selection (select_detections) is applied to it.
+    """
+    scores = np.asarray(scores)
+    if mmdetect_net == 'detr':
+        return select_detections(boxes, scores, max_count, min_count, nms_threshold, score_threshold)
+    return np.argsort(-scores, kind='stable')[:max_count]
+
+
+MOT_AUG_SIZE = (1088, 1088)
+MOT_AUG_RATIO_RANGE = (0.8, 1.2)
+
+
+def set_frcnn_mot_pipelines(cfg, im_sz=MOT_AUG_SIZE):
+    """Replaces the Faster R-CNN train/test pipelines with mmtracking's MOT detection recipe.
+
+    mmdetection's COCO pipeline for Faster R-CNN augments with a horizontal flip only.
+    mmtracking trains its MOT17 detectors (and ChimpACT copied this verbatim for its
+    chimp detector) with random rescaling to 1088 +-20%, photometric distortion and a
+    random 1088 crop, and tests at 1088. On ChimpACT the flip-only pipeline overfits the
+    labelled frames and generalises worse to unseen recording sessions. Boxes are not
+    clipped at the image border, so an animal cut by the crop keeps its true extent.
+    PhotoMetricDistortion needs a float32 image, hence to_float32 on the training load.
+
+    im_sz (width, height) replaces 1088 when a project overrides the default detector
+    size. Resize scales are (w, h) but RandomCrop's crop_size is (h, w).
+    """
+    im_sz = tuple(im_sz)
+    crop_sz = (im_sz[1], im_sz[0])
+    cfg.train_pipeline = [
+        dict(type='LoadImageFromFile', to_float32=True, backend_args=None),
+        dict(type='LoadAnnotations', with_bbox=True),
+        dict(type='RandomResize', scale=im_sz, ratio_range=MOT_AUG_RATIO_RANGE,
+             keep_ratio=True, clip_object_border=False),
+        dict(type='PhotoMetricDistortion'),
+        dict(type='RandomCrop', crop_size=crop_sz, bbox_clip_border=False),
+        dict(type='RandomFlip', prob=0.5),
+        dict(type='PackDetInputs'),
+    ]
+    for step in cfg.test_pipeline:
+        if step.type == 'Resize':
+            step.scale = im_sz
     cfg.train_dataloader.dataset.pipeline = cfg.train_pipeline
     for loader_name in ['val_dataloader', 'test_dataloader']:
         if cfg.get(loader_name, None) is not None:
@@ -1233,17 +1339,10 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
 
     if conf.mmdetect_net == 'frcnn': # TODO!!
 
-        for ttype in ['train', 'val', 'test']:
-            name = ttype if ttype != 'val' else 'test'
-            if not conf.get('mmdetect_use_default_sz', True):
-                pname = name + '_pipeline'
-                for k in cfg[pname]:
-                    if k.type == 'Resize':
-                        k.scale = im_sz
-
-                dname = ttype + '_dataloader'
-                if cfg[dname] is not None:
-                    cfg[dname].dataset.pipeline = cfg[pname]
+        if conf.get('mmdetect_use_default_sz', True):
+            set_frcnn_mot_pipelines(cfg)
+        else:
+            set_frcnn_mot_pipelines(cfg, im_sz)
 
         cfg.model.roi_head.bbox_head.num_classes = 1
         if conf.get('mmdetection_oversample',False):
@@ -1263,9 +1362,9 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
             cfg.model.train_cfg.rcnn.assigner.ignore_iof_thr = 0.85
             cfg.model.train_cfg.rpn_proposal.max_per_img *= 10
         # assert (cfg.train_pipeline[2].type == 'Resize'), 'Unsupported train pipeline'
-        # cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
-        # cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
-        
+        cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
+        scale_lr_for_batch_size(cfg, conf, default_samples_per_gpu)
+
         try:
             response = requests.head(FRCNN_pretrained_url, allow_redirects=True)
             cfg.load_from = response.url
@@ -1324,6 +1423,8 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
             # Keep the assigner's ignore band aligned with the NMS actually in use, so
             # that training only supervises the priors NMS cannot remove for us.
             cfg.model.train_cfg.assigner.neg_iou_hi = cfg.model.test_cfg.nms.iou_threshold
+
+        scale_lr_for_batch_size(cfg, conf, default_samples_per_gpu)
 
         url = RTMDET_pretrained_urls[rtmdet_size]
         try:
@@ -1493,7 +1594,8 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
 
         model_file = self.get_latest_model_file() if model_file is None else model_file
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        init_args = {'weights':model_file,'device':device}
+        # show_progress=False: rich's progress bar writes one line per batch to a non-tty stdout, flooding the bsub log.
+        init_args = {'weights':model_file,'device':device,'show_progress':False}
         inferencer = DetInferencer(**init_args)
         max_n = conf.max_n_animals
         min_n = conf.min_n_animals
@@ -1530,25 +1632,11 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
                 labels = res['labels']
                 if len(bbs) == 0:
                     continue
-                # if conf.mmdetect_net == 'detr':
                 cur_max = max_n
                 cur_res = np.ones([max_n, 5]) * np.nan
-                overlaps = bbox_overlaps(torch.tensor(bbs[:,:4]),torch.tensor(bbs[:,:4]))
-                overlaps = overlaps.numpy()
-                overlaps[np.diag_indices(overlaps.shape[0])] = 0.
-                done_count = 0
-                cur_ix = -1
-                while done_count<max_n:
-                    cur_ix = cur_ix + 1
-                    if cur_ix>=overlaps.shape[0]: break
-                    if (cur_ix> 0) and (any(overlaps[cur_ix,:cur_ix]>detr_nms)): continue
-                    if (scores[cur_ix]<detr_thr) and done_count>=min_n: continue
-                    cur_res[done_count,:4] = bbs[cur_ix]
-                    cur_res[done_count,4] = scores[cur_ix]
-                    done_count += 1
-                # else:
-                #     cur_res = bbs.copy()
-                #     cur_max = len(bbs)
+                keep = kept_detections(conf.get('mmdetect_net', 'detr'), bbs[:,:4], scores, max_n, min_n, detr_nms, detr_thr)
+                cur_res[:len(keep),:4] = bbs[keep,:4]
+                cur_res[:len(keep),4] = np.asarray(scores)[keep]
                 pose_results[ndx,:cur_max,:,:] = cur_res[:,:4].copy().reshape([-1,2,2])
                 conf_res[ndx,:cur_max,:] = cur_res[:cur_max,4:].copy()
             return pose_results, conf_res
@@ -1558,19 +1646,8 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
                 if conf.mmdetect_net == 'detr':
                     cur_max = max_n
                     cur_res = np.ones([max_n, 5]) * np.nan
-                    bbs = torch.tensor(res[0][:,:4])
-                    overlaps = bbox_overlaps(bbs,bbs)
-                    overlaps = overlaps.numpy()
-                    overlaps[np.diag_indices(overlaps.shape[0])] = 0.
-                    done_count = 0
-                    cur_ix = -1
-                    while done_count<max_n:
-                        cur_ix = cur_ix + 1
-                        if cur_ix>=overlaps.shape[0]: break
-                        if (cur_ix> 0) and (any(overlaps[cur_ix,:cur_ix]>detr_nms)): continue
-                        if (res[0][cur_ix,4]<detr_thr) and done_count>=min_n: continue
-                        cur_res[done_count,:] = res[0][cur_ix]
-                        done_count += 1
+                    keep = select_detections(res[0][:,:4], res[0][:,4], max_n, min_n, detr_nms, detr_thr)
+                    cur_res[:len(keep),:] = res[0][keep]
 
                 else:
                     cur_res = res[0]

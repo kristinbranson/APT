@@ -87,7 +87,7 @@ conda_default_environment_name, docker_default_image_tag, apptainer_default_imag
     determine_default_backend_specs()
 
 # These are argument keys that are either a file name or a list of file names.    
-file_name_arg_keys = ['lbl_file', 'mov', 'trx', 'log_file', 'err_file', 'out_files', 'predict_trk_files', 'id_wts_file', 'config_file']
+file_name_arg_keys = ['lbl_file', 'mov', 'trx', 'log_file', 'err_file', 'out_files', 'predict_trk_files', 'id_wts_file', 'id_detected_identities_file', 'config_file']
 
 
 
@@ -166,6 +166,7 @@ def parse_args(argv):
     parser.add_argument('-predict_trk_files', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, nargs='+')
     parser.add_argument('-id_wts_file', dest='id_wts_file', help='File path for ID tracking model weights. If file exists, weights are loaded. If file does not exist, trained weights are saved to this location.', default=None)
     parser.add_argument('-id_num_animals', dest='id_num_animals', help='Known number of animals present in the videos being tracked. If specified, used to determine the number of ID clusters during identity linking instead of a fixed distance threshold.', type=int, default=None)
+    parser.add_argument('-id_detected_identities_file', dest='id_detected_identities_file', help='File path for the identities detected by graph-cut identity linking (the ID cluster centers). If the file exists, the identities are read from it, so that identities are consistent across tracking runs. If it does not exist, the identities detected during linking are saved to it.', default=None)
     parser.add_argument('-config_file', dest='config_file', help='JSON file with parameters related to tracking', default=None)
     parser.add_argument('-continue', dest='continue_tracking', help='continue tracking from an existing .part file', action='store_true')
 
