@@ -346,6 +346,8 @@ classdef OrthoCam
         'units','normalized','outerposition',[0 0 1 1]);
       ax = axes;
       hold(ax,'on');
+      % Drawn as the world x-z plane, y being depth: the view(0,0) of the
+      % plot3/fill3 version this replaced, as a 2-D plot.
       
       optCtr1 = [0;0;0];
       n1 = [0;0;-1];
@@ -354,9 +356,9 @@ classdef OrthoCam
       optAx1 = [optCtr1 optCtr1+n1*dOptAx];
       optAx1Plus = optCtr1+n1*(dOptAx+DX);
       optAx1Mid = optCtr1+n1*dOptAx/2;
-      plot3(optAx1(1,:),optAx1(2,:),optAx1(3,:),'--','linewidth',2,'color',[0 0 0]);
+      plot(optAx1(1,:),optAx1(3,:),'--','linewidth',2,'color',[0 0 0]);
       BROWN = [139 69 19]/255;
-      text(optAx1Plus(1),optAx1Plus(2),optAx1Plus(3),'C',...
+      text(optAx1Plus(1),optAx1Plus(3),'C',...
         'fontweight','bold','fontsize',12,'color',BROWN);
 
       % Check: x0y0cam1+pxcam1 should project to [1 0] etc
@@ -366,22 +368,20 @@ classdef OrthoCam
       optAxMid1CamXaxPlus = optAx1Mid+1.5*ijkCam1(:,1);
       optAxMid1CamYaxPlus = optAx1Mid+1.5*ijkCam1(:,2);
       
-      plot3(optAxMid1CamXax(1,:),optAxMid1CamXax(2,:),optAxMid1CamXax(3,:),'b-','linewidth',2);
-      plot3(optAxMid1CamYax(1,:),optAxMid1CamYax(2,:),optAxMid1CamYax(3,:),'b-','linewidth',2);
-      text(optAxMid1CamXaxPlus(1),optAxMid1CamXaxPlus(2),optAxMid1CamXaxPlus(3),...
+      plot(optAxMid1CamXax(1,:),optAxMid1CamXax(3,:),'b-','linewidth',2);
+      plot(optAxMid1CamYax(1,:),optAxMid1CamYax(3,:),'b-','linewidth',2);
+      text(optAxMid1CamXaxPlus(1),optAxMid1CamXaxPlus(3),...
         'x','fontweight','bold','fontsize',9,'color',[0 0 1]);
-      text(optAxMid1CamYaxPlus(1),optAxMid1CamYaxPlus(2),optAxMid1CamYaxPlus(3),...
+      text(optAxMid1CamYaxPlus(1),optAxMid1CamYaxPlus(3),...
         'y','fontweight','bold','fontsize',9,'color',[0 0 1]);
 
       grid on;
       tstr = sprintf('%d pats',nPat);
       title(ax,tstr,'fontweight','bold','interpreter','tex');
       xlabel(ax,'x (mm)','fontweight','bold');
-      ylabel(ax,'y (mm)','fontweight','bold');
-      zlabel(ax,'z (mm)','fontweight','bold');  
+      ylabel(ax,'z (mm)','fontweight','bold');
       axis(ax,'square');      
       axis(ax,'equal');
-      view(0,0);
       
       % plot the pats
       patPtsMins = min(patPtsXYZ,[],2);
@@ -411,14 +411,14 @@ classdef OrthoCam
         RPatI2World = rodrigues(r2vecCurr);
         tPatI2World = t2vecCurr;
         patPtsCornersWorld = RPatI2World*patPtsCorners + tPatI2World;
-        hPat(1) = fill3(patPtsCornersWorld(1,:),patPtsCornersWorld(2,:),...
-              patPtsCornersWorld(3,:),clrs(iPat,:),'FaceAlpha',0.5);
+        hPat(1) = patch(patPtsCornersWorld(1,:),patPtsCornersWorld(3,:),...
+          clrs(iPat,:),'FaceAlpha',0.5);
             
         % plot origin + yaxis in bold
         orig = patPtsCornersWorld(:,1);
-        hPat(2) = plot3(orig(1),orig(2),orig(3),'.','markersize',26,'color',[0 0 0]);
-        hPat(3) = plot3(patPtsCornersWorld(1,[1 4]),patPtsCornersWorld(2,[1 4]),...
-          patPtsCornersWorld(3,[1 4]),'-','linewidth',3,'color',[0 0 0]);
+        hPat(2) = plot(orig(1),orig(3),'.','markersize',26,'color',[0 0 0]);
+        hPat(3) = plot(patPtsCornersWorld(1,[1 4]),patPtsCornersWorld(3,[1 4]),...
+          '-','linewidth',3,'color',[0 0 0]);
         
         if patByPat
           in = input(sprintf('Pattern %d/%d. Enter -1 for flip.',iPat,nPat));
@@ -722,6 +722,8 @@ classdef OrthoCam
       hFig = figure('Name','OrthoCam: Calibration Extrinsics');
       ax = axes;
       hold(ax,'on');
+      % Drawn as the world x-z plane, y being depth: the view(0,0) of the
+      % plot3/fill3 version this replaced, as a 2-D plot.
       
       % plot the pats
       patPtsMins = min(patPtsXYZ,[],2);
@@ -742,14 +744,14 @@ classdef OrthoCam
         RPatI2World = rodrigues(rvecsFull(iPat,:)');
         tPatI2World = tvecsFull(iPat,:)';
         patPtsCornersWorld = RPatI2World*patPtsCorners + tPatI2World;
-        fill3(patPtsCornersWorld(1,:),patPtsCornersWorld(2,:),...
-              patPtsCornersWorld(3,:),clrs(iPat,:),'FaceAlpha',0.5);
+        patch(patPtsCornersWorld(1,:),patPtsCornersWorld(3,:),...
+          clrs(iPat,:),'FaceAlpha',0.5);
             
         % plot origin + yaxis in bold
         orig = patPtsCornersWorld(:,1);
-        plot3(orig(1),orig(2),orig(3),'.','markersize',26,'color',[0 0 0]);
-        plot3(patPtsCornersWorld(1,[1 4]),patPtsCornersWorld(2,[1 4]),...
-          patPtsCornersWorld(3,[1 4]),'-','linewidth',3,'color',[0 0 0]);
+        plot(orig(1),orig(3),'.','markersize',26,'color',[0 0 0]);
+        plot(patPtsCornersWorld(1,[1 4]),patPtsCornersWorld(3,[1 4]),...
+          '-','linewidth',3,'color',[0 0 0]);
       end
             
       % plot the optical ctrs/axes
@@ -758,8 +760,8 @@ classdef OrthoCam
       [~,~,az1,el1] = OrthoCam.azEl(n1);
       [~,~,az2,el2] = OrthoCam.azEl(n2);
      
-      plot3(optCtr1(1),optCtr1(2),optCtr1(3),'x','markersize',10,'linewidth',3,'color',[0 0 0]);
-      plot3(optCtr2(1),optCtr2(2),optCtr2(3),'x','markersize',10,'linewidth',3,'color',[0 0 0]);
+      plot(optCtr1(1),optCtr1(3),'x','markersize',10,'linewidth',3,'color',[0 0 0]);
+      plot(optCtr2(1),optCtr2(3),'x','markersize',10,'linewidth',3,'color',[0 0 0]);
       
       DX = 1;
       optAx1 = [optCtr1 optCtr1+n1*dOptAx];
@@ -769,12 +771,12 @@ classdef OrthoCam
       optAx1Mid = optCtr1+n1*dOptAx/2; 
       optAx2Mid = optCtr2+n2*dOptAx/2;
       
-      plot3(optAx1(1,:),optAx1(2,:),optAx1(3,:),'--','linewidth',2,'color',[0 0 0]);
-      plot3(optAx2(1,:),optAx2(2,:),optAx2(3,:),'--','linewidth',2,'color',[0 0 0]);      
+      plot(optAx1(1,:),optAx1(3,:),'--','linewidth',2,'color',[0 0 0]);
+      plot(optAx2(1,:),optAx2(3,:),'--','linewidth',2,'color',[0 0 0]);      
       BROWN = [139 69 19]/255;
-      text(optAx1Plus(1),optAx1Plus(2),optAx1Plus(3),'C1',...
+      text(optAx1Plus(1),optAx1Plus(3),'C1',...
         'fontweight','bold','fontsize',12,'color',BROWN);
-      text(optAx2Plus(1),optAx2Plus(2),optAx2Plus(3),'C2',...
+      text(optAx2Plus(1),optAx2Plus(3),'C2',...
         'fontweight','bold','fontsize',12,'color',BROWN);
      
       
@@ -789,17 +791,17 @@ classdef OrthoCam
       optAxMid2CamXaxPlus = optAx2Mid+1.5*ijkCam2(:,1);
       optAxMid2CamYaxPlus = optAx2Mid+1.5*ijkCam2(:,2);
       
-      plot3(optAxMid1CamXax(1,:),optAxMid1CamXax(2,:),optAxMid1CamXax(3,:),'b-','linewidth',2);
-      plot3(optAxMid1CamYax(1,:),optAxMid1CamYax(2,:),optAxMid1CamYax(3,:),'b-','linewidth',2);
-      plot3(optAxMid2CamXax(1,:),optAxMid2CamXax(2,:),optAxMid2CamXax(3,:),'b-','linewidth',2);
-      plot3(optAxMid2CamYax(1,:),optAxMid2CamYax(2,:),optAxMid2CamYax(3,:),'b-','linewidth',2);
-      text(optAxMid1CamXaxPlus(1),optAxMid1CamXaxPlus(2),optAxMid1CamXaxPlus(3),...
+      plot(optAxMid1CamXax(1,:),optAxMid1CamXax(3,:),'b-','linewidth',2);
+      plot(optAxMid1CamYax(1,:),optAxMid1CamYax(3,:),'b-','linewidth',2);
+      plot(optAxMid2CamXax(1,:),optAxMid2CamXax(3,:),'b-','linewidth',2);
+      plot(optAxMid2CamYax(1,:),optAxMid2CamYax(3,:),'b-','linewidth',2);
+      text(optAxMid1CamXaxPlus(1),optAxMid1CamXaxPlus(3),...
         'x','fontweight','bold','fontsize',9,'color',[0 0 1]);
-      text(optAxMid1CamYaxPlus(1),optAxMid1CamYaxPlus(2),optAxMid1CamYaxPlus(3),...
+      text(optAxMid1CamYaxPlus(1),optAxMid1CamYaxPlus(3),...
         'y','fontweight','bold','fontsize',9,'color',[0 0 1]);
-      text(optAxMid2CamXaxPlus(1),optAxMid2CamXaxPlus(2),optAxMid2CamXaxPlus(3),...
+      text(optAxMid2CamXaxPlus(1),optAxMid2CamXaxPlus(3),...
         'x','fontweight','bold','fontsize',9,'color',[0 0 1]);
-      text(optAxMid2CamYaxPlus(1),optAxMid2CamYaxPlus(2),optAxMid2CamYaxPlus(3),...
+      text(optAxMid2CamYaxPlus(1),optAxMid2CamYaxPlus(3),...
         'y','fontweight','bold','fontsize',9,'color',[0 0 1]);
       
       angleInDeg = acos(dot(n1,n2))/pi*180;
@@ -808,11 +810,9 @@ classdef OrthoCam
         nPat,angleInDeg,az1/pi*180,el1/pi*180,az2/pi*180,el2/pi*180);
       title(ax,tstr,'fontweight','bold','interpreter','tex');
       xlabel(ax,'x (mm)','fontweight','bold');
-      ylabel(ax,'y (mm)','fontweight','bold');
-      zlabel(ax,'z (mm)','fontweight','bold');  
+      ylabel(ax,'z (mm)','fontweight','bold');
       axis(ax,'square');      
       axis(ax,'equal');
-      view(0,0);
     end
     function opts = defaultoptsStro()
       opts = optimset;
