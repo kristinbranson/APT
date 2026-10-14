@@ -657,7 +657,7 @@ classdef LandmarkColorsController < handle
 
       % Single-row layout: Color | Line width slider + value | Font size
       readoutW = 32 ;
-      fontLabelW = 58 ;
+      fontLabelW = 64 ;  % "Font size:" measures 62 px in R2024b (Extent), and 58 wrapped it
       fontEditW = 40 ;
       rightMargin = 5 ;
       x = 5 ;
