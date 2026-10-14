@@ -32,6 +32,36 @@ function test_landmark_colors_trajectory_panel()
     assert(ancestor(h, 'figure') == controller.hFig, 'Trajectory widget "%s" is not parented to the dialog figure', prop) ;
   end
 
+  % Every control must fit inside the panel's drawable area -- its
+  % InnerPosition, which excludes the border and the title band.  The panel
+  % used to be too short for its 20 px row of controls, and the row ran 30 px
+  % past the panel's right edge, so the top of every control and the whole
+  % font-size edit were clipped.
+  panel = controller.pnlTraj_ ;
+  % InnerPosition is stale until the panel has drawn (it read 19, then 30,
+  % then its real 16 px of height for a 34 px panel), so wait for it to settle.
+  innerSize = panel.InnerPosition(3:4) ;
+  for attempt = 1 : 20
+    drawnow ;
+    pause(0.5) ;
+    newInnerSize = panel.InnerPosition(3:4) ;
+    if isequal(newInnerSize, innerSize)
+      break
+    end
+    innerSize = newInnerSize ;
+  end
+  children = panel.Children ;
+  for i = 1 : numel(children)
+    child = children(i) ;
+    childPosition = getpixelposition(child) ;
+    doesFit = childPosition(1) >= 1 && childPosition(2) >= 1 && ...
+              childPosition(1) + childPosition(3) - 1 <= innerSize(1) && ...
+              childPosition(2) + childPosition(4) - 1 <= innerSize(2) ;
+    assert(doesFit, ...
+           'Trajectory control "%s" (%s) at %s does not fit inside the panel''s %s inner area', ...
+           child.Tag, child.Style, mat2str(childPosition), mat2str(innerSize)) ;
+  end
+
   % The controls should reflect the project's initial trajectory prefs.
   assert(isequal(controller.pbTrajColor_.BackgroundColor, [1 1 0]), ...
          'Trajectory color button did not reflect the initial TrajColor') ;
