@@ -274,6 +274,32 @@ class APTtransform:
         return results
 
 
+def set_dekr_hrformer_backbone_bang(cfg):
+    # Swap DEKR's HRNet-W32 for HRFormer-Base, set up as in Grone's hrformer backbone
+    # (my_hrformer_backbone in Pose_multi_mdn_joint_torch.py) and initialized from the same
+    # COCO-keypoint-trained checkpoint. DEKR's neck concatenates all four branches, so the
+    # last stage keeps its multi-scale output and the head takes the sum of branch widths.
+    num_channels = (78, 156, 312, 624)
+    extra = dict(
+        drop_path_rate=0.2,
+        with_rpe=True,
+        stage1=dict(num_modules=1, num_branches=1, block='BOTTLENECK', num_blocks=(2,), num_channels=(64,),
+                    num_heads=[2], mlp_ratios=[4]),
+        stage2=dict(num_modules=1, num_branches=2, block='HRFORMERBLOCK', num_blocks=(2, 2),
+                    num_channels=num_channels[:2], num_heads=[2, 4], mlp_ratios=[4, 4], window_sizes=[7, 7]),
+        stage3=dict(num_modules=4, num_branches=3, block='HRFORMERBLOCK', num_blocks=(2, 2, 2),
+                    num_channels=num_channels[:3], num_heads=[2, 4, 8], mlp_ratios=[4, 4, 4], window_sizes=[7, 7, 7]),
+        stage4=dict(num_modules=2, num_branches=4, block='HRFORMERBLOCK', num_blocks=(2, 2, 2, 2),
+                    num_channels=num_channels, num_heads=[2, 4, 8, 16], mlp_ratios=[4, 4, 4, 4],
+                    window_sizes=[7, 7, 7, 7], multiscale_output=True))
+    cfg.model.backbone = mmengine.config.ConfigDict(dict(
+        type='HRFormer', in_channels=3, extra=extra,
+        init_cfg=dict(type='Pretrained', prefix='backbone.',
+                      checkpoint='https://download.openmmlab.com/mmpose/top_down/hrformer/'
+                                 'hrformer_base_coco_256x192-6f5f1169_20220316.pth')))
+    cfg.model.head.in_channels = sum(num_channels)
+
+
 def create_mmpose_cfg(conf, mmpose_config_file, run_name):
     curdir = pathlib.Path(__file__).parent.absolute()
     mmpose_init_file_path = mmpose.__file__
@@ -310,6 +336,8 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                 cfg.model.head.num_keypoints = conf.n_classes
         if conf.mmpose_net == 'dekr':
             cfg.model.head.rescore_cfg = None
+            if conf.get('mmpose_dekr_backbone', 'hrnet') == 'hrformer':
+                set_dekr_hrformer_backbone_bang(cfg)
             if conf.multi_loss_mask:
                 cfg.codec.type = 'SPR_mask'
         if conf.mmpose_net == 'cid' and conf.multi_loss_mask:

@@ -585,17 +585,31 @@ def read_frame(cap, fnum, cur_trx, offset=0, stationary=True,flipud=False):
     return framein, x, y, theta, a
 
 
+def bbox_from_trx_params(conf, x, y, theta, a):
+    '''Return the [x_min, y_min, x_max, y_max] box that sets the crop scale for one animal.
+
+    x, y, theta and a are the trx-style parameters for the animal.  a is the length of the
+    major axis (i.e, the distance between the head and the tail) of the animal  or the maximum
+    of height or width of the bbox, but divided by 4. So when finding dx and dy we multiply a
+    by 2 to get the full length of the major axis or the full height because we add dx and
+    subtract dx to x to get the bbox.
+
+    This is the single definition of the scaling box, so that the crops built when creating
+    the training db match the ones built while tracking.
+    '''
+    if conf.use_bbox_trx:
+        dx = np.abs(a*2)
+        dy = np.abs(a*2)
+    else:
+        dx = np.abs(a*2*np.sin(theta)); dy = np.abs(a*2*np.cos(theta))
+    return np.array([x-dx,y-dy,x+dx,y+dy])
+
+
 def get_patch_trx(cap, cur_trx, fnum, conf, locs, offset=0, stationary=True,flipud=False,bbox=None):
     # assert conf.imsz[0] == conf.imsz[1]
     im, x, y, theta,a  = read_frame(cap, fnum, cur_trx, offset, stationary,flipud)
     if bbox is None:
-        # a is the length of the major axis (i.e, the distance between the head and the tail) of the animal  or the maximum of height or width of the bbox, but divided by 4. So when finding dx and dy we multiply a by 2 to get the full length of the major axis or the full height because we add dx and subtract dx to x to get the bbox
-        if conf.use_bbox_trx:
-            dx = np.abs(a*2)
-            dy = np.abs(a*2)
-        else:
-            dx = np.abs(a*2*np.sin(theta)); dy = np.abs(a*2*np.cos(theta))
-        bbox = np.array([x-dx,y-dy,x+dx,y+dy])
+        bbox = bbox_from_trx_params(conf, x, y, theta, a)
     return crop_patch_trx(conf, im,x,y,theta, locs,bbox=bbox)
 
 
@@ -645,8 +659,8 @@ def get_scale_bbox(bbox,sz,pad=1.0,imresize_expand=False):
 
 def crop_patch_trx(conf, im_in, x, y, theta, locs,bbox=None):
     ''' return patch for movies with trx file
-    function for testing: test_crop_path_trx
-    bbox if specified should be [x,y,width,height]
+    function for testing: test_crop_patch_trx
+    bbox if specified should be [x_min,y_min,x_max,y_max]
     '''
     psz_x = conf.imsz[1]
     psz_y = conf.imsz[0]
@@ -709,15 +723,20 @@ def crop_patch_trx(conf, im_in, x, y, theta, locs,bbox=None):
     rpatch = rpatch[:,:,:conf.img_dim]
     return rpatch, lr, scale
 
-def test_crop_patch_trx():
-    ''' Code to test crop_patch_trx'''
+def test_crop_patch_trx(show=False):
+    ''' Code to test crop_patch_trx.
+
+    Checks that the crop scale is the one the bbox asks for, and that the patch is centred
+    on the animal with the landmarks carried along by the same similarity transform.  Pass
+    show=True to also plot the input and the three patches.
+    '''
     import easydict
-    from matplotlib import pyplot as plt
     conf = easydict.EasyDict()
     isz = 6 + np.random.choice(2)
     conf.imsz = [isz, isz]
     conf.img_dim = 1
     conf.multi_scale_by_bbox = True
+    conf.multi_pad = 1.
     conf.trx_align_theta = True
     ims = np.zeros([18, 18, 1])
     st = 6
@@ -727,19 +746,38 @@ def test_crop_patch_trx():
     locs = np.array([[st, st, en - 1, en - 1, 7.], [st, en - 1, st, en - 1,7.]])
     locs = locs.T
     bbox = [5,5,15,15]
-    print(f'scale:{isz/10}')
-    ni1,nl1 = crop_patch_trx(conf,ims,7.,7.,angle,locs,[st,st,st+isz,st+isz])
-    ni2,nl2 = crop_patch_trx(conf,ims,7.,7.,-math.pi/2,locs,bbox)
-    ni, nl = crop_patch_trx(conf, ims, 7., 7., angle, locs,bbox)
-    f, ax = plt.subplots(1, 4)
-    ax[0].imshow(ims[:, :, 0])
-    ax[0].scatter(locs[:, 0], locs[:, 1])
-    ax[1].imshow(ni1[:, :, 0])
-    ax[1].scatter(nl1[:, 0], nl1[:, 1])
-    ax[2].imshow(ni2[:, :, 0])
-    ax[2].scatter(nl2[:, 0], nl2[:, 1])
-    ax[3].imshow(ni[:, :, 0])
-    ax[3].scatter(nl[:, 0], nl[:, 1])
+    ni1,nl1,ns1 = crop_patch_trx(conf,ims,7.,7.,angle,locs,[st,st,st+isz,st+isz])
+    ni2,nl2,ns2 = crop_patch_trx(conf,ims,7.,7.,-math.pi/2,locs,bbox)
+    ni, nl, ns = crop_patch_trx(conf, ims, 7., 7., angle, locs,bbox)
+
+    # The scale maps the longer side of the bbox onto the patch: the first bbox is already
+    # isz across, the other two are 10 across.
+    assert np.isclose(ns1, 1.), f'expected a scale of 1, got {ns1}'
+    for cur_scale in (ns2, ns):
+        assert np.isclose(cur_scale, isz/10), f'expected a scale of {isz/10}, got {cur_scale}'
+
+    for cur_patch, cur_locs, cur_scale in ((ni1,nl1,ns1), (ni2,nl2,ns2), (ni,nl,ns)):
+        assert cur_patch.shape == (isz, isz, conf.img_dim), f'patch has shape {cur_patch.shape}'
+        # The animal centre that was passed in ends up at the centre of the patch, whatever
+        # the rotation and scale.  It is the last of the locs.
+        patch_ctr = np.array([float(isz)/2 - 0.5, float(isz)/2 - 0.5])
+        assert np.allclose(cur_locs[-1], patch_ctr, atol=1e-4), \
+            f'the centre landmark came out at {cur_locs[-1]}, expected {patch_ctr}'
+        # Rotating and scaling is a similarity transform, so every distance between
+        # landmarks is multiplied by exactly the crop scale.
+        d_in = np.linalg.norm(locs[:,None,:] - locs[None,:,:], axis=-1)
+        d_out = np.linalg.norm(cur_locs[:,None,:] - cur_locs[None,:,:], axis=-1)
+        assert np.allclose(d_out, d_in*cur_scale, atol=1e-3), \
+            'distances between landmarks were not scaled by the crop scale'
+
+    if show:
+        from matplotlib import pyplot as plt
+        f, ax = plt.subplots(1, 4)
+        ax[0].imshow(ims[:, :, 0])
+        ax[0].scatter(locs[:, 0], locs[:, 1])
+        for cur_ax, cur_patch, cur_locs in zip(ax[1:], (ni1,ni2,ni), (nl1,nl2,nl)):
+            cur_ax.imshow(cur_patch[:, :, 0])
+            cur_ax.scatter(cur_locs[:, 0], cur_locs[:, 1])
 
 
 def create_tf_record_from_lbl_with_trx(conf, split=True, split_file=None):

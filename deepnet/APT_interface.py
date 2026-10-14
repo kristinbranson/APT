@@ -2140,15 +2140,25 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
                 ht_locs = cur_locs[ndx, conf.ht_pts, :].copy()
                 ctr = ht_locs.mean(axis=0)
                 theta = np.arctan2(ht_locs[0, 1] - ht_locs[1, 1], ht_locs[0, 0] - ht_locs[1, 0])
+                # Size the crop the way tracking does.  There, stage 1 predicts only head and
+                # tail, so get_trx_info derives a from the head-tail distance and get_patch_trx
+                # turns that into the scaling box.  Scaling by the labeled roi instead would
+                # train the second stage at a different scale than we track at.
+                a = np.linalg.norm(ht_locs[0] - ht_locs[1]) / 4
+                cur_bbox = multiResData.bbox_from_trx_params(conf, ctr[0], ctr[1], theta, a)
             elif conf.use_bbox_trx:
                 assert not conf.trx_align_theta, 'Aligning with theta should be off for bbox based top-down tracking'
                 ctr = cur_roi[ndx].mean(axis=0)
                 theta = 0
+                # cur_roi[ndx] is [corner, xy], whereas get_scale_bbox wants a flat
+                # [x_min, y_min, x_max, y_max].
+                cur_bbox = np.array([np.nanmin(cur_roi[ndx][:, 0]), np.nanmin(cur_roi[ndx][:, 1]),
+                                     np.nanmax(cur_roi[ndx][:, 0]), np.nanmax(cur_roi[ndx][:, 1])])
             else:
                 assert False, 'For top down tracking either head-tail tracking or bbox tracking should be active'
 
             curl = cur_locs[ndx].copy()
-            cur_patch, curl, scale = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl,bbox=cur_roi[ndx].T.flatten())
+            cur_patch, curl, scale = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl,bbox=cur_bbox)
 
             if occ_as_nan:
                 curl[cur_occ[ndx], :] = np.nan
@@ -3661,7 +3671,11 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
                     theta = np.arctan2(ht_locs[0, 1] - ht_locs[1, 1], ht_locs[0, 0] - ht_locs[1, 0])
                 else:
                     theta = 0
-                bbox = ht_locs.flatten().tolist()
+                # Take the extremes rather than trusting the point order: for a head-tail
+                # first stage the two points are not sorted, and an inverted box would make
+                # get_scale_bbox return a negative scale factor.
+                bbox = [np.nanmin(ht_locs[:, 0]), np.nanmin(ht_locs[:, 1]),
+                        np.nanmax(ht_locs[:, 0]), np.nanmax(ht_locs[:, 1])]
                 curp, curl, curs = multiResData.crop_patch_trx(conf[1],all_f[ndx],ctr[0],ctr[1],theta,np.zeros([conf[1].n_classes,2]),bbox=bbox)
                 single_data.append([curp,ctr,theta,cur_start+ndx,curn, curs])
 
