@@ -4257,3 +4257,228 @@ ax[1].set_ylabel('Count')
 if False:
     plt.savefig('/groups/branson/home/kabram/temp/close_interaction_log_log.svg')
     plt.savefig('/groups/branson/home/kabram/temp/close_interaction_log_log.png')
+
+
+## CHIMPACT!! Active learning with model confidence (see the unmarked mice
+## confidence section above for the original design this mirrors)
+##
+## Pool: ChimpACT_train_coco.json (movies/labels APT trains on).
+## ChimpACT_val_coco.json is the round-quality check, ChimpACT_test_coco.json
+## is held out for the final comparison. Frames are extracted once to jpgs by
+## script_chimpact_extract_frames.py (multiResData's coco loader reads real
+## files off disk, it doesn't decode video at train time).
+##
+## Config: reuse the hrformer backbone/architecture APT already trained
+## (dl_steps=400000, batch_size=4, imsz=(736,1280)) from the durable copy of
+## the project snapshot pulled out of chimpAct_noTestlabels_hrformer_fullsize.lbl,
+## see /groups/branson/bransonlab/mayank/data/ChimpAct/lbl_config_hrformer_20260731/.
+
+from reuse import *
+import json as _json
+
+DATA_DIR = '/groups/branson/bransonlab/mayank/data/ChimpAct'
+BDIR = '/groups/branson/bransonlab/mayank/apt_cache_2/chimpact_inc'
+PROJECT_JSON = os.path.join(DATA_DIR, 'lbl_config_hrformer_20260731/chimpAct/20260731T110421_20260731T111351.json')
+TRAIN_JSON = os.path.join(DATA_DIR, 'ChimpACT_train_coco.json')
+VAL_JSON = os.path.join(DATA_DIR, 'ChimpACT_val_coco.json')
+TEST_JSON = os.path.join(DATA_DIR, 'ChimpACT_test_coco.json')
+COCO_IM_DIR = os.path.join(BDIR, 'frames')
+
+os.makedirs(BDIR, exist_ok=True)
+
+
+## Step 1: calibration run -- before committing to a per-round step count for
+## the real active-learning loop (a full 400k-step hrformer run takes 3-4
+## days), train on a small (1/10) random subset of the pool, checkpointing
+## every 20000 steps, then track how each pool example's predicted confidence
+## changes across checkpoints (see Step 2) to pick the fewest steps needed for
+## the confidence ranking to be representative.
+
+np.random.seed(1234)
+calib_frac = 0.1
+calib_dl_steps = 140000   # raise this if confidence hasn't stabilized by then
+calib_save_step = 20000
+calib_name = 'calib_10pct'
+
+calib_dir = os.path.join(BDIR, 'calib')
+os.makedirs(calib_dir, exist_ok=True)
+calib_json = os.path.join(calib_dir, 'train_TF_10pct.json')
+J = _json.load(open(TRAIN_JSON))
+
+##
+n_img = len(J['images'])
+sel = np.random.choice(n_img, int(n_img * calib_frac), replace=False)
+sel_ids = set(J['images'][i]['id'] for i in sel)
+J_calib = copy.deepcopy(J)
+J_calib['images'] = [im for im in J['images'] if im['id'] in sel_ids]
+J_calib['annotations'] = [a for a in J['annotations'] if a['image_id'] in sel_ids]
+
+with open(calib_json, 'w') as f:
+    _json.dump(J_calib, f)
+
+# Our subset is already valid coco (images/annotations, straight from the
+# already-coco pool) -- write it directly as train_db.json, the filename
+# PoseCommon_pytorch's coco data loader reads for db_format='coco'
+# (poseConfig.py: trainfilename='train_db'), and train with -skip_db.
+# create_coco_db is for converting APT's native lbl/locdata format *into*
+# coco; routing already-coco data through it is both pointless and (as of
+# writing) broken -- it reads a T['kpt_info'] key nothing in this codebase
+# ever writes.
+calib_cache_dir = os.path.join(calib_dir, 'chimpAct/multi_mdn_joint_torch/view_0', calib_name)
+os.makedirs(calib_cache_dir, exist_ok=True)
+with open(os.path.join(calib_cache_dir, 'train_db.json'), 'w') as f:
+    _json.dump(J_calib, f)
+
+print(f'calibration subset: {len(J_calib["images"])} images / {len(J_calib["annotations"])} annotations '
+      f'(full train pool: {len(J["images"])} / {len(J["annotations"])})')
+
+## Dry-run the config locally (CPU only, no GPU/training) to make sure the
+## overrides land where expected before handing off the actual run.
+import APT_interface as apt
+conf = apt.create_conf(PROJECT_JSON, 0, calib_name, cache_dir=calib_dir, net_type='multi_mdn_joint_torch',
+                        conf_params=['dl_steps', str(calib_dl_steps),
+                                     'save_step', str(calib_save_step),
+                                     'maxckpt', '20',
+                                     'rescale', '2.0',
+                                     'coco_im_dir', repr(COCO_IM_DIR)])
+conf.json_trn_file = calib_json
+assert conf.mdn_backbone == 'hrformer'
+assert conf.dl_steps == calib_dl_steps
+assert conf.save_step == calib_save_step
+assert conf.rescale == 2.0
+assert conf.coco_im_dir == COCO_IM_DIR
+print('conf OK:', conf.mdn_backbone, conf.dl_steps, conf.save_step, conf.maxckpt, conf.rescale, conf.batch_size, conf.imsz)
+
+## This machine can't submit to LSF -- run this bsub command yourself.
+# rescale=2 halves the working resolution (736x1280 -> ~368x640) -- full res
+# was too slow to iterate the active-learning loop on across 8 rounds. Same
+# override active_learning_confidence.py's chimpact Dataset entry uses.
+#
+# The command is written to a real .sh file, not inlined into the bsub
+# string: the first submission inlined it as `bash -c '...'` and by the time
+# it reached APT_interface.py, both bugs had bitten -- (1) -conf_params has
+# nargs='*', so with nothing '-'-prefixed between it and the positional
+# 'train' subcommand, it swallowed 'train' too, leaving a bare '-use_cache'
+# argparse couldn't place; and (2) every quote around coco_im_dir's path had
+# been stripped somewhere across the ssh -> bsub -> singularity -> `bash -c`
+# hops, so even fixing (1) alone wouldn't have made coco_im_dir parse as a
+# string. Writing a real script file collapses that to one shell parse, and
+# -conf_params now sits right before another '-flag' so it can't overreach.
+sing_script = os.path.join(calib_dir, f'{calib_name}.sh')
+with open(sing_script, 'w') as f:
+    f.write('#!/bin/bash\n')
+    f.write('cd /groups/branson/bransonlab/mayank/APT_develop/deepnet\n')
+    f.write('export TORCH_HOME=/groups/branson/home/kabram/.apt/torch\n')
+    f.write('export OMP_NUM_THREADS=2\n')
+    f.write(
+        f"python APT_interface.py {PROJECT_JSON} -name {calib_name} "
+        f"-conf_params dl_steps {calib_dl_steps} save_step {calib_save_step} maxckpt 20 rescale 2.0 "
+        f"coco_im_dir \"'{COCO_IM_DIR}'\" "
+        f"-err_file {calib_dir}/train_{calib_name}.err -log_file {calib_dir}/train_{calib_name}.log "
+        f"-json_trn_file {calib_json} -type multi_mdn_joint_torch -ignore_local 1 -cache {calib_dir} "
+        # -skip_db: train_db.json is already written above with our
+        # already-coco data -- see the comment there.
+        f"train -skip_db\n")
+os.chmod(sing_script, 0o755)
+
+sif = '/groups/branson/bransonlab/mayank/APT_develop/deepnet/scripts/apt-20260730-tf215-pytorch21-hopper/apt-20260730-tf215-pytorch21-hopper.sif'
+bsub_cmd = (
+    f"bsub -n 4 -gpu num=1:aff=yes -W 3000 -q gpu_h100 "
+    f"-o {calib_dir}/train_{calib_name}.log -R 'affinity[core(1)]' -J train_{calib_name} "
+    f"\"singularity exec --nv -B /groups -B /nrs {sif} {sing_script}\""
+)
+print(bsub_cmd)
+with open(os.path.join(calib_dir, 'submit.sh'), 'w') as f:
+    f.write('#!/bin/bash\n' + bsub_cmd + '\n')
+
+
+## Step 2: confidence trajectory across calibration checkpoints -- once
+## calib_10pct (Step 1, submitted separately -- this machine can't bsub) has
+## written a few checkpoints, run this to see how much the confidence-based
+## ranking still moves as training continues, and pick the fewest steps
+## needed for a round's selection to be representative of a fully-converged
+## model. Re-run as more checkpoints land; it only recomputes new ones.
+
+import sys
+import copy
+import pickle
+sys.path.insert(0, '/groups/branson/bransonlab/mayank/APT_develop/deepnet')
+import active_learning_confidence as alc
+import PoseTools as pt
+
+ds = alc.DATASETS['chimpact']
+calib_cache_dir = os.path.join(calib_dir, 'chimpAct/multi_mdn_joint_torch/view_0', calib_name)
+ck = alc.checkpoints(calib_cache_dir)
+print('checkpoints found:', ck)
+assert len(ck) >= 2, ('need at least 2 checkpoints to compare trajectories -- '
+                       'has the calib_10pct job written any yet? check ' + calib_cache_dir)
+
+conf = pt.pickle_load(os.path.join(calib_cache_dir, 'traindata'))[1]
+conf.cachedir = calib_cache_dir
+conf.coco_im_dir = COCO_IM_DIR
+
+# fixed evaluation sample: pool images NOT in the calibration training set,
+# i.e. exactly the kind of candidate a real round-1 confidence-selection
+# would be ranking. Same sample at every checkpoint for a fair comparison.
+calib_ids = set(im['id'] for im in _json.load(open(calib_json))['images'])
+holdout = [im for im in J['images'] if im['id'] not in calib_ids]
+np.random.seed(0)
+sample_n = min(2000, len(holdout))
+sample_imgs = [holdout[i] for i in np.random.choice(len(holdout), sample_n, replace=False)]
+sample_ids = set(im['id'] for im in sample_imgs)
+eval_sample = copy.deepcopy(J)
+eval_sample['images'] = sample_imgs
+eval_sample['annotations'] = [a for a in J['annotations'] if a['image_id'] in sample_ids]
+eval_sample_json = os.path.join(calib_dir, 'confidence_eval_sample.json')
+with open(eval_sample_json, 'w') as f:
+    _json.dump(eval_sample, f)
+print(f'evaluation sample: {sample_n} held-out pool images (fixed across checkpoints)')
+
+## compute per-checkpoint confidence, caching results so re-running only
+## does the checkpoints that are new
+cache_file = os.path.join(calib_dir, 'confidence_trajectory.p')
+traj = pt.pickle_load(cache_file) if os.path.exists(cache_file) else {}
+for step, ckpt_prefix in ck:
+    if step in traj:
+        continue
+    print(f'classifying checkpoint {step}...')
+    worst_conf, missed, info = alc._pool_confidence(ds, conf, eval_sample_json, model_file=ckpt_prefix)
+    traj[step] = (worst_conf, missed, info)
+with open(cache_file, 'wb') as f:
+    pickle.dump(traj, f)
+
+## how much would the next round's selection change if we trained longer?
+steps_sorted = sorted(traj)
+bottom_k = 500
+rows = []
+prev_bottom = None
+for step in steps_sorted:
+    worst_conf, missed, info = traj[step]
+    valid = ~np.isnan(worst_conf)
+    median_conf = np.median(worst_conf[valid]) if valid.any() else np.nan
+    n_missed = int(missed.sum())
+    rank_order = np.argsort(np.where(missed, -np.inf, worst_conf))
+    bottom = set(rank_order[:bottom_k].tolist())
+    overlap = len(bottom & prev_bottom) / bottom_k if prev_bottom is not None else np.nan
+    rows.append((step, median_conf, n_missed, overlap))
+    prev_bottom = bottom
+
+print(f'\n{"step":>8} {"median_conf":>12} {"n_missed":>9} {"overlap_vs_prev_bottom500":>26}')
+for step, median_conf, n_missed, overlap in rows:
+    overlap_str = f'{overlap:.3f}' if not np.isnan(overlap) else '--'
+    print(f'{step:>8} {median_conf:>12.4f} {n_missed:>9} {overlap_str:>26}')
+print('\nlook for where n_missed and median_conf level off and overlap_vs_prev '
+      'gets close to 1.0 -- that step is enough for the real active-learning '
+      "rounds' dl_steps; training further barely changes who'd get picked next.")
+
+f, axs = plt.subplots(1, 3, figsize=(15, 4))
+axs[0].plot(steps_sorted, [r[1] for r in rows], 'o-')
+axs[0].set_title('median worst-animal confidence'); axs[0].set_xlabel('step')
+axs[1].plot(steps_sorted, [r[2] for r in rows], 'o-')
+axs[1].set_title('# missed detections'); axs[1].set_xlabel('step')
+axs[2].plot(steps_sorted[1:], [r[3] for r in rows[1:]], 'o-')
+axs[2].set_title(f'bottom-{bottom_k} overlap vs previous checkpoint'); axs[2].set_xlabel('step')
+axs[2].set_ylim(0, 1.05)
+plt.tight_layout()
+plt.savefig(os.path.join(calib_dir, 'confidence_trajectory.png'))
+print('saved', os.path.join(calib_dir, 'confidence_trajectory.png'))

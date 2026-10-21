@@ -63,6 +63,13 @@ classdef TrackBatchGUIController < handle
     chk_maintain_identities = [];    % "Maintain identities across videos" (MA)
     chk_known_num_animals = [];      % "Known number of animals in videos" (MA, identity linking)
     edit_num_animals = [];           % number-of-animals edit field (MA, identity linking)
+    id_files_grid = [];              % sub-grid for the identity-linking file controls (MA)
+    txt_id_model_file = [];          % "ID model file" label (MA, identity linking)
+    edit_id_model_file = [];         % ID-model-file edit field (MA, identity linking)
+    button_id_model_file = [];       % browse button for the ID model file (MA, identity linking)
+    txt_detected_identities_file = [];    % "Detected identities file" label (MA, identity linking)
+    edit_detected_identities_file = [];   % detected-identities-file edit field (MA, identity linking)
+    button_detected_identities_file = []; % browse button for the detected identities file (MA, identity linking)
     text_page = [];                  % "Page m/n" label
     button_save = [];                % Save button
     button_load = [];                % Load button
@@ -187,6 +194,14 @@ classdef TrackBatchGUIController < handle
       if ~isfield(obj.toTrack,'id_num_animals'),
         obj.toTrack.id_num_animals = [];
       end
+      % The identity-tracking file locations default to the ones last used in this
+      % project, which the Labeler persists in the project file.
+      if ~isfield(obj.toTrack,'id_detected_identities_file'),
+        obj.toTrack.id_detected_identities_file = obj.lObj.idDetectedIdentitiesFile;
+      end
+      if ~isfield(obj.toTrack,'id_model_file'),
+        obj.toTrack.id_model_file = obj.lObj.idModelFile;
+      end
       obj.nmovies = size(obj.toTrack.movfiles,1);
     end
 
@@ -267,14 +282,24 @@ classdef TrackBatchGUIController < handle
         'SizeChangedFcn',@(src,evt) obj.figureResizeCallback(src,evt),...
         'WindowButtonDownFcn',@(src,evt) obj.windowButtonDownFcn(src,evt));
 
-      rows =  {'1x',40,40,40};
+      % Heights of the top-level rows, in the order the rows appear.  The rows that
+      % follow the movie list are: the default-trkfile pattern, the default-trx
+      % pattern (trx projects), the linking controls and the identity-linking file
+      % locations (multi-animal projects), the page/save/load buttons, and finally
+      % the Track/Cancel buttons.
+      standardRowHeight = 40 ;
+      idFilesRowHeight = 60 ;  % holds two file rows, so taller than a standard row
+      controlButtonRowHeight = 42 ;
+      rows = {'1x', standardRowHeight};
       if hasTrx,
-        rows{end+1} = 40;
+        rows{end+1} = standardRowHeight;
       end
-      % Add row for identity linking checkboxes (multi-animal projects only)
       if obj.lObj.maIsMA
-        rows{end+1} = 40;
+        rows{end+1} = standardRowHeight;
+        rows{end+1} = idFilesRowHeight;
       end
+      rows{end+1} = standardRowHeight;
+      rows{end+1} = controlButtonRowHeight;
       grid = uigridlayout(obj.fig,'RowHeight',rows,...
         'ColumnWidth', {'1x'},'BackgroundColor',backgroundcolor,'RowSpacing',10);
       obj.grid = grid;
@@ -464,8 +489,80 @@ classdef TrackBatchGUIController < handle
         end
         obj.edit_num_animals.Layout.Row = 2;
         obj.edit_num_animals.Layout.Column = 6;
+
+        % Identity-linking file rows: the ID model (the identity classifier weights)
+        % and the identities detected with it.  Reusing the same pair of files across
+        % tracking runs is what keeps the identities consistent between those runs.
+        idModelTooltip = ['File holding the ID model (the identity classifier weights) used for ' ...
+                          'identity linking. If the file exists, the model is read from it, otherwise ' ...
+                          'the model trained while linking is saved to it. Leave empty to save the ' ...
+                          'trained model next to the output trk file.'] ;
+        detectedIdentitiesTooltip = ['File holding the identities detected during identity linking. ' ...
+                                     'If the file exists, the identities are read from it, so that the ' ...
+                                     'identities match those of earlier tracking runs. If it does not exist, ' ...
+                                     'the identities detected while linking are saved to it. ' ...
+                                     'Leave empty to detect the identities afresh without saving them.'] ;
+        id_files_grid = uigridlayout(grid,'RowHeight',{'1x','1x'},'ColumnWidth',{'fit','1x','fit'},...
+          'BackgroundColor',backgroundcolor,'Padding',[0 0 0 0],'ColumnSpacing',5,'RowSpacing',5);
+        id_files_grid.Layout.Row = nextRow + 1;
+        id_files_grid.Layout.Column = [1 2];
+        obj.id_files_grid = id_files_grid;
+
+        isIdentityLinking = strcmp(obj.toTrack.link_type,'identity') ;
+
+        obj.txt_id_model_file = uilabel(id_files_grid,'Text','ID model file:',...
+          'FontSize',FONTSIZE,'FontColor','w','FontWeight','bold',...
+          'HorizontalAlignment','right','Tag','txt_id_model_file',...
+          'Tooltip',idModelTooltip);
+        obj.txt_id_model_file.Layout.Row = 1;
+        obj.txt_id_model_file.Layout.Column = 1;
+
+        obj.edit_id_model_file = uieditfield(id_files_grid,...
+          'Value',obj.toTrack.id_model_file,...
+          'FontColor','w','BackgroundColor',editfilecolor,...
+          'Enable',isIdentityLinking,...
+          'Tag','edit_id_model_file',...
+          'Tooltip',idModelTooltip,...
+          'ValueChangedFcn',@(h,e) obj.idModelFileChanged(h,e));
+        obj.edit_id_model_file.Layout.Row = 1;
+        obj.edit_id_model_file.Layout.Column = 2;
+
+        obj.button_id_model_file = uibutton(id_files_grid,...
+          'Text','...',...
+          'Enable',isIdentityLinking,...
+          'Tag','pushbutton_id_model_file',...
+          'Tooltip',idModelTooltip,...
+          'ButtonPushedFcn',@(h,e) obj.browseIDModelFile(h,e));
+        obj.button_id_model_file.Layout.Row = 1;
+        obj.button_id_model_file.Layout.Column = 3;
+
+        obj.txt_detected_identities_file = uilabel(id_files_grid,'Text','Detected identities file:',...
+          'FontSize',FONTSIZE,'FontColor','w','FontWeight','bold',...
+          'HorizontalAlignment','right','Tag','txt_detected_identities_file',...
+          'Tooltip',detectedIdentitiesTooltip);
+        obj.txt_detected_identities_file.Layout.Row = 2;
+        obj.txt_detected_identities_file.Layout.Column = 1;
+
+        obj.edit_detected_identities_file = uieditfield(id_files_grid,...
+          'Value',obj.toTrack.id_detected_identities_file,...
+          'FontColor','w','BackgroundColor',editfilecolor,...
+          'Enable',isIdentityLinking,...
+          'Tag','edit_detected_identities_file',...
+          'Tooltip',detectedIdentitiesTooltip,...
+          'ValueChangedFcn',@(h,e) obj.detectedIdentitiesFileChanged(h,e));
+        obj.edit_detected_identities_file.Layout.Row = 2;
+        obj.edit_detected_identities_file.Layout.Column = 2;
+
+        obj.button_detected_identities_file = uibutton(id_files_grid,...
+          'Text','...',...
+          'Enable',isIdentityLinking,...
+          'Tag','pushbutton_detected_identities_file',...
+          'Tooltip',detectedIdentitiesTooltip,...
+          'ButtonPushedFcn',@(h,e) obj.browseDetectedIdentitiesFile(h,e));
+        obj.button_detected_identities_file.Layout.Row = 2;
+        obj.button_detected_identities_file.Layout.Column = 3;
       end
-      
+
 %        obj.apply_macro = uicontrol('Style','pushbutton','String','Apply',...
 %           'ForegroundColor','w','BackgroundColor',pagebuttoncolor,'FontWeight','bold',...
 %           'Units','normalized','Enable','on','Position',[detailsbuttonx,macroedity,2*filebuttonw+colborder,rowh],...
@@ -1155,6 +1252,12 @@ classdef TrackBatchGUIController < handle
         if ~isfield(obj.toTrack, 'id_num_animals')
           obj.toTrack.id_num_animals = [];
         end
+        if ~isfield(obj.toTrack, 'id_detected_identities_file')
+          obj.toTrack.id_detected_identities_file = obj.lObj.idDetectedIdentitiesFile;
+        end
+        if ~isfield(obj.toTrack, 'id_model_file')
+          obj.toTrack.id_model_file = obj.lObj.idModelFile;
+        end
 
         obj.page = 1;
         obj.setNPages();
@@ -1596,6 +1699,7 @@ classdef TrackBatchGUIController < handle
 
       % Cascade the enable/disable state down to the known-number-of-animals controls
       obj.updateKnownNumAnimalsControls();
+      obj.updateIDFileControls();
     end
 
     function idMaintainIdentityChanged(obj, h, evt)
@@ -1616,6 +1720,72 @@ classdef TrackBatchGUIController < handle
       % Callback for number of animals edit field
       obj.toTrack.id_num_animals = h.Value;
       obj.needsSave = true;
+    end
+
+    function idModelFileChanged(obj, h, evt)
+      % Callback for the ID model file edit field
+      obj.toTrack.id_model_file = strtrim(h.Value);
+      obj.needsSave = true;
+    end
+
+    function browseIDModelFile(obj, h, evt)
+      % Callback for the ID model file browse button.  The file need not exist yet --
+      % if it doesn't, the model trained while linking is saved to it -- so use
+      % uiputfile rather than uigetfile.
+      startFile = obj.toTrack.id_model_file;
+      if isempty(startFile)
+        startFile = 'id_wts.p';
+      end
+      [fileName, pathName] = uiputfile({'*.p','ID model files (*.p)'; '*','All files'},...
+                                       'Select the ID model file', startFile);
+      if isnumeric(fileName)
+        % User hit cancel
+        return
+      end
+      obj.toTrack.id_model_file = fullfile(pathName, fileName);
+      obj.needsSave = true;
+      obj.updateIDFileControls();
+    end
+
+    function detectedIdentitiesFileChanged(obj, h, evt)
+      % Callback for the detected identities file edit field
+      obj.toTrack.id_detected_identities_file = strtrim(h.Value);
+      obj.needsSave = true;
+    end
+
+    function browseDetectedIdentitiesFile(obj, h, evt)
+      % Callback for the detected identities file browse button.  The file need not
+      % exist yet -- if it doesn't, the identities detected while linking are saved
+      % to it -- so use uiputfile rather than uigetfile.
+      startFile = obj.toTrack.id_detected_identities_file;
+      if isempty(startFile)
+        startFile = 'detected_identities.p';
+      end
+      [fileName, pathName] = uiputfile({'*.p','Detected identities files (*.p)'; '*','All files'},...
+                                       'Select the detected identities file', startFile);
+      if isnumeric(fileName)
+        % User hit cancel
+        return
+      end
+      obj.toTrack.id_detected_identities_file = fullfile(pathName, fileName);
+      obj.needsSave = true;
+      obj.updateIDFileControls();
+    end
+
+    function updateIDFileControls(obj)
+      % Sync the ID model file and detected identities file controls to obj.toTrack.
+      % The files are only used by identity linking, so the controls are disabled
+      % otherwise.
+      if isempty(obj.edit_id_model_file) || ~isvalid(obj.edit_id_model_file)
+        return
+      end
+      isIdentityLinking = strcmp(obj.toTrack.link_type, 'identity') ;
+      obj.edit_id_model_file.Value = obj.toTrack.id_model_file;
+      obj.edit_id_model_file.Enable = isIdentityLinking;
+      obj.edit_detected_identities_file.Value = obj.toTrack.id_detected_identities_file;
+      obj.edit_detected_identities_file.Enable = isIdentityLinking;
+      obj.button_id_model_file.Enable = isIdentityLinking;
+      obj.button_detected_identities_file.Enable = isIdentityLinking;
     end
 
     function updateKnownNumAnimalsControls(obj)
@@ -1656,6 +1826,7 @@ classdef TrackBatchGUIController < handle
         obj.edit_num_animals.Value = obj.toTrack.id_num_animals;
       end
       obj.updateKnownNumAnimalsControls();
+      obj.updateIDFileControls();
     end  % function
 
     function userChoice = checkAndPromptForDetectFiles(obj)

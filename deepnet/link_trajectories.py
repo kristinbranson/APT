@@ -22,6 +22,7 @@ import PoseTools
 import movies
 import tempfile
 import copy
+import warnings
 import multiprocessing as mp
 from tqdm.contrib.concurrent import process_map
 import hdf5storage
@@ -1222,7 +1223,7 @@ def link_pure(trk, conf, do_delete_short=False, do_motion_link=True):
 
   # return l_trk
 
-def link_trklets(trk_files, conf, movs, out_files, id_wts=None, num_animals=None):
+def link_trklets(trk_files, conf, movs, out_files, id_wts=None, num_animals=None, detected_identities_file=None):
   """
   Links pure tracklets using id liking or motion based on conf.link_id
   :param trk_files: trk files with pure linked trajectories
@@ -1235,6 +1236,8 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None, num_animals=None
   :type out_files: list of str
   :param num_animals: known number of animals in the videos. If given, used to pick the number of ID clusters during graph-cut linking instead of the fixed distance threshold.
   :type num_animals: int or None
+  :param detected_identities_file: file with the detected identities (ID cluster centers) used for graph-cut linking. If the file exists, the identities are read from it, otherwise the identities found during linking are saved to it.
+  :type detected_identities_file: str or None
   :return: linked trk files
   :rtype: list
   """
@@ -1290,7 +1293,8 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None, num_animals=None
     #   link_method = 'motion'
     # else:
     #   link_method = 'no_motion'
-    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link, id_wts=id_wts, link_method=link_method, num_animals=num_animals)
+    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link, id_wts=id_wts, link_method=link_method, num_animals=num_animals,
+                          detected_identities_file=detected_identities_file)
 
     out_trks= []
     count = 0
@@ -1399,7 +1403,7 @@ def link(trk,params,do_merge_close=False,do_stitch=True,do_delete_short=False):
   return trk
 
 
-def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method='motion',save_debug_data=False,num_animals=None):
+def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method='motion',save_debug_data=False,num_animals=None,detected_identities_file=None):
   '''
   Link traj. based on identity
   :param trks:
@@ -1448,8 +1452,21 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
   # link using id model
   def_params = get_default_params(conf)
 
-  data_out_file = wt_out_file.replace('.p','_data.p')
-  trk_out, debug_data, n_ids = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale,out_file=data_out_file,num_animals=num_animals)
+  # Named after out_files[0] (this run's own output), not wt_out_file (the id
+  # weights, which are a shared/reusable resource): the embedding/distance
+  # data saved here is specific to this particular linking run, so tying its
+  # name to the shared weights file meant separate runs sharing the same
+  # id_wts_file (e.g. independent per-movie link_id calls all pointing at the
+  # same trained model) would collide and clobber each other's data file.
+  # The timestamp additionally guards against two runs sharing the same
+  # out_files[0] too (e.g. a rerun) from colliding with each other.
+  data_out_file = out_files[0].replace('.trk', f'_data_{time.strftime("%Y%m%dT%H%M%S")}.p')
+  # Logged (rather than just re-derivable from id_wts_file, as before) so
+  # script_resume_id_link.py can recover the exact path from the job's log
+  # instead of guessing it from id_wts_file, which no longer determines it.
+  logging.info(f'link_id data_out_file: {data_out_file}')
+  trk_out, debug_data, n_ids = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale,out_file=data_out_file,num_animals=num_animals,
+                                              detected_identities_file=detected_identities_file,id_model_file=wt_out_file,trk_files=trk_files)
 
   if save_debug_data:
     debug_out_file = out_files[0].replace('.trk','_link_data.pkl')
@@ -3130,7 +3147,8 @@ def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_
   return grs, new_pred_map, debug_data
 
 
-def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False,link_method='motion',out_file=None,num_animals=None):
+def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False,link_method='motion',out_file=None,num_animals=None,
+                   detected_identities_file=None,id_model_file=None,trk_files=None):
   '''
   Links the pure tracklets using identity
 
@@ -3142,8 +3160,21 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   :param rescale:
   :param min_len_select:
   :param debug:
+  :param detected_identities_file: for graph_cut linking, file with the saved detected identities. If it exists, the identities are read from it, otherwise the identities found here are saved to it.
+  :param id_model_file: path of the ID model used to compute the embeddings. Saved to the detected identities file for provenance.
+  :param trk_files: detection trk files being linked. Saved to the detected identities file for provenance.
   :return: list of id linked tracklets
   '''
+
+  if detected_identities_file is not None and link_method != 'graph_cut':
+    logging.warning(f'A detected identities file ({detected_identities_file}) was specified, but the linking method is '
+                    f'{link_method}. Detected identities are used only by graph_cut linking, so the file will be ignored.')
+
+  # True exactly when group_graph_cut() will load (not compute) the cluster
+  # centers -- i.e. the final identity labels have externally-meaningful
+  # values (indices into the saved cluster centers) that should be preserved
+  # by Tracklet.unique() rather than remapped in raw-tracklet encounter order.
+  keep_id = link_method == 'graph_cut' and detected_identities_file is not None and os.path.exists(detected_identities_file)
 
   preds, pred_map, all_data  = get_id_embeddings(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
 
@@ -3191,7 +3222,8 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
   pred_map_orig = pred_map.copy()
   if link_method == 'graph_cut':
-    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr,conf=conf,num_animals=num_animals)
+    groups, pred_map, all_labels, cluster_centers = group_graph_cut(linked_trks,pred_map,preds,dist_diag,close_thresh,maxcosts_all,link_costs_arr,conf=conf,num_animals=num_animals,
+                                                                    detected_identities_file=detected_identities_file,id_model_file=id_model_file,mov_files=mov_files,trk_files=trk_files)
     debug_data = []
   elif link_method=='motion':
     groups,pred_map,debug_data = group_tracklets_motion_all(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select)
@@ -3296,7 +3328,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
       ids_short = []
       cur_id, ids_short = delete_short(cur_id, isdummy, params)
       if len(linked_trks)<2:
-        _, cur_id = cur_id.unique()
+        _, cur_id = cur_id.unique(keep_id=keep_id)
     else:
         ids_short = []
         ids_remove = []
@@ -3722,24 +3754,55 @@ def get_link_costs(tt, st, en, params):
     link_costs.append([start_matches, end_matches])
   return link_costs
 
-def embed_dist(xx,yy):
-  ddm = np.zeros([xx.shape[0],yy.shape[0]])
-  for ix in range(xx.shape[0]):
-   ddm[ix, :] = np.mean(np.linalg.norm(xx[ix:ix+1] - yy, axis=-1), axis=(1, 2))
-  return ddm
+def get_id_dist_mat(embed, dtype=np.float32, memory_budget=512 * 1024 ** 2):
+  """Mean distance between every pair of tracklets' sampled embeddings.
 
-def get_id_dist_mat(embed):
-  n_threads = min(24, mp.cpu_count())
-  with mp.get_context('spawn').Pool(n_threads) as pool:
-    split_set = split_parallel(embed[:,:,None], n_threads, is_numpy=True)
-    processed_dist = pool.starmap(embed_dist, [(split_set[n], embed[:,None]) for n in range(n_threads)])
-    processed_dist = merge_parallel(processed_dist)
-    processed_dist =np.array(processed_dist)
-  # embed_dist is symmetric in exact arithmetic (mean of all cross-sample pairwise distances),
-  # but float32 rounding across the parallel row-blocks leaves a ~1e-6 asymmetry, which
-  # ssd.squareform (exact symmetry check, used by the no_motion/group_tracklets path) rejects.
-  processed_dist = (processed_dist + processed_dist.T) / 2.0
-  return processed_dist
+  dist_mat[i,j] is the mean over all sample pairs (a,b) of
+  ||embed[i,a] - embed[j,b]||.
+
+  Squared distances come from |x|^2 + |y|^2 - 2 x.y, so the pairwise term is one
+  GEMM that BLAS threads for us, and only the upper triangle is computed and
+  then mirrored. The previous version broadcast an (n_trk, n_ex, n_ex, dim)
+  array per row -- hundreds of MB of temporaries per row -- and split the rows
+  over a 24-process spawn pool, each worker re-importing this module.
+
+  Being exactly symmetric by construction, the result no longer needs averaging
+  with its own transpose before ssd.squareform (which checks symmetry exactly);
+  the old row-splitting left a ~1e-6 asymmetry that did.
+
+  dtype: the reduction is memory-bandwidth bound, so float32 roughly halves the
+         time. It costs ~1e-4 absolute on distances of order 1; pass np.float64
+         for ~1e-7 at twice the cost.
+  memory_budget: cap in bytes on the largest temporary, which sets the row block
+         size."""
+  n_trk, n_ex, dim = embed.shape
+  flat = np.ascontiguousarray(embed.reshape(n_trk * n_ex, dim), dtype=dtype)
+  sq = np.einsum('ij,ij->i', flat, flat)
+
+  # The widest temporary is the first block: (block*n_ex) x (n_trk*n_ex).
+  bytes_per_row = n_ex * n_trk * n_ex * np.dtype(dtype).itemsize
+  block = max(1, int(memory_budget // max(bytes_per_row, 1)))
+
+  dist_mat = np.zeros((n_trk, n_trk))
+  for start in range(0, n_trk, block):
+    stop = min(start + block, n_trk)
+    rows = flat[start * n_ex:stop * n_ex]
+    cols = flat[start * n_ex:]  # upper triangle only; the rest is mirrored
+    d2 = sq[start * n_ex:stop * n_ex, None] + sq[None, start * n_ex:]
+    d2 -= 2 * (rows @ cols.T)
+    np.maximum(d2, 0, out=d2)  # tiny negatives from rounding
+    np.sqrt(d2, out=d2)
+    means = d2.reshape(stop - start, n_ex, n_trk - start, n_ex).mean(axis=(1, 3))
+    # Within the diagonal block BLAS may accumulate dot(i,j) and dot(j,i) in
+    # different orders, leaving them a rounding step apart. Mirror the upper
+    # triangle onto the lower so the block, and hence dist_mat, is exactly
+    # symmetric -- ssd.squareform checks that exactly.
+    diag_block = means[:, :stop - start]
+    lower = np.tril_indices(diag_block.shape[0], -1)
+    diag_block[lower] = diag_block.T[lower]
+    dist_mat[start:stop, start:] = means
+    dist_mat[start:, start:stop] = means.T
+  return dist_mat
 
 def get_id_dist_mat_diag(embed):
   """Compute only the diagonal of the embedding distance matrix (intra-tracklet distances).
@@ -4040,76 +4103,98 @@ def k_way_graph_cut(unary_costs, pairwise_similarity, n_labels,init_labels=None,
     return labels
 
 
-# Module-level state shared with worker processes via Pool initializer.
-_overlap_trk = None
+def _tracklet_bboxes(trk):
+  """Per-frame bounding boxes for every tracklet, walking each tracklet's own
+  contiguous data rather than reassembling whole frames.
+  Returns (frames, targets, boxes): parallel arrays with one row per
+  (frame, target) the target is actually present in, boxes as
+  [x_min, x_max, y_min, y_max] padded by 10% of the extent on each side."""
+  ss, ee = trk.get_startendframes()
+  first_frame, last_frame = int(np.min(ss)), int(np.max(ee))
 
-def _init_overlap_worker(trk):
-  global _overlap_trk
-  _overlap_trk = trk
+  frame_cols, tgt_cols, box_cols = [], [], []
+  with warnings.catch_warnings():
+    warnings.simplefilter('ignore', RuntimeWarning)  # all-NaN slices are expected
+    for itgt in range(trk.ntargets):
+      data = trk.pTrk.data[itgt]
+      if data is None:
+        continue
+      x_min = np.nanmin(data[:, 0, :], axis=0)
+      x_max = np.nanmax(data[:, 0, :], axis=0)
+      y_min = np.nanmin(data[:, 1, :], axis=0)
+      y_max = np.nanmax(data[:, 1, :], axis=0)
 
-def _frame_overlaps(fr):
-  """Compute per-target max pairwise bbox overlap for one frame.
-  Returns (valid_indices, max_overlap_per_valid_target).
-  Designed to run in a Pool worker; uses _overlap_trk set by _init_overlap_worker."""
-  trk = _overlap_trk
-  curg = trk.getframe(fr)
-  valid = np.where(~np.all(np.isnan(curg[:, 0, 0, :]), axis=0))[0]
-  if len(valid) == 0:
-    return valid, np.zeros(0)
+      # A frame counts as present iff some landmark has a non-NaN x coordinate.
+      present = np.nonzero(~np.isnan(x_min))[0]
+      frames = int(ss[itgt]) + present
+      keep = (frames >= first_frame) & (frames < last_frame)
+      present, frames = present[keep], frames[keep]
+      if present.size == 0:
+        continue
 
-  curg = curg[:, :, 0, valid]
-  x_min, y_min = np.nanmin(curg, axis=0)
-  x_max, y_max = np.nanmax(curg, axis=0)
-  x_len = x_max - x_min
-  y_len = y_max - y_min
-  x_min = x_min - x_len * 0.1
-  x_max = x_max + x_len * 0.1
-  y_min = y_min - y_len * 0.1
-  y_max = y_max + y_len * 0.1
-  bboxes = np.array([x_min, x_max, y_min, y_max]).T  # (n_valid, 4)
+      x_len = x_max[present] - x_min[present]
+      y_len = y_max[present] - y_min[present]
+      frame_cols.append(frames)
+      tgt_cols.append(np.full(frames.size, itgt))
+      box_cols.append(np.stack([x_min[present] - x_len * 0.1,
+                                x_max[present] + x_len * 0.1,
+                                y_min[present] - y_len * 0.1,
+                                y_max[present] + y_len * 0.1], axis=1))
 
-  # Vectorized pairwise IoU using broadcasting — replaces the O(n^2) Python loop.
-  int_x_min = np.maximum(bboxes[:, 0:1], bboxes[:, 0])  # (n, n)
-  int_x_max = np.minimum(bboxes[:, 1:2], bboxes[:, 1])
-  int_y_min = np.maximum(bboxes[:, 2:3], bboxes[:, 2])
-  int_y_max = np.minimum(bboxes[:, 3:4], bboxes[:, 3])
+  if not frame_cols:
+    return np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros((0, 4))
+  return (np.concatenate(frame_cols), np.concatenate(tgt_cols),
+          np.concatenate(box_cols, axis=0))
+
+
+def _max_pairwise_overlap(boxes):
+  """Largest overlap of each box with any other box in the same frame,
+  as a fraction of the smaller of the two areas."""
+  int_x_min = np.maximum(boxes[:, 0:1], boxes[:, 0])  # (n, n)
+  int_x_max = np.minimum(boxes[:, 1:2], boxes[:, 1])
+  int_y_min = np.maximum(boxes[:, 2:3], boxes[:, 2])
+  int_y_max = np.minimum(boxes[:, 3:4], boxes[:, 3])
   int_area = np.maximum(0, int_x_max - int_x_min) * np.maximum(0, int_y_max - int_y_min)
 
-  areas = (bboxes[:, 1] - bboxes[:, 0]) * (bboxes[:, 3] - bboxes[:, 2])
+  areas = (boxes[:, 1] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 2])
   min_area = np.minimum(areas[:, np.newaxis], areas[np.newaxis, :])  # (n, n)
 
-  overlaps_ = np.where(min_area > 0, int_area / min_area, 0.0)
-  np.fill_diagonal(overlaps_, 0.0)  # exclude self-overlap
+  overlaps = np.where(min_area > 0, int_area / min_area, 0.0)
+  np.fill_diagonal(overlaps, 0.0)  # exclude self-overlap
+  return overlaps.max(axis=1)
 
-  return valid, overlaps_.max(axis=1)
 
-
-def get_overlap_value(trk, n_workers=None):
+def get_overlap_value(trk):
   """Compute mean per-target pairwise bbox overlap across all frames.
-  n_workers: number of parallel processes (default: mp.cpu_count()).
-             Pass 1 to disable multiprocessing."""
-  if n_workers is None:
-    n_workers = mp.cpu_count()
 
-  ss, ee = trk.get_startendframes()
-  n_trk = trk.ntargets
-  frames = range(min(ss), max(ee))
+  Works tracklet-first: each tracklet's bboxes come from one pass over its own
+  contiguous data, and the boxes are then grouped by frame. The obvious
+  frame-first version instead calls trk.getframe() per frame, which rebuilds an
+  (nlandmarks, d, 1, ntargets) array and loops over every tracklet in Python to
+  recover the handful actually present. On a ratcity trk (19k tracklets, 72k
+  frames, ~12 targets present per frame) that is 75x slower for identical
+  output, and it was the reason this step could run for hours."""
+  frames, targets, boxes = _tracklet_bboxes(trk)
 
-  overlaps = [[] for _ in range(n_trk)]
+  overlaps = [[] for _ in range(trk.ntargets)]
+  if frames.size == 0:
+    return np.array([np.nan] * trk.ntargets)
 
-  if n_workers == 1:
-    # Single-process path — avoids Pool overhead for small inputs.
-    global _overlap_trk
-    _overlap_trk = trk
-    for fr in frames:
-      valid, max_ov = _frame_overlaps(fr)
-      for i, tgt in enumerate(valid):
-        overlaps[tgt].append(max_ov[i])
-  else:
-    with mp.Pool(n_workers, initializer=_init_overlap_worker, initargs=(trk,)) as pool:
-      for valid, max_ov in pool.imap_unordered(_frame_overlaps, frames, chunksize=50):
-        for i, tgt in enumerate(valid):
-          overlaps[tgt].append(max_ov[i])
+  order = np.argsort(frames, kind='stable')
+  frames, targets, boxes = frames[order], targets[order], boxes[order]
+
+  group_ends = np.searchsorted(frames, np.unique(frames), side='right')
+  group_start = 0
+  for group_end in group_ends:
+    frame_targets = targets[group_start:group_end]
+    if frame_targets.size == 1:
+      # Nothing to overlap with; matches zeroing the diagonal of a 1x1 matrix.
+      overlaps[frame_targets[0]].append(0.0)
+    else:
+      max_overlap = _max_pairwise_overlap(boxes[group_start:group_end])
+      for i, tgt in enumerate(frame_targets):
+        overlaps[tgt].append(max_overlap[i])
+    group_start = group_end
 
   return np.array([np.mean(o) if o else np.nan for o in overlaps])
 
@@ -4121,7 +4206,8 @@ def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ
   occ_sel = np.zeros(len(pred_map))
 
   len_mov = []
-  for ndx, trk in enumerate(linked_trks):
+  for ndx, trk in tqdm(enumerate(linked_trks), total=len(linked_trks),
+                       desc='Computing tracklet overlap and occlusion'):
     ss, ee = trk.get_startendframes()
     overlaps = get_overlap_value(trk)
     len_mov.append(max(ee) - min(ss))
@@ -4184,9 +4270,32 @@ def get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ
     for cc in cur_sel:
       cur_m, cur_t = pred_map[cc, :]
       frac_occ = np.mean(linked_trks[cur_m].pTrkTag.data[cur_t])
-      curm += preds[cc].mean(axis=0) * tlen_sel[cc] * frac_occ
-      tot_len += tlen_sel[cc] * frac_occ
-    curm /= tot_len
+      # pTrkTag is occlusion, so frac_occ is the fraction of landmark observations
+      # occluded and HIGHER IS WORSE -- see this function's docstring ("low overlap
+      # and low occlusion") and the t_sel filter above, which admits a tracklet only
+      # when occ_sel < occ_thresh.  The weight must therefore be (1 - frac_occ):
+      # this used to weight by frac_occ itself, inverting the preference.  Because
+      # t_sel has already capped frac_occ at occ_thresh (0.2), the old multiplier
+      # sat in [0, 0.2) -- so a perfectly clean tracklet got ~zero weight while a
+      # borderline one just under the threshold dominated its cluster's centre.
+      weight = tlen_sel[cc] * (1 - frac_occ)
+      curm += preds[cc].mean(axis=0) * weight
+      tot_len += weight
+    # The two non-normal branches below are defensive only: t_sel admits a tracklet
+    # only when occ_sel < occ_thresh and tlen_sel > 50, so every weight here is
+    # >= 50*(1-occ_thresh) > 0, and a cluster index i in 1..max(F) always has at
+    # least one member.  They guard against a future caller raising occ_thresh to
+    # 1.0, where fully-occluded members would contribute zero weight and divide by
+    # zero, yielding a NaN centre that then propagates silently through the graph cut.
+    if tot_len > 0:
+      curm /= tot_len
+    elif len(cur_sel) > 0:
+      logging.warning(f'cluster {i} has no usable weight (total {tot_len}); '
+                      f'falling back to an unweighted centre')
+      curm = np.mean([preds[cc].mean(axis=0) for cc in cur_sel], axis=0)
+    else:
+      logging.warning(f'cluster {i} is empty; skipping it')
+      continue
     cluster_centers.append(curm)
     sel_clus.append([i, np.where(F == i)[0]])
 
@@ -4386,10 +4495,15 @@ def get_graph_cut_group(trk, cluster_centers, pred_map, preds, mov_ndx,maxcosts)
   return labels
 
 
-def _best_group_link_cost(trk_idx, group_set, link_costs_mov):
+def _best_group_link_cost(trk_idx, group_set, link_costs_mov,tlen,tlen_mov):
   """Return the minimum linking cost from trk_idx to/from any other tracklet in group_set.
   Returns np.inf if no connections to group peers exist in link_costs."""
   best = np.inf
+
+  if tlen[trk_idx]/tlen_mov > 0.8:
+    best = 0.0  # if the tracklet is long enough, then we don't need to worry about linking it to other tracklets in the group
+    return best
+
   for matches in link_costs_mov[trk_idx]:  # [start_matches, end_matches]
     if len(matches) > 0:
       for entry in matches:
@@ -4398,10 +4512,83 @@ def _best_group_link_cost(trk_idx, group_set, link_costs_mov):
           best = min(best, entry[1])  # entry[1] is the spatial cost
   return best
 
-def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all,link_costs_arr,conf=None,num_animals=None):
+
+def save_detected_identities(detected_identities_file, cluster_centers, id_model_file=None, mov_files=None, trk_files=None):
+  """Save the detected identities (the graph-cut ID cluster centers), along with the ID model,
+  movies and detection trk files used to compute them."""
+  out_dict = {'detected_identities': np.array(cluster_centers),
+              'id_model_file': _normalize_path(id_model_file),
+              'mov_files': _normalize_path_list(mov_files),
+              'trk_files': _normalize_path_list(trk_files),
+              'created': time.strftime('%Y-%m-%d %H:%M:%S')}
+  out_dir = os.path.dirname(os.path.abspath(detected_identities_file))
+  if out_dir and not os.path.exists(out_dir):
+    os.makedirs(out_dir, exist_ok=True)
+  with open(detected_identities_file, 'wb') as f:
+    pickle.dump(out_dict, f)
+  logging.info(f'Saved {len(out_dict["detected_identities"])} detected identities to {detected_identities_file}')
+
+
+def load_detected_identities(detected_identities_file, id_model_file=None, mov_files=None, trk_files=None):
+  """Load the detected identities saved by save_detected_identities.
+
+  Warns if the ID model (or the movies/detection trk files) used to compute the saved identities
+  differ from the ones being used now. Returns (cluster_centers, saved_dict)."""
+  with open(detected_identities_file, 'rb') as f:
+    in_dict = pickle.load(f)
+
+  if 'detected_identities' not in in_dict:
+    raise ValueError(f'{detected_identities_file} does not look like a detected identities file '
+                     f'(no detected_identities entry)')
+  cluster_centers = np.array(in_dict['detected_identities'])
+
+  saved_model = in_dict.get('id_model_file', None)
+  cur_model = _normalize_path(id_model_file)
+  if cur_model is not None and saved_model is not None and saved_model != cur_model:
+    logging.warning(f'The ID model being used ({cur_model}) does not match the ID model used to compute the '
+                    f'identities in {detected_identities_file} ({saved_model}). The saved identities are '
+                    f'embeddings from the earlier model and are unlikely to be meaningful for the current model.')
+
+  for name, cur_files in (('movie', mov_files), ('detection trk', trk_files)):
+    saved_files = in_dict.get('mov_files' if name == 'movie' else 'trk_files', None)
+    cur_files = _normalize_path_list(cur_files)
+    if cur_files is not None and saved_files is not None and set(saved_files) != set(cur_files):
+      logging.info(f'The {name} files used to compute the identities in {detected_identities_file} '
+                   f'({saved_files}) differ from the current {name} files ({cur_files}).')
+
+  return cluster_centers, in_dict
+
+
+def _normalize_path(path):
+  """Return an absolute, normalized version of path for storage/comparison. None passes through."""
+  return None if path is None else os.path.normpath(os.path.abspath(path))
+
+
+def _normalize_path_list(paths):
+  """Return the normalized version of a list of paths. None passes through."""
+  return None if paths is None else [_normalize_path(p) for p in paths]
+
+
+def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_all,link_costs_arr,conf=None,num_animals=None,
+                    detected_identities_file=None,id_model_file=None,mov_files=None,trk_files=None):
 
     occ_thresh = conf.link_id_cluster_occ_thresh if conf is not None else 0.2
-    cluster_centers = get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ_thresh=occ_thresh,num_animals=num_animals)
+    cluster_centers = None
+    if detected_identities_file is not None and os.path.exists(detected_identities_file):
+      cluster_centers, _ = load_detected_identities(detected_identities_file, id_model_file=id_model_file, mov_files=mov_files, trk_files=trk_files)
+      if cluster_centers.ndim != 2 or cluster_centers.shape[1] != preds.shape[2]:
+        raise ValueError(f'The identities in {detected_identities_file} have shape {cluster_centers.shape}, which is '
+                         f'incompatible with the ID embeddings of size {preds.shape[2]}')
+      logging.info(f'Using {cluster_centers.shape[0]} identities loaded from {detected_identities_file}')
+      if num_animals is not None and num_animals > 0 and cluster_centers.shape[0] != num_animals:
+        logging.warning(f'{detected_identities_file} has {cluster_centers.shape[0]} identities, but the number of '
+                        f'animals was specified as {num_animals}. Using the saved identities.')
+
+    if cluster_centers is None:
+      cluster_centers = get_id_cluster_centers(linked_trks,pred_map,preds,dist_diag,close_thresh,occ_thresh=occ_thresh,num_animals=num_animals)
+      if detected_identities_file is not None:
+        save_detected_identities(detected_identities_file, cluster_centers, id_model_file=id_model_file, mov_files=mov_files, trk_files=trk_files)
+
     nclusters = cluster_centers.shape[0]
 
     all_labels = []
@@ -4433,6 +4620,7 @@ def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_
         f.tight_layout()
 
       tlen = ee - ss + 1
+      tlen_mov = max(ee)-min(ss)+1
       no_group = np.where(labels == 0)[0]
       for i in range(1, nclusters + 1):
         hh = np.where(labels == i)[0]
@@ -4440,18 +4628,20 @@ def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_
         for h in hh:
           occ1[ss[h]:ee[h] + 1] += 1
 
-        # Sort best-connected tracklets first so they fill frames first; poorly-connected
-        # ones arrive later and find their frames already occupied, getting dropped preferentially.
-        # Tiebreaker: longer tracklets come first among equal link scores.
+        # Sort worst-connected tracklets first so they are dropped first; well-connected
+        # ones arrive later and find their frames empty
+        # Tiebreaker: longer tracklets come later among equal link scores.
         hh_set = set(hh.tolist())
-        link_scores = np.array([_best_group_link_cost(h, hh_set, link_costs_arr[mov_ndx]) for h in hh])
-        hh = hh[np.lexsort((-tlen[hh], link_scores))]
+        link_scores = np.array([_best_group_link_cost(h, hh_set, link_costs_arr[mov_ndx],tlen,tlen_mov) for h in hh])
+        hh = hh[np.lexsort((tlen[hh],-link_scores))]
         keep = np.ones(len(hh), dtype=bool)
 
         ndxh = 0
+        did_break = False
         for ndxh, curh in enumerate(hh):
           # select only one for overlapping tracklets
           if np.all(occ1 <= 1):
+            did_break = True
             break
           m = curh
           n = np.where(occ1[ss[m]:ee[m] + 1] > 1)[0]
@@ -4463,9 +4653,10 @@ def group_graph_cut(linked_trks,pred_map,preds,dist_diag, close_thresh,maxcosts_
             pred_map_out.append([mov_ndx, curh])
             groups[i-1].append(len(pred_map_out)-1)
 
-        for ndxh2 in range(ndxh, len(hh)):
-          pred_map_out.append([mov_ndx, hh[ndxh2]])
-          groups[i - 1].append(len(pred_map_out) - 1)
+        if did_break:
+          for ndxh2 in range(ndxh, len(hh)):
+            pred_map_out.append([mov_ndx, hh[ndxh2]])
+            groups[i - 1].append(len(pred_map_out) - 1)
 
         cur_no_group = [curh for curh, kk in zip(hh, keep) if not kk]
         no_group = np.concatenate((no_group, cur_no_group))

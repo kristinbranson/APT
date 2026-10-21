@@ -1288,6 +1288,10 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     conf.sel_sz = min(conf.imsz)
     conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['ManualRadius'] * 2
     conf.trx_align_theta = dt_params['MultiAnimal']['TargetCrop']['AlignUsingTrxTheta']
+    # Projects saved before multi_scale_by_bbox was added do not carry it, so default it
+    # rather than failing to load them at all.  Off, so that an old project keeps
+    # behaving the way it did when it was saved.
+    conf.multi_scale_by_bbox = dt_params['MultiAnimal']['TargetCrop'].get('multi_scale_by_bbox', False)
 
     def set_all(conf, cur_set, flatten=False):
         for k in cur_set:
@@ -1309,6 +1313,16 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
             set_all(conf, dt_params['MultiAnimal']['Track']['TrackletStitch'])            
     if 'Detect' in dt_params['MultiAnimal']:
         set_all(conf, dt_params['MultiAnimalDetect'])
+
+    if second_stage:
+        # The second stage of a two-stage tracker is top-down: it sees a single animal
+        # per crop, so it is single-animal even though the project is multi-animal.
+        # is_multi is itself a parameter, so this has to come after set_all() rather
+        # than where conf.stage is decided.  Leaving it set sends the mmpose nets down
+        # their multi-animal branch, which never assigns the head's out_channels, so the
+        # head keeps the pretrained model's keypoint count instead of the project's.
+        conf.is_multi = False
+
     conf.rescale = float(conf.scale)
     delattr(conf,'scale')
     conf.ht_pts = to_py(dt_params['MultiAnimalDetect']['ht_pts'])
@@ -1742,6 +1756,17 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
 def setup_ma(conf):
     # setups the crop size. Based on the largets cluster.
 
+    conf.multi_frame_sz = conf.imsz
+    fr_sz = conf.multi_frame_sz
+
+    if not conf.multi_crop_ims:
+        # conf.imsz = (fr_sz[0], fr_sz[1]) # no need to set the image size here.
+        logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
+        return
+
+    # T['locdata'] is only needed below -- loading it earlier crashed any
+    # COCO-format training json (no top-level 'locdata' key) even when this
+    # function returns before ever using it.
     T = PoseTools.json_load(conf.json_trn_file)
     cur_t = T['locdata'][0]
     pack_dir = os.path.split(conf.json_trn_file)[0]
@@ -1750,13 +1775,6 @@ def setup_ma(conf):
     #     cur_frame = cv2.cvtColor(cur_frame,cv2.COLOR_BGR2RGB)
     # fr_sz = cur_frame.shape[:2]
     # conf.multi_frame_sz = fr_sz
-    conf.multi_frame_sz = conf.imsz
-    fr_sz = conf.multi_frame_sz
-
-    if not conf.multi_crop_ims:
-        # conf.imsz = (fr_sz[0], fr_sz[1]) # no need to set the image size here.
-        logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
-        return
 
     max_sz = 0
     for selndx, cur_t in enumerate(T['locdata']):
@@ -2122,15 +2140,25 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
                 ht_locs = cur_locs[ndx, conf.ht_pts, :].copy()
                 ctr = ht_locs.mean(axis=0)
                 theta = np.arctan2(ht_locs[0, 1] - ht_locs[1, 1], ht_locs[0, 0] - ht_locs[1, 0])
+                # Size the crop the way tracking does.  There, stage 1 predicts only head and
+                # tail, so get_trx_info derives a from the head-tail distance and get_patch_trx
+                # turns that into the scaling box.  Scaling by the labeled roi instead would
+                # train the second stage at a different scale than we track at.
+                a = np.linalg.norm(ht_locs[0] - ht_locs[1]) / 4
+                cur_bbox = multiResData.bbox_from_trx_params(conf, ctr[0], ctr[1], theta, a)
             elif conf.use_bbox_trx:
                 assert not conf.trx_align_theta, 'Aligning with theta should be off for bbox based top-down tracking'
                 ctr = cur_roi[ndx].mean(axis=0)
                 theta = 0
+                # cur_roi[ndx] is [corner, xy], whereas get_scale_bbox wants a flat
+                # [x_min, y_min, x_max, y_max].
+                cur_bbox = np.array([np.nanmin(cur_roi[ndx][:, 0]), np.nanmin(cur_roi[ndx][:, 1]),
+                                     np.nanmax(cur_roi[ndx][:, 0]), np.nanmax(cur_roi[ndx][:, 1])])
             else:
                 assert False, 'For top down tracking either head-tail tracking or bbox tracking should be active'
 
             curl = cur_locs[ndx].copy()
-            cur_patch, curl, scale = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl,bbox=cur_roi[ndx].T.flatten())
+            cur_patch, curl, scale = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl,bbox=cur_bbox)
 
             if occ_as_nan:
                 curl[cur_occ[ndx], :] = np.nan
@@ -3643,7 +3671,11 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
                     theta = np.arctan2(ht_locs[0, 1] - ht_locs[1, 1], ht_locs[0, 0] - ht_locs[1, 0])
                 else:
                     theta = 0
-                bbox = ht_locs.flatten().tolist()
+                # Take the extremes rather than trusting the point order: for a head-tail
+                # first stage the two points are not sorted, and an inverted box would make
+                # get_scale_bbox return a negative scale factor.
+                bbox = [np.nanmin(ht_locs[:, 0]), np.nanmin(ht_locs[:, 1]),
+                        np.nanmax(ht_locs[:, 0]), np.nanmax(ht_locs[:, 1])]
                 curp, curl, curs = multiResData.crop_patch_trx(conf[1],all_f[ndx],ctr[0],ctr[1],theta,np.zeros([conf[1].n_classes,2]),bbox=bbox)
                 single_data.append([curp,ctr,theta,cur_start+ndx,curn, curs])
 
@@ -4298,7 +4330,8 @@ def link(args, view, view_ndx):
     raw_files = []
     for mov_ndx in range(nmov):
         raw_files.append(raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx]))
-    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files, id_wts=args.id_wts_file, num_animals=args.id_num_animals)
+    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files, id_wts=args.id_wts_file, num_animals=args.id_num_animals,
+                                  detected_identities_file=args.id_detected_identities_file)
     [trk_linked[mov_ndx].save(out_files[mov_ndx], saveformat='tracklet') for mov_ndx in range(nmov)]
 
 
@@ -5011,6 +5044,7 @@ def parse_args(argv):
     #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
     parser_classify.add_argument('-id_wts_file', dest='id_wts_file', help='File path for ID tracking model weights. If file exists, weights are loaded for ID detection. If file does not exist, trained weights are saved to this location.', default=None)
     parser_classify.add_argument('-id_num_animals', dest='id_num_animals', help='Known number of animals present in the videos being tracked. If specified, used to determine the number of ID clusters during identity linking instead of a fixed distance threshold.', type=int, default=None)
+    parser_classify.add_argument('-id_detected_identities_file', dest='id_detected_identities_file', help='File path for the identities detected by graph-cut identity linking (the ID cluster centers). If the file exists, the identities are read from it, so that identities are consistent across tracking runs. If it does not exist, the identities detected during linking are saved to it.', default=None)
     parser_classify.add_argument('-continue', dest='continue_tracking', action='store_true', help='Continue tracking from existing .part file. Checks for out_file.part and resumes from the last tracked frame.')
     #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
 

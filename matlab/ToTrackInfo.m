@@ -40,6 +40,11 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     id_maintain_identity = false;
     id_known_num_animals = false; % whether the number of animals in the videos is known
     id_num_animals = []; % known number of animals in the videos, used when id_known_num_animals is true
+    id_detected_identities_file = ''; % char, file holding the identities detected by identity linking.  If it
+                                      % exists, the identities are read from it, otherwise the identities
+                                      % detected while linking are saved to it.
+    id_model_file_requested = ''; % char, ID model file chosen by the user.  When nonempty it is used as the
+                                  % .idmodelfile, instead of the default derived from the output trk file.
 
     % outputs
     % this will correspond to one job if these are set
@@ -585,6 +590,11 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
 
     function setDefaultIDModelFile(obj)
+      % An ID model file chosen by the user wins over the location derived from the trk file.
+      if ~isempty(obj.id_model_file_requested),
+        obj.idmodelfile = obj.id_model_file_requested;
+        return;
+      end
       if isempty(obj.trkfiles) || isempty(obj.trkfiles{1}),
         warning('trkfiles must be set to set default track config file');
       end
@@ -1000,6 +1010,22 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function setIDNumAnimals(obj,num_animals)
       obj.id_num_animals = num_animals;
     end
+    function v = getIDDetectedIdentitiesFile(obj)
+      v = obj.id_detected_identities_file;
+    end
+    function setIDDetectedIdentitiesFile(obj,detected_identities_file)
+      obj.id_detected_identities_file = detected_identities_file;
+    end
+    function v = getIDModelFileRequested(obj)
+      v = obj.id_model_file_requested;
+    end
+    function setIDModelFileRequested(obj,id_model_file)
+      % Set the user-chosen ID model file, and make it the ID model file in use.
+      obj.id_model_file_requested = id_model_file;
+      if ~isempty(id_model_file),
+        obj.idmodelfile = id_model_file;
+      end
+    end
     function setDetectTrk(obj,v,varargin)
       if isempty(varargin),
         obj.detecttrks = v;
@@ -1302,6 +1328,8 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       tti.setCalibrationdata(obj.getCalibrationdata(getargs{:}),setargs{:});
       tti.setLinktype(obj.getLinktype());
       tti.setIDMaintainIdentity(obj.getIDMaintainIdentity());
+      tti.setIDDetectedIdentitiesFile(obj.getIDDetectedIdentitiesFile());
+      tti.setIDModelFileRequested(obj.getIDModelFileRequested());
       tti.setTrackid(obj.getTrackid());
       tti.setDoContinue(obj.getDoContinue());
 

@@ -297,6 +297,8 @@ class config(object):
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'
+        self.mmpose_dekr_backbone = 'hrnet'  # 'hrnet' (mmpose default, ImageNet HRNet-W32) or 'hrformer'
+                                             # (HRFormer-Base from the COCO-pose checkpoint, same as Grone's hrformer)
         self.multi_mmpose_detection_threshold = 0.5
 
         # ============== EVALUATION ================

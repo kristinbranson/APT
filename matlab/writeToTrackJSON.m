@@ -93,5 +93,11 @@ end
 if isfield(toTrack, 'id_num_animals')
   res.id_num_animals = toTrack.id_num_animals;
 end
+if isfield(toTrack, 'id_detected_identities_file')
+  res.id_detected_identities_file = toTrack.id_detected_identities_file;
+end
+if isfield(toTrack, 'id_model_file')
+  res.id_model_file = toTrack.id_model_file;
+end
 
 saveJSONfile(res,jsonfile);
