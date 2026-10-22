@@ -139,3 +139,27 @@ new names to adopt a freshly built complement:
 - conda environment: `apt-20260801-tf215-pytorch21-hopper`
 - Docker image: `docker://bransonlabapt/apt_docker:apt-20260801-tf215-pytorch21-hopper`
 - Apptainer image: `.../sif/apt-20260801-tf215-pytorch21-hopper.sif`
+
+
+## Note: `apt-20261022-tf215-pytorch21-hopper` has no `-dev` counterpart
+
+This complement is a security-only update to
+`apt-20260801-tf215-pytorch21-hopper`, and was made by hand rather than with
+`create_production_images.py`.  In October 2026 the private keys of eight
+eMudhra intermediate CAs were found to be trivially recoverable (see Mozilla bug
+2083449 and Red Hat CVE-2026-114406).  The `ca-certificates` and `certifi`
+packages pinned in the 20260801 complement (2026.7.22) still trust
+emSign ECC Root CA - G3, which chains to those intermediates.
+
+To change as little as possible, `apt-20261022-tf215-pytorch21-hopper/` was
+created by copying `apt-20260801-tf215-pytorch21-hopper/` and changing only the
+environment name and the `ca-certificates` and `certifi` pins (to 2026.10.19,
+which drop that root).  Every other package is identical to 20260801.  The
+Docker image's Ubuntu `ca-certificates` package comes from a fresh `apt
+install`, so it also has the fix.  The conda environment, Docker image, and
+Apptainer image were then built from these files with the same commands the
+script uses (stages 6, 8 and 9), and smoke-tested.  No dev environment was
+re-solved.  As a result there is no `apt-20261022-tf215-pytorch21-hopper-dev/`
+directory; the loose spec for this complement is still
+`apt-20260801-tf215-pytorch21-hopper-dev/environment.yaml`.  The next complement
+built with the script should go back to the usual dev/prod pair.
