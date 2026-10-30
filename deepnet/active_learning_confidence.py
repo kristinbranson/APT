@@ -136,6 +136,28 @@ DATASETS = {
         # network's internal working resolution.
         conf_overrides={'rescale': 2.0},
     ),
+    'chimpact_thin': Dataset(
+        name='chimpact_thin',
+        project_json=os.path.join(
+            _CHIMPACT_DATA,
+            'lbl_config_hrformer_20260731/chimpAct/20260731T110421_20260731T111351.json'),
+        # every 100th raw frame only (pool's labeled frames are normally 10
+        # apart) -- removes the near-duplicate-frame confound at the pool
+        # level instead of patching it per-strategy with SUPPRESS_RADIUS; see
+        # ChimpACT_train_coco_thin100.json's construction (frm % 100 == 0).
+        # random's own selection has never applied any spacing suppression
+        # (_build_round_random is a bare rng.choice), so on the dense pool it
+        # was implicitly getting more redundant picks than confidence's
+        # SUPPRESS_RADIUS-filtered ones -- an asymmetry this removes for both
+        # strategies at once, independent of which one is being scored.
+        pool_json=os.path.join(_CHIMPACT_DATA, 'ChimpACT_train_coco_thin100.json'),
+        eval_json=os.path.join(_CHIMPACT_DATA, 'ChimpACT_val_coco.json'),
+        coco_im_dir=os.path.join(_CHIMPACT_BASE, 'frames'),
+        base_dir=os.path.join(_CHIMPACT_BASE, 'al_thin'),
+        proj_name='chimpAct',
+        miss_dist_px=50.0,
+        conf_overrides={'rescale': 2.0},
+    ),
     'unmarked_mice': Dataset(
         name='unmarked_mice',
         project_json=os.path.join(
@@ -809,12 +831,99 @@ def _select_with_suppression(candidateIdx, priority, pool, n_add, suppressRadius
   return np.array(candidateIdx)[chosen]
 
 
-def _build_round_confidence(ds, round_, strategy, n_add):
-  """Build round `round_`'s train_TF.json by adding the n_add lowest-
-  confidence pool images (missed detections first), per the previous
-  round's checkpoint. Needs a GPU + the APT container. Idempotent. Only
-  ever called with the base strategy ('confidence') -- 'confidence_warm'
-  reuses this round's data verbatim instead (see _copy_round_from_base)."""
+HIGH_CONF_EXCLUDE = 0.9
+# A candidate image whose own average per-animal confidence is already above
+# this is treated as redundant and excluded from the random draw in
+# _build_round_confidence -- see that function's docstring for why this
+# replaced ranking the whole pool worst-first.
+
+
+def _image_avg_confidence(pool, candidateIdx, rows, matchedConf, missed, maxAnimals):
+  """Per candidate image (same order as candidateIdx): its own average
+  per-animal confidence, the number of real (non-padding) animals in it, and
+  how many of them were missed. A missed animal counts as confidence 0 in
+  the average -- not left out of it -- so one bad miss in an otherwise-easy
+  image still pulls that image's average down instead of being masked by
+  several confident animals alongside it. Pure numpy over already-computed
+  matchedConf/missed (see _pool_confidence) -- no extra inference."""
+  annsByImage = {}
+  for a in pool['annotations']:
+    annsByImage.setdefault(a['image_id'], []).append(a)
+
+  n = len(candidateIdx)
+  avgConf = np.zeros(n)
+  nAnimals = np.zeros(n, dtype=int)
+  nMissed = np.zeros(n, dtype=int)
+  for k, (i, row) in enumerate(zip(candidateIdx, rows)):
+    imageId = pool['images'][i]['id']
+    valid = [a for a in annsByImage.get(imageId, []) if a['num_keypoints'] > 0 and a['area'] > 1]
+    confs = []
+    for slot in range(min(maxAnimals, len(valid))):
+      if missed[row, slot]:
+        confs.append(0.0)
+      else:
+        c = matchedConf[row, slot]
+        confs.append(0.0 if np.isnan(c) else float(c))
+    nAnimals[k] = len(confs)
+    nMissed[k] = int(missed[row, :len(confs)].sum())
+    avgConf[k] = float(np.mean(confs)) if confs else 0.0
+
+  return avgConf, nAnimals, nMissed
+
+
+def _write_image_confidence_diagnostics(cacheDir, pool, candidateIdx, avgConf, nAnimals, nMissed,
+                                         eligibleMask, chosenSet):
+  """Write cacheDir/candidate_confidence.csv -- every candidate pool image
+  this round considered: its average per-animal confidence (see
+  _image_avg_confidence), animal/miss counts, whether it was excluded as
+  already-high-confidence (avg > HIGH_CONF_EXCLUDE) before the random draw,
+  and whether it was actually selected (a high-confidence image can still
+  end up selected if the round ran out of eligible ones and had to backfill
+  -- see _build_round_confidence). Plain csv, no APT imports needed to
+  reload it later and check what the selection actually did."""
+  import csv
+  path = os.path.join(cacheDir, 'candidate_confidence.csv')
+  with open(path, 'w', newline='') as f:
+    w = csv.writer(f)
+    w.writerow(['image_id', 'movid', 'frm', 'file_name', 'avg_confidence', 'n_animals', 'n_missed',
+                'excluded_high_confidence', 'selected'])
+    for k, i in enumerate(candidateIdx):
+      im = pool['images'][i]
+      w.writerow([im['id'], im.get('movid'), im.get('frm'), im.get('file_name', ''),
+                  f'{avgConf[k]:.4f}', int(nAnimals[k]), int(nMissed[k]),
+                  not bool(eligibleMask[k]), i in chosenSet])
+
+  nExcluded = int((~eligibleMask).sum())
+  print(f'  image confidence diagnostics -> {path}')
+  print(f'  {nExcluded}/{len(candidateIdx)} candidates excluded as already high-confidence '
+        f'(avg > {HIGH_CONF_EXCLUDE})')
+
+
+def _build_round_confidence(ds, round_, strategy, n_add, seed=None):
+  """Build round `round_`'s train_TF.json: using the previous round's
+  checkpoint, exclude pool images whose own average per-animal confidence is
+  already above HIGH_CONF_EXCLUDE (clearly redundant -- the model's already
+  confident on every animal in them), then pick n_add uniformly at random
+  from what's left (falls back to also drawing from the excluded images if
+  the round's quota exceeds how many are eligible).
+
+  This replaces an earlier worst-first ranking (_visibility_weighted_priority
+  + _select_with_suppression, still defined, just no longer called from
+  here): checked directly against round 1-4's selections, worst-first turned
+  out to select outright-missed detections at ~2-5x their base rate in the
+  candidate pool (MISS_WEIGHT=1.2 structurally outranks any merely-low-
+  confidence case), which skews training toward the detector's most extreme,
+  least-representative failures rather than a broadly useful sample of the
+  "not yet easy" pool -- plausibly why confidence's test-error gain over
+  random was so much smaller than the fraction of safely-excludable
+  (high-confidence, low-error) pool content would suggest. Exclude-then-
+  random only removes the genuinely redundant tail and otherwise samples
+  as broadly as 'random' does from everything else, isolating exclusion
+  from worst-first ranking as the mechanism under test.
+
+  Needs a GPU + the APT container. Idempotent. Only ever called with the
+  base strategy ('confidence') -- 'confidence_warm' reuses this round's data
+  verbatim instead (see _copy_round_from_base)."""
   cacheDir = round_dir(ds, round_, strategy)
   jsonPath = os.path.join(cacheDir, 'train_TF.json')
   if os.path.exists(jsonPath):
@@ -834,18 +943,34 @@ def _build_round_confidence(ds, round_, strategy, n_add):
   confData = pt.pickle_load(os.path.join(prevTrainCacheDir, 'traindata'))[1]
   confData.cachedir = prevTrainCacheDir
   confData.coco_im_dir = ds.coco_im_dir
-  matchedConf, missed, info = _pool_confidence(ds, confData, ds.pool_json)
+  matchedConf, meanDistMatched, info = _pool_confidence(ds, confData, ds.pool_json)
   poolInfo = [(im.get('movid'), im.get('frm')) for im in pool['images']]
   infoToRow = {tuple(x): r for r, x in enumerate(info.tolist())}
   rows = np.array([infoToRow[poolInfo[i]] for i in candidateIdx])
+  # meanDistMatched is nan for a real animal (within valid's length,
+  # elsewhere in this function) either because hasGt was false -- doesn't
+  # happen here, valid is built straight from real annotations -- or
+  # because the Hungarian assignment gave it nothing, i.e. a genuine miss.
+  missed = np.isnan(meanDistMatched) | (meanDistMatched > ds.miss_dist_px)
 
-  priority, drivingSlot, drivingBadness, drivingVis = _visibility_weighted_priority(
-      pool, candidateIdx, rows, matchedConf, missed, confData.max_n_animals, confData.n_classes)
-  chosen = _select_with_suppression(candidateIdx, priority, pool, n_add)
+  avgConf, nAnimals, nMissed = _image_avg_confidence(
+      pool, candidateIdx, rows, matchedConf, missed, confData.max_n_animals)
+  eligibleMask = avgConf <= HIGH_CONF_EXCLUDE
+
+  rng = np.random.RandomState(seed if seed is not None else round_)
+  order = rng.permutation(len(candidateIdx))
+  eligibleOrder = [k for k in order if eligibleMask[k]]
+  excludedOrder = [k for k in order if not eligibleMask[k]]
+  chosenK = eligibleOrder[:n_add]
+  nBackfilled = 0
+  if len(chosenK) < n_add:
+    nBackfilled = n_add - len(chosenK)
+    chosenK = chosenK + excludedOrder[:nBackfilled]
+  chosen = np.array(candidateIdx)[chosenK]
 
   chosenSet = set(chosen.tolist())
-  _write_selection_diagnostics(cacheDir, pool, candidateIdx, priority, drivingSlot, drivingBadness,
-                                drivingVis, chosenSet)
+  _write_image_confidence_diagnostics(cacheDir, pool, candidateIdx, avgConf, nAnimals, nMissed,
+                                       eligibleMask, chosenSet)
   _write_animal_diagnostics(cacheDir, pool, candidateIdx, rows, matchedConf, missed,
                              confData.max_n_animals, confData.n_classes, chosenSet)
 
@@ -854,7 +979,9 @@ def _build_round_confidence(ds, round_, strategy, n_add):
   newRound['images'] += [pool['images'][i] for i in chosen]
   newRound['annotations'] += [a for a in pool['annotations'] if a['image_id'] in chosenIds]
   _write_round_json(jsonPath, train_cache_dir(ds, round_, strategy), newRound)
-  print(f'{ds.name} round {round_} ({strategy}): added {len(chosen)}, '
+  print(f'{ds.name} round {round_} ({strategy}): added {len(chosen)} '
+        f'({len(eligibleOrder)} eligible / {len(candidateIdx)} candidates'
+        + (f', {nBackfilled} backfilled from excluded' if nBackfilled else '') + '), '
         f'total {len(newRound["images"])} images / {len(newRound["annotations"])} annotations')
   return jsonPath
 
@@ -962,13 +1089,15 @@ def build_round(ds, round_, strategy, n_add, seed=None):
   """Build round `round_`'s train_TF.json. strategy is one of STRATEGIES.
   A '_warm' strategy reuses its base strategy's data verbatim (n_add/seed
   ignored -- see _copy_round_from_base); otherwise selects n_add new images,
-  confidence-ranked (needs the container) or random (doesn't). Idempotent."""
+  excluding already-high-confidence ones then drawing randomly from the rest
+  (needs the container -- see _build_round_confidence) or plain random
+  (doesn't). Idempotent."""
   assert strategy in STRATEGIES, f'strategy must be one of {STRATEGIES}'
   if strategy_is_warm(strategy):
     return _copy_round_from_base(ds, round_, strategy)
   if strategy_base(strategy) == 'random':
     return _build_round_random(ds, round_, strategy, n_add=n_add, seed=seed)
-  return _build_round_confidence(ds, round_, strategy, n_add=n_add)
+  return _build_round_confidence(ds, round_, strategy, n_add=n_add, seed=seed)
 
 
 def _coco_keypoint_map(evalJsonPath, conf, predLocs, predConf, info, outPrefix):
