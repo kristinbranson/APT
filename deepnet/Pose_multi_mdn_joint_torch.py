@@ -253,7 +253,10 @@ def my_hrformer_backbone(pretrained=True):
     # (my_hrnet_fpn_backbone above), but with local-window self-attention
     # blocks (HRFORMERBLOCK) in stages 2-4 instead of conv bottleneck blocks.
     # Config matches mmpose's bundled
-    # configs/body_2d_keypoint/topdown_heatmap/coco/td-hm_hrformer-base_8xb32-210e_coco-256x192.py
+    # configs/body_2d_keypoint/topdown_heatmap/coco/td-hm_hrformer-base_8xb32-210e_coco-384x288.py
+    # (base is the LARGER of the only two HRFormer sizes mmpose ships --
+    # small is 32/64/128/256 channels, base is 78/156/312/624; there is no
+    # large/huge variant, so this is the biggest HRFormer available).
     # Checkpoint is the actual end-to-end COCO-keypoint-trained model
     # (backbone+head; prefix='backbone.' pulls just the backbone weights,
     # dropping the COCO-specific 17-keypoint head, which wouldn't match
@@ -263,6 +266,13 @@ def my_hrformer_backbone(pretrained=True):
     # own config uses to INIT the backbone before COCO training even starts,
     # not a finished task checkpoint), a strictly weaker starting point for
     # a pose task than the real COCO-trained backbone below.
+    # Of the two input resolutions each size ships at, this uses the
+    # 384x288 weights rather than 256x192: same architecture and param
+    # count, but trained at higher resolution and scoring better on COCO
+    # (AP 0.774 vs 0.754), and closer to ChimpACT's own 736x1280 frames --
+    # which should matter most for the window-attention RPE tables, whose
+    # learned spatial biases depend on how much real content a 7x7 window
+    # covers.
     # pretrained=False skips the checkpoint (random init), for comparing
     # against backbones that have no pretrained weights available.
     from mmpose.models import HRFormer
@@ -310,7 +320,7 @@ def my_hrformer_backbone(pretrained=True):
             init_cfg=dict(
                 type='Pretrained',
                 checkpoint='https://download.openmmlab.com/mmpose/'
-                'top_down/hrformer/hrformer_base_coco_256x192-6f5f1169_20220316.pth',
+                'top_down/hrformer/hrformer_base_coco_384x288-ecf0758d_20220316.pth',
                 prefix='backbone.'))
     else:
         backbone = HRFormer(extra, in_channels=3)
