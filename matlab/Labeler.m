@@ -867,6 +867,12 @@ classdef Labeler < handle
     drag_pt = []
   end
 
+  properties (Transient)  % private by convention
+    currImFrame_ = nan  % frame index that .currIm holds, read with the current movie
+                        % reader settings; nan when .currIm can't be trusted (e.g.
+                        % just after a movie switch)
+  end
+
   properties (SetAccess=private)
     isinit = false          % scalar logical; true during initialization, when some invariants not respected
   end
@@ -2067,6 +2073,7 @@ classdef Labeler < handle
       obj.movieReader = mr;
       obj.currIm = cell(obj.nview,1);
       obj.currImRoi = cell(obj.nview,1);
+      obj.currImFrame_ = nan ;
 
 
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
@@ -5118,6 +5125,7 @@ classdef Labeler < handle
         mr = obj.movieReader(iView);
         mr.preload = obj.movieReadPreLoadMovies;
         mr.open(mov); % should already be faithful to .forceGrayscale
+        obj.currImFrame_ = nan ;  % .currIm is from the old movie
         if tfHasCrop
           mr.setCropInfo(cInfo(iView)); % cInfo(iView) is a handle/pointer!
         else
@@ -5286,6 +5294,7 @@ classdef Labeler < handle
         obj.currIm{iView} = 0;
         obj.currImRoi{iView} = [ 1 1 1 1 ] ;
       end
+      obj.currImFrame_ = nan ;
       obj.notify_('updateCurrImagesAllViews') ;
       obj.prevIm = 0 ;
       obj.prevImRoi = [ 1 1 1 1 ] ;
@@ -12492,6 +12501,8 @@ classdef Labeler < handle
         obj.syncLabelsToCurrFrame_() ;
       end
 
+      obj.notify_('updatePrevPanelAfterFrameChange') ;
+
       % Timing debugging stuff
       if debugtiming,
         fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
@@ -12584,19 +12595,22 @@ classdef Labeler < handle
       obj.setCurrentAndPreviousFrameData_(frm);
 
       if isnan(iTgt)
+        obj.notify_('updatePrevPanelAfterFrameChange') ;
         return
       end
 
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
-      
+
       obj.notify_('updateTargetCentrationAndZoom') ;
-      
+
       if ~obj.isinit
         obj.labelsSyncToNewFrameAndTarget_(obj.prevFrame,prevTarget);
         obj.notify_('updateTrxTable');
         obj.fireUpdateTrxVisibilityMaybe_();  % All this does is send a notification, and only in some cases
       end
+
+      obj.notify_('updatePrevPanelAfterFrameChange') ;
     end  % function setFrameAndTarget
   end
 
@@ -12759,10 +12773,11 @@ classdef Labeler < handle
 
     function setCurrentAndPreviousFrameData_(obj, frameIndex)
       % Helper for setFrame(), setFrameAndTarget().
-      % Sets the current frame to frameIndex, updates obj.prevFrame,
-      % and updates the cache of frame image data by reading from disk.
+      % Sets the current frame to frameIndex, updates obj.prevFrame, and
+      % updates the cache of frame image data.  Callers should fire
+      % updatePrevPanelAfterFrameChange once currTarget etc. have settled.
 
-      % Limit frameIndex to valid values     
+      % Limit frameIndex to valid values
       if frameIndex<1
         frameIndex = 1 ;
       else
@@ -12772,15 +12787,44 @@ classdef Labeler < handle
         end
       end
 
-      % Update the frame indices
       currFrameOriginal = obj.currFrame ;
+      isFrameChanging = (frameIndex ~= currFrameOriginal) ;
+      % Is obj.currIm the image of currFrameOriginal, read with the current
+      % movie-reader settings?  Not so e.g. just after a movie switch.
+      isCurrImCacheValid = isequal(obj.currImFrame_, currFrameOriginal) ;
+
+      % Read the new frame and push it to the view *before* assigning
+      % .currFrame.  The .currFrame setter fires updateAfterCurrentFrameSet,
+      % which moves the prediction overlays etc., and those should never
+      % be drawn on top of the old frame.
+      newCurrIm = cell(obj.nview, 1) ;
+      newCurrImRoi = cell(obj.nview, 1) ;
+      for iView = 1:obj.nview
+        [newCurrIm{iView}, newCurrImRoi{iView}] = obj.readFrameForDisplay_(iView, frameIndex) ;
+      end
+      if isFrameChanging && isCurrImCacheValid
+        % The frame we are leaving is already in memory, so reuse it rather
+        % than re-reading it from disk.
+        obj.prevIm = obj.currIm{1} ;
+        obj.prevImRoi = obj.currImRoi{1} ;
+      end
+      obj.currIm = newCurrIm ;
+      obj.currImRoi = newCurrImRoi ;
+      obj.currImFrame_ = frameIndex ;
+      obj.notify_('updateCurrImagesAllViews') ;
+
+      % Update the frame indices
       obj.currFrame = frameIndex ;
-      if frameIndex ~= currFrameOriginal
+      if isFrameChanging
         obj.prevFrame = currFrameOriginal ;
       end
 
-      % Reload the frame image cache to match the new frame indices
-      obj.reloadCurrentFrameImages_() ;
+      % If the cached prev image can't be trusted, read it from disk and do a
+      % full update of the prev panel.
+      if ~isCurrImCacheValid
+        obj.reloadPreviousFrameImage_() ;
+        obj.notify_('updatePrevPanel') ;
+      end
     end  % function
 
     function reloadCurrentFrameImages_(obj)
@@ -12790,49 +12834,43 @@ classdef Labeler < handle
       % the rest of the setFrame() update pipeline. Used when the movie
       % reader's read parameters change (e.g. forceGrayscale, crop mode)
       % but the current and previous frame indices themselves do not.
-      tfCropMode = obj.cropIsCropMode ;
       for iView = 1:obj.nview
-        if tfCropMode
-          [obj.currIm{iView}, ~, obj.currImRoi{iView}] = ...
-            obj.movieReader(iView).readframe(obj.currFrame, ...
-                                             'docrop', false) ;
-        else
-          [obj.currIm{iView}, ~, obj.currImRoi{iView}] = ...
-            obj.movieReader(iView).readframe(obj.currFrame, ...
-                                             'docrop', true) ;
-        end
+        [obj.currIm{iView}, obj.currImRoi{iView}] = obj.readFrameForDisplay_(iView, obj.currFrame) ;
       end
+      obj.currImFrame_ = obj.currFrame ;
       obj.notify_('updateCurrImagesAllViews') ;
+      obj.reloadPreviousFrameImage_() ;
+      obj.notify_('updatePrevPanel') ;
+    end  % function
 
-      % Re-read the previous frame's pixels (view 1 only) when prevFrame
-      % is a valid frame index. prevFrame can be NaN before any frame
-      % has been visited, in which case prevIm is set to a blank
-      % placeholder below.
+    function reloadPreviousFrameImage_(obj)
+      % Re-read the previous frame's pixels (view 1 only) from disk into
+      % obj.prevIm / obj.prevImRoi.  Does not notify the view.
+      %
+      % prevFrame can be NaN before any frame has been visited, or out of
+      % range just after a movie switch, in which case prevIm is set to a
+      % blank placeholder sized to match the current view-1 image.
       isPrevFrameValid = ...
         isscalar(obj.prevFrame) && ...
         isfinite(obj.prevFrame) && ...
         obj.prevFrame >= 1 && ...
         obj.prevFrame <= obj.movieReader(1).nframes ;
       if isPrevFrameValid
-        if tfCropMode
-          [obj.prevIm, ~, obj.prevImRoi] = ...
-            obj.movieReader(1).readframe(obj.prevFrame, ...
-                                         'docrop', false) ;
-        else
-          [obj.prevIm, ~, obj.prevImRoi] = ...
-            obj.movieReader(1).readframe(obj.prevFrame, ...
-                                         'docrop', true) ;
-        end
+        [obj.prevIm, obj.prevImRoi] = obj.readFrameForDisplay_(1, obj.prevFrame) ;
       else
-        % No valid previous frame: fall back to a blank image sized to
-        % match the current view-1 image, mirroring the placeholder used
-        % in setCurrentAndPreviousFrameData_().
         currIm1Nr = size(obj.currIm{1}, 1) ;
         currIm1Nc = size(obj.currIm{1}, 2) ;
         obj.prevIm = zeros(currIm1Nr, currIm1Nc) ;
         obj.prevImRoi = [ 1 currIm1Nc 1 currIm1Nr ] ;
       end
-      obj.notify_('updatePrevPanel') ;
+    end  % function
+
+    function [im, imRoi] = readFrameForDisplay_(obj, iView, frameIndex)
+      % Read frame frameIndex of view iView from disk, cropped unless we are
+      % in crop mode (where the whole frame is shown so the crop can be edited).
+      isCropMode = obj.cropIsCropMode ;
+      [im, ~, imRoi] = obj.movieReader(iView).readframe(frameIndex, ...
+                                                        'docrop', ~isCropMode) ;
     end  % function
   end
 
