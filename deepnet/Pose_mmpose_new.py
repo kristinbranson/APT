@@ -419,6 +419,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
         # Remove some of the transforms.
         in_pipe = cfg[pname]
         cfg[pname] = [ii for ii in in_pipe if ii.type not in ['RandomHalfBody']]
+        move_flip_before_bottomup_affine_bang(cfg[pname])
 
         if conf.get('mmpose_use_apt_augmentation', False):
             # substitute their augmentation pipeline with ours
@@ -690,6 +691,25 @@ def set_BottomupResize_size_factor_bang(pipeline: list[mmengine.config.config.Co
     for stage in pipeline:
         if stage['type'] == 'BottomupResize':
             stage['size_factor'] = new_size_factor
+
+
+def move_flip_before_bottomup_affine_bang(pipeline: list[mmengine.config.config.ConfigDict]):
+    '''
+    Moves a RandomFlip that follows BottomupRandomAffine to just before it.
+    mmpose's RandomFlip mirrors keypoints about results['input_size'], which it unpacks as (h, w), but
+    BottomupRandomAffine sets input_size to (w, h). With a non-square network input that put every
+    flipped sample's keypoints (and so all its targets) |w - h| pixels away from the image content, so
+    bottom-up nets (dekr, cid) trained on misaligned targets half the time. Before the affine,
+    input_size is not set yet and RandomFlip uses the true image shape.
+    The "_bang" in the name indicates that it modifies pipeline in place.
+    '''
+    types = [stage['type'] for stage in pipeline]
+    if 'BottomupRandomAffine' not in types or 'RandomFlip' not in types:
+        return
+    affine_index = types.index('BottomupRandomAffine')
+    flip_index = types.index('RandomFlip')
+    if flip_index > affine_index:
+        pipeline.insert(affine_index, pipeline.pop(flip_index))
 
 
 class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
