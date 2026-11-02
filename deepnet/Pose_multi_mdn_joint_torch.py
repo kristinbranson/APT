@@ -234,6 +234,7 @@ def my_hrnet_fpn_backbone():
             type='Pretrained',
             checkpoint='https://download.openmmlab.com/mmpose/'
             'pretrain_models/hrnet_w32-36af842e.pth'))
+        backbone.init_weights()  # mmpose 1.x applies init_cfg only here
 
     return hrnet_fpn(backbone)
 
