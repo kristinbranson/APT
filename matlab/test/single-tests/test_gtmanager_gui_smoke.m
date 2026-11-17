@@ -28,8 +28,8 @@ function test_gtmanager_gui_smoke()
     assert(~isempty(h) && isgraphics(h), 'Widget "%s" is not a valid graphics handle', prop) ;
   end
 
-  assert(numel(controller.listener_) == 6, ...
-         'Expected 6 Labeler listeners, found %d', numel(controller.listener_)) ;
+  assert(numel(controller.listener_) == 8, ...
+         'Expected 8 Labeler listeners, found %d', numel(controller.listener_)) ;
 
   fprintf('test_gtmanager_gui_smoke: PASSED\n') ;
 end  % function

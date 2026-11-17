@@ -22,6 +22,7 @@ classdef GTManagerController < handle
     gl_  % top-level uigridlayout
     gl_buttons_  % button-row uigridlayout
     tblGTMovie_  % movie-list uitable
+    summaryLabel_  % uilabel summarizing how much has been labeled
     tblFrame_  % frame/target uitable
     pbNextUnlabeled_
     pbGoSelected_
@@ -49,6 +50,8 @@ classdef GTManagerController < handle
       % Listeners for table maintenance.
       obj.listener_{end+1,1} = addlistener(labeler, 'gtSuggUpdated', @(s,e)(obj.updateAll_())) ;
       obj.listener_{end+1,1} = addlistener(labeler, 'gtSuggMFTableLbledUpdated', @(s,e)(obj.updateAll_())) ;
+      obj.listener_{end+1,1} = addlistener(labeler, 'updateFrameTableComplete', @(s,e)(obj.updateAll_())) ;
+      obj.listener_{end+1,1} = addlistener(labeler, 'updateFrameTableIncremental', @(s,e)(obj.labelsChanged_())) ;
       % Listeners for table row selection.
       obj.listener_{end+1,1} = addlistener(labeler, 'newMovie', @(s,e)(obj.currMovFrmTgtChanged_())) ;
       obj.listener_{end+1,1} = addlistener(labeler, 'didSetCurrTarget', @(s,e)(obj.currMovFrmTgtChanged_())) ;
@@ -85,7 +88,7 @@ classdef GTManagerController < handle
       obj.hFig = hFig ;
       hFig.CloseRequestFcn = @(s,e)(obj.closeRequested_()) ;
 
-      obj.gl_ = uigridlayout(hFig, [4,1], 'RowHeight', {'1x','1x',40}, 'tag', 'gl') ;
+      obj.gl_ = uigridlayout(hFig, [4,1], 'RowHeight', {'1x','fit','1x',40}, 'tag', 'gl') ;
 
       obj.tblGTMovie_ = uitable(obj.gl_, ...
         'ColumnName', {'','Movie','N to Label','N Labeled'}, ...
@@ -94,6 +97,12 @@ classdef GTManagerController < handle
         'tag', 'tblGTMovie', ...
         'SelectionType', 'row', 'Multiselect', 'off', ...
         'CellSelectionCallback', @(src,evt)(obj.cellSelectionTblGTMovieActuated_())) ;
+
+      % Summary of how much has been labeled, between the two tables.  Created
+      % here so that it lands in the grid row between them.
+      obj.summaryLabel_ = uilabel(obj.gl_, ...
+        'Text', '', ...
+        'tag', 'summaryLabel') ;
 
       columnnames = obj.getTblFrameColumnNames_() ;
       obj.tblFrame_ = uitable(obj.gl_, ...
@@ -132,6 +141,10 @@ classdef GTManagerController < handle
     function columnnames = getTblFrameColumnNames_(obj)
       if obj.labeler_.projectHasTrx
         columnnames = {'Frame','Target','Labeled','Error'} ;
+      elseif obj.labeler_.maIsMA
+        % Each row is a whole frame, which can hold any number of animals, so
+        % show how many of them are labeled
+        columnnames = {'Frame','Has Labels','N Animals','Error'} ;
       else
         columnnames = {'Frame','Has Labels','Error'} ;
       end
@@ -139,11 +152,19 @@ classdef GTManagerController < handle
 
     function updateTblFrame_(obj, fn)
       % Refresh the frame/target table for the selected movie.  With fn given,
-      % only the named column is updated (currently no caller passes fn).
+      % only the named column is updated.
       rows = obj.tblGTMovie_.Selection ;
       columnnames = obj.getTblFrameColumnNames_() ;
       obj.tblFrame_.ColumnName = columnnames ;
       obj.tblFrame_.ColumnSortable = true(1,numel(columnnames)) ;
+
+      % Which column holds what depends on which columns this project shows.  The
+      % ones that are not shown come out empty here, and are then skipped below.
+      frameColumn = find(strcmp(columnnames,'Frame')) ;
+      targetColumn = find(strcmp(columnnames,'Target')) ;
+      hasLabelsColumn = find(ismember(columnnames,{'Labeled' 'Has Labels'})) ;
+      animalCountColumn = find(strcmp(columnnames,'N Animals')) ;
+      errorColumn = find(strcmp(columnnames,'Error')) ;
 
       doupdate = exist('fn', 'var') ;
 
@@ -153,27 +174,37 @@ classdef GTManagerController < handle
         row = rows(1) ;
         imov = obj.iMovUn_(row) ;
         idx = obj.tbl_.mov == imov ;
+        rowCount = nnz(idx) ;
         if doupdate
           data = obj.tblFrame_.Data ;
+          if ~isequal(size(data),[rowCount numel(columnnames)])
+            % The table has changed shape since it was last filled in, so a
+            % single-column update would not line up.  Fill in every column.
+            data = cell(rowCount,numel(columnnames)) ;
+            doupdate = false ;
+          end
         else
-          data = cell(nnz(idx),numel(columnnames)) ;
+          data = cell(rowCount,numel(columnnames)) ;
         end
         if ~doupdate || strcmpi(fn,'frm')
-          data(:,1) = num2cell(obj.tbl_.frm(idx)) ;
+          data(:,frameColumn) = num2cell(obj.tbl_.frm(idx)) ;
         end
-        if obj.labeler_.projectHasTrx && (~doupdate || strcmpi(fn,'iTgt'))
-          data(:,2) = num2cell(obj.tbl_.iTgt(idx)) ;
+        if ~isempty(targetColumn) && (~doupdate || strcmpi(fn,'iTgt'))
+          data(:,targetColumn) = num2cell(obj.tbl_.iTgt(idx)) ;
         end
         if ~doupdate || strcmp(fn,'hasLbl')
-          col = double(obj.labeler_.projectHasTrx) + 2 ;
-          data(:,col) = num2cell(obj.hasLbl_(idx)) ;
+          data(:,hasLabelsColumn) = num2cell(obj.hasLbl_(idx)) ;
+        end
+        if ~isempty(animalCountColumn) && (~doupdate || strcmp(fn,'nAnimals'))
+          animalCountFromRow = ...
+            gtManagerGetAnimalCounts_(obj.tbl_.frm(idx), imov, obj.labeler_) ;
+          data(:,animalCountColumn) = num2cell(animalCountFromRow) ;
         end
         if ~doupdate || strcmp(fn,'err')
-          col = double(obj.labeler_.projectHasTrx) + 3 ;
           if any(~isnan(obj.err_))
-            data(:,col) = num2cell(obj.err_(idx)) ;
+            data(:,errorColumn) = num2cell(obj.err_(idx)) ;
           else
-            data(:,col) = cell(size(data,1),1) ;
+            data(:,errorColumn) = cell(rowCount,1) ;
           end
         end
         obj.tblFrame_.Data = data ;
@@ -194,7 +225,18 @@ classdef GTManagerController < handle
       lObj = obj.labeler_ ;
       tbl_sugg = lObj.gtSuggMFTable ;
       tbl_label = lObj.labelGetMFTableLabeled('useTrain',0,'mftonly',true) ;
-      obj.tbl_ = unique([tbl_sugg;tbl_label],'rows') ;
+      tbl = [tbl_sugg;tbl_label] ;
+      if lObj.maIsMA
+        % In a multianimal project the navigator lists one row per frame, so drop
+        % the target index before uniquifying.  The labeled rows all carry
+        % iTgt==0 ("any target", see MFTSet.getMFTableAllLabeled), so a frame
+        % that is both in the to-label list and labeled would otherwise be
+        % listed twice, and a to-label list with a row per animal would list a
+        % frame once per animal.  How many animals are labeled in the frame is
+        % shown in the N Animals column instead.
+        tbl.iTgt(:) = 0 ;
+      end
+      obj.tbl_ = unique(tbl,'rows') ;
 
       obj.err_ = gtManagerGetGTErr_(obj.tbl_,lObj) ;
       obj.hasLbl_ = lObj.getIsLabeledGT(obj.tbl_) ;
@@ -211,6 +253,7 @@ classdef GTManagerController < handle
       obj.tblGTMovie_.Data = movTableData ;
 
       obj.updateTblFrame_() ;
+      obj.updateSummary_() ;
 
       pbEnable = onIff(~isempty(obj.tbl_)) ;
       set(obj.pbs_,'Enable',pbEnable) ;
@@ -225,6 +268,36 @@ classdef GTManagerController < handle
         return
       end
       obj.updateAll_() ;
+    end  % function
+
+    function updateSummary_(obj)
+      % Refresh the one-line summary of how much groundtruth has been labeled.
+      lObj = obj.labeler_ ;
+      [movieCount, frameCount, animalCount] = gtManagerGetLabeledCounts_(lObj) ;
+      if lObj.maIsMA || lObj.projectHasTrx
+        % Several animals can be labeled in one frame, so the animal count says
+        % something the frame count does not
+        summary = sprintf('Labeled: %s, %s, %s', ...
+                          countAndNoun_(movieCount,'movie'), ...
+                          countAndNoun_(frameCount,'frame'), ...
+                          countAndNoun_(animalCount,'animal')) ;
+      else
+        summary = sprintf('Labeled: %s, %s', ...
+                          countAndNoun_(movieCount,'movie'), ...
+                          countAndNoun_(frameCount,'frame')) ;
+      end
+      obj.summaryLabel_.Text = summary ;
+    end  % function
+
+    function labelsChanged_(obj)
+      % Respond to labels changing: the number of labeled animals in a frame can
+      % change without anything else about the table changing, e.g. when a second
+      % animal is labeled in an already-labeled frame.
+      obj.updateSummary_() ;
+      if isempty(obj.tbl_)
+        return
+      end
+      obj.updateTblFrame_('nAnimals') ;
     end  % function
 
     function currMovFrmTgtChanged_(obj)
@@ -423,6 +496,41 @@ function setTableSelection_(uitbl,row)
   if ~isempty(row)
     scroll(uitbl,"row",row(1)) ;
   end
+end  % function
+
+function str = countAndNoun_(count,noun)
+  % Render a count and its noun, pluralizing the noun when needed.
+  if count == 1
+    str = sprintf('%d %s', count, noun) ;
+  else
+    str = sprintf('%d %ss', count, noun) ;
+  end
+end  % function
+
+function [movieCount, frameCount, animalCount] = gtManagerGetLabeledCounts_(lObj)
+  % Count what has been groundtruth-labeled across the whole project: the number
+  % of movies with any labels, the number of labeled frames in them, and the
+  % number of labeled animals (one per labeled target, so for a project with one
+  % animal per frame this matches frameCount).
+  movieCount = 0 ;
+  frameCount = 0 ;
+  animalCount = 0 ;
+  for movieIndex = 1 : numel(lObj.labelsGT)
+    s = lObj.labelsGT{movieIndex} ;
+    if isempty(s.frm)
+      continue
+    end
+    movieCount = movieCount + 1 ;
+    frameCount = frameCount + numel(unique(s.frm)) ;
+    animalCount = animalCount + numel(s.frm) ;
+  end
+end  % function
+
+function animalCountFromRow = gtManagerGetAnimalCounts_(frameFromRow,mIdx,lObj)
+  % Get the number of labeled animals in each of the given frames of movie mIdx.
+  s = lObj.getLabelsMovIdx(mIdx) ;
+  animalCountFromRow = ...
+    arrayfun(@(frm)(double(Labels.getNumTgts(s,frm))), double(frameFromRow(:))) ;
 end  % function
 
 function err = gtManagerGetGTErr_(tblSugg,lObj)

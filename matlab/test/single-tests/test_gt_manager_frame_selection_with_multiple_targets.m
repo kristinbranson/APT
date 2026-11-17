@@ -1,14 +1,16 @@
 function test_gt_manager_frame_selection_with_multiple_targets()
-% Test that the GT Manager selects the right frame-table row as the current frame
-% changes, including when the table has more than one row for that frame.
+% Test the Groundtruth Navigator's frame table in a multianimal project, where a
+% frame can hold several labeled animals.
 %
-% In a project without trx, GTManagerController looks up the frame-table row by
-% frame only, ignoring the target.  So in a multianimal project, a frame with
-% several targets yields several matching rows, and the lookup produces a column
-% vector of row indices.  A uitable Selection must be empty or a scalar row
-% index (these tables are 'Multiselect','off'), so setting it errored, which
-% showed up as a warning every time the current frame changed, e.g. during video
-% playback.
+% The navigator's table is the to-label list unioned with the labeled rows.  In a
+% multianimal project the labeled rows all carry iTgt==0 ("any target"), so a
+% frame that is both in the to-label list and labeled used to be listed twice,
+% and a to-label list with a row per animal listed a frame once per animal.
+% Those duplicate rows looked identical, since the Target column is only shown
+% for projects with trx.  They also broke navigation: the frame-table row lookup
+% keys on frame only, so it turned up a column vector of row indices, and
+% setting a uitable Selection to that errors, which showed up as a warning on
+% every frame change, e.g. during video playback.
 
 % Start APT with a multianimal project that has groundtruth labels
 linux_project_file_path = ...
@@ -28,12 +30,13 @@ assert(~labeler.projectHasTrx, 'Expected a project without trx.') ;
 labeler.gtSetGTMode(true) ;
 drawnow() ;
 
-% Add a to-label list with two targets in one frame, so that the GT Manager's
-% frame table is sure to have a frame with more than one row
-frameWithTwoTargets = 101 ;
-mov = MovieIndex([1 ; 1], true) ;
-frm = [frameWithTwoTargets ; frameWithTwoTargets] ;
-iTgt = [1 ; 2] ;
+% A to-label list with a row per animal, which is what used to produce duplicate
+% rows for frameWithTwoRows once unioned with the labeled rows
+frameWithTwoRows = 101 ;
+frameWithOneRow = 201 ;
+mov = MovieIndex([1 ; 1 ; 1], true) ;
+frm = [frameWithTwoRows ; frameWithTwoRows ; frameWithOneRow] ;
+iTgt = [1 ; 2 ; 1] ;
 labeler.gtSetUserSuggestions(table(mov, frm, iTgt)) ;
 drawnow() ;
 
@@ -47,15 +50,17 @@ gtManagerController.currMovFrmTgtChanged_() ;
 frameFromRow = cell2mat(gtManagerController.tblFrame_.Data(:,1)) ;
 assert(~isempty(frameFromRow), 'GT Manager frame table is empty.') ;
 
-% A frame the table has several rows for, and one it has exactly one row for
-rowCountFromFrame = arrayfun(@(f)(nnz(frameFromRow==f)), frameFromRow) ;
-assert(any(rowCountFromFrame>1), 'No frame with multiple rows, cannot test that case.') ;
-assert(any(rowCountFromFrame==1), 'No frame with exactly one row, cannot test that case.') ;
-multipleRowFrame = frameFromRow(find(rowCountFromFrame>1, 1)) ;
-singleRowFrame = frameFromRow(find(rowCountFromFrame==1, 1)) ;
+% Every frame should be listed exactly once
+assert(numel(unique(frameFromRow)) == numel(frameFromRow), ...
+       'Frames listed more than once in the frame table: %s', ...
+       mat2str(frameFromRow')) ;
+assert(ismember(frameWithTwoRows, frameFromRow), ...
+       'Frame %d missing from the frame table.', frameWithTwoRows) ;
+assert(ismember(frameWithOneRow, frameFromRow), ...
+       'Frame %d missing from the frame table.', frameWithOneRow) ;
 
-% In both cases a single row, for the current frame, should end up selected
-for targetFrame = [singleRowFrame multipleRowFrame]
+% Navigating to a listed frame should select that frame's row
+for targetFrame = [frameWithOneRow frameWithTwoRows]
   labeler.setFrame(targetFrame) ;
   gtManagerController.currMovFrmTgtChanged_() ;
   selection = gtManagerController.tblFrame_.Selection ;
