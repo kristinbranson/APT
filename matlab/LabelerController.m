@@ -150,6 +150,7 @@ classdef LabelerController < handle
     menu_label
     menu_quit_but_dont_delete_temp_folder
     % menu_setup_createtemplate
+    menu_label_delete_all_labels
     menu_label_outliers
     menu_label_overlay_montage
     menu_setup_load_calibration_file
@@ -3612,6 +3613,8 @@ classdef LabelerController < handle
         'Enable', onIff(hasMovie)) ;
       % set(obj.menu_label_set_labels, ...
       %   'Visible', 'on') ;
+      set(obj.menu_label_delete_all_labels, ...
+        'Enable', onIff(hasMovie)) ;
     end  % function
 
     function updateViewMenu(obj)
@@ -6371,6 +6374,29 @@ classdef LabelerController < handle
     function menu_label_set_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       % Set labels from tracker predictions for current frame
       obj.labeler_.setLabelsFromTrackerPredictionsForCurrentFrame() ;
+    end  % function
+
+
+
+    function menu_label_delete_all_labels_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Delete all labels in all movies, after asking the user to confirm.
+      labeler = obj.labeler_ ;
+      movieCount = labeler.nmoviesGTaware ;
+      if labeler.gtIsGTMode
+        question = sprintf(['WARNING! This will delete all groundtruth labels, and all ' ...
+                            'groundtruth label boxes, in all %d groundtruth movies. ' ...
+                            'This cannot be undone. Proceed?'], ...
+                           movieCount) ;
+      else
+        question = sprintf(['WARNING! This will delete all labels, and all label boxes, ' ...
+                            'in all %d movies. This cannot be undone. Proceed?'], ...
+                           movieCount) ;
+      end
+      response = questdlg(question, 'Delete All Labels?', 'Yes', 'No', 'No') ;
+      if ~strcmpi(response, 'Yes') ,
+        return
+      end
+      labeler.deleteAllLabels() ;
     end  % function
 
 

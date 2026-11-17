@@ -6607,9 +6607,57 @@ classdef Labeler < handle
         %obj.labeledposMarked{iMov}(:,iFrm,iTgt) = true;
         ts = now;
         obj.lastLabelChangeTS = ts;
-      end      
+      end
     end
-    
+
+    function deleteAllLabels(obj)
+      % Delete all labels, and all label ROIs, in all movies.  Operates on the
+      % groundtruth labels when in GT mode, on the regular labels otherwise.
+
+      obj.pushBusyStatus('Deleting all labels...') ;
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
+
+      PROPS = obj.gtGetSharedProps_() ;
+      labelsFromMovieIndex = obj.(PROPS.LBL) ;
+      movieCount = numel(labelsFromMovieIndex) ;
+      labelPointCount = obj.nLabelPoints ;
+      for movieIndex = 1 : movieCount
+        labelsFromMovieIndex{movieIndex} = Labels.new(labelPointCount) ;
+      end
+      obj.(PROPS.LBL) = labelsFromMovieIndex ;
+
+      % The label ROIs (a.k.a. label boxes) are not in PROPS_GTSHARED, so pick the
+      % field by hand
+      if obj.gtIsGTMode
+        roiFieldName = 'labelsRoiGT' ;
+      else
+        roiFieldName = 'labelsRoi' ;
+      end
+      roiFromMovieIndex = obj.(roiFieldName) ;
+      for movieIndex = 1 : numel(roiFromMovieIndex)
+        roiFromMovieIndex{movieIndex} = LabelROI.new() ;
+      end
+      obj.(roiFieldName) = roiFromMovieIndex ;
+        % Assigning that resyncs movieFilesAllHaveLbls for the current movie, so zero
+        % it out after, not before
+
+      obj.(PROPS.MFAHL)(:) = 0 ;
+
+      % Resync the labels drawn for the current frame, which are now all gone
+      if obj.hasMovie && ~isempty(obj.lblCore)
+        obj.lblCore.didSetCurrFrame(obj.currFrame, obj.currFrame, obj.currTarget, true) ;
+      end
+
+      obj.notify_('updateFrameTableComplete') ;
+      obj.notify_('updateTimeline') ;
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete('donotify', true) ;
+      else
+        obj.lastLabelChangeTS = now ;
+      end
+      obj.labeledposNeedsSave = true ;
+    end  % function
+
 %     function labelPosClearI(obj,iPt)
 %       x = rand;
 %       if x > 0.5
