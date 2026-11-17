@@ -405,12 +405,23 @@ end  % classdef
 
 function setTableSelection_(uitbl,row)
   % Set a uitable's row selection and scroll it into view (no-op if unchanged).
-  if isequal(uitbl.Selection,row)
+  %
+  % row: row index/indices to select, in any shape, or empty to select nothing.
+  %   A uitable wants its Selection as a 1-by-N array, and wants a single row
+  %   when its Multiselect is 'off', so normalize before setting.  Callers
+  %   searching the table for the current movie/frame/target can turn up several
+  %   rows (e.g. a multianimal frame with several targets), in which case the
+  %   first one is selected.
+  row = reshape(row,1,[]) ;
+  if strcmpi(uitbl.Multiselect,'off') && numel(row)>1
+    row = row(1) ;
+  end
+  if isequal(uitbl.Selection,row) || (isempty(uitbl.Selection) && isempty(row))
     return
   end
   uitbl.Selection = row ;
   if ~isempty(row)
-    scroll(uitbl,"row",row) ;
+    scroll(uitbl,"row",row(1)) ;
   end
 end  % function
 
